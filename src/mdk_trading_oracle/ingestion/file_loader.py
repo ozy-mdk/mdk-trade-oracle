@@ -21,6 +21,19 @@ class FileIngestor(BaseIngestor):
     def ingest_bist_raw_csv_glob(self, glob_pattern: str, raw_source_label: str = "bist_raw_feed") -> Dict[str, Any]:
         """Ingest multiple BIST CSV files matching a glob pattern directly via DuckDB."""
         conn = self.db.get_connection()
+
+        # Check if already ingested
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ?", [raw_source_label]
+        ).fetchone()[0]
+        if existing > 0:
+            logger.info(f"Bronze layer already has {existing:,} trades for {raw_source_label}. Skipping re-ingestion.")
+            return {
+                "glob_pattern": glob_pattern,
+                "rows_ingested": existing,
+                "status": "already_ingested",
+            }
+
         logger.info(f"Ingesting BIST trade CSVs matching glob: {glob_pattern}")
 
         # DuckDB can ingest all matched CSVs in parallel while normalizing columns

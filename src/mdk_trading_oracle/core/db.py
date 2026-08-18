@@ -25,10 +25,18 @@ class DuckDBManager:
         self._conn: Optional[duckdb.DuckDBPyConnection] = None
 
     def get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Return an active DuckDB connection."""
+        """Return an active DuckDB connection configured for large analytical workloads."""
         if self._conn is None:
             logger.debug(f"Connecting to DuckDB: {self.db_path}")
             self._conn = duckdb.connect(self.db_path)
+
+            # Performance and memory spill pragmas
+            tmp_dir = self.settings.database_dir / "tmp"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            self._conn.execute("PRAGMA preserve_insertion_order=false;")
+            self._conn.execute(f"PRAGMA temp_directory='{tmp_dir.as_posix()}';")
+            self._conn.execute("PRAGMA max_temp_directory_size='30GiB';")
+
         return self._conn
 
     def close(self) -> None:
@@ -80,21 +88,6 @@ class DuckDBManager:
         """)
 
         # 2. Silver Tables
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS silver_broker_transactions (
-                tx_id VARCHAR PRIMARY KEY,
-                timestamp TIMESTAMP,
-                date_val DATE,
-                symbol VARCHAR,
-                broker_id VARCHAR,
-                side VARCHAR,
-                price DOUBLE,
-                volume DOUBLE,
-                amount_tl DOUBLE,
-                counterparty_broker_id VARCHAR
-            );
-        """)
-
         conn.execute("""
             CREATE TABLE IF NOT EXISTS silver_daily_broker_summary (
                 date_val DATE,

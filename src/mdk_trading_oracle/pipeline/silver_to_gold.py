@@ -9,7 +9,7 @@ logger = get_logger("mdk_oracle.pipeline.gold")
 
 
 class SilverToGoldPipeline:
-    """Transforms normalized Silver summaries into Gold BofA order flow features."""
+    """Transforms normalized Silver summaries into Gold BofA/MLB order flow features."""
 
     def __init__(self, db_manager: DuckDBManager):
         self.db = db_manager
@@ -22,24 +22,19 @@ class SilverToGoldPipeline:
 
         primary_inst = self.settings.primary_institution
 
-        # Build Gold BofA Flow table using window functions in DuckDB
+        # Build Gold Flow metrics using window functions on Silver summaries
         conn.execute(f"""
             WITH daily_market_totals AS (
                 SELECT
                     date_val,
                     symbol,
                     SUM(total_buy_volume + total_sell_volume) / 2.0 AS total_symbol_volume,
-                    SUM(total_buy_tl + total_sell_tl) / 2.0 AS total_symbol_tl
+                    SUM(total_buy_tl + total_sell_tl) / 2.0 AS total_symbol_tl,
+                    CASE 
+                        WHEN SUM(total_buy_volume) > 0 THEN SUM(total_buy_tl) / SUM(total_buy_volume)
+                        ELSE 0.0 
+                    END AS close_price
                 FROM silver_daily_broker_summary
-                GROUP BY date_val, symbol
-            ),
-            daily_prices AS (
-                SELECT
-                    date_val,
-                    symbol,
-                    -- Approximation of close price from last trade of the day
-                    AVG(price) AS close_price
-                FROM silver_broker_transactions
                 GROUP BY date_val, symbol
             ),
             daily_bofa AS (
@@ -48,8 +43,7 @@ class SilverToGoldPipeline:
                     symbol,
                     COALESCE(SUM(total_buy_tl), 0.0) AS bofa_buy_tl,
                     COALESCE(SUM(total_sell_tl), 0.0) AS bofa_sell_tl,
-                    COALESCE(SUM(net_tl), 0.0) AS bofa_net_tl,
-                    COALESCE(SUM(total_buy_volume + total_sell_volume), 0.0) AS bofa_total_vol
+                    COALESCE(SUM(net_tl), 0.0) AS bofa_net_tl
                 FROM silver_daily_broker_summary
                 WHERE broker_id = '{primary_inst}'
                 GROUP BY date_val, symbol
@@ -58,7 +52,7 @@ class SilverToGoldPipeline:
                 SELECT
                     m.date_val,
                     m.symbol,
-                    COALESCE(p.close_price, 0.0) AS close_price,
+                    COALESCE(m.close_price, 0.0) AS close_price,
                     m.total_symbol_volume,
                     m.total_symbol_tl,
                     COALESCE(b.bofa_buy_tl, 0.0) AS bofa_buy_tl,
@@ -75,7 +69,6 @@ class SilverToGoldPipeline:
                         ELSE 0.0 
                     END AS bofa_net_share
                 FROM daily_market_totals m
-                LEFT JOIN daily_prices p ON m.date_val = p.date_val AND m.symbol = p.symbol
                 LEFT JOIN daily_bofa b ON m.date_val = b.date_val AND m.symbol = b.symbol
             ),
             gold_calculated AS (
@@ -95,9 +88,9 @@ class SilverToGoldPipeline:
                     COALESCE(AVG(bofa_net_tl) OVER (PARTITION BY symbol ORDER BY date_val ROWS BETWEEN 4 PRECEDING AND CURRENT ROW), bofa_net_tl) AS bofa_net_tl_roll_5d,
                     COALESCE(AVG(bofa_net_tl) OVER (PARTITION BY symbol ORDER BY date_val ROWS BETWEEN 9 PRECEDING AND CURRENT ROW), bofa_net_tl) AS bofa_net_tl_roll_10d,
                     COALESCE(SUM(bofa_net_tl) OVER (PARTITION BY symbol ORDER BY date_val ROWS BETWEEN 19 PRECEDING AND CURRENT ROW), bofa_net_tl) AS bofa_cum_net_tl_20d,
-                    -- Acceleration: diff between current 3d roll vs previous 5d roll
+                    -- Acceleration: diff between current net vs 5d ago
                     (bofa_net_tl - COALESCE(LAG(bofa_net_tl, 5) OVER (PARTITION BY symbol ORDER BY date_val), 0.0)) AS bofa_flow_acceleration_5d,
-                    -- Z-Score of BofA net flow relative to 20-day history
+                    -- Z-Score of BofA net flow relative to rolling 20-day window
                     CASE 
                         WHEN COALESCE(STDDEV(bofa_net_tl) OVER (PARTITION BY symbol ORDER BY date_val ROWS BETWEEN 19 PRECEDING AND CURRENT ROW), 0.0) > 0
                         THEN (bofa_net_tl - AVG(bofa_net_tl) OVER (PARTITION BY symbol ORDER BY date_val ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)) / 
@@ -115,6 +108,6 @@ class SilverToGoldPipeline:
         conn.execute(f"COPY gold_bofa_flow_metrics TO '{gold_parquet.as_posix()}' (FORMAT PARQUET);")
 
         gold_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_flow_metrics").fetchone()[0]
-        logger.info(f"Gold layer updated: {gold_count} flow metric records generated.")
+        logger.info(f"Gold layer updated: {gold_count:,} flow metric records generated.")
 
         return {"gold_bofa_flow_metrics_count": gold_count}

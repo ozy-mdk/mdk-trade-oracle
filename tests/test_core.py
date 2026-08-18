@@ -32,7 +32,6 @@ def test_duckdb_schema_initialization():
 
     expected_tables = [
         "bronze_raw_trades",
-        "silver_broker_transactions",
         "silver_daily_broker_summary",
         "silver_brokers",
         "silver_instruments",
