@@ -1,6 +1,9 @@
+"""Tests for Medallion Lakehouse layers (Bronze, Silver, Gold) and MedallionPipeline."""
+
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.data.bronze import initialize_bronze_schema
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
+from mdk_trading_oracle.data.pipeline import MedallionPipeline
 from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_schema
 
 
@@ -75,3 +78,14 @@ def test_medallion_pipeline_in_memory():
     assert gold_signals is not None
     assert gold_signals[1] == (910000.0 - 151000.0)
     assert gold_signals[2] == (910000.0 - 151000.0)
+
+
+def test_pipeline_dag_resolution():
+    """Test MedallionPipeline DAG layer resolution."""
+    pipeline = MedallionPipeline(DuckDBManager(in_memory=True))
+
+    assert pipeline._resolve_layers("bronze") == ["bronze"]
+    assert pipeline._resolve_layers("silver") == ["bronze", "silver"]
+    assert pipeline._resolve_layers("gold") == ["bronze", "silver", "gold"]
+    assert pipeline._resolve_layers("all") == ["bronze", "silver", "gold"]
+    assert pipeline._resolve_layers("silver", resolve_dependencies=False) == ["silver"]

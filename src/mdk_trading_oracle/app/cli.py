@@ -13,6 +13,7 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.data.bronze import BronzeIngestor
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer
+from mdk_trading_oracle.data.pipeline import MedallionPipeline
 from mdk_trading_oracle.data.silver import SilverTransformer
 
 app = typer.Typer(
@@ -20,6 +21,13 @@ app = typer.Typer(
     help="MDK Trading Oracle - Quantitative Decision Support & Institutional Flow Analyzer",
     add_completion=False,
 )
+pipeline_app = typer.Typer(
+    name="pipeline",
+    help="Medallion Lakehouse Pipeline Orchestration (Bronze -> Silver -> Gold)",
+    add_completion=False,
+)
+app.add_typer(pipeline_app, name="pipeline")
+
 console = Console()
 
 
@@ -172,35 +180,48 @@ def build_gold():
 
 
 @app.command()
-def build_all():
+def build_all(
+    glob_pattern: Optional[str] = typer.Option(
+        None,
+        "--glob",
+        "-g",
+        help="Optional custom glob pattern for raw CSVs",
+    )
+):
     """Run end-to-end Medallion pipeline: Bronze Ingestion -> Silver Layer -> Gold Layer."""
-    start_time = datetime.now()
-    console.print("[bold cyan]⚡ Running Full Medallion Pipeline...[/bold cyan]")
-
     db = DuckDBManager()
-    db.initialize_schema()
+    pipeline = MedallionPipeline(db)
+    pipeline.run(target="all", raw_glob=glob_pattern, print_summary=True)
 
-    console.print("[bold yellow]Step 1: Bronze Ingestion...[/bold yellow]")
-    ingestor = BronzeIngestor(db)
-    settings = get_settings()
-    target_glob = (settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
-    ingestor.ingest_bist_raw_csv_glob(glob_pattern=target_glob, raw_source_label="bist_2026_03_march")
 
-    console.print("[bold yellow]Step 2: Silver Transformations...[/bold yellow]")
-    transformer = SilverTransformer(db)
-    transformer.run_all()
-
-    console.print("[bold yellow]Step 3: Gold Feature Engineering...[/bold yellow]")
-    engineer = GoldFeatureEngineer(db)
-    engineer.run_all()
-
-    elapsed = (datetime.now() - start_time).total_seconds()
-    console.print(
-        Panel.fit(
-            f"[bold green]✨ Medallion Lakehouse Pipeline Finished in {elapsed:.1f}s[/bold green]",
-            title="Pipeline Summary",
-            border_style="green",
-        )
+@pipeline_app.command("run")
+def pipeline_run(
+    target: str = typer.Option(
+        "all",
+        "--target",
+        "-t",
+        help="Target layer to execute: bronze, silver, gold, or all",
+    ),
+    glob_pattern: Optional[str] = typer.Option(
+        None,
+        "--glob",
+        "-g",
+        help="Optional custom glob pattern for raw CSVs",
+    ),
+    no_deps: bool = typer.Option(
+        False,
+        "--no-deps",
+        help="Disable automatic dependency resolution",
+    ),
+):
+    """Execute the Medallion Pipeline with dependency DAG resolution."""
+    db = DuckDBManager()
+    pipeline = MedallionPipeline(db)
+    pipeline.run(
+        target=target,
+        raw_glob=glob_pattern,
+        resolve_dependencies=not no_deps,
+        print_summary=True,
     )
 
 
