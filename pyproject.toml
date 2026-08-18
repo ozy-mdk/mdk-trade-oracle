@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdk-trading-oracle"
+version = "0.1.0"
+description = "Quantitative decision support engine and institutional flow analyzer (BofA/BIST)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "MDK Trading Team" }
+]
+dependencies = [
+    "duckdb>=0.10.0",
+    "polars>=0.20.0",
+    "pyarrow>=14.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.3.0",
+    "lightgbm>=4.1.0",
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+    "typer[all]>=0.9.0",
+    "rich>=13.7.0",
+    "plotly>=5.18.0",
+    "streamlit>=1.31.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.28.0",
+    "ruff>=0.1.9"
+]
+
+[project.scripts]
+mdk-oracle = "mdk_trading_oracle.app.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

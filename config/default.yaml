@@ -1,0 +1,19 @@
+# General Application Settings
+market: BIST
+timezone: Europe/Istanbul
+
+storage:
+  bronze_dir: data/01_bronze
+  silver_dir: data/02_silver
+  gold_dir: data/03_gold
+  database_file: data/database/mdk_oracle.duckdb
+
+features:
+  rolling_windows: [3, 5, 10, 20]
+  flow_acceleration_window: 5
+  significant_share_threshold: 0.15  # 15% broker market share
+
+oracle:
+  bofa_accumulation_zscore_threshold: 1.5
+  bofa_distribution_zscore_threshold: -1.5
+  min_confidence_score: 0.60

@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv
+venv/
+ENV/
+env/
+
+# Environment variables & secrets
+.env
+.env.local
+*.env
+
+# Local Database & Medallion Data Store
+data/01_bronze/*
+!data/01_bronze/.gitkeep
+data/02_silver/*
+!data/02_silver/.gitkeep
+data/03_gold/*
+!data/03_gold/.gitkeep
+data/database/*
+!data/database/.gitkeep
+
+# Data file formats
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.csv
+*.xlsx
+*.xls
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

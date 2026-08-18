@@ -1,0 +1,61 @@
+# BIST Primary Universe Focus
+instruments:
+  - symbol: "AKBNK"
+    name: "Akbank T.A.Ş."
+    sector: "Banking"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "GARAN"
+    name: "Türkiye Garanti Bankası A.Ş."
+    sector: "Banking"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "ISCTR"
+    name: "Türkiye İş Bankası C"
+    sector: "Banking"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "YKBNK"
+    name: "Yapı ve Kredi Bankası A.Ş."
+    sector: "Banking"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "THYAO"
+    name: "Türk Hava Yolları A.O."
+    sector: "Transportation"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "TUPRS"
+    name: "Tüpraş Türkiye Petrol Rafinerileri"
+    sector: "Energy"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "KCHOL"
+    name: "Koç Holding A.Ş."
+    sector: "Holding"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "SAHOL"
+    name: "Hacı Ömer Sabancı Holding A.Ş."
+    sector: "Holding"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "BIMAS"
+    name: "BİM Birleşik Mağazalar A.Ş."
+    sector: "Retail"
+    index: "BIST30"
+    lot_multiplier: 1.0
+
+  - symbol: "EREGL"
+    name: "Ereğli Demir ve Çelik Fabrikaları T.A.Ş."
+    sector: "Basic Materials"
+    index: "BIST30"
+    lot_multiplier: 1.0

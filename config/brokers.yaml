@@ -1,0 +1,43 @@
+# Institutional and Retail Broker Master List for BIST Analysis
+brokers:
+  - broker_id: "BOFA"
+    broker_name: "Bank of America Merrill Lynch"
+    category: "foreign_institutional"
+    is_primary_target: true
+    description: "Foreign high-volume algorithmic flow & institutional maker"
+
+  - broker_id: "QNB"
+    broker_name: "QNB Finansinvest"
+    category: "institutional"
+    is_primary_target: false
+    description: "Domestic & foreign institutional broker"
+
+  - broker_id: "YKR"
+    broker_name: "Yapı Kredi Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major domestic bank brokerage"
+
+  - broker_id: "ISY"
+    broker_name: "İş Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Leading domestic retail & institutional brokerage"
+
+  - broker_id: "GAR"
+    broker_name: "Garanti BBVA Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major banking brokerage"
+
+  - broker_id: "AKY"
+    broker_name: "Ak Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major banking brokerage"
+
+  - broker_id: "TAC"
+    broker_name: "Tacirler Yatırım"
+    category: "domestic_retail"
+    is_primary_target: false
+    description: "Retail and active proprietary flow"
