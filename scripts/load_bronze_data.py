@@ -22,8 +22,8 @@ def main():
     ingestor = FileIngestor(db)
     
     # Check March 2026 raw CSV path
-    raw_march_path = settings.bronze_dir / "2026/03_march/raw_csv/**/*.csv"
-    logger.info(f"Targeting Bronze Raw CSVs: {raw_march_path}")
+    raw_march_path = settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv"
+    logger.info(f"Targeting Raw CSVs: {raw_march_path}")
 
     res = ingestor.ingest_bist_raw_csv_glob(
         glob_pattern=raw_march_path.as_posix(),

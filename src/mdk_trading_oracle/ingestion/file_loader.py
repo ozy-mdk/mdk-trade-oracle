@@ -151,8 +151,8 @@ class FileIngestor(BaseIngestor):
         }
 
     def ingest_all_bronze(self, target_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
-        """Ingest all pending raw files recursively in `data/01_bronze/` or a target folder."""
-        search_dir = target_dir or self.settings.bronze_dir
+        """Ingest all pending raw files recursively in `data/00_raw_data/` or a target folder."""
+        search_dir = target_dir or (self.settings.raw_data_dir if self.settings.raw_data_dir.exists() else self.settings.bronze_dir)
         results = []
 
         # If a raw_csv folder exists with BIST daily partitions, use high-speed glob

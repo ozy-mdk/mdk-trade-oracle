@@ -35,6 +35,8 @@ env/
 *.env
 
 # Local Database & Medallion Data Store
+data/00_raw_data/*
+!data/00_raw_data/.gitkeep
 data/01_bronze/*
 !data/01_bronze/.gitkeep
 data/02_silver/*

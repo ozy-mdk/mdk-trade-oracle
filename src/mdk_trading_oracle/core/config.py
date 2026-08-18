@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     project_root: Path = PROJECT_ROOT
     config_dir: Path = PROJECT_ROOT / "config"
     data_dir: Path = PROJECT_ROOT / "data"
+    raw_data_dir: Path = PROJECT_ROOT / "data" / "00_raw_data"
     bronze_dir: Path = PROJECT_ROOT / "data" / "01_bronze"
     silver_dir: Path = PROJECT_ROOT / "data" / "02_silver"
     gold_dir: Path = PROJECT_ROOT / "data" / "03_gold"
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
         """Ensure all data storage directories exist."""
         for path in [
             self.data_dir,
+            self.raw_data_dir,
             self.bronze_dir,
             self.silver_dir,
             self.gold_dir,
