@@ -16,8 +16,9 @@ def test_settings_load():
     assert settings.default_market == "BIST"
     assert settings.primary_institution in ["MLB", "BOFA"]
     assert settings.project_root.exists()
+    assert settings.data_dir.exists()
     assert settings.raw_data_dir.exists()
-    assert settings.bronze_dir.exists()
+    assert settings.database_dir.exists()
     assert len(settings.get_brokers()) > 0
     assert len(settings.get_instruments()) > 0
 

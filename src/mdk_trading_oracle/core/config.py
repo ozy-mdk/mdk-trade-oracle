@@ -9,6 +9,7 @@ from pydantic import Field
 
 # Dynamic determination of repository root (3 levels up from src/mdk_trading_oracle/core)
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_DATA_DIR = Path.home() / "data" / "mdk_oracle"
 
 
 class Settings(BaseSettings):
@@ -26,25 +27,34 @@ class Settings(BaseSettings):
     default_market: str = Field(default="BIST", alias="DEFAULT_MARKET")
     primary_institution: str = Field(default="MLB", alias="PRIMARY_INSTITUTION")
 
-    # Directory Paths (Relative to project root by default)
+    # Project Directories (Inside repository)
     project_root: Path = PROJECT_ROOT
     config_dir: Path = PROJECT_ROOT / "config"
-    data_dir: Path = PROJECT_ROOT / "data"
-    raw_data_dir: Path = PROJECT_ROOT / "data" / "00_raw_data"
-    bronze_dir: Path = PROJECT_ROOT / "data" / "01_bronze"
-    silver_dir: Path = PROJECT_ROOT / "data" / "02_silver"
-    gold_dir: Path = PROJECT_ROOT / "data" / "03_gold"
-    database_dir: Path = PROJECT_ROOT / "data" / "database"
-    database_path: Path = PROJECT_ROOT / "data" / "database" / "mdk_oracle.duckdb"
+    notebooks_dir: Path = PROJECT_ROOT / "notebooks"
+
+    # External Data Storage (Outside repository: /Users/ozkanyildirim/data/mdk_oracle)
+    data_dir: Path = Field(default=DEFAULT_DATA_DIR, alias="DATA_DIR")
+
+    @property
+    def raw_data_dir(self) -> Path:
+        """Raw data landing zone (CSV, MySQL dumps)."""
+        return self.data_dir / "00_raw_data"
+
+    @property
+    def database_dir(self) -> Path:
+        """Directory for DuckDB database files."""
+        return self.data_dir / "database"
+
+    @property
+    def database_path(self) -> Path:
+        """Full path to DuckDB database file."""
+        return self.database_dir / "mdk_oracle.duckdb"
 
     def ensure_directories(self) -> None:
         """Ensure all data storage directories exist."""
         for path in [
             self.data_dir,
             self.raw_data_dir,
-            self.bronze_dir,
-            self.silver_dir,
-            self.gold_dir,
             self.database_dir,
         ]:
             path.mkdir(parents=True, exist_ok=True)
