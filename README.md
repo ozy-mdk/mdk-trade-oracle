@@ -12,13 +12,13 @@ A local-first, zero-cost quantitative trading decision support engine and instit
 flowchart TD
     subgraph External Data Lakehouse [~/data/mdk_oracle]
         A[00_raw_data/ <br> BIST Tick CSVs & MySQL Dumps] --> B[(DuckDB: bronze_raw_trades <br> 36.8M+ Trades)]
-        B --> C[(DuckDB: Silver Layer <br> Normalized Intraday & Daily Broker Aggregates)]
+        B --> C[(DuckDB: Silver Layer <br> Daily Broker Summaries & Market OHLCV)]
         C --> D[(DuckDB: Gold Layer <br> Institutional Flow Metrics & Z-Scores)]
         D --> E[Oracle Decision Engine <br> Multi-Factor Evaluator]
     end
 
     subgraph Code Repository [mdk-trading-oracle]
-        F[src/mdk_trading_oracle <br> Ingestion, Core DB, Config, Features]
+        F[src/mdk_trading_oracle <br> data/bronze, data/silver, data/gold, core/]
         G[notebooks/ <br> 01_bronze_data_exploration.ipynb]
         H[CLI: mdk-oracle]
     end
@@ -34,14 +34,13 @@ flowchart TD
    - `bronze_raw_trades`: 36,818,222 raw tick-by-tick trades across all 21 trading days in March 2026.
    - `bronze_brokers`: 18 institutional and domestic brokerage definitions.
    - `bronze_instruments`: BIST universe symbols (e.g. `THYAO`, `AKBNK`, `GARAN`, `EREGL`, `TUPRS`, `BIMAS`).
-2. **Silver Layer (`silver_*`)** *(In Progress)*:
-   - `silver_daily_broker_summary`: Aggregated daily buy/sell volumes, turnover, and buy/sell VWAP per `(trade_date, symbol, broker_id)`.
-   - `silver_market_daily`: Daily OHLCV, market turnover, and active symbol summaries.
-   - `silver_broker_transactions`: Deduplicated, broker-enriched tick transactions.
-3. **Gold Layer (`gold_*`)** *(Planned)*:
-   - Rolling institutional flow metrics, BofA accumulation/distribution Z-scores, volume shares, and flow momentum.
+2. **Silver Layer (`silver_*`)**:
+   - `silver_daily_broker_summary`: 48,058 aggregated daily records containing buy/sell volumes, turnover, and buy/sell VWAP per `(trade_date, symbol, broker_id)`.
+   - `silver_market_daily`: 945 daily OHLCV, market turnover, active broker counts, and Bank of America volume share metrics.
+3. **Gold Layer (`gold_*`)**:
+   - `gold_institutional_daily_signals`: Rolling 5-day and 20-day institutional accumulation metrics, BofA Z-scores, and flow signals.
 4. **Oracle Decision Engine (`oracle/`)** *(Planned)*:
-   - Multi-rule quantitative evaluator producing confidence scores, actionable signals (`BUY` / `SELL` / `HOLD`), and narrative logs.
+   - Multi-factor quantitative evaluator producing confidence scores, actionable signals (`BUY` / `SELL` / `HOLD`), and narrative logs.
 
 ---
 
@@ -102,20 +101,28 @@ Verify your database status using the CLI:
 mdk-oracle info
 ```
 
-To run or update Bronze ingestion:
+### 4. Build Lakehouse Layers
+
+Run the Medallion pipeline layers individually or end-to-end:
 ```bash
-# Via CLI:
+# Ingest Bronze layer (36.8M+ ticks in ~4s):
 mdk-oracle load-bronze
 
-# Or via script:
-python scripts/load_bronze_data.py
+# Build Silver layer (daily broker summaries & OHLCV in ~9s):
+mdk-oracle build-silver
+
+# Build Gold layer (institutional indicators & Z-scores in ~0.2s):
+mdk-oracle build-gold
+
+# Or run the entire pipeline end-to-end:
+mdk-oracle build-all
 ```
 
 ---
 
 ## 📊 Interactive Exploration Notebooks
 
-Launch Jupyter Lab to explore the Bronze layer interactively:
+Launch Jupyter Lab to explore the data interactively:
 
 ```bash
 jupyter lab
@@ -147,20 +154,28 @@ mdk-trading-oracle/
 ├── src/mdk_trading_oracle/               # Core Python package
 │   ├── app/                              # Typer CLI application
 │   │   ├── __init__.py
-│   │   └── cli.py                        # CLI commands (info, load-bronze)
+│   │   └── cli.py                        # CLI commands (info, load-bronze, build-silver, build-gold)
 │   ├── core/                             # Foundational engine modules
 │   │   ├── config.py                     # Dynamic settings & paths
 │   │   ├── db.py                         # DuckDB connection & schema manager
 │   │   ├── logger.py                     # Rich formatted logger
 │   │   └── types.py                      # Pydantic domain models & enums
-│   └── ingestion/                        # High-speed data loaders
-│       ├── base.py                       # Abstract base ingestor
-│       └── file_loader.py                # Parallel CSV/Parquet ingestors
+│   └── data/                             # Medallion Lakehouse Data Management
+│       ├── bronze/                       # Bronze layer DDL & raw ingestors
+│       │   ├── schema.py
+│       │   └── ingestor.py
+│       ├── silver/                       # Silver layer transformations (VWAP, OHLCV, Broker summaries)
+│       │   ├── schema.py
+│       │   └── transformations.py
+│       └── gold/                         # Gold layer features (BofA flow indicators, Z-scores)
+│           ├── schema.py
+│           └── feature_engineering.py
 ├── tests/                                # Automated test suite
-│   └── test_core.py                      # Config, DB, and domain unit tests
+│   ├── test_core.py                      # Config, DB, and domain unit tests
+│   └── test_medallion.py                 # End-to-end Medallion pipeline tests
 ├── .env.example                          # Environment variables template
 ├── .gitignore                            # Git ignore rules
-├── pyproject.toml                        # Project dependencies and tool configurations
+├── pyproject.toml                        # Project dependencies, ruff & pytest configs
 └── README.md                             # Project documentation
 ```
 

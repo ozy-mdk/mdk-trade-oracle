@@ -6,7 +6,7 @@ from datetime import datetime
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
-from mdk_trading_oracle.ingestion.file_loader import FileIngestor
+from mdk_trading_oracle.data.bronze import BronzeIngestor
 
 logger = get_logger("mdk_oracle.load_bronze")
 
@@ -19,8 +19,8 @@ def main():
     db = DuckDBManager()
     db.initialize_schema()
 
-    ingestor = FileIngestor(db)
-    
+    ingestor = BronzeIngestor(db)
+
     # Check March 2026 raw CSV path
     raw_march_path = settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv"
     logger.info(f"Targeting Raw CSVs: {raw_march_path}")

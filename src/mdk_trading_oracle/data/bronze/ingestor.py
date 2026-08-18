@@ -1,25 +1,24 @@
-"""Local file ingestor for Bronze layer supporting BIST raw formats and recursion."""
+"""Bronze Layer Ingestor for BIST raw files (CSVs and Parquets)."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
-from mdk_trading_oracle.ingestion.base import BaseIngestor
 
-logger = get_logger("mdk_oracle.ingestion")
+logger = get_logger("mdk_oracle.data.bronze.ingestor")
 
 
-class FileIngestor(BaseIngestor):
-    """Loads CSV and Parquet trade dump files into the Bronze table."""
+class BronzeIngestor:
+    """Ingests raw trade CSV and Parquet files into the DuckDB `bronze_raw_trades` table."""
 
-    def __init__(self, db_manager: DuckDBManager):
-        super().__init__(db_manager)
+    def __init__(self, db: DuckDBManager):
+        self.db = db
         self.settings = get_settings()
 
-    def ingest_bist_raw_csv_glob(self, glob_pattern: str, raw_source_label: str = "bist_raw_feed") -> Dict[str, Any]:
-        """Ingest multiple BIST CSV files matching a glob pattern directly via DuckDB."""
+    def ingest_bist_raw_csv_glob(self, glob_pattern: str, raw_source_label: str = "bist_raw_feed") -> dict[str, Any]:
+        """Ingest multiple BIST CSV files matching a glob pattern directly via DuckDB multi-threaded parser."""
         conn = self.db.get_connection()
 
         # Check if already ingested
@@ -36,7 +35,7 @@ class FileIngestor(BaseIngestor):
 
         logger.info(f"Ingesting BIST trade CSVs matching glob: {glob_pattern}")
 
-        # DuckDB can ingest all matched CSVs in parallel while normalizing columns
+        # DuckDB ingests all matched CSVs in parallel while normalizing columns
         query = f"""
             INSERT INTO bronze_raw_trades (
                 trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
@@ -67,7 +66,7 @@ class FileIngestor(BaseIngestor):
             "status": "success",
         }
 
-    def ingest(self, source_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
+    def ingest_file(self, source_path: Union[str, Path]) -> dict[str, Any]:
         """Ingest a single CSV or Parquet file into `bronze_raw_trades`."""
         path = Path(source_path)
         if not path.exists():
@@ -95,12 +94,10 @@ class FileIngestor(BaseIngestor):
                 FROM read_parquet('{path.as_posix()}');
             """
         elif file_ext in [".csv", ".txt"]:
-            # Check CSV header columns to detect schema
             sample_df = conn.execute(f"SELECT * FROM read_csv_auto('{path.as_posix()}', limit=2);").fetch_df()
             cols = [c.lower() for c in sample_df.columns]
 
             if "signal_time_text" in cols and "buyer" in cols and "seller" in cols:
-                # Real BIST CSV format
                 query = f"""
                     INSERT INTO bronze_raw_trades (
                         trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
@@ -118,7 +115,6 @@ class FileIngestor(BaseIngestor):
                     WHERE symbol IS NOT NULL AND price > 0;
                 """
             else:
-                # Standard format
                 query = f"""
                     INSERT INTO bronze_raw_trades (
                         trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
@@ -150,12 +146,11 @@ class FileIngestor(BaseIngestor):
             "status": "success",
         }
 
-    def ingest_all_bronze(self, target_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
-        """Ingest all pending raw files recursively in `data/00_raw_data/` or a target folder."""
-        search_dir = target_dir or (self.settings.raw_data_dir if self.settings.raw_data_dir.exists() else self.settings.bronze_dir)
+    def ingest_all(self, target_dir: Optional[Path] = None) -> list[dict[str, Any]]:
+        """Ingest all pending raw files in `00_raw_data/` or a custom directory."""
+        search_dir = target_dir or self.settings.raw_data_dir
         results = []
 
-        # If a raw_csv folder exists with BIST daily partitions, use high-speed glob
         bist_csvs = list(search_dir.rglob("raw_csv/**/*.csv"))
         if bist_csvs:
             glob_path = (search_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
@@ -163,16 +158,13 @@ class FileIngestor(BaseIngestor):
             results.append(res)
             return results
 
-        # Otherwise ingest individual files
-        files = sorted(
-            list(search_dir.rglob("*.csv")) + list(search_dir.rglob("*.parquet"))
-        )
+        files = sorted(list(search_dir.rglob("*.csv")) + list(search_dir.rglob("*.parquet")))
         if not files:
             logger.warning(f"No CSV or Parquet files found in {search_dir}")
             return results
 
         for file_path in files:
-            res = self.ingest(file_path)
+            res = self.ingest_file(file_path)
             results.append(res)
 
         return results
