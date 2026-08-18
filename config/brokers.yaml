@@ -1,13 +1,25 @@
 # Institutional and Retail Broker Master List for BIST Analysis
 brokers:
-  - broker_id: "BOFA"
-    broker_name: "Bank of America Merrill Lynch"
+  - broker_id: "MLB"
+    broker_name: "Bank of America / Merrill Lynch BIST"
     category: "foreign_institutional"
     is_primary_target: true
-    description: "Foreign high-volume algorithmic flow & institutional maker"
+    description: "Foreign high-volume algorithmic flow & primary institutional maker"
+
+  - broker_id: "BOFA"
+    broker_name: "Bank of America (Alias)"
+    category: "foreign_institutional"
+    is_primary_target: true
+    description: "Foreign institutional maker alias"
 
   - broker_id: "QNB"
     broker_name: "QNB Finansinvest"
+    category: "institutional"
+    is_primary_target: false
+    description: "Domestic & foreign institutional broker"
+
+  - broker_id: "FNY"
+    broker_name: "QNB Finans Yatırım (BIST Feed)"
     category: "institutional"
     is_primary_target: false
     description: "Domestic & foreign institutional broker"
@@ -18,20 +30,38 @@ brokers:
     is_primary_target: false
     description: "Major domestic bank brokerage"
 
-  - broker_id: "ISY"
-    broker_name: "İş Yatırım"
+  - broker_id: "IYM"
+    broker_name: "İş Yatırım Menkul"
     category: "domestic_major"
     is_primary_target: false
     description: "Leading domestic retail & institutional brokerage"
 
-  - broker_id: "GAR"
+  - broker_id: "ISY"
+    broker_name: "İş Yatırım (Alias)"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Leading domestic retail & institutional brokerage"
+
+  - broker_id: "GRM"
     broker_name: "Garanti BBVA Yatırım"
     category: "domestic_major"
     is_primary_target: false
     description: "Major banking brokerage"
 
+  - broker_id: "GAR"
+    broker_name: "Garanti BBVA (Alias)"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major banking brokerage"
+
+  - broker_id: "AKM"
+    broker_name: "Ak Yatırım Menkul"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major banking brokerage"
+
   - broker_id: "AKY"
-    broker_name: "Ak Yatırım"
+    broker_name: "Ak Yatırım (Alias)"
     category: "domestic_major"
     is_primary_target: false
     description: "Major banking brokerage"
@@ -41,3 +71,39 @@ brokers:
     category: "domestic_retail"
     is_primary_target: false
     description: "Retail and active proprietary flow"
+
+  - broker_id: "UNS"
+    broker_name: "Ünlü Menkul Değerler"
+    category: "foreign_institutional"
+    is_primary_target: false
+    description: "Institutional execution broker"
+
+  - broker_id: "HSY"
+    broker_name: "HSBC Yatırım Menkul Değerler"
+    category: "foreign_institutional"
+    is_primary_target: false
+    description: "Foreign institutional broker"
+
+  - broker_id: "GDK"
+    broker_name: "Gedik Yatırım"
+    category: "domestic_retail"
+    is_primary_target: false
+    description: "Retail & prop brokerage"
+
+  - broker_id: "OYA"
+    broker_name: "Oyak Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major institutional and retail broker"
+
+  - broker_id: "VKY"
+    broker_name: "Vakıf Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major public bank brokerage"
+
+  - broker_id: "ZRY"
+    broker_name: "Ziraat Yatırım"
+    category: "domestic_major"
+    is_primary_target: false
+    description: "Major public bank brokerage"

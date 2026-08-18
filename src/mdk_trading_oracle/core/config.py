@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     default_market: str = Field(default="BIST", alias="DEFAULT_MARKET")
-    primary_institution: str = Field(default="BOFA", alias="PRIMARY_INSTITUTION")
+    primary_institution: str = Field(default="MLB", alias="PRIMARY_INSTITUTION")
 
     # Directory Paths (Relative to project root by default)
     project_root: Path = PROJECT_ROOT
