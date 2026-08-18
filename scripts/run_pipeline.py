@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Unified CLI Runner for the Medallion Data Lakehouse Pipeline (Bronze -> Silver -> Gold)."""
+"""Unified CLI Runner for the Medallion Data Lakehouse Pipeline (Bronze -> Silver -> Gold).
+   example: .venv/bin/python scripts/run_pipeline.py --target all
+"""
 
 import argparse
 import sys
