@@ -23,13 +23,13 @@ def in_memory_db(tmp_path):
 
     for i in range(15):
         t_time = base_time + timedelta(days=i)
-        # BofA buying AKBNK heavily
+        # MLB buying AKBNK heavily
         conn.execute("""
             INSERT INTO bronze_raw_trades (
                 trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """, [
-            f"T_{i}_1", t_time, "AKBNK", 50.0 + i * 0.5, 10000.0, "BOFA", "GAR", "mock"
+            f"T_{i}_1", t_time, "AKBNK", 50.0 + i * 0.5, 10000.0, "MLB", "GAR", "mock"
         ])
         # Regular trades
         conn.execute("""

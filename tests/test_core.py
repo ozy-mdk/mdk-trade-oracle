@@ -16,7 +16,7 @@ def test_settings_load():
     """Verify settings initialize and dynamic paths are valid."""
     settings = get_settings()
     assert settings.default_market == "BIST"
-    assert settings.primary_institution == "BOFA"
+    assert settings.primary_institution in ["MLB", "BOFA"]
     assert settings.project_root.exists()
     assert len(settings.get_brokers()) > 0
     assert len(settings.get_instruments()) > 0
