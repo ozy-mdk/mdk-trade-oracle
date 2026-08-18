@@ -1,4 +1,4 @@
-"""DuckDB connection and schema management."""
+"""DuckDB connection and Bronze schema management."""
 
 from pathlib import Path
 from typing import Optional, Union
@@ -11,7 +11,7 @@ logger = get_logger("mdk_oracle.db")
 
 
 class DuckDBManager:
-    """Manages DuckDB connection, schema migrations, and Parquet table operations."""
+    """Manages DuckDB connection, Bronze schema, and analytical queries."""
 
     def __init__(self, db_path: Optional[Union[str, Path]] = None, in_memory: bool = False):
         self.settings: Settings = get_settings()
@@ -25,7 +25,7 @@ class DuckDBManager:
         self._conn: Optional[duckdb.DuckDBPyConnection] = None
 
     def get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Return an active DuckDB connection configured for large analytical workloads."""
+        """Return an active DuckDB connection configured for analytical queries."""
         if self._conn is None:
             logger.debug(f"Connecting to DuckDB: {self.db_path}")
             self._conn = duckdb.connect(self.db_path)
@@ -46,14 +46,14 @@ class DuckDBManager:
             self._conn = None
 
     def initialize_schema(self) -> None:
-        """Initialize core DuckDB tables across all layers."""
+        """Initialize Bronze DuckDB tables."""
         conn = self.get_connection()
 
-        logger.info("Initializing DuckDB schema tables...")
+        logger.info("Initializing DuckDB Bronze schema tables...")
 
-        # 0. Reference Tables
+        # 1. Reference Table: Brokers
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS silver_brokers (
+            CREATE TABLE IF NOT EXISTS bronze_brokers (
                 broker_id VARCHAR PRIMARY KEY,
                 broker_name VARCHAR,
                 category VARCHAR,
@@ -62,8 +62,9 @@ class DuckDBManager:
             );
         """)
 
+        # 2. Reference Table: Instruments
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS silver_instruments (
+            CREATE TABLE IF NOT EXISTS bronze_instruments (
                 symbol VARCHAR PRIMARY KEY,
                 name VARCHAR,
                 sector VARCHAR,
@@ -72,7 +73,7 @@ class DuckDBManager:
             );
         """)
 
-        # 1. Bronze Stage
+        # 3. Bronze Table: Raw Trades
         conn.execute("""
             CREATE TABLE IF NOT EXISTS bronze_raw_trades (
                 trade_id VARCHAR,
@@ -87,76 +88,18 @@ class DuckDBManager:
             );
         """)
 
-        # 2. Silver Tables
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS silver_daily_broker_summary (
-                date_val DATE,
-                symbol VARCHAR,
-                broker_id VARCHAR,
-                total_buy_volume DOUBLE,
-                total_sell_volume DOUBLE,
-                net_volume DOUBLE,
-                total_buy_tl DOUBLE,
-                total_sell_tl DOUBLE,
-                net_tl DOUBLE,
-                vwap_buy DOUBLE,
-                vwap_sell DOUBLE,
-                PRIMARY KEY (date_val, symbol, broker_id)
-            );
-        """)
-
-        # 3. Gold Tables
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS gold_bofa_flow_metrics (
-                date_val DATE,
-                symbol VARCHAR,
-                close_price DOUBLE,
-                total_symbol_volume DOUBLE,
-                total_symbol_tl DOUBLE,
-                bofa_buy_tl DOUBLE,
-                bofa_sell_tl DOUBLE,
-                bofa_net_tl DOUBLE,
-                bofa_volume_share DOUBLE,
-                bofa_net_share DOUBLE,
-                bofa_net_tl_roll_3d DOUBLE,
-                bofa_net_tl_roll_5d DOUBLE,
-                bofa_net_tl_roll_10d DOUBLE,
-                bofa_cum_net_tl_20d DOUBLE,
-                bofa_flow_acceleration_5d DOUBLE,
-                bofa_flow_zscore_20d DOUBLE,
-                PRIMARY KEY (date_val, symbol)
-            );
-        """)
-
-        # 4. Oracle Signals
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS oracle_decision_signals (
-                signal_id VARCHAR PRIMARY KEY,
-                date_val DATE,
-                symbol VARCHAR,
-                signal VARCHAR,
-                confidence DOUBLE,
-                bofa_net_tl DOUBLE,
-                bofa_net_share DOUBLE,
-                bofa_flow_zscore DOUBLE,
-                summary VARCHAR,
-                reasons VARCHAR, -- JSON list
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
         # Sync reference data from YAML configs
         self.sync_reference_data()
-        logger.info("DuckDB schema initialized successfully.")
+        logger.info("DuckDB Bronze schema initialized successfully.")
 
     def sync_reference_data(self) -> None:
-        """Sync YAML broker and instrument reference data into DuckDB."""
+        """Sync YAML broker and instrument reference data into Bronze tables."""
         conn = self.get_connection()
 
         brokers = self.settings.get_brokers()
         for b in brokers:
             conn.execute("""
-                INSERT OR REPLACE INTO silver_brokers (broker_id, broker_name, category, is_primary_target, description)
+                INSERT OR REPLACE INTO bronze_brokers (broker_id, broker_name, category, is_primary_target, description)
                 VALUES (?, ?, ?, ?, ?);
             """, [
                 b["broker_id"],
@@ -169,7 +112,7 @@ class DuckDBManager:
         instruments = self.settings.get_instruments()
         for inst in instruments:
             conn.execute("""
-                INSERT OR REPLACE INTO silver_instruments (symbol, name, sector, index_name, lot_multiplier)
+                INSERT OR REPLACE INTO bronze_instruments (symbol, name, sector, index_name, lot_multiplier)
                 VALUES (?, ?, ?, ?, ?);
             """, [
                 inst["symbol"],

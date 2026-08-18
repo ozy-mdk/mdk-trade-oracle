@@ -1,13 +1,11 @@
-"""Unit tests for core configuration, database, and types."""
+"""Unit tests for core configuration, database, and domain types."""
 
-from datetime import date, datetime
+from datetime import datetime
 import pytest
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.types import (
-    OracleDecisionSignal,
     RawTradeRecord,
-    SignalType,
     TradeSide,
 )
 
@@ -23,7 +21,7 @@ def test_settings_load():
 
 
 def test_duckdb_schema_initialization():
-    """Test DuckDB in-memory initialization and table creation."""
+    """Test DuckDB in-memory initialization and table creation for Bronze layer."""
     db = DuckDBManager(in_memory=True)
     db.initialize_schema()
 
@@ -32,11 +30,8 @@ def test_duckdb_schema_initialization():
 
     expected_tables = [
         "bronze_raw_trades",
-        "silver_daily_broker_summary",
-        "silver_brokers",
-        "silver_instruments",
-        "gold_bofa_flow_metrics",
-        "oracle_decision_signals",
+        "bronze_brokers",
+        "bronze_instruments",
     ]
     for tbl in expected_tables:
         assert tbl in tables
@@ -56,18 +51,3 @@ def test_domain_types():
     )
     assert trade.symbol == "AKBNK"
     assert trade.buyer_broker_id == "BOFA"
-
-    signal = OracleDecisionSignal(
-        signal_id="SIG_001",
-        date_val=date(2026, 8, 18),
-        symbol="AKBNK",
-        signal=SignalType.STRONG_BUY,
-        confidence=0.85,
-        bofa_net_tl=25_000_000.0,
-        bofa_net_share=0.22,
-        bofa_flow_zscore=2.1,
-        summary="STRONG_BUY signal on AKBNK",
-        reasons=["High institutional net inflow", "Z-score > 2.0"],
-    )
-    assert signal.signal == SignalType.STRONG_BUY
-    assert signal.confidence == 0.85
