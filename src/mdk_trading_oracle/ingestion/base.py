@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+
 from mdk_trading_oracle.core.db import DuckDBManager
 
 
@@ -14,4 +15,3 @@ class BaseIngestor(ABC):
     @abstractmethod
     def ingest(self, source_path: Any, **kwargs) -> Dict[str, Any]:
         """Ingest data into Bronze layer and return metadata summary."""
-        pass

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-import duckdb
+
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger

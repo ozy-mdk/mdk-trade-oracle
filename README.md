@@ -1,37 +1,65 @@
-# MDK Trading Oracle
+# 🏛 MDK Trading Oracle
 
-A local-first, zero-cost quantitative trading decision support engine and institutional flow analyzer, with a specialized focus on **Bank of America (BofA)** institutional order flow in the **Turkish Equity Market (Borsa Istanbul / BIST)**.
+A local-first, zero-cost quantitative trading decision support engine and institutional order flow analyzer, with specialized intelligence on **Bank of America (`MLB` / Merrill Lynch)** institutional flow across the **Turkish Equity Market (Borsa Istanbul / BIST)**.
 
 ---
 
-## 🏛 Architecture Overview
+## 🏗 Architecture Overview
 
-`mdk-trading-oracle` implements a **Medallion Data Lakehouse Architecture** running entirely locally via **DuckDB + Parquet**:
+`mdk-trading-oracle` enforces a strict **separation of code and physical data** while implementing a high-throughput **Medallion Data Lakehouse Architecture** powered by **DuckDB, Polars, and Parquet**:
 
 ```mermaid
-flowchart LR
-    subgraph Ingestion
-        A[External Broker / Trade Dumps CSV/Parquet] --> B[(01_bronze/)]
+flowchart TD
+    subgraph External Data Lakehouse [~/data/mdk_oracle]
+        A[00_raw_data/ <br> BIST Tick CSVs & MySQL Dumps] --> B[(DuckDB: bronze_raw_trades <br> 36.8M+ Trades)]
+        B --> C[(DuckDB: Silver Layer <br> Normalized Intraday & Daily Broker Aggregates)]
+        C --> D[(DuckDB: Gold Layer <br> Institutional Flow Metrics & Z-Scores)]
+        D --> E[Oracle Decision Engine <br> Multi-Factor Evaluator]
     end
 
-    subgraph Data Lakehouse [DuckDB Engine]
-        B --> C[(02_silver/)]
-        C --> D[(03_gold/)]
-        D --> E[Oracle Decision Engine]
+    subgraph Code Repository [mdk-trading-oracle]
+        F[src/mdk_trading_oracle <br> Ingestion, Core DB, Config, Features]
+        G[notebooks/ <br> 01_bronze_data_exploration.ipynb]
+        H[CLI: mdk-oracle]
     end
 
-    subgraph User & Consumer Interfaces
-        E --> F[CLI Engine]
-        E --> G[Interactive Notebooks]
-        E --> H[Streamlit Dashboard]
-    end
+    F -.-> B
+    G -.->|read_only=True| B
+    H -.-> B
 ```
 
-### Medallion Layers
-1. **Bronze (`01_bronze/`)**: Raw immutable files directly ingested from data vendors or broker exports.
-2. **Silver (`02_silver/`)**: Cleaned, schema-validated, normalized trades and daily broker summaries (`silver_broker_transactions`, `silver_daily_broker_summary`).
-3. **Gold (`03_gold/`)**: Engineered features, rolling BofA accumulation/distribution metrics, volume shares, flow momentum, and acceleration (`gold_bofa_flow_metrics`, `gold_model_inputs`).
-4. **Oracle (`oracle/`)**: Multi-rule evaluator and ML model signals outputting confidence scores, action levels (`BUY` / `SELL` / `HOLD`), and human-readable reasoning logs.
+### Medallion Lakehouse Layers
+
+1. **Bronze Layer (`bronze_*`)**:
+   - `bronze_raw_trades`: 36,818,222 raw tick-by-tick trades across all 21 trading days in March 2026.
+   - `bronze_brokers`: 18 institutional and domestic brokerage definitions.
+   - `bronze_instruments`: BIST universe symbols (e.g. `THYAO`, `AKBNK`, `GARAN`, `EREGL`, `TUPRS`, `BIMAS`).
+2. **Silver Layer (`silver_*`)** *(In Progress)*:
+   - `silver_daily_broker_summary`: Aggregated daily buy/sell volumes, turnover, and buy/sell VWAP per `(trade_date, symbol, broker_id)`.
+   - `silver_market_daily`: Daily OHLCV, market turnover, and active symbol summaries.
+   - `silver_broker_transactions`: Deduplicated, broker-enriched tick transactions.
+3. **Gold Layer (`gold_*`)** *(Planned)*:
+   - Rolling institutional flow metrics, BofA accumulation/distribution Z-scores, volume shares, and flow momentum.
+4. **Oracle Decision Engine (`oracle/`)** *(Planned)*:
+   - Multi-rule quantitative evaluator producing confidence scores, actionable signals (`BUY` / `SELL` / `HOLD`), and narrative logs.
+
+---
+
+## 🔒 Strict Separation of Code & Data
+
+To support local zero-cost execution today and seamless migration to cloud blob storage (e.g., S3 / GCS) in the future:
+- **Code Repository (`mdk-trading-oracle`)**: Contains only Python source code, schemas, ETL scripts, unit tests, and notebooks. No heavy data binaries or raw CSVs are tracked in Git.
+- **Physical Data Store (`DATA_DIR`)**: Stored outside the repository (default: `~/data/mdk_oracle/` or configured in `.env`).
+
+```
+/Users/ozkanyildirim/data/mdk_oracle/
+├── 00_raw_data/              # Raw data landing zone (CSVs & SQL dumps)
+│   └── 2026/03_march/
+│       ├── dump/             # MySQL raw dumps
+│       └── raw_csv/          # 21 trading days of raw tick feeds
+└── database/
+    └── mdk_oracle.duckdb     # Fast local DuckDB database (36.8M+ trades)
+```
 
 ---
 
@@ -39,11 +67,13 @@ flowchart LR
 
 ### 1. Installation
 
-Clone the repository and set up a virtual environment:
+Clone the repository and set up a Python 3.9+ virtual environment:
 
 ```bash
-cd mdk-trading-oracle
-python -m venv .venv
+git clone git@github.com:ozy-mdk/mdk-trade-oracle.git
+cd mdk-trade-oracle
+
+python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 pip install -e ".[dev]"
@@ -51,27 +81,54 @@ pip install -e ".[dev]"
 
 ### 2. Configure Environment
 
-Copy `.env.example` to `.env`:
+Copy the example environment configuration:
 ```bash
 cp .env.example .env
 ```
 
-### 3. Generate Mock Data & Run Pipeline
-
-Seed realistic BIST 30 trades (including simulated BofA flow):
-```bash
-python scripts/seed_mock_data.py
+The default configuration in `.env`:
+```env
+APP_ENV=development
+LOG_LEVEL=INFO
+DEFAULT_MARKET=BIST
+PRIMARY_INSTITUTION=MLB
+DATA_DIR=/Users/ozkanyildirim/data/mdk_oracle
 ```
 
-Run the complete Bronze $\rightarrow$ Silver $\rightarrow$ Gold $\rightarrow$ Oracle pipeline via CLI:
+### 3. Check System Status & Ingestion
+
+Verify your database status using the CLI:
 ```bash
-mdk-oracle run-pipeline
+mdk-oracle info
 ```
 
-Evaluate institutional signals for a symbol (e.g. `AKBNK`, `GARAN`):
+To run or update Bronze ingestion:
 ```bash
-mdk-oracle evaluate --symbol AKBNK
+# Via CLI:
+mdk-oracle load-bronze
+
+# Or via script:
+python scripts/load_bronze_data.py
 ```
+
+---
+
+## 📊 Interactive Exploration Notebooks
+
+Launch Jupyter Lab to explore the Bronze layer interactively:
+
+```bash
+jupyter lab
+```
+
+Open [`notebooks/01_bronze_data_exploration.ipynb`](notebooks/01_bronze_data_exploration.ipynb):
+- **Concurrency-Safe**: Connects to DuckDB with `read_only=True` to allow concurrent queries without locking issues.
+- **Analysis Included**:
+  - Daily market turnover and trading activity across March 2026.
+  - Top traded instruments and price ranges.
+  - Broker market share and net flows (focusing on Bank of America / `MLB`).
+  - Intraday trade arrival distributions (10:00 - 18:00 session).
+  - Interactive dark-theme Plotly charts.
 
 ---
 
@@ -79,50 +136,52 @@ mdk-oracle evaluate --symbol AKBNK
 
 ```
 mdk-trading-oracle/
-├── config/                     # YAML configs for market, brokers & instruments
-│   ├── default.yaml            # Pipeline & storage settings
-│   ├── brokers.yaml            # Broker definitions (BOFA, YKBNK, ISCTR, etc.)
-│   └── instruments.yaml        # BIST 30 universe and classification
-├── data/                       # Local data storage (strictly gitignored)
-│   ├── 01_bronze/              # Raw data drops
-│   ├── 02_silver/              # Cleaned parquet tables
-│   ├── 03_gold/                # Aggregated feature tables
-│   └── database/               # Local DuckDB database file
-├── notebooks/                  # Interactive Databricks-style Jupyter notebooks
-│   └── 01_bofa_flow_eda.ipynb  # BofA order flow EDA & signal visualizer
-├── scripts/                    # Helper and automation scripts
-│   ├── seed_mock_data.py       # Realistic synthetic data generator
-│   └── run_pipeline.py         # Standalone pipeline runner
-├── src/mdk_trading_oracle/     # Core Python package
-│   ├── app/                    # Typer CLI application
-│   ├── core/                   # DuckDB manager, types, and configs
-│   ├── features/               # Institutional flow feature extractors
-│   ├── ingestion/              # Ingestion handlers
-│   ├── models/                 # Flow prediction ML / LightGBM models
-│   ├── oracle/                 # Decision evaluation engine
-│   └── pipeline/               # Bronze -> Silver -> Gold transformation pipelines
-├── tests/                      # Pytest automated test suite
-├── .env.example                # Environment variables template
-├── .gitignore                  # Gitignore rules
-└── pyproject.toml              # Modern package dependencies and metadata
+├── config/                               # YAML schemas & broker configurations
+│   ├── brokers.yaml                      # Broker definitions (MLB, YKBNK, ISCTR, etc.)
+│   ├── default.yaml                      # Feature and pipeline parameters
+│   └── instruments.yaml                  # BIST equity symbols & sector mappings
+├── notebooks/                            # Exploratory analysis & transformation design
+│   └── 01_bronze_data_exploration.ipynb  # Interactive Bronze layer EDA
+├── scripts/                              # Standalone automation scripts
+│   └── load_bronze_data.py               # Fast Bronze CSV ingestion runner
+├── src/mdk_trading_oracle/               # Core Python package
+│   ├── app/                              # Typer CLI application
+│   │   ├── __init__.py
+│   │   └── cli.py                        # CLI commands (info, load-bronze)
+│   ├── core/                             # Foundational engine modules
+│   │   ├── config.py                     # Dynamic settings & paths
+│   │   ├── db.py                         # DuckDB connection & schema manager
+│   │   ├── logger.py                     # Rich formatted logger
+│   │   └── types.py                      # Pydantic domain models & enums
+│   └── ingestion/                        # High-speed data loaders
+│       ├── base.py                       # Abstract base ingestor
+│       └── file_loader.py                # Parallel CSV/Parquet ingestors
+├── tests/                                # Automated test suite
+│   └── test_core.py                      # Config, DB, and domain unit tests
+├── .env.example                          # Environment variables template
+├── .gitignore                            # Git ignore rules
+├── pyproject.toml                        # Project dependencies and tool configurations
+└── README.md                             # Project documentation
 ```
 
 ---
 
-## 💡 Databricks-style Notebook Workflow
+## 🧪 Testing & Code Quality
 
-Launch Jupyter to explore DuckDB tables interactively:
+Run tests using `pytest`:
 ```bash
-jupyter lab
+pytest
 ```
-Open `notebooks/01_bofa_flow_eda.ipynb` to view:
-- Direct DuckDB SQL queries over local Parquet.
-- BofA net cumulative flow charts vs stock price trends.
-- Real-time Oracle signal summaries.
+
+Run code formatting and linting:
+```bash
+ruff check .
+```
 
 ---
 
-## 🔒 Portability & Zero-Cost Principles
-- **No cloud compute bills**: Everything is optimized to run locally via DuckDB vectorization.
-- **Dynamic paths**: All paths dynamically resolve relative to the project root or `.env`. No hardcoded user directories.
-- **Git-safe**: Raw financial trade data and local DuckDB files are excluded from Git commits.
+## ⚡ Key Principles
+
+- **Zero Compute Cost**: Vectorized analytics execute directly on local hardware using DuckDB & Polars.
+- **Strict Data Isolation**: No customer or raw exchange data inside source control.
+- **Concurrent Access**: Robust read-only DuckDB connections prevent file lock contention across multiple notebook kernels and terminal processes.

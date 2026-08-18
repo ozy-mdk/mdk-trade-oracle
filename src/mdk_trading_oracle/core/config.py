@@ -2,10 +2,11 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 import yaml
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Dynamic determination of repository root (3 levels up from src/mdk_trading_oracle/core)
 PROJECT_ROOT = Path(__file__).resolve().parents[3]

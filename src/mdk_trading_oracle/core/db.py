@@ -2,8 +2,10 @@
 
 from pathlib import Path
 from typing import Optional, Union
+
 import duckdb
 import polars as pl
+
 from mdk_trading_oracle.core.config import Settings, get_settings
 from mdk_trading_oracle.core.logger import get_logger
 

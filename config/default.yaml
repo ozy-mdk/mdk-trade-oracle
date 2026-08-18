@@ -1,18 +1,21 @@
 # General Application Settings
 market: BIST
 timezone: Europe/Istanbul
+primary_institution: MLB  # Bank of America / Merrill Lynch
 
+# Lakehouse Storage Settings
+# Note: Physical data is stored outside the repository at DATA_DIR (default: ~/data/mdk_oracle)
 storage:
-  bronze_dir: data/01_bronze
-  silver_dir: data/02_silver
-  gold_dir: data/03_gold
-  database_file: data/database/mdk_oracle.duckdb
+  raw_subpath: 00_raw_data
+  database_subpath: database/mdk_oracle.duckdb
 
+# Analytical & Feature Settings (For Silver & Gold Lakehouse Layers)
 features:
   rolling_windows: [3, 5, 10, 20]
   flow_acceleration_window: 5
   significant_share_threshold: 0.15  # 15% broker market share
 
+# Oracle Signal Evaluation Parameters
 oracle:
   bofa_accumulation_zscore_threshold: 1.5
   bofa_distribution_zscore_threshold: -1.5

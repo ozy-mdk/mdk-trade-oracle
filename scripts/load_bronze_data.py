@@ -2,7 +2,7 @@
 """Script to load raw BIST data into the DuckDB Bronze Layer."""
 
 from datetime import datetime
-from pathlib import Path
+
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
@@ -27,8 +27,9 @@ def main():
 
     res = ingestor.ingest_bist_raw_csv_glob(
         glob_pattern=raw_march_path.as_posix(),
-        raw_source_label="bist_2026_03_march"
+        raw_source_label="bist_2026_03_march",
     )
+    logger.info(f"Ingestion result status: {res.get('status')}")
 
     conn = db.get_connection()
     total_trades = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]

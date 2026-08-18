@@ -1,8 +1,9 @@
 """Structured logging module using rich formatting."""
 
 import logging
-import sys
+
 from rich.logging import RichHandler
+
 from mdk_trading_oracle.core.config import get_settings
 
 

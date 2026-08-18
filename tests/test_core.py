@@ -1,12 +1,11 @@
 """Unit tests for core configuration, database, and domain types."""
 
 from datetime import datetime
-import pytest
+
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.types import (
     RawTradeRecord,
-    TradeSide,
 )
 
 
