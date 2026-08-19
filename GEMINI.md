@@ -34,38 +34,34 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
 
 ---
 
-## 🔬 Gold Layer Quantitative Modeling Standards
+## 🔬 Gold Layer Quantitative Modeling Blueprint & Standards
 
-1. **Extensible Modeling Framework**:
-   - All models inherit from `BaseForecaster` and register in `ModelRegistry` (`@ModelRegistry.register("model_name")`).
-   - Predictions produce structured `ForecastResult` instances containing continuous flows, direction classifications, conviction probabilities, 90% credible ranges, and institutional execution playbooks.
+The Gold Layer is designed as an extensible multi-model suite hosting **10+ distinct institutional models** (e.g. Model 1: Day-Start Flow, Model 2: Sector Buy/Sell Ratio & Rotation, Model 3: Intraday Flow Expansion, etc.). 
+
+Every new model adheres to this **Universal Modeling Blueprint**:
+
+1. **Modular Extensible Framework**:
+   - Every model inherits from `BaseForecaster`, extracts features via a dedicated `FeatureExtractor`, and registers in `ModelRegistry` (`@ModelRegistry.register("model_name")`).
+   - Predictions produce structured `ForecastResult` instances containing continuous predictions, direction classifications, conviction probabilities, 90% credible ranges, and institutional execution playbooks.
 2. **Zero Data Leakage**:
-   - All features must be computed **strictly from $T-1$ Close data** (or prior completed intraday windows). Future session information must never leak into training or feature sets.
-3. **The 7 Quantitative Feature Clusters**:
-   - **Cluster 1**: Prior Closing Window Momentum (Window 4 net flow, MOC momentum)
-   - **Cluster 2**: Multi-Day Inventory & Sector Saturation Z-Scores (5d/20d rolling accumulation)
-   - **Cluster 3**: Cost Basis & Unrealized PnL (Spread from 20-day Volume-Weighted Buy Price)
-   - **Cluster 4**: Top-5 Domestic Competitor Posture & Flow Delta (`IYM`, `YKR`, `AKM`, `GRM`, `ZRY`)
-   - **Cluster 5**: Institutional Hegemony & Market Share Control (BofA volume share)
-   - **Cluster 6**: Sector Cross-Sectional Stress & Breadth (Banking vs Transportation vs Industry)
-   - **Cluster 7**: Calendar & Temporal Dynamics (`is_monday`, `is_friday`, day of week)
+   - Predictive features must be computed **strictly from prior completed windows / $T-1$ Close data**. Future session information must never leak into training or feature sets.
+3. **Problem-Specific Quantitative Feature Clusters**:
+   - Each modeling objective formulates targeted feature clusters (e.g. Model 1 uses the 7 Opening Clusters: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics; Model 2 will formulate Sector Imbalance & Buy/Sell Ratio clusters, etc.).
 4. **Candidate Model Arena & Baselines**:
-   - Every modeling objective must benchmark against rigorous baselines:
-     - `Baseline 0`: Naive Window 4 Persistence (carries yesterday's closing flow forward)
-     - `Baseline 1`: 5-Day Historical Moving Average
-     - `Machine Learning`: LightGBM Regressor (non-linear tree interactions)
-     - `Probabilistic Bayesian Ridge`: Analytical Bayesian Ridge Regression
-     - `Full Bayesian MCMC / GLM`: PyMC Bayesian Model (informative shrinkage priors)
+   - Every modeling objective benchmarks candidate paradigms:
+     - `Baselines`: Naive Persistence, Historical Moving Averages
+     - `Machine Learning`: Non-linear tree ensembles (LightGBM)
+     - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC)
 5. **Expanding-Window Walk-Forward Validation (Zero Lookahead Bias)**:
-   - Models must be evaluated chronologically: train on $1 \dots t-1$ to predict $t$, expanding the window day-by-day.
-   - Models are scored on **Out-of-Sample Hit Rate (%)**, **90% PICP Credible Coverage (%)**, and **RMSE (TL M)**.
+   - Evaluated chronologically: train on $1 \dots t-1$ to predict $t$, expanding the window day-by-day.
+   - Scored on **Out-of-Sample Hit Rate (%)**, **90% PICP Credible Coverage (%)**, and **RMSE / MAE**.
 6. **Automated Champion Selection (`model_type="auto"`) & Dual Delivery**:
-   - The exact same `DayStartModelArena` runs in both the production pipeline and interactive research notebooks (`03_bofa_day_start_modeling.ipynb`), crowning and tagging the champion model in DuckDB Gold tables.
+   - A dedicated `ModelArena` runs in both the production pipeline and interactive research notebooks, crowning and tagging the champion model in DuckDB Gold tables.
 7. **Actionable Trader Decision Outputs**:
-   - Predictions must map to clear trader items:
-     - **Direction**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
-     - **Playbooks**: `SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`
-     - **Sector Guidance**: `top_predicted_buy_sector`, `top_predicted_sell_sector`.
+   - Continuous predictions are translated into concrete trader action items:
+     - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
+     - **Institutional Playbooks**: Context-driven trade blueprints (e.g. `SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
+     - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
 
 ---
 
