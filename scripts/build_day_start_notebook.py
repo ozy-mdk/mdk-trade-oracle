@@ -174,6 +174,7 @@ for idx in range(len(df)):
     confidences.append(res.direction_confidence)
 
 chart_df = df.copy()
+chart_df["trade_date"] = chart_df["trade_date"].astype(str).str.slice(0, 10)
 chart_df["pred_flow_m"] = predictions
 chart_df["lower_90_m"] = lowers
 chart_df["upper_90_m"] = uppers
@@ -231,9 +232,11 @@ fig.show()
 Select any historical date to inspect the model's opening conviction, competitor closing posture, and sector allocation forecast.
 """),
 
-    nbf.v4.new_code_cell("""date_dropdown = widgets.Dropdown(
-    options=list(chart_df["trade_date"].astype(str)),
-    value=str(chart_df["trade_date"].iloc[-1]),
+    nbf.v4.new_code_cell("""date_options = chart_df["trade_date"].tolist()
+
+date_dropdown = widgets.Dropdown(
+    options=date_options,
+    value=date_options[-1] if date_options else None,
     description="Date:",
     style={"description_width": "initial"}
 )
@@ -244,7 +247,13 @@ def update_session(change):
     with output:
         output.clear_output()
         sel_date = change["new"]
-        row = chart_df[chart_df["trade_date"].astype(str) == sel_date].iloc[0]
+        if not sel_date:
+            return
+        matches = chart_df[chart_df["trade_date"] == str(sel_date)]
+        if len(matches) == 0:
+            display(HTML(f"<p style='color: orange;'>No data for {sel_date}</p>"))
+            return
+        row = matches.iloc[0]
         
         dir_color = "#06d6a0" if "ACCUMULATE" in row["pred_direction"] else ("#ef476f" if "DISTRIBUTE" in row["pred_direction"] else "#ffd166")
         
@@ -275,7 +284,8 @@ def update_session(change):
 
 date_dropdown.observe(update_session, names="value")
 display(date_dropdown, output)
-update_session({"new": date_dropdown.value})
+if date_dropdown.value:
+    update_session({"new": date_dropdown.value})
 """),
 
     nbf.v4.new_markdown_cell("""## 🥇 7. Gold Table Inspection in DuckDB
