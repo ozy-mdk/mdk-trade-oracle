@@ -18,7 +18,7 @@ nb.metadata = {
 }
 
 cells = [
-    nbf.v4.new_markdown_cell("""# 🏛 MDK Trading Oracle — Gold Layer Model 1: Day-Start Institutional Forecaster
+    nbf.v4.new_markdown_cell(r"""# 🏛 MDK Trading Oracle — Gold Layer Model 1: Day-Start Institutional Forecaster
 ### *"How Will Bank of America (BofA / `MLB`) Start the Day?"*
 
 ---
