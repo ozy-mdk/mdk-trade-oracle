@@ -35,12 +35,13 @@ On **Borsa Istanbul (BIST)**, the first 30 minutes of continuous trading (**Wind
 
 ---
 
-## 🔬 Model Benchmarking Arena
-In this notebook, we evaluate candidate models against rigorous baselines:
+## 🔬 Model Benchmarking Arena & Auto-Champion Selection
+In this notebook, we evaluate candidate models using **expanding-window walk-forward validation** (strictly training on $1 \dots t-1$ to forecast $t$, eliminating lookahead bias):
 * **Baseline 0**: Naive Window 4 Persistence (carries yesterday's closing flow forward)
 * **Baseline 1**: 5-Day Historical Moving Average
-* **Machine Learning**: LightGBM Regressor (non-linear feature interactions)
-* **Probabilistic / Bayesian**: Bayesian Ridge Regression (posterior predictive distributions & exact 90% credible intervals)
+* **Machine Learning**: LightGBM Regressor (non-linear tree interactions)
+* **Probabilistic / Bayesian Ridge**: Bayesian Ridge Regression (analytical conjugate priors)
+* **Full Bayesian MCMC / GLM**: PyMC Bayesian Model (informative shrinkage priors & credible bounds)
 """),
 
     nbf.v4.new_code_cell("""import duckdb
