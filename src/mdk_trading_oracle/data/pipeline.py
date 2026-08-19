@@ -160,7 +160,7 @@ class MedallionPipeline:
 
     def run_gold(self) -> dict[str, Any]:
         """Execute Gold layer feature engineering and institutional flow signals."""
-        logger.info("Starting Gold Layer Feature Engineering...")
+        logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
         start_time = datetime.now()
 
         initialize_gold_schema(self.db)
@@ -168,18 +168,21 @@ class MedallionPipeline:
 
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
+        forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,}")
+        logger.info(f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | Day-Start Forecasts: {forecasts_count:,}")
         return {
             "layer": "gold",
             "elapsed_sec": elapsed,
             "metrics": {
                 "gold_institutional_daily_signals": signals_count,
+                "gold_bofa_day_start_forecasts": forecasts_count,
             },
             "details": gold_res,
             "status": "success",
         }
+
 
     def run(
         self,
