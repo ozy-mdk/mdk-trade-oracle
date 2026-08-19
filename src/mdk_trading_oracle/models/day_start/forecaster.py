@@ -1,7 +1,9 @@
-"""Production Day-Start Forecaster Orchestrator."""
+"""Production Day-Start Forecaster Orchestrator & Auto-Champion Model Arena."""
 
 from datetime import date
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
+
+import pandas as pd
 
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
@@ -11,10 +13,62 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartBayesianModel,
     DayStartLightGBMModel,
     DayStartNaivePersistenceModel,
+    DayStartPyMCModel,
+    DayStartRollingMeanModel,
 )
 from mdk_trading_oracle.models.registry import ModelRegistry
 
 logger = get_logger("mdk_oracle.models.day_start.forecaster")
+
+
+@ModelRegistry.register("day_start_model_arena")
+class DayStartModelArena:
+    """Evaluates all candidate models using expanding-window walk-forward validation and crowns the champion."""
+
+    def __init__(self):
+        self.candidates: Dict[str, BaseForecaster] = {
+            "Baseline 0: Naive W4 Persistence": DayStartNaivePersistenceModel(),
+            "Baseline 1: 5-Day Historical Mean": DayStartRollingMeanModel(),
+            "LightGBM Non-Linear Ensemble": DayStartLightGBMModel(),
+            "Bayesian Ridge Probabilistic": DayStartBayesianModel(),
+            "PyMC Bayesian GLM (MAP)": DayStartPyMCModel(use_map=True),
+        }
+
+    def run_tournament(
+        self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
+    ) -> Tuple[pd.DataFrame, BaseForecaster]:
+        """Execute walk-forward out-of-sample tournament across all candidate models."""
+        scoreboard = []
+        for name, model in self.candidates.items():
+            metrics = model.walk_forward_evaluate(X, y, min_train_samples=min_train_samples)
+            scoreboard.append({
+                "Model": name,
+                "hit_rate_pct": metrics["hit_rate_pct"],
+                "picp_90_pct": metrics["picp_90_pct"],
+                "mae_million_tl": metrics["mae_million_tl"],
+                "rmse_million_tl": metrics["rmse_million_tl"],
+                "sample_size": metrics["sample_size"],
+                "_model_instance": model,
+            })
+
+        df_scores = pd.DataFrame(scoreboard).sort_values(
+            by=["hit_rate_pct", "picp_90_pct", "rmse_million_tl"],
+            ascending=[False, False, True],
+        ).reset_index(drop=True)
+
+        champion_row = df_scores.iloc[0]
+        champion_model: BaseForecaster = champion_row["_model_instance"]
+        champion_name = str(champion_row["Model"])
+
+        logger.info(
+            f"🏆 Model Arena Champion Crowned: '{champion_name}' "
+            f"(Out-of-Sample Hit Rate: {champion_row['hit_rate_pct']:.1f}%, "
+            f"90% PICP: {champion_row['picp_90_pct']:.1f}%, "
+            f"RMSE: {champion_row['rmse_million_tl']:.2f}M TL)"
+        )
+
+        display_df = df_scores.drop(columns=["_model_instance"])
+        return display_df, champion_model
 
 
 @ModelRegistry.register("day_start_forecaster")
@@ -23,25 +77,32 @@ class DayStartForecaster:
     
     Orchestrates end-to-end:
         1. Feature extraction across all 7 Feature Clusters from DuckDB Silver tables
-        2. Probabilistic model training and cross-validation
-        3. Backtesting and generating daily forecasts
+        2. Automated Model Arena tournament selection or configured model type
+        3. Probabilistic model training and walk-forward validation
         4. Persisting forecasts directly into DuckDB Gold layer tables
     """
 
-    def __init__(self, db: Optional[DuckDBManager] = None, model_type: str = "bayesian"):
+    def __init__(self, db: Optional[DuckDBManager] = None, model_type: str = "auto"):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
         self.feature_extractor = DayStartFeatureExtractor(self.db, target_broker_id=self.target_broker)
+        self.model_type = model_type
+        self.arena = DayStartModelArena()
+        self.champion_name: Optional[str] = None
         
         if model_type == "lightgbm":
-            self.model: BaseForecaster = DayStartLightGBMModel()
+            self.model: Optional[BaseForecaster] = DayStartLightGBMModel()
         elif model_type == "baseline":
             self.model = DayStartNaivePersistenceModel()
-        else:
+        elif model_type == "pymc":
+            self.model = DayStartPyMCModel(use_map=True)
+        elif model_type == "bayesian":
             self.model = DayStartBayesianModel()
+        else:  # "auto"
+            self.model = None
 
     def train_and_forecast_all(self) -> List[ForecastResult]:
-        """Extract features, fit model on historical data, and generate forecasts for all sessions."""
+        """Extract features, select/fit champion model on historical data, and generate forecasts."""
         df_pl = self.feature_extractor.extract_features()
         if df_pl.height == 0:
             logger.warning("No feature records found to train DayStartForecaster.")
@@ -51,8 +112,16 @@ class DayStartForecaster:
         X = df_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
         y = df_pd["target_open_net_flow_tl"]
 
-        # Train model
-        logger.info(f"Training {self.model.model_name} on {len(df_pd)} historical daily sessions...")
+        # Automatic Champion Selection on the fly if model_type == "auto"
+        if self.model_type == "auto" or self.model is None:
+            logger.info("Running DayStartModelArena Walk-Forward Tournament for Auto-Selection...")
+            min_burn_in = min(5, max(2, len(df_pd) - 1))
+            _, champion_model = self.arena.run_tournament(X, y, min_train_samples=min_burn_in)
+            self.model = champion_model
+            self.champion_name = champion_model.model_name
+
+        # Train champion model on full historical dataset
+        logger.info(f"Fitting Champion Model '{self.model.model_name}' on {len(df_pd)} historical daily sessions...")
         self.model.fit(X, y)
 
         # Generate walk-forward / backtest predictions for each session
@@ -69,7 +138,7 @@ class DayStartForecaster:
             
             results.append(res)
 
-        logger.info(f"Generated {len(results)} day-start forecasts.")
+        logger.info(f"Generated {len(results)} day-start forecasts using Champion '{self.model.model_name}'.")
         return results
 
     def save_forecasts_to_gold(self, forecasts: List[ForecastResult]) -> int:

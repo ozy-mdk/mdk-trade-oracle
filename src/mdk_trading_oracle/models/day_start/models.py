@@ -90,6 +90,69 @@ class BaseDayStartModel(BaseForecaster):
             "sample_size": len(actuals),
         }
 
+    def walk_forward_evaluate(
+        self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
+    ) -> Dict[str, Any]:
+        """Perform expanding-window walk-forward validation (train on 1..t-1, predict t).
+        
+        Guarantees strictly out-of-sample evaluation with zero lookahead bias.
+        """
+        n_samples = len(X)
+        if n_samples <= min_train_samples:
+            self.fit(X, y)
+            eval_res = self.evaluate(X, y)
+            eval_res["oos_predictions"] = []
+            eval_res["oos_actuals"] = []
+            eval_res["oos_dates"] = []
+            return eval_res
+
+        oos_preds = []
+        oos_lowers = []
+        oos_uppers = []
+        oos_actuals = []
+        oos_dates = []
+
+        for t in range(min_train_samples, n_samples):
+            X_train = X.iloc[:t].copy()
+            y_train = y.iloc[:t].copy()
+            X_test_row = X.iloc[[t]].copy()
+            y_test_actual = float(y.iloc[t])
+
+            self.fit(X_train, y_train)
+            res = self.predict(X_test_row)
+
+            oos_preds.append(res.predicted_net_flow_tl)
+            oos_lowers.append(res.predicted_flow_lower_90)
+            oos_uppers.append(res.predicted_flow_upper_90)
+            oos_actuals.append(y_test_actual)
+            if "trade_date" in X.columns:
+                oos_dates.append(str(X.iloc[t]["trade_date"])[:10])
+
+        preds = np.array(oos_preds)
+        actuals = np.array(oos_actuals)
+
+        mae = float(mean_absolute_error(actuals, preds))
+        rmse = float(root_mean_squared_error(actuals, preds))
+
+        pred_dir = np.sign(preds)
+        actual_dir = np.sign(actuals)
+        correct_dirs = np.sum(pred_dir == actual_dir)
+        hit_rate = float(correct_dirs / len(actuals) * 100.0) if len(actuals) > 0 else 0.0
+
+        in_bounds = np.sum((actuals >= np.array(oos_lowers)) & (actuals <= np.array(oos_uppers)))
+        picp = float(in_bounds / len(actuals) * 100.0) if len(actuals) > 0 else 0.0
+
+        return {
+            "mae_million_tl": mae / 1e6,
+            "rmse_million_tl": rmse / 1e6,
+            "hit_rate_pct": hit_rate,
+            "picp_90_pct": picp,
+            "sample_size": len(actuals),
+            "oos_predictions": (preds / 1e6).tolist(),
+            "oos_actuals": (actuals / 1e6).tolist(),
+            "oos_dates": oos_dates,
+        }
+
 
 # ==========================================
 # 0. Baseline Models (Benchmark to Beat)
@@ -292,7 +355,7 @@ class DayStartPyMCModel(BaseDayStartModel):
 
         logger.info(f"Fitting PyMC Bayesian Model ({'MAP' if self.use_map else 'NUTS MCMC'}) on {len(X_scaled)} samples with {n_features} features...")
 
-        with pm.Model() as model:
+        with pm.Model():
             # Informative Gaussian & Half-Normal Priors
             intercept = pm.Normal("intercept", mu=0.0, sigma=1.0)
             beta = pm.Normal("beta", mu=0.0, sigma=0.5, shape=n_features)

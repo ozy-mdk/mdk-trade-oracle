@@ -11,6 +11,7 @@ from mdk_trading_oracle.models.day_start import (
     DayStartFeatureExtractor,
     DayStartForecaster,
     DayStartLightGBMModel,
+    DayStartModelArena,
     DayStartNaivePersistenceModel,
     DayStartPyMCModel,
     DayStartRollingMeanModel,
@@ -101,26 +102,50 @@ def test_day_start_candidate_models(populated_test_db):
     res_lgb = m_lgb.predict(X.iloc[[0]])
     assert res_lgb.predicted_net_flow_tl is not None
 
-    # 5. PyMC Full Bayesian Model
-    m_pymc = DayStartPyMCModel(draws=100, tune=100)
+    # 5. PyMC Full Bayesian Model (MAP)
+    m_pymc = DayStartPyMCModel(use_map=True)
     m_pymc.fit(X, y)
     res_pymc = m_pymc.predict(X.iloc[[0]])
     assert res_pymc.predicted_flow_lower_90 < res_pymc.predicted_flow_upper_90
     assert 0.0 <= res_pymc.direction_confidence <= 1.0
 
+    # 6. Walk-Forward Expanding Window Evaluation
+    wf_metrics = m_bayes.walk_forward_evaluate(X, y, min_train_samples=2)
+    assert "hit_rate_pct" in wf_metrics
+    assert "picp_90_pct" in wf_metrics
+    assert len(wf_metrics["oos_predictions"]) > 0
 
-def test_day_start_forecaster_orchestration(populated_test_db):
-    """Test DayStartForecaster end-to-end training and DuckDB Gold table persistence."""
-    forecaster = DayStartForecaster(populated_test_db, model_type="bayesian")
+
+def test_day_start_model_arena(populated_test_db):
+    """Test DayStartModelArena tournament and champion selection."""
+    extractor = DayStartFeatureExtractor(populated_test_db, target_broker_id="MLB")
+    df_pl = extractor.extract_features()
+    df_pd = df_pl.to_pandas()
+
+    X = df_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
+    y = df_pd["target_open_net_flow_tl"]
+
+    arena = DayStartModelArena()
+    scoreboard_df, champion_model = arena.run_tournament(X, y, min_train_samples=2)
+
+    assert len(scoreboard_df) == 5
+    assert champion_model is not None
+    assert champion_model.model_name in ["day_start_bayesian_ridge", "day_start_pymc", "day_start_lightgbm", "day_start_baseline_persistence", "day_start_baseline_rolling_mean"]
+
+
+def test_day_start_forecaster_auto_orchestration(populated_test_db):
+    """Test DayStartForecaster in 'auto' mode end-to-end training and DuckDB Gold table persistence."""
+    forecaster = DayStartForecaster(populated_test_db, model_type="auto")
     forecasts = forecaster.train_and_forecast_all()
     assert len(forecasts) > 0
+    assert forecaster.champion_name is not None
 
     saved_count = forecaster.save_forecasts_to_gold(forecasts)
     assert saved_count == len(forecasts)
 
     conn = populated_test_db.get_connection()
     gold_row = conn.execute("""
-        SELECT forecast_date, predicted_open_net_flow_tl, predicted_direction, direction_confidence, predicted_playbook
+        SELECT forecast_date, predicted_open_net_flow_tl, predicted_direction, direction_confidence, predicted_playbook, model_name
         FROM gold_bofa_day_start_forecasts
         LIMIT 1;
     """).fetchone()
@@ -130,3 +155,4 @@ def test_day_start_forecaster_orchestration(populated_test_db):
     assert gold_row[2] is not None
     assert gold_row[3] is not None
     assert gold_row[4] is not None
+    assert gold_row[5] is not None

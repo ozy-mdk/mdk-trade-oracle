@@ -58,6 +58,7 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.models.day_start import (
     DayStartFeatureExtractor,
     DayStartForecaster,
+    DayStartModelArena,
     DayStartNaivePersistenceModel,
     DayStartRollingMeanModel,
     DayStartBayesianModel,
@@ -109,53 +110,48 @@ fig_corr.update_layout(template="plotly_dark", showlegend=False)
 fig_corr.show()
 """),
 
-    nbf.v4.new_markdown_cell("""## ⚔️ 4. Multi-Model Arena & Benchmarking
+    nbf.v4.new_markdown_cell(r"""## ⚔️ 4. Multi-Model Arena & Auto-Champion Tournament (Walk-Forward Validation)
 
-We train and cross-evaluate all candidate models on March 2026 trading sessions.
+We run an expanding-window **Walk-Forward Validation Tournament** across all 5 candidate models.
+Models are trained strictly on past trading sessions ($1 \dots t-1$) to forecast session $t$, guaranteeing **zero lookahead bias**.
 """),
 
     nbf.v4.new_code_cell("""X = df.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
 y = df["target_open_net_flow_tl"]
 
-# 1. Baseline 0: Naive Persistence
-m_base0 = DayStartNaivePersistenceModel().fit(X, y)
-eval_base0 = m_base0.evaluate(X, y)
+# Run Automated Walk-Forward Tournament across all 5 candidates
+arena = DayStartModelArena()
+scoreboard_df, champion_model = arena.run_tournament(X, y, min_train_samples=5)
 
-# 2. Baseline 1: Rolling Mean
-m_base1 = DayStartRollingMeanModel().fit(X, y)
-eval_base1 = m_base1.evaluate(X, y)
+champion_name = scoreboard_df.iloc[0]["Model"]
+champ_hit_rate = scoreboard_df.iloc[0]["hit_rate_pct"]
+champ_picp = scoreboard_df.iloc[0]["picp_90_pct"]
+champ_rmse = scoreboard_df.iloc[0]["rmse_million_tl"]
 
-# 3. LightGBM Ensemble
-m_lgb = DayStartLightGBMModel().fit(X, y)
-eval_lgb = m_lgb.evaluate(X, y)
+display(HTML(f\"\"\"
+<div style="background: linear-gradient(135deg, #1b4332 0%, #081c15 100%); padding: 18px 24px; border-radius: 12px; border-left: 6px solid #52b788; margin-bottom: 20px; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+    <h3 style="margin: 0; color: #52b788;">🏆 Champion Crowned by Auto-Arena: {champion_name}</h3>
+    <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.95;">
+        <b>Out-of-Sample Hit Rate:</b> <span style="color: #74c69d; font-weight: bold;">{champ_hit_rate:.1f}%</span> &nbsp;|&nbsp; 
+        <b>90% Credible Interval Coverage (PICP):</b> <span style="color: #74c69d; font-weight: bold;">{champ_picp:.1f}%</span> &nbsp;|&nbsp; 
+        <b>RMSE:</b> {champ_rmse:.2f}M TL
+    </p>
+</div>
+\"\"\"))
 
-# 4. Bayesian Ridge Probabilistic Forecaster
-m_bayes = DayStartBayesianModel().fit(X, y)
-eval_bayes = m_bayes.evaluate(X, y)
-
-# 5. PyMC Full Bayesian MCMC / NUTS Forecaster
-m_pymc = DayStartPyMCModel(draws=300, tune=300).fit(X, y)
-eval_pymc = m_pymc.evaluate(X, y)
-
-benchmark_df = pd.DataFrame([
-    {"Model": "Baseline 0: Naive W4 Persistence", **eval_base0},
-    {"Model": "Baseline 1: 5-Day Historical Mean", **eval_base1},
-    {"Model": "LightGBM Non-Linear Ensemble", **eval_lgb},
-    {"Model": "Bayesian Ridge Probabilistic", **eval_bayes},
-    {"Model": "PyMC Full Bayesian MCMC", **eval_pymc},
-]).sort_values(by="hit_rate_pct", ascending=False)
-
-display(HTML("<h3>🏆 Model Arena Scoreboard</h3>"))
-display(benchmark_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"], color="#1b4332")
-                          .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
+display(HTML("<h3>📊 Out-of-Sample Walk-Forward Scoreboard</h3>"))
+display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"], color="#1b4332")
+                           .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
 
-    nbf.v4.new_markdown_cell("""## 📈 5. Actual vs Predicted Opening Net Flow & 90% Confidence Interval
+    nbf.v4.new_markdown_cell("""## 📈 5. Champion Model Forecasts: Predicted vs Actual Opening Net Flow & 90% Confidence Interval
 
-Let's visualize the walk-forward forecasts of the champion Bayesian model against the actual opening net flow.
+Visualizing walk-forward forecasts of the crowned Champion model against actual opening net flows.
 """),
 
-    nbf.v4.new_code_cell("""# Generate historical predictions
+    nbf.v4.new_code_cell("""# Fit champion on full history and generate session forecasts
+champion_model.fit(X, y)
+
 predictions = []
 lowers = []
 uppers = []
@@ -165,7 +161,7 @@ confidences = []
 
 for idx in range(len(df)):
     row = X.iloc[[idx]].reset_index(drop=True)
-    res = m_bayes.predict(row)
+    res = champion_model.predict(row)
     predictions.append(res.predicted_net_flow_tl / 1e6)
     lowers.append(res.predicted_flow_lower_90 / 1e6)
     uppers.append(res.predicted_flow_upper_90 / 1e6)

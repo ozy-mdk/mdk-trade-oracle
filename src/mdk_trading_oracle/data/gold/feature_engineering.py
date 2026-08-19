@@ -70,12 +70,17 @@ class GoldFeatureEngineer:
         return {"table": "gold_institutional_daily_signals", "rows": rows, "status": "success"}
 
     def run_day_start_forecasting(self) -> dict[str, Any]:
-        """Execute Model 1 (Day-Start Forecaster) and persist forecasts to Gold table."""
-        logger.info("Executing Gold Layer Model 1: Day-Start Forecaster...")
-        forecaster = DayStartForecaster(self.db, model_type="bayesian")
+        """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection and persist forecasts to Gold table."""
+        logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
+        forecaster = DayStartForecaster(self.db, model_type="auto")
         forecasts = forecaster.train_and_forecast_all()
         saved_count = forecaster.save_forecasts_to_gold(forecasts)
-        return {"table": "gold_bofa_day_start_forecasts", "rows": saved_count, "status": "success"}
+        return {
+            "table": "gold_bofa_day_start_forecasts",
+            "rows": saved_count,
+            "champion_model": forecaster.champion_name,
+            "status": "success",
+        }
 
     def run_all(self) -> dict[str, Any]:
         """Run full Gold feature pipeline and predictive models."""
