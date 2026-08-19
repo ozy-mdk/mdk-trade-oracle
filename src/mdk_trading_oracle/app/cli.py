@@ -12,6 +12,7 @@ from rich.table import Table
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.data.bronze import BronzeIngestor
+from mdk_trading_oracle.data.discovery import RawDataInspector
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer
 from mdk_trading_oracle.data.pipeline import MedallionPipeline
 from mdk_trading_oracle.data.silver import SilverTransformer
@@ -26,7 +27,13 @@ pipeline_app = typer.Typer(
     help="Medallion Lakehouse Pipeline Orchestration (Bronze -> Silver -> Gold)",
     add_completion=False,
 )
+data_app = typer.Typer(
+    name="data",
+    help="Raw Data Discovery, Catalog Preparation, and Reference Metadata Sync",
+    add_completion=False,
+)
 app.add_typer(pipeline_app, name="pipeline")
+app.add_typer(data_app, name="data")
 
 console = Console()
 
@@ -82,6 +89,44 @@ def info():
         console.print(
             "[bold red]⚠️ DuckDB database not yet initialized. Run 'mdk-oracle load-bronze' to initialize.[/bold red]"
         )
+
+
+@data_app.command("inspect")
+def data_inspect(
+    glob_pattern: Optional[str] = typer.Option(
+        None,
+        "--glob",
+        "-g",
+        help="Optional custom glob pattern for raw CSVs",
+    ),
+):
+    """Scan raw CSV feeds and render interactive tables of discovered instruments and brokers."""
+    inspector = RawDataInspector(raw_glob=glob_pattern)
+    inspector.print_interactive_report()
+
+
+@data_app.command("sync-catalog")
+def data_sync_catalog(
+    glob_pattern: Optional[str] = typer.Option(
+        None,
+        "--glob",
+        "-g",
+        help="Optional custom glob pattern for raw CSVs",
+    ),
+):
+    """Extract all instruments and brokerages from raw feeds and synchronize YAML catalogs."""
+    inspector = RawDataInspector(raw_glob=glob_pattern)
+    console.print("[bold cyan]🔄 Discovering entities and synchronizing YAML catalogs...[/bold cyan]")
+    res = inspector.sync_to_yaml_catalogs()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ Catalogs Synchronized Successfully![/bold green]\n\n"
+            f"• [bold]Instruments[/bold]: [cyan]{res['instruments_count']}[/cyan] symbols synced to `{res['instruments_file']}`\n"
+            f"• [bold]Brokers[/bold]: [cyan]{res['brokers_count']}[/cyan] brokerages synced to `{res['brokers_file']}`",
+            title="Catalog Synchronization Summary",
+            border_style="green",
+        )
+    )
 
 
 @app.command()

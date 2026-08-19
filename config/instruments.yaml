@@ -1,61 +1,226 @@
-# BIST Primary Universe Focus
 instruments:
-  - symbol: "AKBNK"
-    name: "Akbank T.A.Ş."
-    sector: "Banking"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "GARAN"
-    name: "Türkiye Garanti Bankası A.Ş."
-    sector: "Banking"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "ISCTR"
-    name: "Türkiye İş Bankası C"
-    sector: "Banking"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "YKBNK"
-    name: "Yapı ve Kredi Bankası A.Ş."
-    sector: "Banking"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "THYAO"
-    name: "Türk Hava Yolları A.O."
-    sector: "Transportation"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "TUPRS"
-    name: "Tüpraş Türkiye Petrol Rafinerileri"
-    sector: "Energy"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "KCHOL"
-    name: "Koç Holding A.Ş."
-    sector: "Holding"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "SAHOL"
-    name: "Hacı Ömer Sabancı Holding A.Ş."
-    sector: "Holding"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "BIMAS"
-    name: "BİM Birleşik Mağazalar A.Ş."
-    sector: "Retail"
-    index: "BIST30"
-    lot_multiplier: 1.0
-
-  - symbol: "EREGL"
-    name: "Ereğli Demir ve Çelik Fabrikaları T.A.Ş."
-    sector: "Basic Materials"
-    index: "BIST30"
-    lot_multiplier: 1.0
+- symbol: THYAO
+  name: Türk Hava Yolları A.O.
+  sector: Transportation
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: TUPRS
+  name: Tüpraş Türkiye Petrol Rafinerileri A.Ş.
+  sector: Energy & Refining
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: ASELS
+  name: Aselsan Elektronik Sanayi ve Ticaret A.Ş.
+  sector: Defense & Tech
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: AKBNK
+  name: Akbank T.A.Ş.
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: ISCTR
+  name: Türkiye İş Bankası C
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: KCHOL
+  name: Koç Holding A.Ş.
+  sector: Holding
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: YKBNK
+  name: Yapı ve Kredi Bankası A.Ş.
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: ASTOR
+  name: Astor Enerji A.Ş.
+  sector: Energy & Industrials
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: SASA
+  name: SASA Polyester Sanayi A.Ş.
+  sector: Chemicals
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: TRALT
+  name: Darphane Altın Sertifikası (Gram Altın)
+  sector: Commodity ETF
+  index: BIST_GOLD
+  lot_multiplier: 1.0
+- symbol: GARAN
+  name: Türkiye Garanti Bankası A.Ş.
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: BIMAS
+  name: BİM Birleşik Mağazalar A.Ş.
+  sector: Retail
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: SAHOL
+  name: Hacı Ömer Sabancı Holding A.Ş.
+  sector: Holding
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: EREGL
+  name: Ereğli Demir ve Çelik Fabrikaları T.A.Ş.
+  sector: Basic Materials
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: PETKM
+  name: Petkim Petrokimya Holding A.Ş.
+  sector: Chemicals
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: PGSUS
+  name: Pegasus Hava Taşımacılığı A.Ş.
+  sector: Transportation
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: SISE
+  name: Türkiye Şişe ve Cam Fabrikaları A.Ş.
+  sector: Industrials & Glass
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: HALKB
+  name: Türkiye Halk Bankası A.Ş.
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: TCELL
+  name: Turkcell İletişim Hizmetleri A.Ş.
+  sector: Telecommunications
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: DSTKF
+  name: Destek Finans Faktoring A.Ş.
+  sector: Financial Services
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EKGYO
+  name: Emlak Konut Gayrimenkul Yatırım Ortaklığı
+  sector: Real Estate
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: MGROS
+  name: Migros Ticaret A.Ş.
+  sector: Retail
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: KRDMD
+  name: Kardemir Karabük Demir Çelik D
+  sector: Basic Materials
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: FROTO
+  name: Ford Otomotiv Sanayi A.Ş.
+  sector: Automotive
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: VAKBN
+  name: Türkiye Vakıflar Bankası T.A.O.
+  sector: Banking
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: TOASO
+  name: Tofaş Türk Otomobil Fabrikası A.Ş.
+  sector: Automotive
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: ENKAI
+  name: Enka İnşaat ve Sanayi A.Ş.
+  sector: Construction & Energy
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: GUBRF
+  name: Gübre Fabrikaları T.A.Ş.
+  sector: Chemicals
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: TTKOM
+  name: Türk Telekomünikasyon A.Ş.
+  sector: Telecommunications
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: BRSAN
+  name: Borusan Birleşik Boru Fabrikaları Sanayi
+  sector: Industrials
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: AEFES
+  name: Anadolu Efes Biracılık ve Malt Sanayii A.Ş.
+  sector: Beverages
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: ULKER
+  name: Ülker Bisküvi Sanayi A.Ş.
+  sector: Food & Beverage
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: TKFEN
+  name: Tekfen Holding A.Ş.
+  sector: Holding & Construction
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: TAVHL
+  name: TAV Havalimanları Holding A.Ş.
+  sector: Transportation
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: AKSEN
+  name: Aksa Enerji Üretim A.Ş.
+  sector: Energy
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: ALARK
+  name: Alarko Holding A.Ş.
+  sector: Holding
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: ODAS
+  name: Odaş Elektrik Üretim Sanayi Ticaret A.Ş.
+  sector: Energy
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: HEKTS
+  name: Hektaş Ticaret T.A.Ş.
+  sector: Chemicals & Agriculture
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: DOAS
+  name: Doğuş Otomotiv Servis ve Ticaret A.Ş.
+  sector: Automotive
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: CIMSA
+  name: Çimsa Çimento Sanayi ve Ticaret A.Ş.
+  sector: Materials
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: OYAKC
+  name: Oyak Çimento Fabrikaları A.Ş.
+  sector: Materials
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: KONTR
+  name: Kontrolmatik Teknoloji Enerji ve Mühendislik
+  sector: Technology & Energy
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: TSKB
+  name: Türkiye Sınai Kalkınma Bankası A.Ş.
+  sector: Banking
+  index: BIST50
+  lot_multiplier: 1.0
+- symbol: ARCLK
+  name: Arçelik A.Ş.
+  sector: Consumer Durables
+  index: BIST30
+  lot_multiplier: 1.0
+- symbol: VESTL
+  name: Vestel Elektronik Sanayi ve Ticaret A.Ş.
+  sector: Consumer Electronics
+  index: BIST50
+  lot_multiplier: 1.0

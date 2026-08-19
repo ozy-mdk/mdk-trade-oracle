@@ -60,27 +60,33 @@ def sync_reference_data(db: DuckDBManager) -> None:
 
     brokers = settings.get_brokers()
     for b in brokers:
+        broker_id = b.get("code") or b.get("broker_id")
+        if not broker_id:
+            continue
         conn.execute("""
             INSERT OR REPLACE INTO bronze_brokers (broker_id, broker_name, category, is_primary_target, description)
             VALUES (?, ?, ?, ?, ?);
         """, [
-            b["broker_id"],
-            b.get("broker_name", b["broker_id"]),
-            b.get("category", "unknown"),
+            broker_id,
+            b.get("name") or b.get("broker_name", broker_id),
+            b.get("type") or b.get("category", "unknown"),
             b.get("is_primary_target", False),
             b.get("description", ""),
         ])
 
     instruments = settings.get_instruments()
     for inst in instruments:
+        symbol = inst.get("symbol")
+        if not symbol:
+            continue
         conn.execute("""
             INSERT OR REPLACE INTO bronze_instruments (symbol, name, sector, index_name, lot_multiplier)
             VALUES (?, ?, ?, ?, ?);
         """, [
-            inst["symbol"],
-            inst.get("name", inst["symbol"]),
+            symbol,
+            inst.get("name", symbol),
             inst.get("sector", "unknown"),
-            inst.get("index_name", "BIST100"),
+            inst.get("index") or inst.get("index_name", "BIST100"),
             float(inst.get("lot_multiplier", 1.0)),
         ])
 
