@@ -8,67 +8,131 @@ from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_
 
 
 def test_medallion_pipeline_in_memory():
-    """Test full Bronze -> Silver -> Gold transformation flow on synthetic tick data."""
+    """Test full Bronze -> Silver -> Gold transformation flow on synthetic tick data across all 6 Silver tables."""
     db = DuckDBManager(in_memory=True)
     conn = db.get_connection()
 
-    # 1. Initialize Bronze
+    # 1. Initialize Bronze, Silver, Gold Schemas
     initialize_bronze_schema(db)
     initialize_silver_schema(db)
     initialize_gold_schema(db)
 
-    # Insert synthetic Bronze trades
+    # Insert synthetic Bronze trades across various intraday times
     conn.execute("""
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
-            ('t1', '2026-03-15 10:00:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
-            ('t2', '2026-03-15 11:00:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
-            ('t3', '2026-03-15 12:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),
-            ('t4', '2026-03-15 14:00:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test');
+            ('t1', '2026-03-16 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window
+            ('t2', '2026-03-16 09:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window
+            ('t3', '2026-03-16 12:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Lunch window
+            ('t4', '2026-03-16 14:00:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window
+            ('t5', '2026-03-16 15:30:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window
     """)
 
-    # 2. Test Silver Transformations
+    # 2. Execute Silver Transformations
     silver = SilverTransformer(db)
     silver_res = silver.run_all()
     assert silver_res["status"] == "success"
 
-    # Verify Silver Daily Broker Summary
+    # --- Verify Table 1: silver_daily_broker_summary ---
     broker_summary = conn.execute("""
-        SELECT broker_id, buy_volume, sell_volume, net_volume, net_flow_tl, buy_vwap
+        SELECT broker_id, sector, buy_volume, sell_volume, net_volume, net_flow_tl, buy_vwap, broker_symbol_turnover_share
         FROM silver_daily_broker_summary
         WHERE symbol = 'THYAO' AND broker_id = 'MLB';
     """).fetchone()
 
     assert broker_summary is not None
-    # MLB bought 1000 + 2000 = 3000, sold 500
-    assert broker_summary[1] == 3000.0
-    assert broker_summary[2] == 500.0
-    assert broker_summary[3] == 2500.0
-    # Buy turnover = 1000*300 + 2000*305 = 300,000 + 610,000 = 910,000. Buy VWAP = 910000 / 3000 = 303.333...
-    assert abs(broker_summary[5] - (910000.0 / 3000.0)) < 1e-4
+    assert broker_summary[1] == "Transportation"
+    assert broker_summary[2] == 3000.0  # Buy Vol: 1000 + 2000
+    assert broker_summary[3] == 500.0   # Sell Vol: 500
+    assert broker_summary[4] == 2500.0  # Net Vol: 3000 - 500
+    # Buy turnover = 1000*300 + 2000*305 = 910,000. Buy VWAP = 910000 / 3000 = 303.333...
+    assert abs(broker_summary[6] - (910000.0 / 3000.0)) < 1e-4
 
-    # Verify Silver Market Daily
-    market_daily = conn.execute("""
-        SELECT symbol, open_price, high_price, low_price, close_price, total_volume, bofa_net_flow_tl
-        FROM silver_market_daily
+    # --- Verify Table 2: silver_daily_broker_overview ---
+    bofa_overview = conn.execute("""
+        SELECT broker_id, is_primary_target, total_buy_turnover_tl, total_sell_turnover_tl, net_flow_tl, 
+               market_turnover_rank, is_top_5_broker, is_monday
+        FROM silver_daily_broker_overview
+        WHERE broker_id = 'MLB';
+    """).fetchone()
+
+    assert bofa_overview is not None
+    assert bofa_overview[1] is True  # is_primary_target
+    # BofA bought: 910,000 (THYAO) + 186,000 (AKBNK) = 1,096,000
+    assert bofa_overview[2] == (910000.0 + 186000.0)
+    # BofA sold: 151,000 (THYAO)
+    assert bofa_overview[3] == 151000.0
+    assert bofa_overview[4] == (1096000.0 - 151000.0)
+    assert bofa_overview[5] == 1  # BofA is #1 rank in turnover
+    assert bofa_overview[6] is True  # is_top_5_broker
+    assert bofa_overview[7] is True  # 2026-03-16 is a Monday!
+
+    # --- Verify Table 3: silver_daily_stock_summary ---
+    stock_summary = conn.execute("""
+        SELECT symbol, sector, open_price, high_price, low_price, close_price, total_volume, 
+               top_buyer_broker_id, bofa_net_flow_tl, top_5_concentration_ratio
+        FROM silver_daily_stock_summary
         WHERE symbol = 'THYAO';
     """).fetchone()
 
-    assert market_daily is not None
-    assert market_daily[1] == 300.0  # Open
-    assert market_daily[2] == 305.0  # High
-    assert market_daily[3] == 300.0  # Low
-    assert market_daily[4] == 302.0  # Close
-    assert market_daily[5] == 3500.0  # Total Volume
-    # BofA net flow = 910,000 (buy) - 151,000 (sell: 500*302) = 759,000
-    assert market_daily[6] == (910000.0 - 151000.0)
+    assert stock_summary is not None
+    assert stock_summary[1] == "Transportation"
+    assert stock_summary[2] == 300.0  # Open
+    assert stock_summary[3] == 305.0  # High
+    assert stock_summary[4] == 300.0  # Low
+    assert stock_summary[5] == 302.0  # Close
+    assert stock_summary[6] == 3500.0  # Total Volume
+    assert stock_summary[7] == "MLB"   # Top Buyer Broker
+    assert stock_summary[8] == 759000.0  # BofA Net Flow TL
+    assert stock_summary[9] == 1.0     # CR5 is 100% since all 3 brokers <= 5
 
-    # 3. Test Gold Feature Engineering
+    # --- Verify Table 4: silver_daily_sector_summary ---
+    sector_summary = conn.execute("""
+        SELECT sector, broker_id, buy_turnover_tl, sell_turnover_tl, net_flow_tl, active_symbols_count
+        FROM silver_daily_sector_summary
+        WHERE sector = 'Transportation' AND broker_id = 'MLB';
+    """).fetchone()
+
+    assert sector_summary is not None
+    assert sector_summary[2] == 910000.0
+    assert sector_summary[3] == 151000.0
+    assert sector_summary[4] == 759000.0
+    assert sector_summary[5] == 1
+
+    # --- Verify Table 5: silver_intraday_broker_window_summary ---
+    intraday_bofa = conn.execute("""
+        SELECT window_name, window_order, buy_volume, sell_volume, net_flow_tl
+        FROM silver_intraday_broker_window_summary
+        WHERE symbol = 'THYAO' AND broker_id = 'MLB'
+        ORDER BY window_order ASC;
+    """).fetchall()
+
+    assert len(intraday_bofa) == 3  # Day Start (buy 1000), Morning (buy 2000), Lunch (sell 500)
+    # Day Start window (08:15)
+    assert intraday_bofa[0][0] == "day_start"
+    assert intraday_bofa[0][2] == 1000.0
+    # Morning window (09:30)
+    assert intraday_bofa[1][0] == "morning_to_lunch"
+    assert intraday_bofa[1][2] == 2000.0
+    # Lunch window (12:00)
+    assert intraday_bofa[2][0] == "lunch_to_15"
+    assert intraday_bofa[2][3] == 500.0
+
+    # --- Verify Table 6: silver_intraday_sector_window_summary ---
+    intraday_sector = conn.execute("""
+        SELECT sector, window_name, net_flow_tl
+        FROM silver_intraday_sector_window_summary
+        WHERE sector = 'Transportation' AND broker_id = 'MLB' AND window_name = 'day_start';
+    """).fetchone()
+
+    assert intraday_sector is not None
+    assert intraday_sector[2] == 300000.0  # 1000 * 300.0
+
+    # 3. Test Gold Layer compatibility
     gold = GoldFeatureEngineer(db)
     gold_res = gold.run_all()
     assert gold_res["status"] == "success"
 
-    # Verify Gold Institutional Daily Signals
     gold_signals = conn.execute("""
         SELECT symbol, bofa_net_flow_tl, bofa_accum_5d_tl
         FROM gold_institutional_daily_signals
@@ -76,8 +140,8 @@ def test_medallion_pipeline_in_memory():
     """).fetchone()
 
     assert gold_signals is not None
-    assert gold_signals[1] == (910000.0 - 151000.0)
-    assert gold_signals[2] == (910000.0 - 151000.0)
+    assert gold_signals[1] == 759000.0
+    assert gold_signals[2] == 759000.0
 
 
 def test_pipeline_dag_resolution():
@@ -90,4 +154,3 @@ def test_pipeline_dag_resolution():
     assert pipeline._resolve_layers("gold") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("all") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("silver", resolve_dependencies=False) == ["silver"]
-

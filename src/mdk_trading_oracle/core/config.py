@@ -88,6 +88,21 @@ class Settings(BaseSettings):
         data = self.load_yaml("instruments.yaml")
         return data.get("instruments", [])
 
+    def get_default_config(self) -> Dict[str, Any]:
+        """Get default application configuration."""
+        return self.load_yaml("default.yaml")
+
+    def get_intraday_windows(self) -> List[Dict[str, Any]]:
+        """Get parameterized intraday time windows list."""
+        data = self.get_default_config()
+        return data.get("intraday_windows", [
+            {"name": "day_start", "label": "Day Start", "start_time": "07:55:00", "end_time": "08:30:00", "order": 1},
+            {"name": "morning_to_lunch", "label": "Morning to Lunch", "start_time": "08:30:00", "end_time": "11:00:00", "order": 2},
+            {"name": "lunch_to_15", "label": "Lunch to 15:00", "start_time": "11:00:00", "end_time": "13:00:00", "order": 3},
+            {"name": "closing_session", "label": "15:00 to Day Close", "start_time": "13:00:00", "end_time": "16:15:00", "order": 4},
+        ])
+
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

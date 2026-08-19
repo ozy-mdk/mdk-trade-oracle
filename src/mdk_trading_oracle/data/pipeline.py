@@ -120,7 +120,7 @@ class MedallionPipeline:
         }
 
     def run_silver(self) -> dict[str, Any]:
-        """Execute Silver layer aggregations (daily broker summaries and market OHLCV)."""
+        """Execute Silver layer aggregations (daily broker summaries, overview, stock summary, sector, and intraday windows)."""
         logger.info("Starting Silver Layer Transformations...")
         start_time = datetime.now()
 
@@ -129,23 +129,34 @@ class MedallionPipeline:
 
         conn = self.db.get_connection()
         broker_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_summary;").fetchone()[0]
-        market_daily_count = conn.execute("SELECT COUNT(*) FROM silver_market_daily;").fetchone()[0]
+        broker_overview_count = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_overview;").fetchone()[0]
+        stock_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_stock_summary;").fetchone()[0]
+        sector_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_sector_summary;").fetchone()[0]
+        win_broker_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_broker_window_summary;").fetchone()[0]
+        win_sector_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_sector_window_summary;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Silver Layer completed in {elapsed:.2f}s | "
-            f"Broker Summaries: {broker_summary_count:,} | Market Daily: {market_daily_count:,}"
+            f"Stock-Broker: {broker_summary_count:,} | Broker Overview: {broker_overview_count:,} | "
+            f"Stock Summary: {stock_summary_count:,} | Sector: {sector_summary_count:,} | "
+            f"Intraday Windows: {win_broker_count:,}"
         )
         return {
             "layer": "silver",
             "elapsed_sec": elapsed,
             "metrics": {
                 "silver_daily_broker_summary": broker_summary_count,
-                "silver_market_daily": market_daily_count,
+                "silver_daily_broker_overview": broker_overview_count,
+                "silver_daily_stock_summary": stock_summary_count,
+                "silver_daily_sector_summary": sector_summary_count,
+                "silver_intraday_broker_window_summary": win_broker_count,
+                "silver_intraday_sector_window_summary": win_sector_count,
             },
             "details": silver_res,
             "status": "success",
         }
+
 
     def run_gold(self) -> dict[str, Any]:
         """Execute Gold layer feature engineering and institutional flow signals."""
