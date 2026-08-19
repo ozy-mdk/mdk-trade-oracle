@@ -84,8 +84,10 @@ def test_pipeline_dag_resolution():
     """Test MedallionPipeline DAG layer resolution."""
     pipeline = MedallionPipeline(DuckDBManager(in_memory=True))
 
+    assert pipeline._resolve_layers("catalog") == ["catalog"]
     assert pipeline._resolve_layers("bronze") == ["bronze"]
     assert pipeline._resolve_layers("silver") == ["bronze", "silver"]
     assert pipeline._resolve_layers("gold") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("all") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("silver", resolve_dependencies=False) == ["silver"]
+

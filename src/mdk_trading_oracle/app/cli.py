@@ -231,12 +231,23 @@ def build_all(
         "--glob",
         "-g",
         help="Optional custom glob pattern for raw CSVs",
-    )
+    ),
+    sync_catalog: bool = typer.Option(
+        False,
+        "--sync-catalog",
+        "-s",
+        help="Discover entities and synchronize YAML catalogs before running pipeline",
+    ),
 ):
     """Run end-to-end Medallion pipeline: Bronze Ingestion -> Silver Layer -> Gold Layer."""
     db = DuckDBManager()
     pipeline = MedallionPipeline(db)
-    pipeline.run(target="all", raw_glob=glob_pattern, print_summary=True)
+    pipeline.run(
+        target="all",
+        raw_glob=glob_pattern,
+        sync_catalog=sync_catalog,
+        print_summary=True,
+    )
 
 
 @pipeline_app.command("run")
@@ -245,13 +256,19 @@ def pipeline_run(
         "all",
         "--target",
         "-t",
-        help="Target layer to execute: bronze, silver, gold, or all",
+        help="Target layer to execute: catalog, bronze, silver, gold, or all",
     ),
     glob_pattern: Optional[str] = typer.Option(
         None,
         "--glob",
         "-g",
         help="Optional custom glob pattern for raw CSVs",
+    ),
+    sync_catalog: bool = typer.Option(
+        False,
+        "--sync-catalog",
+        "-s",
+        help="Discover entities and synchronize YAML catalogs before running pipeline",
     ),
     no_deps: bool = typer.Option(
         False,
@@ -265,6 +282,7 @@ def pipeline_run(
     pipeline.run(
         target=target,
         raw_glob=glob_pattern,
+        sync_catalog=sync_catalog,
         resolve_dependencies=not no_deps,
         print_summary=True,
     )
@@ -272,3 +290,4 @@ def pipeline_run(
 
 if __name__ == "__main__":
     app()
+

@@ -10,6 +10,7 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.bronze import BronzeIngestor, initialize_bronze_schema
+from mdk_trading_oracle.data.discovery import RawDataInspector
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
 from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_schema
 
@@ -20,7 +21,7 @@ console = Console()
 class MedallionPipeline:
     """Orchestrates Bronze, Silver, and Gold transformations with automatic dependency DAG resolution."""
 
-    VALID_LAYERS = ["bronze", "silver", "gold", "all"]
+    VALID_LAYERS = ["catalog", "bronze", "silver", "gold", "all"]
 
     def __init__(self, db: Optional[DuckDBManager] = None):
         self.db = db or DuckDBManager()
@@ -30,7 +31,7 @@ class MedallionPipeline:
         self.gold_engineer = GoldFeatureEngineer(self.db)
 
     def _resolve_layers(self, target: Union[str, list[str]], resolve_dependencies: bool = True) -> list[str]:
-        """Resolve requested target(s) into ordered execution layers [bronze, silver, gold]."""
+        """Resolve requested target(s) into ordered execution layers."""
         if isinstance(target, str):
             target_lower = target.lower()
             if target_lower == "all":
@@ -48,6 +49,8 @@ class MedallionPipeline:
 
         # Dependency DAG: gold requires silver, silver requires bronze
         resolved = []
+        if "catalog" in layers:
+            resolved.append("catalog")
         if "gold" in layers:
             for dep in ["bronze", "silver", "gold"]:
                 if dep not in resolved:
@@ -56,10 +59,34 @@ class MedallionPipeline:
             for dep in ["bronze", "silver"]:
                 if dep not in resolved:
                     resolved.append(dep)
-        elif "bronze" in layers:
+        elif "bronze" in layers and "bronze" not in resolved:
             resolved.append("bronze")
 
         return resolved
+
+    def run_catalog_sync(self, raw_glob: Optional[str] = None) -> dict[str, Any]:
+        """Execute raw data discovery and synchronize YAML catalogs (instruments & brokers)."""
+        logger.info("Starting Data Discovery & Catalog Synchronization...")
+        start_time = datetime.now()
+
+        inspector = RawDataInspector(raw_glob=raw_glob)
+        res = inspector.sync_to_yaml_catalogs()
+        elapsed = (datetime.now() - start_time).total_seconds()
+
+        logger.info(
+            f"Catalog Sync completed in {elapsed:.2f}s | "
+            f"Instruments: {res['instruments_count']} | Brokers: {res['brokers_count']}"
+        )
+        return {
+            "layer": "catalog",
+            "elapsed_sec": elapsed,
+            "metrics": {
+                "config/instruments.yaml": res["instruments_count"],
+                "config/brokers.yaml": res["brokers_count"],
+            },
+            "details": res,
+            "status": "success",
+        }
 
     def run_bronze(self, raw_glob: Optional[str] = None, raw_source_label: str = "bist_2026_03_march") -> dict[str, Any]:
         """Execute Bronze schema initialization and raw data ingestion."""
@@ -147,6 +174,7 @@ class MedallionPipeline:
         self,
         target: Union[str, list[str]] = "all",
         raw_glob: Optional[str] = None,
+        sync_catalog: bool = False,
         resolve_dependencies: bool = True,
         print_summary: bool = True,
     ) -> dict[str, Any]:
@@ -154,12 +182,17 @@ class MedallionPipeline:
         pipeline_start = datetime.now()
         layers_to_run = self._resolve_layers(target, resolve_dependencies=resolve_dependencies)
 
-        logger.info(f"Executing Medallion Pipeline DAG for layers: {layers_to_run}")
+        logger.info(f"Executing Medallion Pipeline DAG for layers: {layers_to_run} (sync_catalog={sync_catalog})")
 
         results: dict[str, Any] = {}
 
+        if sync_catalog and "catalog" not in layers_to_run:
+            results["catalog"] = self.run_catalog_sync(raw_glob=raw_glob)
+
         for layer in layers_to_run:
-            if layer == "bronze":
+            if layer == "catalog":
+                results["catalog"] = self.run_catalog_sync(raw_glob=raw_glob)
+            elif layer == "bronze":
                 results["bronze"] = self.run_bronze(raw_glob=raw_glob)
             elif layer == "silver":
                 results["silver"] = self.run_silver()
@@ -171,7 +204,12 @@ class MedallionPipeline:
         results["status"] = "success"
 
         if print_summary:
-            self._print_execution_table(results, layers_to_run)
+            all_executed_layers = list(results.keys())
+            if "total_elapsed_sec" in all_executed_layers:
+                all_executed_layers.remove("total_elapsed_sec")
+            if "status" in all_executed_layers:
+                all_executed_layers.remove("status")
+            self._print_execution_table(results, all_executed_layers)
 
         return results
 
@@ -182,9 +220,9 @@ class MedallionPipeline:
             title_style="bold cyan",
             border_style="cyan",
         )
-        table.add_column("Layer", style="bold yellow")
+        table.add_column("Layer / Stage", style="bold yellow")
         table.add_column("Table / Output", style="green")
-        table.add_column("Row Count", justify="right", style="cyan")
+        table.add_column("Entity / Row Count", justify="right", style="cyan")
         table.add_column("Duration", justify="right", style="magenta")
         table.add_column("Status", justify="center", style="bold green")
 

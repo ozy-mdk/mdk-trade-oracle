@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Unified CLI Runner for the Medallion Data Lakehouse Pipeline (Bronze -> Silver -> Gold).
-   example: .venv/bin/python scripts/run_pipeline.py --target all
+   example: .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 """
 
 import argparse
@@ -24,9 +24,15 @@ def main():
     parser.add_argument(
         "--target",
         "-t",
-        choices=["bronze", "silver", "gold", "all"],
+        choices=["catalog", "bronze", "silver", "gold", "all"],
         default="all",
-        help="Target layer to run (default: 'all')",
+        help="Target layer to run: catalog, bronze, silver, gold, or all (default: 'all')",
+    )
+    parser.add_argument(
+        "--sync-catalog",
+        "-s",
+        action="store_true",
+        help="Discover entities and synchronize YAML catalogs before executing pipeline",
     )
     parser.add_argument(
         "--glob",
@@ -46,10 +52,11 @@ def main():
     db = DuckDBManager()
     pipeline = MedallionPipeline(db)
 
-    logger.info(f"Triggering Medallion Lakehouse Pipeline (Target: {args.target})...")
+    logger.info(f"Triggering Medallion Lakehouse Pipeline (Target: {args.target}, Sync Catalog: {args.sync_catalog})...")
     pipeline.run(
         target=args.target,
         raw_glob=args.glob,
+        sync_catalog=args.sync_catalog,
         resolve_dependencies=not args.no_deps,
         print_summary=True,
     )
