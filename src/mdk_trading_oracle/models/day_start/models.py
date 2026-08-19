@@ -247,10 +247,11 @@ class DayStartBayesianModel(BaseDayStartModel):
 class DayStartPyMCModel(BaseDayStartModel):
     """PyMC Full Bayesian MCMC / NUTS Forecaster with custom institutional priors."""
 
-    def __init__(self, draws: int = 500, tune: int = 500):
+    def __init__(self, draws: int = 300, tune: int = 300, use_map: bool = True):
         super().__init__(model_name="day_start_pymc", model_version="1.0.0")
         self.draws = draws
         self.tune = tune
+        self.use_map = use_map
         self.feature_cols: List[str] = []
         self.posterior_mean_weights: np.ndarray = np.array([])
         self.posterior_mean_intercept: float = 0.0
@@ -278,7 +279,7 @@ class DayStartPyMCModel(BaseDayStartModel):
         X_mat = X_clean.to_numpy()
         y_vec = y.to_numpy().astype(float)
 
-        # Standardize for MCMC stability
+        # Standardize for numerical stability
         self.x_mean = np.mean(X_mat, axis=0)
         self.x_std = np.std(X_mat, axis=0) + 1e-8
         X_scaled = (X_mat - self.x_mean) / self.x_std
@@ -289,10 +290,10 @@ class DayStartPyMCModel(BaseDayStartModel):
 
         n_features = X_scaled.shape[1]
 
-        logger.info(f"Fitting PyMC Bayesian Model on {len(X_scaled)} samples with {n_features} features...")
+        logger.info(f"Fitting PyMC Bayesian Model ({'MAP' if self.use_map else 'NUTS MCMC'}) on {len(X_scaled)} samples with {n_features} features...")
 
         with pm.Model() as model:
-            # Informative / Regularizing Priors
+            # Informative Gaussian & Half-Normal Priors
             intercept = pm.Normal("intercept", mu=0.0, sigma=1.0)
             beta = pm.Normal("beta", mu=0.0, sigma=0.5, shape=n_features)
             sigma = pm.HalfNormal("sigma", sigma=1.0)
@@ -301,25 +302,30 @@ class DayStartPyMCModel(BaseDayStartModel):
             mu = intercept + pm.math.dot(X_scaled, beta)
             pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y_scaled)
 
-            # Fast MAP optimization + sampling
-            try:
-                idata = pm.sample(
-                    draws=self.draws,
-                    tune=self.tune,
-                    chains=2,
-                    random_seed=42,
-                    progressbar=False,
-                    compute_convergence_checks=False,
-                )
-                self.posterior_mean_weights = idata.posterior["beta"].mean(dim=["chain", "draw"]).values
-                self.posterior_mean_intercept = float(idata.posterior["intercept"].mean().values)
-                self.posterior_sigma = float(idata.posterior["sigma"].mean().values) * self.y_std
-            except Exception as e:
-                logger.warning(f"PyMC sampling fallback to find_MAP: {e}")
-                map_est = pm.find_MAP()
+            if self.use_map:
+                map_est = pm.find_MAP(progressbar=False)
                 self.posterior_mean_weights = np.asarray(map_est["beta"])
                 self.posterior_mean_intercept = float(map_est["intercept"])
                 self.posterior_sigma = float(map_est["sigma"]) * self.y_std
+            else:
+                try:
+                    idata = pm.sample(
+                        draws=self.draws,
+                        tune=self.tune,
+                        chains=2,
+                        random_seed=42,
+                        progressbar=False,
+                        compute_convergence_checks=False,
+                    )
+                    self.posterior_mean_weights = idata.posterior["beta"].mean(dim=["chain", "draw"]).values
+                    self.posterior_mean_intercept = float(idata.posterior["intercept"].mean().values)
+                    self.posterior_sigma = float(idata.posterior["sigma"].mean().values) * self.y_std
+                except Exception as e:
+                    logger.warning(f"PyMC sampling fallback to find_MAP: {e}")
+                    map_est = pm.find_MAP(progressbar=False)
+                    self.posterior_mean_weights = np.asarray(map_est["beta"])
+                    self.posterior_mean_intercept = float(map_est["intercept"])
+                    self.posterior_sigma = float(map_est["sigma"]) * self.y_std
 
         self.is_fitted = True
         return self
