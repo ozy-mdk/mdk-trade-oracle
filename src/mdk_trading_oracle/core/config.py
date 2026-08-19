@@ -61,6 +61,11 @@ class Settings(BaseSettings):
         """Full path to DuckDB database file."""
         return self.database_dir / "mdk_oracle.duckdb"
 
+    @property
+    def duckdb_path(self) -> Path:
+        """Alias for database_path."""
+        return self.database_path
+
     def ensure_directories(self) -> None:
         """Ensure all data storage directories exist."""
         for path in [

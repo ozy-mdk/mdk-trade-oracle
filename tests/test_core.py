@@ -18,6 +18,7 @@ def test_settings_load():
     assert settings.data_dir.exists()
     assert settings.raw_data_dir.exists()
     assert settings.database_dir.exists()
+    assert settings.duckdb_path == settings.database_path
     assert len(settings.get_brokers()) > 0
     assert len(settings.get_instruments()) > 0
 
