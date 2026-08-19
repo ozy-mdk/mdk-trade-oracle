@@ -28,7 +28,9 @@ dependencies = [
     "plotly>=5.18.0",
     "nbformat>=5.9.0",
     "ipywidgets>=8.0.0",
-    "streamlit>=1.31.0"
+    "streamlit>=1.31.0",
+    "pymc>=5.0.0",
+    "arviz>=0.17.0"
 ]
 
 [project.optional-dependencies]

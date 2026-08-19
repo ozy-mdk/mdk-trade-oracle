@@ -1,6 +1,6 @@
-"""Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, and Probabilistic Ensemble."""
+"""Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, PyMC, and Probabilistic Ensemble."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -172,12 +172,12 @@ class DayStartRollingMeanModel(BaseDayStartModel):
 
 
 # ==========================================
-# 1. Bayesian Probabilistic Time Series Model
+# 1. Bayesian Probabilistic Models (Ridge & PyMC)
 # ==========================================
 
 @ModelRegistry.register("day_start_bayesian_ridge")
 class DayStartBayesianModel(BaseDayStartModel):
-    """Bayesian Probabilistic Forecaster: Computes posterior distributions and exact credible intervals."""
+    """Bayesian Probabilistic Forecaster (Ridge): Computes conjugate posterior distributions and exact credible intervals."""
 
     def __init__(self, max_iter: int = 300):
         super().__init__(model_name="day_start_bayesian_ridge", model_version="1.0.0")
@@ -204,7 +204,6 @@ class DayStartBayesianModel(BaseDayStartModel):
         row_dict = X.iloc[0].to_dict()
         X_clean = self._prep_features(X.iloc[[0]])
         
-        # Ensure all columns match training
         for col in self.feature_cols:
             if col not in X_clean.columns:
                 X_clean[col] = 0.0
@@ -219,6 +218,132 @@ class DayStartBayesianModel(BaseDayStartModel):
         upper_90 = pred_val + 1.645 * std_val
 
         # Directional probability from Gaussian CDF
+        from scipy.stats import norm
+        prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
+        confidence = float(max(prob_positive, 1.0 - prob_positive))
+
+        direction = self._classify_direction(pred_val, confidence)
+        playbook = self._determine_playbook(row_dict, pred_val)
+
+        return ForecastResult(
+            forecast_date=row_dict.get("trade_date"),
+            target_broker_id="MLB",
+            predicted_net_flow_tl=pred_val,
+            predicted_flow_lower_90=lower_90,
+            predicted_flow_upper_90=upper_90,
+            predicted_direction=direction,
+            direction_confidence=confidence,
+            predicted_open_market_share=float(row_dict.get("feat_bofa_prev_day_market_share", 0.15)),
+            predicted_playbook=playbook,
+            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
+            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            model_name=self.model_name,
+            model_version=self.model_version,
+            features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
+        )
+
+
+@ModelRegistry.register("day_start_pymc")
+class DayStartPyMCModel(BaseDayStartModel):
+    """PyMC Full Bayesian MCMC / NUTS Forecaster with custom institutional priors."""
+
+    def __init__(self, draws: int = 500, tune: int = 500):
+        super().__init__(model_name="day_start_pymc", model_version="1.0.0")
+        self.draws = draws
+        self.tune = tune
+        self.feature_cols: List[str] = []
+        self.posterior_mean_weights: np.ndarray = np.array([])
+        self.posterior_mean_intercept: float = 0.0
+        self.posterior_sigma: float = 25e6
+        self.x_mean: np.ndarray = np.array([])
+        self.x_std: np.ndarray = np.array([])
+        self.y_mean: float = 0.0
+        self.y_std: float = 1.0
+
+    def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        feat_df = X.copy()
+        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
+                     "target_open_market_share", "target_open_direction"]
+        for col in drop_cols:
+            if col in feat_df.columns:
+                feat_df = feat_df.drop(columns=[col])
+        return feat_df.select_dtypes(include=[np.number, bool]).astype(float)
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartPyMCModel":
+        import pymc as pm
+
+        X_clean = self._prep_features(X)
+        self.feature_cols = list(X_clean.columns)
+
+        X_mat = X_clean.to_numpy()
+        y_vec = y.to_numpy().astype(float)
+
+        # Standardize for MCMC stability
+        self.x_mean = np.mean(X_mat, axis=0)
+        self.x_std = np.std(X_mat, axis=0) + 1e-8
+        X_scaled = (X_mat - self.x_mean) / self.x_std
+
+        self.y_mean = float(np.mean(y_vec))
+        self.y_std = float(np.std(y_vec)) + 1e-8
+        y_scaled = (y_vec - self.y_mean) / self.y_std
+
+        n_features = X_scaled.shape[1]
+
+        logger.info(f"Fitting PyMC Bayesian Model on {len(X_scaled)} samples with {n_features} features...")
+
+        with pm.Model() as model:
+            # Informative / Regularizing Priors
+            intercept = pm.Normal("intercept", mu=0.0, sigma=1.0)
+            beta = pm.Normal("beta", mu=0.0, sigma=0.5, shape=n_features)
+            sigma = pm.HalfNormal("sigma", sigma=1.0)
+
+            # Likelihood
+            mu = intercept + pm.math.dot(X_scaled, beta)
+            pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y_scaled)
+
+            # Fast MAP optimization + sampling
+            try:
+                idata = pm.sample(
+                    draws=self.draws,
+                    tune=self.tune,
+                    chains=2,
+                    random_seed=42,
+                    progressbar=False,
+                    compute_convergence_checks=False,
+                )
+                self.posterior_mean_weights = idata.posterior["beta"].mean(dim=["chain", "draw"]).values
+                self.posterior_mean_intercept = float(idata.posterior["intercept"].mean().values)
+                self.posterior_sigma = float(idata.posterior["sigma"].mean().values) * self.y_std
+            except Exception as e:
+                logger.warning(f"PyMC sampling fallback to find_MAP: {e}")
+                map_est = pm.find_MAP()
+                self.posterior_mean_weights = np.asarray(map_est["beta"])
+                self.posterior_mean_intercept = float(map_est["intercept"])
+                self.posterior_sigma = float(map_est["sigma"]) * self.y_std
+
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> ForecastResult:
+        row_dict = X.iloc[0].to_dict()
+        X_clean = self._prep_features(X.iloc[[0]])
+        for col in self.feature_cols:
+            if col not in X_clean.columns:
+                X_clean[col] = 0.0
+        X_clean = X_clean[self.feature_cols]
+
+        X_mat = X_clean.to_numpy()
+        X_scaled = (X_mat - self.x_mean) / self.x_std
+
+        # Scaled prediction back to original TL units
+        pred_scaled = self.posterior_mean_intercept + np.dot(X_scaled, self.posterior_mean_weights)
+        pred_val = float(pred_scaled[0] * self.y_std + self.y_mean)
+        std_val = float(self.posterior_sigma)
+
+        # 90% Bayesian Credible Interval
+        lower_90 = pred_val - 1.645 * std_val
+        upper_90 = pred_val + 1.645 * std_val
+
         from scipy.stats import norm
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))

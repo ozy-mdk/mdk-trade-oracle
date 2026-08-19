@@ -12,6 +12,7 @@ from mdk_trading_oracle.models.day_start import (
     DayStartForecaster,
     DayStartLightGBMModel,
     DayStartNaivePersistenceModel,
+    DayStartPyMCModel,
     DayStartRollingMeanModel,
 )
 
@@ -99,6 +100,13 @@ def test_day_start_candidate_models(populated_test_db):
     m_lgb.fit(X, y)
     res_lgb = m_lgb.predict(X.iloc[[0]])
     assert res_lgb.predicted_net_flow_tl is not None
+
+    # 5. PyMC Full Bayesian Model
+    m_pymc = DayStartPyMCModel(draws=100, tune=100)
+    m_pymc.fit(X, y)
+    res_pymc = m_pymc.predict(X.iloc[[0]])
+    assert res_pymc.predicted_flow_lower_90 < res_pymc.predicted_flow_upper_90
+    assert 0.0 <= res_pymc.direction_confidence <= 1.0
 
 
 def test_day_start_forecaster_orchestration(populated_test_db):

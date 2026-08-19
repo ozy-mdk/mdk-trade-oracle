@@ -61,6 +61,7 @@ from mdk_trading_oracle.models.day_start import (
     DayStartNaivePersistenceModel,
     DayStartRollingMeanModel,
     DayStartBayesianModel,
+    DayStartPyMCModel,
     DayStartLightGBMModel,
 )
 
@@ -128,15 +129,20 @@ eval_base1 = m_base1.evaluate(X, y)
 m_lgb = DayStartLightGBMModel().fit(X, y)
 eval_lgb = m_lgb.evaluate(X, y)
 
-# 4. Bayesian Probabilistic Forecaster
+# 4. Bayesian Ridge Probabilistic Forecaster
 m_bayes = DayStartBayesianModel().fit(X, y)
 eval_bayes = m_bayes.evaluate(X, y)
+
+# 5. PyMC Full Bayesian MCMC / NUTS Forecaster
+m_pymc = DayStartPyMCModel(draws=300, tune=300).fit(X, y)
+eval_pymc = m_pymc.evaluate(X, y)
 
 benchmark_df = pd.DataFrame([
     {"Model": "Baseline 0: Naive W4 Persistence", **eval_base0},
     {"Model": "Baseline 1: 5-Day Historical Mean", **eval_base1},
     {"Model": "LightGBM Non-Linear Ensemble", **eval_lgb},
     {"Model": "Bayesian Ridge Probabilistic", **eval_bayes},
+    {"Model": "PyMC Full Bayesian MCMC", **eval_pymc},
 ]).sort_values(by="hit_rate_pct", ascending=False)
 
 display(HTML("<h3>🏆 Model Arena Scoreboard</h3>"))
