@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Dynamic determination of repository root (3 levels up from src/mdk_trading_oracle/core)
@@ -33,8 +33,18 @@ class Settings(BaseSettings):
     config_dir: Path = PROJECT_ROOT / "config"
     notebooks_dir: Path = PROJECT_ROOT / "notebooks"
 
-    # External Data Storage (Outside repository: /Users/ozkanyildirim/data/mdk_oracle)
+    # External Data Storage (Outside repository: default ~/data/mdk_oracle)
     data_dir: Path = Field(default=DEFAULT_DATA_DIR, alias="DATA_DIR")
+
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def expand_data_dir(cls, v: Any) -> Path:
+        """Expand user path and resolve to absolute Path."""
+        if isinstance(v, str):
+            return Path(v).expanduser().resolve()
+        elif isinstance(v, Path):
+            return v.expanduser().resolve()
+        return v
 
     @property
     def raw_data_dir(self) -> Path:

@@ -1,6 +1,6 @@
 brokers:
 - code: MLB
-  name: Bank of America Merrill Lynch
+  name: Bank of America (BofA)
   type: Foreign Institutional
   is_primary_target: true
 - code: YKR

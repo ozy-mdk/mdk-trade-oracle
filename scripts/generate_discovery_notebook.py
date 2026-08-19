@@ -84,7 +84,7 @@ notebook_content = {
                 "--- \n",
                 "## 📁 3. Raw Data Inventory: File System Inspection\n",
                 "\n",
-                "Let's inspect the files in `/Users/ozkanyildirim/data/mdk_oracle/00_raw_data/2026/03_march/raw_csv` to see how the raw data is organized on disk."
+                "Let's inspect the files in `~/data/mdk_oracle/00_raw_data/` to see how the raw data is organized on disk."
             ]
         },
         {
@@ -480,7 +480,7 @@ notebook_content = {
     "nbformat_minor": 2
 }
 
-output_path = Path("/Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/00_data_discovery_and_catalog_analysis.ipynb")
+output_path = Path(__file__).resolve().parent.parent / "notebooks" / "00_data_discovery_and_catalog_analysis.ipynb"
 with open(output_path, "w", encoding="utf-8") as f:
     json.dump(notebook_content, f, indent=1)
 

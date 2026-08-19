@@ -1,6 +1,9 @@
 # 🏛 MDK Trading Oracle
 
-A local-first, zero-cost quantitative trading decision support engine and institutional order flow analyzer, with specialized intelligence on **Bank of America (`MLB` / Merrill Lynch)** institutional flow across the **Turkish Equity Market (Borsa Istanbul / BIST)**.
+A local-first, high-throughput quantitative trading decision support engine and institutional order flow analyzer for **Borsa Istanbul (BIST)**, with specialized intelligence on **Bank of America (BofA / clearing code `MLB`)**.
+
+### 🎯 Mission & Core Objective
+Track and quantify institutional footprints from market-moving participants—primarily **Bank of America (BofA)**—to detect accumulation, distribution, aggressive block flows, and algorithmic momentum, translating these patterns into **concrete, high-probability action items and trading signals for individual traders**.
 
 ---
 
@@ -11,16 +14,17 @@ A local-first, zero-cost quantitative trading decision support engine and instit
 ```mermaid
 flowchart TD
     subgraph External Data Lakehouse [~/data/mdk_oracle]
-        A[00_raw_data/ <br> BIST Tick CSVs & MySQL Dumps] --> B[(DuckDB: bronze_raw_trades <br> 36.8M+ Trades)]
+        A[00_raw_data/ <br> BIST Tick CSV Feeds] --> B[(DuckDB: Bronze Layer <br> 36.8M+ Trades Ingested)]
         B --> C[(DuckDB: Silver Layer <br> Daily Broker Summaries & Market OHLCV)]
-        C --> D[(DuckDB: Gold Layer <br> Institutional Flow Metrics & Z-Scores)]
-        D --> E[Oracle Decision Engine <br> Multi-Factor Evaluator]
+        C --> D[(DuckDB: Gold Layer <br> Rolling BofA Flows & Z-Scores)]
+        D --> E[Oracle Signal & Decision Engine <br> Trader Action Items]
     end
 
     subgraph Code Repository [mdk-trading-oracle]
         F[src/mdk_trading_oracle <br> data/bronze, data/silver, data/gold, core/]
-        G[notebooks/ <br> 01_bronze_data_exploration.ipynb]
+        G[notebooks/ <br> 00_data_discovery, 01_bronze_data_exploration]
         H[CLI: mdk-oracle]
+        I[.agents/skills/ <br> Medallion, Discovery, Flow Analysis]
     end
 
     F -.-> B
@@ -31,31 +35,30 @@ flowchart TD
 ### Medallion Lakehouse Layers
 
 1. **Bronze Layer (`bronze_*`)**:
-   - `bronze_raw_trades`: 36,818,222 raw tick-by-tick trades across all 21 trading days in March 2026.
-   - `bronze_brokers`: 18 institutional and domestic brokerage definitions.
-   - `bronze_instruments`: BIST universe symbols (e.g. `THYAO`, `AKBNK`, `GARAN`, `EREGL`, `TUPRS`, `BIMAS`).
+   - `bronze_raw_trades`: 36,818,222 raw tick-by-tick trades across all trading days in March 2026 (extensible to subsequent months).
+   - `bronze_brokers`: 60 institutional and domestic brokerage definitions.
+   - `bronze_instruments`: 45 BIST universe symbols (e.g. `THYAO`, `AKBNK`, `GARAN`, `EREGL`, `TUPRS`, `BIMAS`).
 2. **Silver Layer (`silver_*`)**:
    - `silver_daily_broker_summary`: 48,058 aggregated daily records containing buy/sell volumes, turnover, and buy/sell VWAP per `(trade_date, symbol, broker_id)`.
    - `silver_market_daily`: 945 daily OHLCV, market turnover, active broker counts, and Bank of America volume share metrics.
 3. **Gold Layer (`gold_*`)**:
-   - `gold_institutional_daily_signals`: Rolling 5-day and 20-day institutional accumulation metrics, BofA Z-scores, and flow signals.
-4. **Oracle Decision Engine (`oracle/`)** *(Planned)*:
-   - Multi-factor quantitative evaluator producing confidence scores, actionable signals (`BUY` / `SELL` / `HOLD`), and narrative logs.
+   - `gold_institutional_daily_signals`: Rolling 5-day and 20-day institutional accumulation metrics, BofA Z-scores, and actionable flow signals.
+4. **Oracle Decision Engine (`oracle/`)**:
+   - Translates Gold feature metrics into actionable trade alerts (`LONG_ACCUMULATION`, `INSTITUTIONAL_DISTRIBUTION`, `MOMENTUM_BREAKOUT`).
 
 ---
 
 ## 🔒 Strict Separation of Code & Data
 
-To support local zero-cost execution today and seamless migration to cloud blob storage (e.g., S3 / GCS) in the future:
-- **Code Repository (`mdk-trading-oracle`)**: Contains only Python source code, schemas, ETL scripts, unit tests, and notebooks. No heavy data binaries or raw CSVs are tracked in Git.
+To support local zero-cost execution and portability across different team members:
+- **Code Repository (`mdk-trading-oracle`)**: Contains Python source code, schemas, ETL scripts, unit tests, notebooks, and `.agents/skills/`. No heavy data binaries are tracked in Git.
 - **Physical Data Store (`DATA_DIR`)**: Stored outside the repository (default: `~/data/mdk_oracle/` or configured in `.env`).
 
 ```
-/Users/ozkanyildirim/data/mdk_oracle/
-├── 00_raw_data/              # Raw data landing zone (CSVs & SQL dumps)
+~/data/mdk_oracle/
+├── 00_raw_data/              # Raw data landing zone (CSV feeds by year/month)
 │   └── 2026/03_march/
-│       ├── dump/             # MySQL raw dumps
-│       └── raw_csv/          # 21 trading days of raw tick feeds
+│       └── raw_csv/          # 21 trading days of raw tick feeds (945 files)
 └── database/
     └── mdk_oracle.duckdb     # Fast local DuckDB database (36.8M+ trades)
 ```
@@ -91,7 +94,7 @@ APP_ENV=development
 LOG_LEVEL=INFO
 DEFAULT_MARKET=BIST
 PRIMARY_INSTITUTION=MLB
-DATA_DIR=/Users/ozkanyildirim/data/mdk_oracle
+DATA_DIR=~/data/mdk_oracle
 ```
 
 ### 3. Check System Status & Ingestion

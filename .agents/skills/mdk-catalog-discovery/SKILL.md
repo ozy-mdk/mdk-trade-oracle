@@ -3,12 +3,12 @@ name: mdk-catalog-discovery
 description: >-
   Inspect raw CSV trade feeds, auto-discover equities and brokerage entities,
   and synchronize YAML metadata catalogs for MDK Trading Oracle.
-  Use when new raw trade dumps are added, when checking data completeness, or auditing data coverage.
+  Use when new raw trade dumps (daily or monthly) are added, when checking data completeness, or auditing data coverage.
 ---
 
 # MDK Catalog Discovery & Data Preparation Skill
 
-This skill guides the discovery of new instruments, broker codes, and raw CSV files in `/Users/ozkanyildirim/data/mdk_oracle/00_raw_data/`.
+This skill guides the discovery of new instruments, broker codes, and raw CSV files across all partitions in `~/data/mdk_oracle/00_raw_data/` (or path configured in `$DATA_DIR`).
 
 ---
 
@@ -34,14 +34,17 @@ Extracts all unique equities and brokers and writes structured definitions to `c
 
 ## 2. Interactive Discovery & Audit Notebook
 
-For a visual, step-by-step audit of data inventory, in-scope vs out-of-scope boundaries, and 100% zero-loss completeness verification:
+For a visual, step-by-step audit of data inventory, in-scope vs out-of-scope boundaries, and zero-loss completeness verification:
 - Open [`notebooks/00_data_discovery_and_catalog_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/00_data_discovery_and_catalog_analysis.ipynb)
 - Select Jupyter Kernel: **`Python 3.9 (mdk-trading-oracle)`**
 
 ---
 
-## 3. Data Completeness Formula
+## 3. Data Completeness Verification Formula
 
 Verify zero data loss across layers:
-$$\text{Expected Daily Rows} = \text{Unique Equities (45)} \times \text{Trading Days (21)} = 945\text{ rows}$$
-$$\text{Bronze Rows} = 36,818,222 \implies \text{Silver Market Rows} = 945 \implies \text{Gold Signal Rows} = 945$$
+$$\text{Expected Daily Rows} = \text{Unique Equities} \times \text{Trading Days}$$
+$$\text{Raw Bronze Trades Ingested} \implies \text{Silver Daily Summary Rows} \implies \text{Gold Actionable Signal Rows}$$
+Ensure that:
+- Every raw CSV trade file is accounted for.
+- Total market turnover calculated in Bronze matches Silver and Gold sums identically.

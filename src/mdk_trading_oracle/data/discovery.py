@@ -69,7 +69,7 @@ KNOWN_INSTRUMENTS_META: Dict[str, Dict[str, Any]] = {
 
 # Comprehensive Master Metadata Catalog for BIST Brokerages
 KNOWN_BROKERS_META: Dict[str, Dict[str, Any]] = {
-    "MLB": {"name": "Bank of America Merrill Lynch", "type": "Foreign Institutional", "is_primary_target": True},
+    "MLB": {"name": "Bank of America (BofA)", "type": "Foreign Institutional", "is_primary_target": True},
     "HSY": {"name": "HSBC Yatırım Menkul Değerler", "type": "Foreign Institutional", "is_primary_target": False},
     "PHC": {"name": "PhillipCapital Menkul Değerler", "type": "Foreign Institutional", "is_primary_target": False},
     "UNS": {"name": "Ünlü Menkul Değerler", "type": "Institutional Prime", "is_primary_target": False},

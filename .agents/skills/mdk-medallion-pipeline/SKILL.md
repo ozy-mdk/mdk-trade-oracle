@@ -15,13 +15,13 @@ This skill provides step-by-step procedures for running, modifying, and debuggin
 ## 1. Lakehouse Architecture Overview
 
 - **Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)**:
-  - `bronze_raw_trades`: Ingests raw microsecond tick executions (36.8M+ trades for March 2026).
+  - `bronze_raw_trades`: Ingests raw microsecond tick executions across all available monthly/daily partitions under `~/data/mdk_oracle/00_raw_data/`.
   - `bronze_brokers` & `bronze_instruments`: Synchronizes dimension tables from YAML configs.
 - **Silver Layer (`src/mdk_trading_oracle/data/silver/`)**:
   - `silver_daily_broker_summary`: Daily aggregated buy/sell volume, net flow (TL), and VWAP per broker & symbol.
-  - `silver_market_daily`: Market OHLCV, total volume/turnover, and BofA net flow per trading day.
+  - `silver_market_daily`: Market OHLCV, total volume/turnover, and Bank of America (BofA) net flow & volume share.
 - **Gold Layer (`src/mdk_trading_oracle/data/gold/`)**:
-  - `gold_institutional_daily_signals`: Computes rolling 5-day / 20-day cumulative BofA flow, volume shares, and 20-day rolling Z-scores.
+  - `gold_institutional_daily_signals`: Computes rolling 5-day / 20-day cumulative BofA flow, volume shares, and 20-day rolling Z-scores to power actionable trading decisions for individual users.
 
 ---
 
@@ -33,7 +33,7 @@ Run using the project virtual environment (`.venv/bin/python`):
 # 1. Full Lakehouse Pipeline (Bronze -> Silver -> Gold)
 .venv/bin/python scripts/run_pipeline.py --target all
 
-# 2. Pipeline with Raw Discovery & Catalog Auto-Sync
+# 2. Pipeline with Raw Discovery & Catalog Auto-Sync (for newly added data)
 .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 
 # 3. Target Specific Layer
@@ -47,7 +47,7 @@ Run using the project virtual environment (`.venv/bin/python`):
 
 ## 3. Concurrency & Lock Conflict Troubleshooting
 
-If you encounter `DuckDB lock conflict: ... is currently locked by another process (PID xxxx)`:
+If you encounter `DuckDB lock conflict: ... is currently locked by another process`:
 1. **Identify the holding process**: `ps aux | grep <PID>` (usually an active Jupyter Notebook kernel).
 2. **Terminate the conflicting process**: `kill <PID>`.
 3. **In Jupyter Notebooks**: Always connect with `read_only=True`:
