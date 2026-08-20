@@ -1,5 +1,6 @@
 """Tests for Model 1: Day-Start Institutional Forecaster."""
 
+import pandas as pd
 import pytest
 
 from mdk_trading_oracle.core.db import DuckDBManager
@@ -33,17 +34,17 @@ def populated_test_db():
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
             -- Day 1 (Monday)
-            ('t1', '2026-03-02 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
-            ('t2', '2026-03-02 15:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
+            ('t1', '2026-03-02 10:00:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
+            ('t2', '2026-03-02 17:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
             -- Day 2 (Tuesday)
-            ('t3', '2026-03-03 08:15:00', 'THYAO', 306.0, 1500.0, 'MLB', 'ISY', 'test'),
-            ('t4', '2026-03-03 15:30:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'MLB', 'test'),
+            ('t3', '2026-03-03 10:00:00', 'THYAO', 306.0, 1500.0, 'MLB', 'ISY', 'test'),
+            ('t4', '2026-03-03 17:30:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'MLB', 'test'),
             -- Day 3 (Wednesday)
-            ('t5', '2026-03-04 08:15:00', 'AKBNK', 61.0, 4000.0, 'MLB', 'YKR', 'test'),
-            ('t6', '2026-03-04 15:30:00', 'THYAO', 310.0, 3000.0, 'MLB', 'AKB', 'test'),
+            ('t5', '2026-03-04 10:00:00', 'AKBNK', 61.0, 4000.0, 'MLB', 'YKR', 'test'),
+            ('t6', '2026-03-04 17:30:00', 'THYAO', 310.0, 3000.0, 'MLB', 'AKB', 'test'),
             -- Day 4 (Thursday)
-            ('t7', '2026-03-05 08:15:00', 'THYAO', 312.0, 2500.0, 'MLB', 'ISY', 'test'),
-            ('t8', '2026-03-05 15:30:00', 'AKBNK', 62.0, 6000.0, 'MLB', 'GAR', 'test');
+            ('t7', '2026-03-05 10:00:00', 'THYAO', 312.0, 2500.0, 'MLB', 'ISY', 'test'),
+            ('t8', '2026-03-05 17:30:00', 'AKBNK', 62.0, 6000.0, 'MLB', 'GAR', 'test');
     """)
 
     silver = SilverTransformer(db)
@@ -131,6 +132,15 @@ def test_day_start_model_arena(populated_test_db):
     assert len(scoreboard_df) == 5
     assert champion_model is not None
     assert champion_model.model_name in ["day_start_bayesian_ridge", "day_start_pymc", "day_start_lightgbm", "day_start_baseline_persistence", "day_start_baseline_rolling_mean"]
+
+
+def test_day_start_model_arena_rejects_constant_target():
+    """Fail loudly when a broken window configuration produces a constant target."""
+    X = pd.DataFrame({"feat_bofa_w4_net_flow_tl": [1.0, 2.0, 3.0, 4.0]})
+    y = pd.Series([0.0, 0.0, 0.0, 0.0], name="target_open_net_flow_tl")
+
+    with pytest.raises(ValueError, match="at least two distinct values"):
+        DayStartModelArena().run_tournament(X, y, min_train_samples=2)
 
 
 def test_day_start_forecaster_auto_orchestration(populated_test_db):

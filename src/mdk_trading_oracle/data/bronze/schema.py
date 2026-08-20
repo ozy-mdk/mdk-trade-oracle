@@ -40,11 +40,26 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
             timestamp TIMESTAMP,
             symbol VARCHAR,
             price DOUBLE,
-            volume DOUBLE,
+            volume BIGINT,
+            bidask VARCHAR,
             buyer_broker_id VARCHAR,
             seller_broker_id VARCHAR,
             raw_source VARCHAR,
             ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 4. ZIP member-level ingestion ledger. The CRC and byte size mirror the
+    # source archive metadata and make interrupted annual loads resumable.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_loaded_files (
+            archive_name VARCHAR NOT NULL,
+            member_name VARCHAR NOT NULL,
+            crc32 UBIGINT NOT NULL,
+            byte_size UBIGINT NOT NULL,
+            row_count BIGINT NOT NULL,
+            loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (archive_name, member_name)
         );
     """)
 

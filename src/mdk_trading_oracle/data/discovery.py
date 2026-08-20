@@ -43,6 +43,8 @@ KNOWN_INSTRUMENTS_META: Dict[str, Dict[str, Any]] = {
     "ISCTR": {"name": "Türkiye İş Bankası C", "sector": "Banking", "index": "BIST30"},
     "KCHOL": {"name": "Koç Holding A.Ş.", "sector": "Holding", "index": "BIST30"},
     "KONTR": {"name": "Kontrolmatik Teknoloji Enerji ve Mühendislik", "sector": "Technology & Energy", "index": "BIST50"},
+    "KOZAA": {"name": "Koza Anadolu Metal Madencilik İşletmeleri A.Ş.", "sector": "Mining", "index": "BIST50"},
+    "KOZAL": {"name": "Koza Altın İşletmeleri A.Ş.", "sector": "Mining", "index": "BIST30"},
     "KRDMD": {"name": "Kardemir Karabük Demir Çelik D", "sector": "Basic Materials", "index": "BIST30"},
     "MGROS": {"name": "Migros Ticaret A.Ş.", "sector": "Retail", "index": "BIST50"},
     "ODAS": {"name": "Odaş Elektrik Üretim Sanayi Ticaret A.Ş.", "sector": "Energy", "index": "BIST50"},
@@ -136,6 +138,7 @@ class RawDataInspector:
 
     def __init__(self, raw_glob: Optional[str] = None):
         self.settings = get_settings()
+        self._raw_glob_explicit = raw_glob is not None
         self.raw_glob = raw_glob or (self.settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
 
     def _get_read_connection(self) -> duckdb.DuckDBPyConnection:
@@ -144,38 +147,61 @@ class RawDataInspector:
             return duckdb.connect(str(self.settings.database_path), read_only=True)
         return duckdb.connect(":memory:")
 
+    def _get_source_layout(self, conn: duckdb.DuckDBPyConnection) -> Dict[str, str]:
+        """Return source SQL and canonical column expressions for Bronze or raw CSV data."""
+        has_populated_bronze = False
+        try:
+            tables = [t[0] for t in conn.execute("SHOW TABLES;").fetchall()]
+            if "bronze_raw_trades" in tables:
+                has_populated_bronze = conn.execute(
+                    "SELECT EXISTS(SELECT 1 FROM bronze_raw_trades LIMIT 1);"
+                ).fetchone()[0]
+        except Exception:
+            has_populated_bronze = False
+
+        if has_populated_bronze and not self._raw_glob_explicit:
+            return {
+                "source": "bronze_raw_trades",
+                "timestamp": "timestamp",
+                "volume": "volume",
+                "buyer": "buyer_broker_id",
+                "seller": "seller_broker_id",
+            }
+
+        escaped_glob = self.raw_glob.replace("'", "''")
+        return {
+            "source": f"read_csv_auto('{escaped_glob}', union_by_name=True, header=True)",
+            "timestamp": "TRY_CAST(signal_time_text AS TIMESTAMPTZ)",
+            "volume": "quantity",
+            "buyer": "buyer",
+            "seller": "seller",
+        }
+
     def inspect_dataset_summary(self) -> Dict[str, Any]:
         """Compute top-level summary of the raw dataset."""
         conn = self._get_read_connection()
 
-        # Check if bronze_raw_trades table is already populated
-        has_bronze = False
-        try:
-            tables = [t[0] for t in conn.execute("SHOW TABLES;").fetchall()]
-            has_bronze = "bronze_raw_trades" in tables
-        except Exception:
-            has_bronze = False
+        layout = self._get_source_layout(conn)
+        source_query = f"FROM {layout['source']}"
+        timestamp = layout["timestamp"]
+        volume = layout["volume"]
+        buyer = layout["buyer"]
+        seller = layout["seller"]
 
-        if has_bronze:
-            source_query = "FROM bronze_raw_trades"
-            total_trades = conn.execute(f"SELECT COUNT(*) {source_query};").fetchone()[0]
-            date_range = conn.execute(
-                f"SELECT MIN(timestamp::DATE), MAX(timestamp::DATE), COUNT(DISTINCT timestamp::DATE) {source_query};"
-            ).fetchone()
-            total_turnover = conn.execute(
-                f"SELECT SUM(volume * price) {source_query};"
-            ).fetchone()[0]
-        else:
-            source_query = f"FROM read_csv_auto('{self.raw_glob}', union_by_name=True, header=True)"
-            total_trades = conn.execute(f"SELECT COUNT(*) {source_query};").fetchone()[0]
-            date_range = ("2026-03-01", "2026-03-31", 21)
-            total_turnover = 0.0
+        total_trades = conn.execute(f"SELECT COUNT(*) {source_query};").fetchone()[0]
+        date_range = conn.execute(
+            f"SELECT MIN(CAST({timestamp} AS DATE)), MAX(CAST({timestamp} AS DATE)), "
+            f"COUNT(DISTINCT CAST({timestamp} AS DATE)) {source_query};"
+        ).fetchone()
+        total_turnover = conn.execute(f"SELECT SUM({volume} * price) {source_query};").fetchone()[0]
 
         distinct_symbols = conn.execute(
             f"SELECT COUNT(DISTINCT REPLACE(REPLACE(symbol, '.E', ''), '.IS', '')) {source_query};"
         ).fetchone()[0]
-        distinct_buyers = conn.execute(
-            f"SELECT COUNT(DISTINCT buyer_broker_id) {source_query};"
+        distinct_brokers = conn.execute(
+            f"SELECT COUNT(DISTINCT broker_id) FROM ("
+            f"SELECT {buyer} AS broker_id {source_query} UNION SELECT {seller} AS broker_id {source_query}"
+            ") WHERE broker_id IS NOT NULL;"
         ).fetchone()[0]
 
         return {
@@ -185,28 +211,23 @@ class RawDataInspector:
             "max_date": str(date_range[1]),
             "trading_days": date_range[2],
             "distinct_symbols": distinct_symbols,
-            "distinct_brokers": distinct_buyers,
+            "distinct_brokers": distinct_brokers,
         }
 
     def discover_instruments(self) -> List[Dict[str, Any]]:
         """Extract and rank all instruments discovered in the raw data."""
         conn = self._get_read_connection()
 
-        has_bronze = False
-        try:
-            tables = [t[0] for t in conn.execute("SHOW TABLES;").fetchall()]
-            has_bronze = "bronze_raw_trades" in tables
-        except Exception:
-            has_bronze = False
-
-        source = "bronze_raw_trades" if has_bronze else f"read_csv_auto('{self.raw_glob}', union_by_name=True)"
+        layout = self._get_source_layout(conn)
+        source = layout["source"]
+        volume = layout["volume"]
 
         query = f"""
             SELECT 
                 REPLACE(REPLACE(symbol, '.E', ''), '.IS', '') AS clean_symbol,
                 COUNT(*) AS trade_count,
-                SUM(volume) AS total_volume,
-                SUM(volume * price) AS total_turnover_tl,
+                SUM({volume}) AS total_volume,
+                SUM({volume} * price) AS total_turnover_tl,
                 MIN(price) AS min_price,
                 MAX(price) AS max_price,
                 AVG(price) AS avg_price
@@ -239,25 +260,22 @@ class RawDataInspector:
         """Extract and rank all brokerages discovered in the raw data."""
         conn = self._get_read_connection()
 
-        has_bronze = False
-        try:
-            tables = [t[0] for t in conn.execute("SHOW TABLES;").fetchall()]
-            has_bronze = "bronze_raw_trades" in tables
-        except Exception:
-            has_bronze = False
-
-        source = "bronze_raw_trades" if has_bronze else f"read_csv_auto('{self.raw_glob}', union_by_name=True)"
+        layout = self._get_source_layout(conn)
+        source = layout["source"]
+        volume = layout["volume"]
+        buyer = layout["buyer"]
+        seller = layout["seller"]
 
         query = f"""
             WITH buyer_stats AS (
-                SELECT buyer_broker_id AS broker_id, COUNT(*) AS buy_trades, SUM(volume * price) AS buy_turnover
+                SELECT {buyer} AS broker_id, COUNT(*) AS buy_trades, SUM({volume} * price) AS buy_turnover
                 FROM {source}
-                GROUP BY buyer_broker_id
+                GROUP BY {buyer}
             ),
             seller_stats AS (
-                SELECT seller_broker_id AS broker_id, COUNT(*) AS sell_trades, SUM(volume * price) AS sell_turnover
+                SELECT {seller} AS broker_id, COUNT(*) AS sell_trades, SUM({volume} * price) AS sell_turnover
                 FROM {source}
-                GROUP BY seller_broker_id
+                GROUP BY {seller}
             )
             SELECT 
                 COALESCE(b.broker_id, s.broker_id) AS broker_id,
@@ -267,6 +285,8 @@ class RawDataInspector:
                 COALESCE(s.sell_turnover, 0) AS sell_turnover_tl
             FROM buyer_stats b
             FULL OUTER JOIN seller_stats s ON b.broker_id = s.broker_id
+            WHERE COALESCE(b.broker_id, s.broker_id) IS NOT NULL
+              AND LENGTH(COALESCE(b.broker_id, s.broker_id)) > 0
             ORDER BY total_turnover_tl DESC;
         """
         rows = conn.execute(query).fetchall()

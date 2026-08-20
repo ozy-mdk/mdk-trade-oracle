@@ -53,7 +53,9 @@ class DuckDBManager:
                 tmp_dir.mkdir(parents=True, exist_ok=True)
                 self._conn.execute("PRAGMA preserve_insertion_order=false;")
                 self._conn.execute(f"PRAGMA temp_directory='{tmp_dir.as_posix()}';")
-                self._conn.execute("PRAGMA max_temp_directory_size='30GiB';")
+                # Keep DuckDB's default temp-size policy, which follows the
+                # free space on the configured data drive. A fixed 30 GiB cap
+                # is too small for multi-year intraday aggregations.
 
         return self._conn
 

@@ -21,11 +21,11 @@ def test_medallion_pipeline_in_memory():
     conn.execute("""
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
-            ('t1', '2026-03-16 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window
-            ('t2', '2026-03-16 09:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window
-            ('t3', '2026-03-16 12:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Lunch window
-            ('t4', '2026-03-16 14:00:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window
-            ('t5', '2026-03-16 15:30:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window
+            ('t1', '2026-03-16 10:00:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window
+            ('t2', '2026-03-16 11:00:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window
+            ('t3', '2026-03-16 14:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Afternoon window
+            ('t4', '2026-03-16 17:15:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window
+            ('t5', '2026-03-16 18:00:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window
     """)
 
     # 2. Execute Silver Transformations
@@ -107,15 +107,15 @@ def test_medallion_pipeline_in_memory():
         ORDER BY window_order ASC;
     """).fetchall()
 
-    assert len(intraday_bofa) == 3  # Day Start (buy 1000), Morning (buy 2000), Lunch (sell 500)
-    # Day Start window (08:15)
+    assert len(intraday_bofa) == 3  # Day Start (buy 1000), Morning (buy 2000), Afternoon (sell 500)
+    # Day Start window (10:00 TRT)
     assert intraday_bofa[0][0] == "day_start"
     assert intraday_bofa[0][2] == 1000.0
-    # Morning window (09:30)
+    # Morning window (11:00 TRT)
     assert intraday_bofa[1][0] == "morning_to_lunch"
     assert intraday_bofa[1][2] == 2000.0
-    # Lunch window (12:00)
-    assert intraday_bofa[2][0] == "lunch_to_15"
+    # Afternoon window (14:00 TRT)
+    assert intraday_bofa[2][0] == "afternoon"
     assert intraday_bofa[2][3] == 500.0
 
     # --- Verify Table 6: silver_intraday_sector_window_summary ---
@@ -144,6 +144,43 @@ def test_medallion_pipeline_in_memory():
     assert gold_signals[2] == 759000.0
 
 
+def test_intraday_windows_use_local_trt_boundaries():
+    """Map local Bronze timestamps to four windows without leaking out-of-session trades."""
+    db = DuckDBManager(in_memory=True)
+    initialize_bronze_schema(db)
+    initialize_silver_schema(db)
+    conn = db.get_connection()
+
+    conn.execute("""
+        INSERT INTO bronze_raw_trades (
+            trade_id, timestamp, symbol, price, volume,
+            buyer_broker_id, seller_broker_id, raw_source
+        ) VALUES
+            ('before', '2026-03-16 09:54:59', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('open', '2026-03-16 09:55:00', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('morning', '2026-03-16 10:30:00', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('afternoon', '2026-03-16 13:00:00', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('close', '2026-03-16 17:00:00', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('close_end', '2026-03-16 18:10:00', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test'),
+            ('after', '2026-03-16 18:10:01', 'THYAO', 300.0, 1.0, 'MLB', 'YKR', 'test');
+    """)
+
+    SilverTransformer(db).transform_intraday_broker_windows()
+    windows = conn.execute("""
+        SELECT window_name, window_start_time, window_end_time, trade_count
+        FROM silver_intraday_broker_window_summary
+        WHERE broker_id = 'MLB'
+        ORDER BY window_order;
+    """).fetchall()
+
+    assert windows == [
+        ("day_start", "09:55:00", "10:30:00", 1),
+        ("morning_to_lunch", "10:30:00", "13:00:00", 1),
+        ("afternoon", "13:00:00", "17:00:00", 1),
+        ("closing_session", "17:00:00", "18:10:00", 2),
+    ]
+
+
 def test_pipeline_dag_resolution():
     """Test MedallionPipeline DAG layer resolution."""
     pipeline = MedallionPipeline(DuckDBManager(in_memory=True))
@@ -154,3 +191,39 @@ def test_pipeline_dag_resolution():
     assert pipeline._resolve_layers("gold") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("all") == ["bronze", "silver", "gold"]
     assert pipeline._resolve_layers("silver", resolve_dependencies=False) == ["silver"]
+
+
+def test_pipeline_skips_legacy_march_glob_when_annual_manifest_exists(monkeypatch):
+    """A complete annual archive load must not append March CSVs a second time."""
+    db = DuckDBManager(in_memory=True)
+    initialize_bronze_schema(db)
+    conn = db.get_connection()
+    conn.execute("""
+        INSERT INTO bronze_raw_trades (
+            trade_id, timestamp, symbol, price, volume,
+            buyer_broker_id, seller_broker_id, raw_source
+        ) VALUES (
+            'annual-1', '2026-03-02 10:00:00', 'THYAO', 300.0, 1000,
+            'MLB', 'IYM', '2026.zip'
+        );
+        INSERT INTO bronze_loaded_files (
+            archive_name, member_name, crc32, byte_size, row_count
+        ) VALUES ('2026.zip', '2026/2026-03-02/THYAO.csv', 1, 100, 1);
+    """)
+
+    pipeline = MedallionPipeline(db)
+
+    def unexpected_legacy_ingest(*args, **kwargs):
+        raise AssertionError("Legacy March glob must not run after annual archive ingestion")
+
+    monkeypatch.setattr(
+        pipeline.bronze_ingestor,
+        "ingest_bist_raw_csv_glob",
+        unexpected_legacy_ingest,
+    )
+
+    result = pipeline.run_bronze()
+
+    assert result["details"]["status"] == "annual_archive_already_ingested"
+    assert result["details"]["rows_ingested"] == 0
+    assert result["metrics"]["bronze_raw_trades"] == 1

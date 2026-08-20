@@ -1,12 +1,12 @@
 brokers:
-- code: MLB
-  name: Bank of America (BofA)
-  type: Foreign Institutional
-  is_primary_target: true
 - code: YKR
   name: Yapı Kredi Yatırım Menkul Değerler
   type: Domestic Major Bank
   is_primary_target: false
+- code: MLB
+  name: Bank of America (BofA)
+  type: Foreign Institutional
+  is_primary_target: true
 - code: IYM
   name: İş Yatırım Menkul Değerler
   type: Domestic Major Bank
@@ -23,49 +23,41 @@ brokers:
   name: İş Portföy / Finans
   type: Institutional Fund
   is_primary_target: false
-- code: FNY
-  name: QNB Finansinvest Menkul Değerler
-  type: Domestic Major Bank
-  is_primary_target: false
 - code: GRM
   name: Garanti BBVA Yatırım
+  type: Domestic Major Bank
+  is_primary_target: false
+- code: FNY
+  name: QNB Finansinvest Menkul Değerler
   type: Domestic Major Bank
   is_primary_target: false
 - code: TAC
   name: Tacirler Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: MDS
-  name: Meksa Yatırım Menkul Değerler
-  type: Domestic Broker
+- code: VKY
+  name: Vakıf Yatırım Menkul Değerler
+  type: Domestic Major Bank
   is_primary_target: false
 - code: ZRY
   name: Ziraat Yatırım Menkul Değerler
-  type: Domestic Major Bank
-  is_primary_target: false
-- code: TBY
-  name: TEB Yatırım Menkul Değerler (BNP Paribas)
-  type: Institutional / Bank
-  is_primary_target: false
-- code: VKY
-  name: Vakıf Yatırım Menkul Değerler
   type: Domestic Major Bank
   is_primary_target: false
 - code: YAT
   name: Yatırım Finansman Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: HLY
-  name: Halk Yatırım Menkul Değerler
-  type: Domestic Major Bank
-  is_primary_target: false
 - code: ACP
   name: Aktif Portföy / Menkul
   type: Domestic Broker
   is_primary_target: false
-- code: COL
-  name: Colendi / Marbas Menkul Değerler
-  type: Domestic Broker
+- code: TBY
+  name: TEB Yatırım Menkul Değerler (BNP Paribas)
+  type: Institutional / Bank
+  is_primary_target: false
+- code: HLY
+  name: Halk Yatırım Menkul Değerler
+  type: Domestic Major Bank
   is_primary_target: false
 - code: GDK
   name: Gedik Yatırım Menkul Değerler
@@ -75,84 +67,84 @@ brokers:
   name: Osmanlı Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: BLS
-  name: Bulls Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: MRS
-  name: Marbaş Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
 - code: OYA
   name: Oyak Yatırım Menkul Değerler
   type: Domestic Major Bank
-  is_primary_target: false
-- code: HSY
-  name: HSBC Yatırım Menkul Değerler
-  type: Foreign Institutional
-  is_primary_target: false
-- code: GLB
-  name: Global Menkul Değerler
-  type: Domestic Broker
   is_primary_target: false
 - code: PHC
   name: PhillipCapital Menkul Değerler
   type: Foreign Institutional
   is_primary_target: false
-- code: TRA
-  name: Tera Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: MSA
-  name: Mesa Menkul Değerler
+- code: MRS
+  name: Marbaş Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: UNS
   name: Ünlü Menkul Değerler
   type: Institutional Prime
   is_primary_target: false
-- code: ALM
-  name: Alnus Yatırım Menkul Değerler
+- code: COL
+  name: Colendi / Marbas Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: DMD
-  name: Dinamik Menkul Değerler
+- code: GLB
+  name: Global Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: IAZ
-  name: İnteraktif Yatırım Menkul Değerler
+- code: MDS
+  name: Meksa Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: ATA
-  name: Ata Yatırım Menkul Kıymetler
+- code: MSA
+  name: Mesa Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: KVY
-  name: Kuvve Menkul Değerler
+- code: HSY
+  name: HSBC Yatırım Menkul Değerler
+  type: Foreign Institutional
+  is_primary_target: false
+- code: BLS
+  name: Bulls Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: TRA
+  name: Tera Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: SKY
   name: Şeker Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: TKY
-  name: Turkish Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: ICT
-  name: ICBC Turkey Yatırım Menkul Değerler
-  type: Institutional / Bank
-  is_primary_target: false
-- code: ANC
-  name: Anadolubank Menkul Değerler
+- code: ATA
+  name: Ata Yatırım Menkul Kıymetler
   type: Domestic Broker
   is_primary_target: false
 - code: AYX
   name: Ay Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: GNI
-  name: Gönen Menkul Değerler
+- code: ANC
+  name: Anadolubank Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: TVM
+  name: Trive Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ALM
+  name: Alnus Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: IAZ
+  name: İnteraktif Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ICT
+  name: ICBC Turkey Yatırım Menkul Değerler
+  type: Institutional / Bank
+  is_primary_target: false
+- code: TKY
+  name: Turkish Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: EFG
@@ -163,76 +155,132 @@ brokers:
   name: Anadolu Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: IKN
-  name: İkon Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: FBY
-  name: Fibabanka Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: TVM
-  name: Trive Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: NOR
-  name: Nordic Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: BSK
-  name: Başkent Menkul Değerler
+- code: GNI
+  name: Gönen Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: PIT
   name: Pusula / Prime Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: AMK
-  name: Alternatif Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: STJ
-  name: Strateji Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: ELP
-  name: Elips Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: INM
-  name: İnfo Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: BMK
-  name: Bizim Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: BLU
-  name: Blu Yatırım Menkul Değerler
+- code: KVY
+  name: Kuvve Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: DMK
   name: Demir Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: ACA
-  name: Acar Menkul Değerler
+- code: DMD
+  name: Dinamik Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: IME
+  name: Brokerage IME
+  type: Domestic Broker
+  is_primary_target: false
+- code: BMK
+  name: Bizim Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: ALQ
   name: Albaraka Türk / Q Yatırım
   type: Domestic Broker
   is_primary_target: false
+- code: IKN
+  name: İkon Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: AMK
+  name: Alternatif Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: SNK
+  name: Brokerage SNK
+  type: Domestic Broker
+  is_primary_target: false
+- code: NOR
+  name: Nordic Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ACA
+  name: Acar Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: INM
+  name: İnfo Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: STJ
+  name: Strateji Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: FBY
+  name: Fibabanka Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ELP
+  name: Elips Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: BSK
+  name: Başkent Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: BAH
+  name: Brokerage BAH
+  type: Domestic Broker
+  is_primary_target: false
+- code: CSM
+  name: Brokerage CSM
+  type: Domestic Broker
+  is_primary_target: false
 - code: GCM
   name: GCM Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: BLU
+  name: Blu Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ALN
+  name: Brokerage ALN
+  type: Domestic Broker
+  is_primary_target: false
+- code: TFG
+  name: Brokerage TFG
+  type: Domestic Broker
+  is_primary_target: false
+- code: POL
+  name: Brokerage POL
+  type: Domestic Broker
+  is_primary_target: false
+- code: MTY
+  name: Metropol Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: GLT
+  name: Brokerage GLT
+  type: Domestic Broker
+  is_primary_target: false
+- code: AXM
+  name: Brokerage AXM
+  type: Domestic Broker
+  is_primary_target: false
+- code: RKM
+  name: Brokerage RKM
+  type: Domestic Broker
+  is_primary_target: false
+- code: BGC
+  name: Brokerage BGC
   type: Domestic Broker
   is_primary_target: false
 - code: PPR
   name: Piramit Menkul Kıymetler
   type: Domestic Broker
   is_primary_target: false
-- code: MTY
-  name: Metropol Menkul Değerler
+- code: VNB
+  name: Brokerage VNB
   type: Domestic Broker
   is_primary_target: false
 - code: XRM

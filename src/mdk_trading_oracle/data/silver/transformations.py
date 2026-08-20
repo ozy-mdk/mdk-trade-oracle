@@ -17,31 +17,35 @@ class SilverTransformer:
         self.db = db
         self.settings = get_settings()
 
-    def _build_intraday_window_case_sql(self) -> tuple[str, str, str]:
-        """Build dynamic SQL CASE statements for parameterized intraday time windows."""
+    def _build_intraday_window_case_sql(self) -> tuple[str, str, str, str]:
+        """Build non-overlapping local-time CASE statements for intraday windows."""
         windows = self.settings.get_intraday_windows()
         name_branches = []
         order_branches = []
         start_branches = []
+        end_branches = []
 
-        for w in windows:
+        for idx, w in enumerate(windows):
             name = w["name"]
             start_t = w["start_time"]
             end_t = w["end_time"]
             order = w.get("order", 1)
-            name_branches.append(f"WHEN CAST(timestamp AS TIME) >= '{start_t}' AND CAST(timestamp AS TIME) < '{end_t}' THEN '{name}'")
-            order_branches.append(f"WHEN CAST(timestamp AS TIME) >= '{start_t}' AND CAST(timestamp AS TIME) < '{end_t}' THEN {order}")
-            start_branches.append(f"WHEN CAST(timestamp AS TIME) >= '{start_t}' AND CAST(timestamp AS TIME) < '{end_t}' THEN '{start_t}'")
+            end_operator = "<=" if idx == len(windows) - 1 else "<"
+            condition = (
+                f"CAST(timestamp AS TIME) >= TIME '{start_t}' "
+                f"AND CAST(timestamp AS TIME) {end_operator} TIME '{end_t}'"
+            )
+            name_branches.append(f"WHEN {condition} THEN '{name}'")
+            order_branches.append(f"WHEN {condition} THEN {order}")
+            start_branches.append(f"WHEN {condition} THEN '{start_t}'")
+            end_branches.append(f"WHEN {condition} THEN '{end_t}'")
 
-        last_name = windows[-1]["name"] if windows else "closing_session"
-        last_order = windows[-1].get("order", 4) if windows else 4
-        last_start = windows[-1].get("start_time", "13:00:00") if windows else "13:00:00"
+        case_name = "CASE " + " ".join(name_branches) + " ELSE NULL END"
+        case_order = "CASE " + " ".join(order_branches) + " ELSE NULL END"
+        case_start = "CASE " + " ".join(start_branches) + " ELSE NULL END"
+        case_end = "CASE " + " ".join(end_branches) + " ELSE NULL END"
 
-        case_name = "CASE " + " ".join(name_branches) + f" ELSE '{last_name}' END"
-        case_order = "CASE " + " ".join(order_branches) + f" ELSE {last_order} END"
-        case_start = "CASE " + " ".join(start_branches) + f" ELSE '{last_start}' END"
-
-        return case_name, case_order, case_start
+        return case_name, case_order, case_start, case_end
 
     def transform_daily_broker_summary(self) -> dict[str, Any]:
         """Aggregate buy/sell volume, turnover, and buy/sell VWAP per (trade_date, symbol, broker_id)."""
@@ -436,7 +440,20 @@ class SilverTransformer:
         conn = self.db.get_connection()
         logger.info("Computing `silver_intraday_broker_window_summary` across 4 time windows...")
 
-        case_name, case_order, case_start = self._build_intraday_window_case_sql()
+        _, case_order, _, _ = self._build_intraday_window_case_sql()
+        windows = self.settings.get_intraday_windows()
+
+        def metadata_case(field: str) -> str:
+            branches = []
+            for idx, window in enumerate(windows, start=1):
+                value = str(window[field]).replace("'", "''")
+                order = int(window.get("order", idx))
+                branches.append(f"WHEN c.window_order = {order} THEN '{value}'")
+            return "CASE " + " ".join(branches) + " END"
+
+        window_name_case = metadata_case("name")
+        window_start_case = metadata_case("start_time")
+        window_end_case = metadata_case("end_time")
 
         query = f"""
             CREATE OR REPLACE TABLE silver_intraday_broker_window_summary AS
@@ -444,73 +461,48 @@ class SilverTransformer:
                 SELECT 
                     CAST(timestamp AS DATE) AS trade_date,
                     symbol,
-                    price,
                     volume,
                     price * volume AS turnover_tl,
                     buyer_broker_id,
                     seller_broker_id,
-                    {case_name} AS window_name,
-                    {case_order} AS window_order,
-                    {case_start} AS window_start_time
+                    {case_order} AS window_order
                 FROM bronze_raw_trades
             ),
-            buys AS (
+            broker_sides AS (
                 SELECT 
                     trade_date,
                     symbol,
-                    buyer_broker_id AS broker_id,
-                    window_name,
                     window_order,
-                    window_start_time,
-                    SUM(volume) AS buy_volume,
-                    SUM(turnover_tl) AS buy_turnover_tl,
-                    SUM(turnover_tl) / NULLIF(SUM(volume), 0.0) AS buy_vwap,
-                    COUNT(*) AS buy_trades
+                    UNNEST([buyer_broker_id, seller_broker_id]) AS broker_id,
+                    UNNEST([volume, CAST(0 AS BIGINT)]) AS buy_volume,
+                    UNNEST([turnover_tl, CAST(0 AS DOUBLE)]) AS buy_turnover_tl,
+                    UNNEST([CAST(1 AS BIGINT), CAST(0 AS BIGINT)]) AS buy_trades,
+                    UNNEST([CAST(0 AS BIGINT), volume]) AS sell_volume,
+                    UNNEST([CAST(0 AS DOUBLE), turnover_tl]) AS sell_turnover_tl,
+                    UNNEST([CAST(0 AS BIGINT), CAST(1 AS BIGINT)]) AS sell_trades
                 FROM windowed_trades
-                WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != ''
-                GROUP BY trade_date, symbol, buyer_broker_id, window_name, window_order, window_start_time
-            ),
-            sells AS (
-                SELECT 
-                    trade_date,
-                    symbol,
-                    seller_broker_id AS broker_id,
-                    window_name,
-                    window_order,
-                    window_start_time,
-                    SUM(volume) AS sell_volume,
-                    SUM(turnover_tl) AS sell_turnover_tl,
-                    SUM(turnover_tl) / NULLIF(SUM(volume), 0.0) AS sell_vwap,
-                    COUNT(*) AS sell_trades
-                FROM windowed_trades
-                WHERE seller_broker_id IS NOT NULL AND seller_broker_id != ''
-                GROUP BY trade_date, symbol, seller_broker_id, window_name, window_order, window_start_time
+                WHERE window_order IS NOT NULL
             ),
             combined AS (
                 SELECT 
-                    COALESCE(b.trade_date, s.trade_date) AS trade_date,
-                    COALESCE(b.symbol, s.symbol) AS symbol,
-                    COALESCE(b.broker_id, s.broker_id) AS broker_id,
-                    COALESCE(b.window_name, s.window_name) AS window_name,
-                    COALESCE(b.window_order, s.window_order) AS window_order,
-                    COALESCE(b.window_start_time, s.window_start_time) AS window_start_time,
-                    COALESCE(b.buy_volume, 0.0) AS buy_volume,
-                    COALESCE(b.buy_turnover_tl, 0.0) AS buy_turnover_tl,
-                    b.buy_vwap,
-                    COALESCE(s.sell_volume, 0.0) AS sell_volume,
-                    COALESCE(s.sell_turnover_tl, 0.0) AS sell_turnover_tl,
-                    s.sell_vwap,
-                    COALESCE(b.buy_volume, 0.0) + COALESCE(s.sell_volume, 0.0) AS total_volume,
-                    COALESCE(b.buy_turnover_tl, 0.0) + COALESCE(s.sell_turnover_tl, 0.0) AS total_turnover_tl,
-                    COALESCE(b.buy_volume, 0.0) - COALESCE(s.sell_volume, 0.0) AS net_volume,
-                    COALESCE(b.buy_turnover_tl, 0.0) - COALESCE(s.sell_turnover_tl, 0.0) AS net_flow_tl,
-                    COALESCE(b.buy_trades, 0) + COALESCE(s.sell_trades, 0) AS trade_count
-                FROM buys b
-                FULL OUTER JOIN sells s
-                    ON b.trade_date = s.trade_date 
-                    AND b.symbol = s.symbol 
-                    AND b.broker_id = s.broker_id
-                    AND b.window_name = s.window_name
+                    trade_date,
+                    symbol,
+                    broker_id,
+                    window_order,
+                    SUM(buy_volume) AS buy_volume,
+                    SUM(buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(buy_turnover_tl) / NULLIF(SUM(buy_volume), 0.0) AS buy_vwap,
+                    SUM(sell_volume) AS sell_volume,
+                    SUM(sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(sell_turnover_tl) / NULLIF(SUM(sell_volume), 0.0) AS sell_vwap,
+                    SUM(buy_volume) + SUM(sell_volume) AS total_volume,
+                    SUM(buy_turnover_tl) + SUM(sell_turnover_tl) AS total_turnover_tl,
+                    SUM(buy_volume) - SUM(sell_volume) AS net_volume,
+                    SUM(buy_turnover_tl) - SUM(sell_turnover_tl) AS net_flow_tl,
+                    SUM(buy_trades) + SUM(sell_trades) AS trade_count
+                FROM broker_sides
+                WHERE broker_id IS NOT NULL AND broker_id != ''
+                GROUP BY trade_date, symbol, broker_id, window_order
             )
             SELECT 
                 c.trade_date,
@@ -519,10 +511,10 @@ class SilverTransformer:
                 c.broker_id,
                 COALESCE(brk.broker_name, c.broker_id) AS broker_name,
                 COALESCE(brk.is_primary_target, FALSE) AS is_primary_target,
-                c.window_name,
+                {window_name_case} AS window_name,
                 c.window_order,
-                c.window_start_time,
-                '' AS window_end_time,
+                {window_start_case} AS window_start_time,
+                {window_end_case} AS window_end_time,
                 c.buy_volume,
                 c.buy_turnover_tl,
                 c.buy_vwap,

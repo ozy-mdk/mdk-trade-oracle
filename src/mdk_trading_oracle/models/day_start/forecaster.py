@@ -38,6 +38,13 @@ class DayStartModelArena:
         self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
     ) -> Tuple[pd.DataFrame, BaseForecaster]:
         """Execute walk-forward out-of-sample tournament across all candidate models."""
+        clean_target = pd.to_numeric(y, errors="coerce").dropna()
+        if clean_target.nunique() < 2:
+            raise ValueError(
+                "Day-start target must contain at least two distinct values; "
+                "check the intraday window configuration and Silver data."
+            )
+
         scoreboard = []
         for name, model in self.candidates.items():
             metrics = model.walk_forward_evaluate(X, y, min_train_samples=min_train_samples)

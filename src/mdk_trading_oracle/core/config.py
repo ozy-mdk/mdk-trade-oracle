@@ -101,10 +101,10 @@ class Settings(BaseSettings):
         """Get parameterized intraday time windows list."""
         data = self.get_default_config()
         return data.get("intraday_windows", [
-            {"name": "day_start", "label": "Day Start", "start_time": "07:55:00", "end_time": "08:30:00", "order": 1},
-            {"name": "morning_to_lunch", "label": "Morning to Lunch", "start_time": "08:30:00", "end_time": "11:00:00", "order": 2},
-            {"name": "lunch_to_15", "label": "Lunch to 15:00", "start_time": "11:00:00", "end_time": "13:00:00", "order": 3},
-            {"name": "closing_session", "label": "15:00 to Day Close", "start_time": "13:00:00", "end_time": "16:15:00", "order": 4},
+            {"name": "day_start", "label": "Day Start (Opening 30m TRT)", "start_time": "09:55:00", "end_time": "10:30:00", "order": 1},
+            {"name": "morning_to_lunch", "label": "Morning to Lunch (TRT)", "start_time": "10:30:00", "end_time": "13:00:00", "order": 2},
+            {"name": "afternoon", "label": "Afternoon (TRT)", "start_time": "13:00:00", "end_time": "17:00:00", "order": 3},
+            {"name": "closing_session", "label": "Closing Session (TRT)", "start_time": "17:00:00", "end_time": "18:10:00", "order": 4},
         ])
 
 

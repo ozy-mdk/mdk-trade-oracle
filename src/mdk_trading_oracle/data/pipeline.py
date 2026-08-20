@@ -94,13 +94,39 @@ class MedallionPipeline:
         start_time = datetime.now()
 
         initialize_bronze_schema(self.db)
-        target_glob = raw_glob or (self.settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
-        ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(
-            glob_pattern=target_glob,
-            raw_source_label=raw_source_label,
-        )
-
         conn = self.db.get_connection()
+        archive_files_count, existing_trades_count = conn.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM bronze_loaded_files),
+                (SELECT COUNT(*) FROM bronze_raw_trades);
+        """).fetchone()
+
+        # The annual ZIP loader records every source member in
+        # `bronze_loaded_files`. When that ledger is populated, the default
+        # March bootstrap glob is already part of the annual dataset and must
+        # not be appended a second time. An explicit --glob remains an
+        # intentional request and is still ingested.
+        if raw_glob is None and archive_files_count > 0 and existing_trades_count > 0:
+            logger.info(
+                "Annual ZIP Bronze manifest already contains "
+                f"{archive_files_count:,} files and {existing_trades_count:,} trades. "
+                "Skipping the legacy March bootstrap glob."
+            )
+            ingest_res = {
+                "rows_ingested": 0,
+                "existing_rows": existing_trades_count,
+                "loaded_archive_files": archive_files_count,
+                "status": "annual_archive_already_ingested",
+            }
+        else:
+            target_glob = raw_glob or (
+                self.settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv"
+            ).as_posix()
+            ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(
+                glob_pattern=target_glob,
+                raw_source_label=raw_source_label,
+            )
+
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
         instruments_count = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
