@@ -26,13 +26,20 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         7. Calendar & Temporal Seasonality (is_monday, is_friday, day_of_week)
     """
 
-    def __init__(self, db: Optional[DuckDBManager] = None, target_broker_id: str = "MLB"):
+    def __init__(
+        self,
+        db: Optional[DuckDBManager] = None,
+        target_broker_id: str = "MLB",
+        lookback_months: Optional[int] = None,
+    ):
         self.db = db or DuckDBManager(read_only=True)
         self.target_broker = target_broker_id
         self.settings = get_settings()
+        cfg = self.settings.get_model_config("day_start")
+        self.lookback_months = lookback_months if lookback_months is not None else cfg.get("lookback_months", 12)
 
     def extract_features(self, start_date: Optional[date] = None, end_date: Optional[date] = None) -> pl.DataFrame:
-        """Extract multi-cluster feature matrix from DuckDB Silver tables.
+        """Extract multi-cluster feature matrix from DuckDB Silver tables with optional lookback filtering.
         
         Args:
             start_date: Optional filter for minimum trade date.
@@ -43,7 +50,15 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                           strictly from historical data up to T-1 Close, paired with actual Window 1 target outcomes on Day T.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Day-Start 7 Feature Clusters for broker '{self.target_broker}'...")
+        logger.info(f"Extracting Day-Start 7 Feature Clusters for broker '{self.target_broker}' (lookback_months={self.lookback_months})...")
+
+        # Determine effective start_date from lookback_months if not explicitly given
+        effective_start = start_date
+        if effective_start is None and self.lookback_months is not None:
+            max_d_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
+            if max_d_res and max_d_res[0]:
+                from dateutil.relativedelta import relativedelta
+                effective_start = max_d_res[0] - relativedelta(months=self.lookback_months)
 
         query = f"""
             WITH daily_dates AS (
@@ -55,12 +70,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
             day_t_targets AS (
                 SELECT 
                     trade_date,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS target_open_net_flow_tl,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE 0.0 END) AS target_open_turnover_tl,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN buy_volume ELSE 0.0 END) AS target_open_buy_volume,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN sell_volume ELSE 0.0 END) AS target_open_sell_volume,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE 0.0 END) / 
-                        NULLIF(SUM(total_turnover_tl), 0.0) AS target_open_market_share
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS target_open_net_flow_tl
                 FROM silver_intraday_broker_window_summary
                 WHERE window_name = 'day_start'
                 GROUP BY trade_date
@@ -259,14 +269,14 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_bofa_cost_basis_spread_20d_pct, 0.0) AS feat_bofa_cost_basis_spread_20d_pct,
                 -- Target Columns on Day T
                 COALESCE(t.target_open_net_flow_tl, 0.0) AS target_open_net_flow_tl,
-                COALESCE(t.target_open_turnover_tl, 0.0) AS target_open_turnover_tl,
-                COALESCE(t.target_open_market_share, 0.0) AS target_open_market_share,
                 CASE WHEN COALESCE(t.target_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_open_direction
             FROM lagged_features r
             LEFT JOIN day_t_targets t ON r.trade_date = t.trade_date
             WHERE r.feat_bofa_prev_day_net_flow_tl IS NOT NULL
+              AND (? IS NULL OR r.trade_date >= ?)
+              AND (? IS NULL OR r.trade_date <= ?)
             ORDER BY r.trade_date ASC;
         """
-        df = conn.execute(query).pl()
+        df = conn.execute(query, [effective_start, effective_start, end_date, end_date]).pl()
         logger.info(f"Extracted {df.height} historical daily observations with {len(df.columns)} features.")
         return df

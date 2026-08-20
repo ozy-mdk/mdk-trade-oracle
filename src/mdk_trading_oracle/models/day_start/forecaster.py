@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import BaseForecaster, ForecastResult
@@ -35,7 +36,11 @@ class DayStartModelArena:
         }
 
     def run_tournament(
-        self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        min_train_samples: int = 5,
+        eval_window_days: Optional[int] = None,
     ) -> Tuple[pd.DataFrame, BaseForecaster]:
         """Execute walk-forward out-of-sample tournament across all candidate models."""
         clean_target = pd.to_numeric(y, errors="coerce").dropna()
@@ -47,7 +52,9 @@ class DayStartModelArena:
 
         scoreboard = []
         for name, model in self.candidates.items():
-            metrics = model.walk_forward_evaluate(X, y, min_train_samples=min_train_samples)
+            metrics = model.walk_forward_evaluate(
+                X, y, min_train_samples=min_train_samples, eval_window_days=eval_window_days
+            )
             scoreboard.append({
                 "Model": name,
                 "hit_rate_pct": metrics["hit_rate_pct"],
@@ -89,21 +96,37 @@ class DayStartForecaster:
         4. Persisting forecasts directly into DuckDB Gold layer tables
     """
 
-    def __init__(self, db: Optional[DuckDBManager] = None, model_type: str = "auto"):
+    def __init__(
+        self,
+        db: Optional[DuckDBManager] = None,
+        model_type: Optional[str] = None,
+        lookback_months: Optional[int] = None,
+        eval_window_days: Optional[int] = None,
+        min_burn_in_days: Optional[int] = None,
+    ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
-        self.feature_extractor = DayStartFeatureExtractor(self.db, target_broker_id=self.target_broker)
-        self.model_type = model_type
+        self.settings = get_settings()
+        cfg = self.settings.get_model_config("day_start")
+
+        self.lookback_months = lookback_months if lookback_months is not None else cfg.get("lookback_months", 12)
+        self.eval_window_days = eval_window_days if eval_window_days is not None else cfg.get("eval_window_days", 20)
+        self.min_burn_in_days = min_burn_in_days if min_burn_in_days is not None else cfg.get("min_burn_in_days", 5)
+        self.model_type = model_type or cfg.get("model_type", "auto")
+
+        self.feature_extractor = DayStartFeatureExtractor(
+            self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
+        )
         self.arena = DayStartModelArena()
         self.champion_name: Optional[str] = None
         
-        if model_type == "lightgbm":
+        if self.model_type == "lightgbm":
             self.model: Optional[BaseForecaster] = DayStartLightGBMModel()
-        elif model_type == "baseline":
+        elif self.model_type == "baseline":
             self.model = DayStartNaivePersistenceModel()
-        elif model_type == "pymc":
+        elif self.model_type == "pymc":
             self.model = DayStartPyMCModel(use_map=True)
-        elif model_type == "bayesian":
+        elif self.model_type == "bayesian":
             self.model = DayStartBayesianModel()
         else:  # "auto"
             self.model = None
@@ -121,9 +144,14 @@ class DayStartForecaster:
 
         # Automatic Champion Selection on the fly if model_type == "auto"
         if self.model_type == "auto" or self.model is None:
-            logger.info("Running DayStartModelArena Walk-Forward Tournament for Auto-Selection...")
-            min_burn_in = min(5, max(2, len(df_pd) - 1))
-            _, champion_model = self.arena.run_tournament(X, y, min_train_samples=min_burn_in)
+            logger.info(
+                f"Running DayStartModelArena Walk-Forward Tournament "
+                f"(eval_window_days={self.eval_window_days}, min_burn_in={self.min_burn_in_days})..."
+            )
+            min_burn_in = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
+            _, champion_model = self.arena.run_tournament(
+                X, y, min_train_samples=min_burn_in, eval_window_days=self.eval_window_days
+            )
             self.model = champion_model
             self.champion_name = champion_model.model_name
 
@@ -167,7 +195,6 @@ class DayStartForecaster:
                 predicted_open_flow_upper_90 DOUBLE,
                 predicted_direction VARCHAR,
                 direction_confidence DOUBLE,
-                predicted_open_market_share DOUBLE,
                 predicted_playbook VARCHAR,
                 top_predicted_buy_sector VARCHAR,
                 top_predicted_sell_sector VARCHAR,
@@ -186,10 +213,10 @@ class DayStartForecaster:
                 INSERT OR REPLACE INTO gold_bofa_day_start_forecasts (
                     forecast_date, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
-                    predicted_direction, direction_confidence, predicted_open_market_share,
+                    predicted_direction, direction_confidence,
                     predicted_playbook, top_predicted_buy_sector, top_predicted_sell_sector,
                     model_name, model_version, generated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, [
                 f.forecast_date,
                 dow,
@@ -199,7 +226,6 @@ class DayStartForecaster:
                 f.predicted_flow_upper_90,
                 f.predicted_direction,
                 f.direction_confidence,
-                f.predicted_open_market_share,
                 f.predicted_playbook,
                 f.top_predicted_buy_sector,
                 f.top_predicted_sell_sector,

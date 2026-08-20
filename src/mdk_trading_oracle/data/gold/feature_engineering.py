@@ -7,6 +7,7 @@ from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.gold.schema import initialize_gold_schema
 from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
+from mdk_trading_oracle.models.sector_day_start.forecaster import SectorDayStartForecaster
 
 logger = get_logger("mdk_oracle.data.gold.feature_engineering")
 
@@ -82,14 +83,29 @@ class GoldFeatureEngineer:
             "status": "success",
         }
 
+    def run_sector_day_start_forecasting(self) -> dict[str, Any]:
+        """Execute Model 2 (Sector Day-Start Forecaster) and persist sector forecasts to Gold table."""
+        logger.info("Executing Gold Layer Model 2: Sector Day-Start Forecaster (Auto-Champion Mode)...")
+        forecaster = SectorDayStartForecaster(self.db, model_type="auto")
+        forecasts = forecaster.train_and_forecast_all()
+        saved_count = forecaster.save_forecasts_to_gold(forecasts)
+        return {
+            "table": "gold_bofa_sector_day_start_forecasts",
+            "rows": saved_count,
+            "champion_model": forecaster.champion_name,
+            "status": "success",
+        }
+
     def run_all(self) -> dict[str, Any]:
         """Run full Gold feature pipeline and predictive models."""
         initialize_gold_schema(self.db)
         res_signals = self.compute_institutional_signals()
         res_day_start = self.run_day_start_forecasting()
+        res_sector_day_start = self.run_sector_day_start_forecasting()
 
         return {
             "gold_institutional_daily_signals": res_signals,
             "gold_bofa_day_start_forecasts": res_day_start,
+            "gold_bofa_sector_day_start_forecasts": res_sector_day_start,
             "status": "success",
         }

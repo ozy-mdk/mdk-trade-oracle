@@ -1,6 +1,7 @@
 """Medallion Lakehouse Pipeline Orchestrator (Bronze -> Silver -> Gold)."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional, Union
 
 from rich.console import Console
@@ -88,12 +89,20 @@ class MedallionPipeline:
             "status": "success",
         }
 
-    def run_bronze(self, raw_glob: Optional[str] = None, raw_source_label: str = "bist_2026_03_march") -> dict[str, Any]:
-        """Execute Bronze schema initialization and raw data ingestion."""
+    def run_bronze(
+        self,
+        raw_glob: Optional[str] = None,
+        target_date: Optional[str] = None,
+        target_month: Optional[str] = None,
+        target_file: Optional[Union[str, Path]] = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Bronze schema initialization and raw data ingestion (incremental or selective partition)."""
         logger.info("Starting Bronze Layer Ingestion...")
         start_time = datetime.now()
 
         initialize_bronze_schema(self.db)
+
         conn = self.db.get_connection()
         archive_files_count, existing_trades_count = conn.execute("""
             SELECT
@@ -101,16 +110,23 @@ class MedallionPipeline:
                 (SELECT COUNT(*) FROM bronze_raw_trades);
         """).fetchone()
 
-        # The annual ZIP loader records every source member in
-        # `bronze_loaded_files`. When that ledger is populated, the default
-        # March bootstrap glob is already part of the annual dataset and must
-        # not be appended a second time. An explicit --glob remains an
-        # intentional request and is still ingested.
-        if raw_glob is None and archive_files_count > 0 and existing_trades_count > 0:
+        if target_date:
+            logger.info(f"Bronze Ingestion targeting single date: {target_date}")
+            ingest_res = self.bronze_ingestor.ingest_date(target_date)
+        elif target_month:
+            logger.info(f"Bronze Ingestion targeting month: {target_month}")
+            ingest_res = self.bronze_ingestor.ingest_month(target_month)
+        elif target_file:
+            logger.info(f"Bronze Ingestion targeting single file: {target_file}")
+            ingest_res = self.bronze_ingestor.ingest_file(target_file, force=force)
+        elif raw_glob:
+            logger.info(f"Bronze Ingestion targeting glob pattern: {raw_glob}")
+            ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(glob_pattern=raw_glob)
+        elif not force and archive_files_count > 0 and existing_trades_count > 0:
             logger.info(
                 "Annual ZIP Bronze manifest already contains "
                 f"{archive_files_count:,} files and {existing_trades_count:,} trades. "
-                "Skipping the legacy March bootstrap glob."
+                "Skipping filesystem discovery to avoid duplicate ingestion."
             )
             ingest_res = {
                 "rows_ingested": 0,
@@ -119,25 +135,27 @@ class MedallionPipeline:
                 "status": "annual_archive_already_ingested",
             }
         else:
-            target_glob = raw_glob or (
-                self.settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv"
-            ).as_posix()
-            ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(
-                glob_pattern=target_glob,
-                raw_source_label=raw_source_label,
-            )
+            logger.info(f"Bronze Ingestion running incremental discovery (force={force})...")
+            ingest_res = self.bronze_ingestor.ingest_all(force=force)
 
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
         instruments_count = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
+        log_count = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
+        archive_log_count = conn.execute("SELECT COUNT(*) FROM bronze_loaded_files;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(f"Bronze Layer completed in {elapsed:.2f}s | Raw Trades: {trades_count:,}")
+        logger.info(
+            f"Bronze Layer completed in {elapsed:.2f}s | "
+            f"Raw Trades: {trades_count:,} | Ingested Files Logged: {log_count:,}"
+        )
         return {
             "layer": "bronze",
             "elapsed_sec": elapsed,
             "metrics": {
                 "bronze_raw_trades": trades_count,
+                "bronze_ingestion_log": log_count,
+                "bronze_loaded_files": archive_log_count,
                 "bronze_brokers": brokers_count,
                 "bronze_instruments": instruments_count,
             },
@@ -183,7 +201,6 @@ class MedallionPipeline:
             "status": "success",
         }
 
-
     def run_gold(self) -> dict[str, Any]:
         """Execute Gold layer feature engineering and institutional flow signals."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
@@ -195,25 +212,33 @@ class MedallionPipeline:
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
+        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | Day-Start Forecasts: {forecasts_count:,}")
+        logger.info(
+            f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
+            f"Macro Forecasts: {forecasts_count:,} | Sector Forecasts: {sector_forecasts_count:,}"
+        )
         return {
             "layer": "gold",
             "elapsed_sec": elapsed,
             "metrics": {
                 "gold_institutional_daily_signals": signals_count,
                 "gold_bofa_day_start_forecasts": forecasts_count,
+                "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
             },
             "details": gold_res,
             "status": "success",
         }
 
-
     def run(
         self,
         target: Union[str, list[str]] = "all",
         raw_glob: Optional[str] = None,
+        target_date: Optional[str] = None,
+        target_month: Optional[str] = None,
+        target_file: Optional[Union[str, Path]] = None,
+        force: bool = False,
         sync_catalog: bool = False,
         resolve_dependencies: bool = True,
         print_summary: bool = True,
@@ -222,7 +247,10 @@ class MedallionPipeline:
         pipeline_start = datetime.now()
         layers_to_run = self._resolve_layers(target, resolve_dependencies=resolve_dependencies)
 
-        logger.info(f"Executing Medallion Pipeline DAG for layers: {layers_to_run} (sync_catalog={sync_catalog})")
+        logger.info(
+            f"Executing Medallion Pipeline DAG for layers: {layers_to_run} "
+            f"(target_date={target_date}, target_month={target_month}, force={force}, sync_catalog={sync_catalog})"
+        )
 
         results: dict[str, Any] = {}
 
@@ -233,7 +261,13 @@ class MedallionPipeline:
             if layer == "catalog":
                 results["catalog"] = self.run_catalog_sync(raw_glob=raw_glob)
             elif layer == "bronze":
-                results["bronze"] = self.run_bronze(raw_glob=raw_glob)
+                results["bronze"] = self.run_bronze(
+                    raw_glob=raw_glob,
+                    target_date=target_date,
+                    target_month=target_month,
+                    target_file=target_file,
+                    force=force,
+                )
             elif layer == "silver":
                 results["silver"] = self.run_silver()
             elif layer == "gold":

@@ -49,8 +49,22 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    # 4. ZIP member-level ingestion ledger. The CRC and byte size mirror the
-    # source archive metadata and make interrupted annual loads resumable.
+    # 4. Bronze Tracking Table: Ingestion Log (for incremental & partition-aware ingestion)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_ingestion_log (
+            file_path VARCHAR PRIMARY KEY,
+            file_name VARCHAR,
+            file_size_bytes BIGINT,
+            file_mtime_epoch DOUBLE,
+            trade_date DATE,
+            year_month VARCHAR,
+            rows_ingested BIGINT,
+            raw_source_label VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 5. ZIP member-level ledger for resumable annual archive ingestion.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_loaded_files (
             archive_name VARCHAR NOT NULL,

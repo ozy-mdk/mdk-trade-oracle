@@ -1,7 +1,10 @@
 """Tests for Medallion Lakehouse layers (Bronze, Silver, Gold) and MedallionPipeline."""
 
+import tempfile
+from pathlib import Path
+
 from mdk_trading_oracle.core.db import DuckDBManager
-from mdk_trading_oracle.data.bronze import initialize_bronze_schema
+from mdk_trading_oracle.data.bronze import BronzeIngestor, initialize_bronze_schema
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
 from mdk_trading_oracle.data.pipeline import MedallionPipeline
 from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_schema
@@ -181,6 +184,99 @@ def test_intraday_windows_use_local_trt_boundaries():
     ]
 
 
+def test_bronze_incremental_ingestion_and_logging():
+    """Test that BronzeIngestor detects new files, avoids duplicate loading, and tracks logs."""
+    db = DuckDBManager(in_memory=True)
+    conn = db.get_connection()
+    initialize_bronze_schema(db)
+    ingestor = BronzeIngestor(db)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        day1_dir = tmp_path / "2026/03_march/raw_csv/2026-03-02"
+        day1_dir.mkdir(parents=True, exist_ok=True)
+
+        csv1 = day1_dir / "THYAO.csv"
+        csv1.write_text(
+            "symbol,signal_time_text,price,quantity,buyer,seller\n"
+            "THYAO,2026-03-02 08:00:00,300,100,MLB,ISY\n"
+            "THYAO,2026-03-02 08:05:00,301,200,MLB,GAR\n"
+        )
+
+        # 1. First Ingestion: Ingests 1 file, 2 rows
+        res1 = ingestor.ingest_incremental(tmp_path)
+        assert res1["status"] == "success"
+        assert res1["pending_files"] == 1
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0] == 1
+
+        # 2. Second Ingestion (No changes): Skips ingestion, 0 duplicates
+        res2 = ingestor.ingest_incremental(tmp_path)
+        assert res2["status"] == "up_to_date"
+        assert res2["pending_files"] == 0
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
+
+        # 3. Third Ingestion (Add a new file): Only ingests the new file
+        csv2 = day1_dir / "AKBNK.csv"
+        csv2.write_text(
+            "symbol,signal_time_text,price,quantity,buyer,seller\n"
+            "AKBNK,2026-03-02 08:10:00,60,500,GAR,MLB\n"
+        )
+
+        res3 = ingestor.ingest_incremental(tmp_path)
+        assert res3["status"] == "success"
+        assert res3["pending_files"] == 1
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0] == 2
+
+
+def test_bronze_selective_date_partition_update():
+    """Test selective atomic deletion and re-ingestion of a single date partition."""
+    db = DuckDBManager(in_memory=True)
+    conn = db.get_connection()
+    initialize_bronze_schema(db)
+    ingestor = BronzeIngestor(db)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        day1_dir = tmp_path / "2026/03_march/raw_csv/2026-03-02"
+        day2_dir = tmp_path / "2026/03_march/raw_csv/2026-03-03"
+        day1_dir.mkdir(parents=True, exist_ok=True)
+        day2_dir.mkdir(parents=True, exist_ok=True)
+
+        (day1_dir / "THYAO.csv").write_text(
+            "symbol,signal_time_text,price,quantity,buyer,seller\n"
+            "THYAO,2026-03-02 08:00:00,300,100,MLB,ISY\n"
+        )
+        (day2_dir / "THYAO.csv").write_text(
+            "symbol,signal_time_text,price,quantity,buyer,seller\n"
+            "THYAO,2026-03-03 08:00:00,310,500,MLB,ISY\n"
+        )
+
+        # Ingest both days
+        ingestor.ingest_incremental(tmp_path)
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
+
+        # Update Day 1 data with 3 trades instead of 1
+        (day1_dir / "THYAO.csv").write_text(
+            "symbol,signal_time_text,price,quantity,buyer,seller\n"
+            "THYAO,2026-03-02 08:00:00,300,100,MLB,ISY\n"
+            "THYAO,2026-03-02 08:10:00,302,200,MLB,ISY\n"
+            "THYAO,2026-03-02 08:20:00,304,300,MLB,ISY\n"
+        )
+
+        # Ingest ONLY date 2026-03-02
+        date_res = ingestor.ingest_date("2026-03-02", search_dir=tmp_path)
+        assert date_res["status"] == "success"
+        assert date_res["deleted_previous_trades"] == 1
+        assert date_res["new_trades_ingested"] == 3
+
+        # Verify Day 2 remains intact (1 trade), Day 1 now has 3 trades -> Total 4 trades
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-03';").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 4
+
+
 def test_pipeline_dag_resolution():
     """Test MedallionPipeline DAG layer resolution."""
     pipeline = MedallionPipeline(DuckDBManager(in_memory=True))
@@ -194,7 +290,7 @@ def test_pipeline_dag_resolution():
 
 
 def test_pipeline_skips_legacy_march_glob_when_annual_manifest_exists(monkeypatch):
-    """A complete annual archive load must not append March CSVs a second time."""
+    """A complete annual archive load must not append discovered CSVs a second time."""
     db = DuckDBManager(in_memory=True)
     initialize_bronze_schema(db)
     conn = db.get_connection()
@@ -214,11 +310,11 @@ def test_pipeline_skips_legacy_march_glob_when_annual_manifest_exists(monkeypatc
     pipeline = MedallionPipeline(db)
 
     def unexpected_legacy_ingest(*args, **kwargs):
-        raise AssertionError("Legacy March glob must not run after annual archive ingestion")
+        raise AssertionError("Filesystem discovery must not run after annual archive ingestion")
 
     monkeypatch.setattr(
         pipeline.bronze_ingestor,
-        "ingest_bist_raw_csv_glob",
+        "ingest_all",
         unexpected_legacy_ingest,
     )
 

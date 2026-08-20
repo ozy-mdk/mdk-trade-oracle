@@ -39,25 +39,53 @@ Whenever designing or building a new predictive model (e.g. Model 1 `day_start`,
 
 ---
 
-## 🧠 3. The 7 Quantitative Feature Clusters (Zero Data Leakage)
+## 🎯 3. Target Variables & Modeling Rigor
 
-All features must be computed **strictly from $T-1$ Close data** (or prior completed intraday windows):
+In strict adherence to quantitative and mathematical rigor, targets are defined purely around the continuous net flow ($TL$) and derived directional conviction:
 
-| Feature Cluster | Core Domain Logic & Rationale | Key Features |
-| :--- | :--- | :--- |
-| **Cluster 1: Prior Closing Window Momentum** | Unfinished institutional VWAP/MOC programs in Window 4 (17:00-18:10) carry over into next morning's opening auction. | `feat_bofa_w4_net_flow_tl`<br/>`feat_bofa_w4_share`<br/>`feat_bofa_w4_vwap_spread_pct` |
-| **Cluster 2: Multi-Day Inventory & Sector Saturation** | Institutional exposure limits: after 3-5 consecutive days of net buying in a sector, algorithms face risk thresholds. | `feat_bofa_accum_5d_tl`<br/>`feat_bofa_accum_20d_tl`<br/>`feat_bofa_flow_zscore_20d` |
-| **Cluster 3: Cost Basis & Unrealized PnL** | Distance between yesterday's close and BofA's 20-day Volume-Weighted Buy Price (VWAP). Large profits trigger distribution; underwater positions trigger defense. | `feat_bofa_cost_basis_spread_20d_pct`<br/>`feat_bofa_buy_vwap_20d` |
-| **Cluster 4: Top-5 Competitor Posture & Flow Delta** | Flow imbalance between BofA and domestic major brokers (`IYM`, `YKR`, `AKM`, `GRM`, `ZRY`). | `feat_top5_w4_net_flow_tl`<br/>`feat_bofa_vs_top5_w4_flow_delta_tl` |
-| **Cluster 5: Institutional Hegemony & Market Control** | Overall daily turnover dominance and share of market liquidity. | `feat_bofa_prev_day_market_share`<br/>`feat_bofa_prev_day_turnover_tl` |
-| **Cluster 6: Sector Cross-Sectional Stress & Breadth** | Leading sector rotation indicators across Banking, Transportation, Holding, and Industrial equities. | `feat_bofa_banking_flow_prev_day`<br/>`feat_bofa_transport_flow_prev_day`<br/>`feat_bofa_holding_flow_prev_day` |
-| **Cluster 7: Calendar & Temporal Dynamics** | Weekly institutional mandate dynamics: Monday morning re-allocations vs Friday closing hedges. | `day_of_week`<br/>`is_monday`<br/>`is_friday` |
+### Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)
+| Target Variable | Data Type | Mathematical Formulation | Role & Description |
+| :--- | :--- | :--- | :--- |
+| `target_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{T, \text{W1}} = \sum_{i \in \text{Trades}_{T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Total exchange-wide net executed capital in TL by BofA in Window 1 (09:55–10:30 TRT). |
+| `target_open_direction` | Categorical (`str`) | $$\text{Direction}_T = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{T, \text{W1}} \le 0 \end{cases}$$ | Derived directional binary outcome (`BUY` vs `SELL`). |
+
+### Model 2: Sector Day-Start Allocation Forecaster (`SectorDayStartForecaster`)
+| Target Variable | Data Type | Mathematical Formulation | Role & Description |
+| :--- | :--- | :--- | :--- |
+| `target_sector_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{s, T, \text{W1}} = \sum_{i \in \text{Trades}_{s, T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Net executed capital in TL by BofA in Sector $s$ in Window 1. |
+| `target_sector_open_direction` | Categorical (`str`) | $$\text{Direction}_{s, T} = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} \le 0 \end{cases}$$ | Derived sector directional binary outcome (`BUY` vs `SELL`). |
+
+### 💼 Business & Technical Mechanism: Unified Probabilistic Derivation
+1. **Primary Regression Target**: The model fits $y = \text{target\_(sector\_)open\_net\_flow\_tl}$, outputting mean flow $\hat{\mu}$ and posterior uncertainty $\hat{\sigma}$.
+2. **Harmonized Direction & Sizing (No Contradictions)**: Directional conviction ($P(\text{BUY}) = 1 - \Phi(0; \hat{\mu}, \hat{\sigma})$) and 90% credible ranges ($\hat{\mu} \pm 1.645\hat{\sigma}$) are derived directly from the exact same posterior distribution.
 
 ---
 
-## 🔬 4. Candidate Model Suite & Probabilistic Architecture
+## 🧠 4. Quantitative Feature Clusters (Zero Data Leakage)
 
-Every quantitative model objective benchmarks across 5 candidate paradigms:
+All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or prior completed intraday windows:
+
+### A. Model 1: The 7 Macro Feature Clusters (`DayStartFeatureExtractor`)
+1. **Prior Closing Window Momentum**: Window 4 net flow & turnover (`feat_bofa_w4_net_flow_tl`, `feat_bofa_w4_turnover_tl`, `feat_w4_flow_acceleration_ratio`).
+2. **Multi-Day Inventory & Sector Saturation**: 5-day / 20-day rolling flows & Z-scores (`feat_bofa_cum_net_flow_5d_tl`, `feat_bofa_flow_zscore_20d`).
+3. **Institutional Cost Basis & Unrealized PnL**: Spread between Close and 20d Buy VWAP (`feat_bofa_cost_basis_spread_20d_pct`).
+4. **Top-5 Competitor Posture & Flow Delta**: Flow deltas vs domestic major desks `IYM`, `YKR`, `AKM`, `GRM`, `ZRY` (`feat_top5_domestic_w4_net_flow_tl`, `feat_bofa_vs_top5_w4_flow_delta_tl`).
+5. **Institutional Hegemony & Market Control**: Turnover share and concentration (`feat_bofa_prev_day_market_share`, `feat_institutional_hegemony_share`, `feat_avg_cr5_concentration`).
+6. **Sector Cross-Sectional Stress & Breadth**: Flow across Banking, Transportation, Holding, Energy, Defense (`feat_bofa_banking_flow_prev_day`, `feat_bofa_transport_flow_prev_day`, `feat_bofa_holding_flow_prev_day`).
+7. **Calendar & Temporal Dynamics**: Day of week, Monday rebalancing, Friday hedging (`day_of_week`, `is_monday`, `is_friday`).
+
+### B. Model 2: The 5 Sector Feature Clusters (`SectorDayStartFeatureExtractor`)
+1. **Sector Prior Closing Window Momentum**: Sector Window 4 net flow and turnover (`feat_sector_bofa_w4_net_flow_tl`, `feat_sector_bofa_w4_turnover_tl`).
+2. **Sector Competitor Imbalance**: BofA vs Top-5 domestic desk deltas in sector $s$ (`feat_sector_top5_w4_net_flow_tl`, `feat_sector_bofa_vs_top5_w4_delta_tl`, `feat_sector_bofa_vs_top5_daily_delta_tl`).
+3. **Sector Dominance & Share of Wallet**: Sector market share and sector share of total BofA flow (`feat_sector_bofa_market_share`, `feat_sector_bofa_share_of_wallet`).
+4. **Sector Multi-Day Accumulation & Saturation**: Rolling 5-day / 20-day sector cumulative flow and flow Z-scores (`feat_sector_bofa_cum_net_flow_5d_tl`, `feat_sector_top5_cum_net_flow_5d_tl`, `feat_sector_bofa_flow_zscore_20d`).
+5. **Macro Context & Calendar Seasonality**: Previous day total macro BofA flow and calendar flags (`feat_macro_bofa_prev_day_net_flow_tl`, `feat_macro_top5_prev_day_net_flow_tl`, `is_monday`, `is_friday`, `day_of_week`).
+
+---
+
+## 🔬 5. Candidate Model Suite & Probabilistic Architecture
+
+Every quantitative modeling objective benchmarks across 5 candidate paradigms:
 
 ```mermaid
 flowchart LR
@@ -74,38 +102,42 @@ flowchart LR
     end
 ```
 
-1. **`DayStartNaivePersistenceModel`**: Carries yesterday's closing Window 4 flow forward.
-2. **`DayStartRollingMeanModel`**: 5-day historical moving average.
-3. **`DayStartLightGBMModel`**: Gradient boosting regressor capturing non-linear interactions with L2 regularization.
-4. **`DayStartBayesianModel`**: Bayesian Ridge Regression with analytical conjugate priors, outputting posterior distributions and exact 90% credible intervals.
-5. **`DayStartPyMCModel`**: Full Bayesian GLM with custom Gaussian shrinkage priors $\beta \sim \mathcal{N}(0, 0.5)$ and Half-Normal residual variance $\sigma \sim \text{HalfNormal}(1.0)$. Supports fast Maximum A Posteriori (MAP) fitting or full NUTS MCMC sampling.
+1. **`NaivePersistenceModel`**: Carries yesterday's closing Window 4 flow forward.
+2. **`RollingMeanModel`**: 5-day historical moving average.
+3. **`LightGBMModel`**: Gradient boosting regressor capturing non-linear interactions with L2 regularization.
+4. **`BayesianModel`**: Bayesian Ridge Regression with analytical conjugate priors, outputting posterior distributions and exact 90% credible intervals.
+5. **`PyMCModel`**: Full Bayesian GLM with custom Gaussian shrinkage priors $\beta \sim \mathcal{N}(0, 0.5)$ and Half-Normal residual variance $\sigma \sim \text{HalfNormal}(1.0)$. Supports fast Maximum A Posteriori (MAP) fitting or full NUTS MCMC sampling.
 
 ---
 
-## ⚔️ 5. Expanding-Window Walk-Forward Validation & Auto-Arena
+## ⚔️ 6. Trailing Evaluation Horizon & Walk-Forward Validation
 
-To prevent lookahead bias in financial time series, models are evaluated chronologically:
+To prevent lookahead bias in financial time series and scale efficiently from 1 month to 5+ years of data:
 
-```mermaid
-sequenceDiagram
-    participant S as Sessions (1..T)
-    participant A as DayStartModelArena
-    participant C as Champion Model
-
-    Note over S: March 2026 Trading Days (N = 20)
-    S->>A: Window 1: Train on Days 1..5 -> Predict Day 6 (Out-of-Sample)
-    S->>A: Window 2: Train on Days 1..6 -> Predict Day 7 (Out-of-Sample)
-    S->>A: ... Expand Window day-by-day ...
-    A->>C: Rank by: 1. Out-of-Sample Hit Rate (%), 2. 90% PICP (%), 3. Lowest RMSE
-    C-->>A: Crown Champion Model (e.g. Bayesian Ridge / PyMC)
+```
+                            FULL HISTORICAL DATASET (e.g. 1 Year / 250 Days)
+┌────────────────────────────────────────────────────────┬─────────────────────────────┐
+│             Rich Historical Training Base              │  Trailing Arena Tournament  │
+│                     [Day 1 … 230]                      │        [Day 231 … 250]      │
+│                     (230 Days)                         │        (Last 20 Days)       │
+└────────────────────────────────────────────────────────┴─────────────────────────────┘
+                                                                    │
+Step 1:  Train on [Day 1 … 230] (230 days)  ──► Predict Day 231 ────┤ Out-of-Sample Score 1
+Step 2:  Train on [Day 1 … 231] (231 days)  ──► Predict Day 232 ────┤ Out-of-Sample Score 2
+...                                                                 │
+Step 20: Train on [Day 1 … 249] (249 days)  ──► Predict Day 250 ────┘ Out-of-Sample Score 20
 ```
 
-- **`DayStartModelArena.run_tournament(X, y)`**: Runs the tournament and crowns the champion.
-- **`DayStartForecaster(model_type="auto")`**: Production orchestrator that runs the arena on the fly and persists forecasts into DuckDB Gold table `gold_bofa_day_start_forecasts`.
+- **Configurable Parameters in `config/default.yaml`**:
+  - `lookback_months: 12`: Trailing history window loaded relative to the latest session $T$.
+  - `eval_window_days: 20`: Number of trailing out-of-sample evaluation steps in the tournament.
+  - `min_burn_in_days: 5`: Minimum warmup sessions.
+- **`DayStartModelArena` & `SectorDayStartModelArena`**: Runs the tournament and crowns the champion.
+- **`DayStartForecaster` & `SectorDayStartForecaster`**: Fits the champion on 100% of historical data and writes forecasts into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`).
 
 ---
 
-## 🎯 6. Actionable Decision Items for Individual Traders
+## 🎯 7. Actionable Decision Items for Individual Traders
 
 Continuous flow forecasts must be translated into discrete, tradeable decisions:
 
@@ -121,5 +153,5 @@ Continuous flow forecasts must be translated into discrete, tradeable decisions:
 - **`MOMENTUM_EXPANSION`**: Large opening accumulation ($> +40\text{M TL}$) — follow early breakout.
 - **`LIQUIDITY_FADE`**: High negative flow expectation with BofA holding $> +5\%$ unrealized gains — expect profit-taking / fade dips.
 - **`DEFENSE_SUPPORT`**: Underwater inventory ($< -4\%$ cost basis spread) with positive flow — institutional defense zone.
-- **`SECTOR_ROTATION`**: Monday morning capital shifts between Banking and Transportation.
+- **`SECTOR_ROTATION`**: Capital shifts between Banking, Transportation, Holding, and Industrial equities.
 - **`NEUTRAL_WAIT`**: Ambiguous flow — wait for Window 2 intraday confirmation.

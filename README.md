@@ -35,22 +35,41 @@ flowchart TD
 ### Medallion Lakehouse Layers
 
 1. **Bronze Layer (`bronze_*`)**:
-   - `bronze_raw_trades`: 36,818,222 raw tick-by-tick trades across all trading days in March 2026 (extensible to subsequent months).
-   - `bronze_brokers`: 60 institutional and domestic brokerage definitions.
-   - `bronze_instruments`: 45 BIST universe symbols (e.g. `THYAO`, `AKBNK`, `GARAN`, `EREGL`, `TUPRS`, `BIMAS`).
+   - `bronze_raw_trades`: 36,818,222 raw microsecond tick executions.
+   - `bronze_ingestion_log`: File metadata, mtime, and partition audit tracking.
+   - `bronze_brokers`: 65 brokerage entity definitions.
+   - `bronze_instruments`: 45 tracked liquid BIST equities.
 2. **Silver Layer (`silver_*`)**:
-   - `silver_daily_broker_summary`: 48,058 aggregated daily records containing buy/sell volumes, turnover, and buy/sell VWAP per `(trade_date, symbol, broker_id)`.
-   - `silver_market_daily`: 945 daily OHLCV, market turnover, active broker counts, and Bank of America volume share metrics.
-3. **Gold Layer (`gold_*`)**:
-   - `gold_institutional_daily_signals`: Rolling 5-day and 20-day institutional accumulation metrics, BofA Z-scores, and actionable flow signals.
-4. **Oracle Decision Engine (`oracle/`)**:
-   - Translates Gold feature metrics into actionable trade alerts (`LONG_ACCUMULATION`, `INSTITUTIONAL_DISTRIBUTION`, `MOMENTUM_BREAKOUT`).
+   - `silver_daily_broker_summary`: 48,058 daily stock $\times$ broker turnaround and VWAP records.
+   - `silver_daily_broker_overview`: 1,235 daily macro broker market share and liquidity rankings.
+   - `silver_daily_stock_summary`: 945 daily stock OHLCV, market VWAP, CR5 concentration, and BofA spreads.
+   - `silver_daily_sector_summary`: 28,516 sector breadth and turnaround metrics.
+   - `silver_intraday_broker_window_summary`: 166,095 executions split across 4 canonical intraday windows (Window 1 Day-Start 09:55–10:30, Window 2 Midday, Window 3 Afternoon, Window 4 Closing 17:00–18:10).
+   - `silver_intraday_sector_window_summary`: 99,825 sector-level intraday window executions.
+3. **Gold Layer (`gold_*`) & Predictive Multi-Model Suite**:
+   - `gold_institutional_daily_signals`: Rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
+   - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — exchange-wide opening flow predictions, 90% credible intervals, directional conviction, and institutional execution playbooks.
+   - `gold_bofa_sector_day_start_forecasts`: **Model 2: Sector Day-Start Forecaster** — cross-sectional opening capital allocation forecasts across all 26 tracked BIST sectors.
+
+---
+
+## 🔬 Predictive Modeling Blueprint & Trailing Walk-Forward Arena
+
+All Gold layer predictive models adhere to the Universal Modeling Blueprint:
+- **Zero Lookahead Bias**: Features are computed strictly from $T-1$ Close data (18:10 TRT).
+- **Candidate Model Suites**: Benchmarking 5 candidate paradigms:
+  1. `NaivePersistenceModel` (prior W4 flow)
+  2. `RollingMeanModel` (5-day rolling average)
+  3. `LightGBMModel` (non-linear boosted tree ensemble)
+  4. `BayesianModel` (Bayesian Ridge with analytical 90% credible intervals)
+  5. `PyMCModel` (Bayesian GLM with shrinkage priors)
+- **Trailing Walk-Forward Arena**: Configured in `config/default.yaml` (`lookback_months: 12`, `eval_window_days: 20`, `min_burn_in_days: 5`). For multi-year datasets, the arena tests candidates across the trailing $K$ sessions against expanding historical training windows ($1 \dots t-1$), executing in seconds.
 
 ---
 
 ## 🔒 Strict Separation of Code & Data
 
-To support local zero-cost execution and portability across different team members:
+To support zero-cost execution and portability across different team members:
 - **Code Repository (`mdk-trading-oracle`)**: Contains Python source code, schemas, ETL scripts, unit tests, notebooks, and `.agents/skills/`. No heavy data binaries are tracked in Git.
 - **Physical Data Store (`DATA_DIR`)**: Stored outside the repository (default: `~/data/mdk_oracle/` or configured in `.env`).
 
@@ -67,120 +86,44 @@ To support local zero-cost execution and portability across different team membe
 
 ## 🚀 Quickstart
 
-### 1. Installation
-
-Clone the repository and set up a Python 3.9+ virtual environment:
+### 1. Installation & Environment
 
 ```bash
 git clone git@github.com:ozy-mdk/mdk-trade-oracle.git
 cd mdk-trade-oracle
 
 python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 
 pip install -e ".[dev]"
 ```
 
-### 2. Configure Environment
+### 2. Run Lakehouse Pipeline
 
-Copy the example environment configuration:
 ```bash
-cp .env.example .env
-```
+# Execute full incremental pipeline (Bronze -> Silver -> Gold):
+.venv/bin/python scripts/run_pipeline.py --target all
 
-The default configuration in `.env`:
-```env
-APP_ENV=development
-LOG_LEVEL=INFO
-DEFAULT_MARKET=BIST
-PRIMARY_INSTITUTION=MLB
-DATA_DIR=~/data/mdk_oracle
-```
-
-### 3. Check System Status & Ingestion
-
-Verify your database status using the CLI:
-```bash
-mdk-oracle info
-```
-
-### 4. Build Lakehouse Layers
-
-Run the Medallion pipeline layers individually or end-to-end:
-```bash
-# Ingest Bronze layer (36.8M+ ticks in ~4s):
-mdk-oracle load-bronze
-
-# Build Silver layer (daily broker summaries & OHLCV in ~9s):
-mdk-oracle build-silver
-
-# Build Gold layer (institutional indicators & Z-scores in ~0.2s):
-mdk-oracle build-gold
-
-# Or run the entire pipeline end-to-end:
-mdk-oracle build-all
+# Or run with data catalog auto-discovery:
+.venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 ```
 
 ---
 
-## 📊 Interactive Exploration Notebooks
+## 📊 Interactive Research Notebooks
 
-Launch Jupyter Lab to explore the data interactively:
+Launch Jupyter to explore institutional flows and test models interactively:
 
 ```bash
 jupyter lab
 ```
 
-Open [`notebooks/01_bronze_data_exploration.ipynb`](notebooks/01_bronze_data_exploration.ipynb):
-- **Concurrency-Safe**: Connects to DuckDB with `read_only=True` to allow concurrent queries without locking issues.
-- **Analysis Included**:
-  - Daily market turnover and trading activity across March 2026.
-  - Top traded instruments and price ranges.
-  - Broker market share and net flows (focusing on Bank of America / `MLB`).
-  - Intraday trade arrival distributions (10:00 - 18:00 session).
-  - Interactive dark-theme Plotly charts.
-
----
-
-## 📂 Project Structure
-
-```
-mdk-trading-oracle/
-├── config/                               # YAML schemas & broker configurations
-│   ├── brokers.yaml                      # Broker definitions (MLB, YKBNK, ISCTR, etc.)
-│   ├── default.yaml                      # Feature and pipeline parameters
-│   └── instruments.yaml                  # BIST equity symbols & sector mappings
-├── notebooks/                            # Exploratory analysis & transformation design
-│   └── 01_bronze_data_exploration.ipynb  # Interactive Bronze layer EDA
-├── scripts/                              # Standalone automation scripts
-│   └── load_bronze_data.py               # Fast Bronze CSV ingestion runner
-├── src/mdk_trading_oracle/               # Core Python package
-│   ├── app/                              # Typer CLI application
-│   │   ├── __init__.py
-│   │   └── cli.py                        # CLI commands (info, load-bronze, build-silver, build-gold)
-│   ├── core/                             # Foundational engine modules
-│   │   ├── config.py                     # Dynamic settings & paths
-│   │   ├── db.py                         # DuckDB connection & schema manager
-│   │   ├── logger.py                     # Rich formatted logger
-│   │   └── types.py                      # Pydantic domain models & enums
-│   └── data/                             # Medallion Lakehouse Data Management
-│       ├── bronze/                       # Bronze layer DDL & raw ingestors
-│       │   ├── schema.py
-│       │   └── ingestor.py
-│       ├── silver/                       # Silver layer transformations (VWAP, OHLCV, Broker summaries)
-│       │   ├── schema.py
-│       │   └── transformations.py
-│       └── gold/                         # Gold layer features (BofA flow indicators, Z-scores)
-│           ├── schema.py
-│           └── feature_engineering.py
-├── tests/                                # Automated test suite
-│   ├── test_core.py                      # Config, DB, and domain unit tests
-│   └── test_medallion.py                 # End-to-end Medallion pipeline tests
-├── .env.example                          # Environment variables template
-├── .gitignore                            # Git ignore rules
-├── pyproject.toml                        # Project dependencies, ruff & pytest configs
-└── README.md                             # Project documentation
-```
+Available notebooks in [`notebooks/`](notebooks/):
+1. **`00_data_catalog_discovery.ipynb`**: Raw CSV tick feed inspection and YAML catalog validation.
+2. **`01_bronze_data_exploration.ipynb`**: High-performance tick trade analytics, broker liquidity distributions, and execution spreads.
+3. **`02_silver_flow_and_vwap_analysis.ipynb`**: Daily broker turnarounds, stock CR5 concentration, and 4-window intraday execution splits.
+4. **`03_bofa_day_start_modeling.ipynb`**: Model 1 Macro Day-Start Forecaster, candidate arena scoreboard, 90% credible intervals, and institutional playbooks.
+5. **`04_bofa_sector_day_start_modeling.ipynb`**: Model 2 Sector Day-Start Forecaster, cross-sectional sector allocation heatmaps, and rotation visualizers.
 
 ---
 
@@ -188,12 +131,12 @@ mdk-trading-oracle/
 
 Run tests using `pytest`:
 ```bash
-pytest
+.venv/bin/pytest
 ```
 
 Run code formatting and linting:
 ```bash
-ruff check .
+.venv/bin/ruff check .
 ```
 
 ---
@@ -201,5 +144,5 @@ ruff check .
 ## ⚡ Key Principles
 
 - **Zero Compute Cost**: Vectorized analytics execute directly on local hardware using DuckDB & Polars.
-- **Strict Data Isolation**: No customer or raw exchange data inside source control.
-- **Concurrent Access**: Robust read-only DuckDB connections prevent file lock contention across multiple notebook kernels and terminal processes.
+- **Strict Data Isolation**: No raw exchange data stored inside source control.
+- **Concurrent Access**: Robust read-only DuckDB connections (`DuckDBManager(read_only=True)`) prevent file lock contention across multiple notebook kernels and terminal processes.

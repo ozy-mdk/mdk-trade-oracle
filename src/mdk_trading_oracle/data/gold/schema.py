@@ -38,7 +38,6 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
             predicted_open_flow_upper_90 DOUBLE,
             predicted_direction VARCHAR,
             direction_confidence DOUBLE,
-            predicted_open_market_share DOUBLE,
             predicted_playbook VARCHAR,
             top_predicted_buy_sector VARCHAR,
             top_predicted_sell_sector VARCHAR,
@@ -48,15 +47,27 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    # 3. Model 1 Output Table: Day-Start Sector Allocations
+    # 3. Model 2 Output Table: Day-Start Sector Allocations
+    existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
+    if "gold_bofa_sector_day_start_forecasts" in existing_tables:
+        sector_cols = [r[1] for r in conn.execute("PRAGMA table_info('gold_bofa_sector_day_start_forecasts');").fetchall()]
+        if "day_of_week" not in sector_cols:
+            conn.execute("DROP TABLE gold_bofa_sector_day_start_forecasts;")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gold_bofa_sector_day_start_forecasts (
             forecast_date DATE,
             sector VARCHAR,
-            predicted_net_flow_tl DOUBLE,
+            day_of_week INTEGER,
+            is_monday BOOLEAN,
+            predicted_open_net_flow_tl DOUBLE,
+            predicted_open_flow_lower_90 DOUBLE,
+            predicted_open_flow_upper_90 DOUBLE,
             predicted_direction VARCHAR,
-            confidence DOUBLE,
-            historical_win_rate DOUBLE,
+            direction_confidence DOUBLE,
+            predicted_playbook VARCHAR,
+            model_name VARCHAR,
+            model_version VARCHAR,
             generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (forecast_date, sector)
         );
