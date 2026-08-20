@@ -1,7 +1,7 @@
 """Production Sector Day-Start Forecaster Orchestrator & Auto-Champion Model Arena."""
 
 from datetime import date
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -88,7 +88,8 @@ class SectorDayStartForecaster:
         1. Multi-sector feature extraction from DuckDB Silver tables at T-1 Close
         2. Automated Model Arena tournament selection across sectors
         3. Probabilistic model training and walk-forward validation
-        4. Persisting forecasts directly into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`
+        4. Live next-day sector forecasting (T+1) and historical backtest evaluation
+        5. Persisting forecasts directly into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`
     """
 
     def __init__(
@@ -117,15 +118,9 @@ class SectorDayStartForecaster:
         self.arena = SectorDayStartModelArena(include_pymc=include_pymc)
         self.champion_name: Optional[str] = None
 
-    def train_and_forecast_all(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
-        """Extract sector features, run arena to select champion, and generate forecasts for each sector."""
-        tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
-        if not tracked_sectors:
-            logger.warning("No tracked sectors found for SectorDayStartForecaster.")
-            return []
-
-        # First, if auto, crown champion on the primary benchmark sector (Banking)
-        if self.model_type == "auto":
+    def _ensure_champion_selected(self, tracked_sectors: List[str]) -> str:
+        """Select champion model dynamically on the fly if model_type == 'auto'."""
+        if self.model_type == "auto" or self.champion_name is None:
             benchmark_sector = "Banking" if "Banking" in tracked_sectors else tracked_sectors[0]
             df_bm = self.feature_extractor.extract_features(sector=benchmark_sector).to_pandas()
             if len(df_bm) > 5:
@@ -140,8 +135,74 @@ class SectorDayStartForecaster:
                 self.champion_name = "sector_day_start_bayesian_ridge"
         else:
             self.champion_name = self.model_type
+        return self.champion_name
 
-        all_forecasts: List[ForecastResult] = []
+    def _create_sector_model(self) -> BaseSectorDayStartModel:
+        """Instantiate a fresh model instance of the crowned champion paradigm."""
+        if self.champion_name in ["sector_day_start_bayesian_ridge", "bayesian"]:
+            return SectorDayStartBayesianModel()
+        elif self.champion_name in ["sector_day_start_lightgbm", "lightgbm"]:
+            return SectorDayStartLightGBMModel()
+        elif self.champion_name in ["sector_day_start_pymc", "pymc"]:
+            return SectorDayStartPyMCModel(use_map=True)
+        elif self.champion_name in ["sector_day_start_rolling_mean", "rolling_mean"]:
+            return SectorDayStartRollingMeanModel()
+        else:
+            return SectorDayStartNaivePersistenceModel()
+
+    def forecast_next_day(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
+        """Generate live sector forecasts for the upcoming trading session (T_next)."""
+        tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
+        if not tracked_sectors:
+            logger.warning("No tracked sectors found for SectorDayStartForecaster.")
+            return []
+
+        self._ensure_champion_selected(tracked_sectors)
+
+        # Extract next-day feature rows across tracked sectors
+        df_next_pl = self.feature_extractor.extract_next_day_features(sectors=tracked_sectors)
+        if df_next_pl.height == 0:
+            logger.warning("No next-day sector feature records extracted.")
+            return []
+
+        df_next_pd = df_next_pl.to_pandas()
+        live_forecasts: List[ForecastResult] = []
+
+        for sector in tracked_sectors:
+            sec_next_row = df_next_pd[df_next_pd["sector"] == sector]
+            if sec_next_row.empty:
+                continue
+
+            # Train on historical sector data
+            df_hist_pl = self.feature_extractor.extract_features(sector=sector)
+            if df_hist_pl.height == 0:
+                continue
+
+            df_hist_pd = df_hist_pl.to_pandas()
+            X_hist = df_hist_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+            y_hist = df_hist_pd["target_sector_open_net_flow_tl"]
+
+            model = self._create_sector_model()
+            model.fit(X_hist, y_hist)
+
+            res = model.predict(sec_next_row)
+            res.top_predicted_buy_sector = sector
+            live_forecasts.append(res)
+
+        logger.info(
+            f"🎯 Generated {len(live_forecasts)} Live Next-Day Sector Forecasts across sectors "
+            f"for {live_forecasts[0].forecast_date if live_forecasts else 'N/A'} (Champion: '{self.champion_name}')."
+        )
+        return live_forecasts
+
+    def backtest_all_history(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
+        """Generate historical in-sample / backtest predictions across all historical training sessions."""
+        tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
+        if not tracked_sectors:
+            return []
+
+        self._ensure_champion_selected(tracked_sectors)
+        all_backtests: List[ForecastResult] = []
 
         for sector in tracked_sectors:
             df_pl = self.feature_extractor.extract_features(sector=sector)
@@ -152,38 +213,50 @@ class SectorDayStartForecaster:
             X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
             y = df_pd["target_sector_open_net_flow_tl"]
 
-            # Instantiate model for this sector
-            if self.champion_name in ["sector_day_start_bayesian_ridge", "bayesian"]:
-                model: BaseSectorDayStartModel = SectorDayStartBayesianModel()
-            elif self.champion_name in ["sector_day_start_lightgbm", "lightgbm"]:
-                model = SectorDayStartLightGBMModel()
-            elif self.champion_name in ["sector_day_start_pymc", "pymc"]:
-                model = SectorDayStartPyMCModel(use_map=True)
-            elif self.champion_name in ["sector_day_start_rolling_mean", "rolling_mean"]:
-                model = SectorDayStartRollingMeanModel()
-            else:
-                model = SectorDayStartNaivePersistenceModel()
-
-            # Train on full history
+            model = self._create_sector_model()
             model.fit(X, y)
 
-            # Generate forecasts
             for idx in range(len(df_pd)):
                 row = X.iloc[[idx]]
                 res = model.predict(row)
                 res.top_predicted_buy_sector = sector
-                all_forecasts.append(res)
+                all_backtests.append(res)
 
-        logger.info(f"Generated {len(all_forecasts)} sector day-start forecasts across {len(tracked_sectors)} sectors using Champion '{self.champion_name}'.")
-        return all_forecasts
+        logger.info(f"Generated {len(all_backtests)} historical backtest sector forecasts across {len(tracked_sectors)} sectors.")
+        return all_backtests
 
-    def save_forecasts_to_gold(self, forecasts: List[ForecastResult]) -> int:
+    def train_and_forecast_all(
+        self,
+        sectors: Optional[List[str]] = None,
+        include_history: bool = False,
+        include_next_day: bool = True,
+    ) -> List[ForecastResult]:
+        """Extract sector features, fit champion model, and generate forecasts.
+        
+        Args:
+            sectors: Optional list of sectors to forecast.
+            include_history: If True, includes historical backtest forecasts.
+            include_next_day: If True (default), includes the live forecast for upcoming session T_next.
+        """
+        results: List[ForecastResult] = []
+        if include_history:
+            results.extend(self.backtest_all_history(sectors=sectors))
+        if include_next_day:
+            results.extend(self.forecast_next_day(sectors=sectors))
+        return results
+
+    def save_forecasts_to_gold(self, forecasts: Union[ForecastResult, List[ForecastResult]]) -> int:
         """Persist sector forecasts into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`."""
-        if not forecasts:
+        if isinstance(forecasts, ForecastResult):
+            forecast_list = [forecasts]
+        else:
+            forecast_list = forecasts
+
+        if not forecast_list:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(forecasts)} forecasts to `gold_bofa_sector_day_start_forecasts`...")
+        logger.info(f"Persisting {len(forecast_list)} forecast(s) to `gold_bofa_sector_day_start_forecasts`...")
 
         # Ensure schema exists and has all current columns
         existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
@@ -212,7 +285,7 @@ class SectorDayStartForecaster:
         """)
 
         # Insert or replace predictions
-        for f in forecasts:
+        for f in forecast_list:
             d = f.forecast_date
             dow = d.weekday() + 1 if isinstance(d, date) else 1
             is_mon = (dow == 1)
@@ -243,3 +316,4 @@ class SectorDayStartForecaster:
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} total forecasts.")
         return saved_count
+

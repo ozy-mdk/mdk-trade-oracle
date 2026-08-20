@@ -1,6 +1,6 @@
 """Day-Start Feature Extraction Engine: Assembles the 7 Feature Clusters from Silver fact tables."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 import polars as pl
@@ -11,6 +11,20 @@ from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import BaseFeatureExtractor
 
 logger = get_logger("mdk_oracle.models.day_start.features")
+
+
+def get_next_trading_day(latest_date: date) -> date:
+    """Calculate the next expected trading day skipping weekends (Friday -> Monday)."""
+    if hasattr(latest_date, "date"):
+        latest_date = latest_date.date()
+    weekday = latest_date.weekday()  # 0=Mon, 4=Fri, 5=Sat, 6=Sun
+    if weekday == 4:
+        return latest_date + timedelta(days=3)
+    elif weekday == 5:
+        return latest_date + timedelta(days=2)
+    else:
+        return latest_date + timedelta(days=1)
+
 
 
 class DayStartFeatureExtractor(BaseFeatureExtractor):
@@ -280,3 +294,193 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         df = conn.execute(query, [effective_start, effective_start, end_date, end_date]).pl()
         logger.info(f"Extracted {df.height} historical daily observations with {len(df.columns)} features.")
         return df
+
+    def extract_next_day_features(self) -> pl.DataFrame:
+        """Extract the single feature row for the upcoming trading session (T_next) based on latest T_close.
+        
+        Zero lookahead leakage: all metrics are computed from completed data up to the latest date in DuckDB.
+        The trade_date is automatically computed as the next trading business day.
+        
+        Returns:
+            pl.DataFrame: 1-row feature matrix ready for live model inference for tomorrow morning.
+        """
+        conn = self.db.get_connection()
+        logger.info(f"Extracting Next-Day Day-Start Feature Vector for broker '{self.target_broker}'...")
+
+        query = f"""
+            WITH daily_dates AS (
+                SELECT DISTINCT trade_date
+                FROM silver_daily_stock_summary
+                ORDER BY trade_date ASC
+            ),
+            -- 1. Prior Day Closing Window 4 Flow
+            prev_day_w4_flows AS (
+                SELECT 
+                    trade_date,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_w4_net_flow_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE 0.0 END) AS bofa_w4_turnover_tl,
+                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN net_flow_tl ELSE 0.0 END) AS top5_domestic_w4_net_flow_tl,
+                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN total_turnover_tl ELSE 0.0 END) AS top5_domestic_w4_turnover_tl
+                FROM silver_intraday_broker_window_summary
+                WHERE window_name = 'closing_session'
+                GROUP BY trade_date
+            ),
+            -- 2. Prior Day Full Macro Overview
+            prev_day_broker_overview AS (
+                SELECT 
+                    trade_date,
+                    MAX(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE NULL END) AS bofa_prev_day_net_flow_tl,
+                    MAX(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE NULL END) AS bofa_prev_day_turnover_tl,
+                    MAX(CASE WHEN broker_id = '{self.target_broker}' THEN market_turnover_share ELSE NULL END) AS bofa_prev_day_market_share,
+                    MAX(CASE WHEN broker_id = '{self.target_broker}' THEN market_turnover_rank ELSE NULL END) AS bofa_prev_day_turnover_rank,
+                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN net_flow_tl ELSE 0.0 END) AS top5_domestic_prev_day_net_flow_tl,
+                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN total_turnover_tl ELSE 0.0 END) AS top5_domestic_prev_day_turnover_tl,
+                    SUM(total_turnover_tl) / 2.0 AS market_total_turnover_tl
+                FROM silver_daily_broker_overview
+                GROUP BY trade_date
+            ),
+            -- 3. Prior Day Market Aggregates
+            prev_day_market_summary AS (
+                SELECT 
+                    trade_date,
+                    AVG(daily_return_pct) AS market_avg_return_pct,
+                    AVG(price_range_pct) AS market_avg_range_pct,
+                    SUM(total_turnover_tl) AS total_market_turnover_tl,
+                    AVG(top_5_concentration_ratio) AS avg_cr5_concentration,
+                    SUM(bofa_net_flow_tl) AS market_bofa_net_flow_tl,
+                    SUM(bofa_buy_turnover_tl) AS bofa_total_buy_turnover_tl,
+                    SUM(CASE WHEN bofa_buy_vwap > 0 THEN bofa_buy_vwap * total_volume ELSE 0.0 END) / 
+                        NULLIF(SUM(CASE WHEN bofa_buy_vwap > 0 THEN total_volume ELSE 0.0 END), 0.0) AS bofa_daily_buy_vwap,
+                    AVG(close_price) AS market_avg_close_price,
+                    AVG(market_vwap) AS market_avg_vwap
+                FROM silver_daily_stock_summary
+                GROUP BY trade_date
+            ),
+            -- 4. Prior Day Sector Flows
+            prev_day_sector_flows AS (
+                SELECT 
+                    trade_date,
+                    SUM(CASE WHEN sector = 'Banking' AND broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_banking_flow_prev_day,
+                    SUM(CASE WHEN sector = 'Transportation' AND broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_transport_flow_prev_day,
+                    SUM(CASE WHEN sector = 'Holding' AND broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_holding_flow_prev_day,
+                    SUM(CASE WHEN sector = 'Energy & Refining' AND broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_energy_flow_prev_day,
+                    SUM(CASE WHEN sector = 'Defense & Tech' AND broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS bofa_defense_flow_prev_day,
+                    SUM(CASE WHEN sector = 'Banking' AND broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN net_flow_tl ELSE 0.0 END) AS top5_banking_flow_prev_day
+                FROM silver_daily_sector_summary
+                GROUP BY trade_date
+            ),
+            -- Combine base
+            daily_feature_base AS (
+                SELECT 
+                    d.trade_date,
+                    COALESCE(w4.bofa_w4_net_flow_tl, 0.0) AS bofa_w4_net_flow_tl,
+                    COALESCE(w4.bofa_w4_turnover_tl, 0.0) AS bofa_w4_turnover_tl,
+                    COALESCE(w4.bofa_w4_net_flow_tl, 0.0) / 
+                        NULLIF(ABS(COALESCE(bo.bofa_prev_day_net_flow_tl, 0.0)), 0.0) AS w4_flow_acceleration_ratio,
+                    COALESCE(bo.bofa_prev_day_net_flow_tl, 0.0) AS bofa_prev_day_net_flow_tl,
+                    COALESCE(bo.bofa_prev_day_turnover_tl, 0.0) AS bofa_prev_day_turnover_tl,
+                    COALESCE(bo.bofa_prev_day_market_share, 0.0) AS bofa_prev_day_market_share,
+                    COALESCE(bo.bofa_prev_day_turnover_rank, 10) AS bofa_prev_day_turnover_rank,
+                    COALESCE(w4.top5_domestic_w4_net_flow_tl, 0.0) AS top5_domestic_w4_net_flow_tl,
+                    COALESCE(bo.top5_domestic_prev_day_net_flow_tl, 0.0) AS top5_domestic_prev_day_net_flow_tl,
+                    COALESCE(w4.bofa_w4_net_flow_tl, 0.0) - COALESCE(w4.top5_domestic_w4_net_flow_tl, 0.0) AS bofa_vs_top5_w4_flow_delta_tl,
+                    COALESCE(bo.bofa_prev_day_net_flow_tl, 0.0) - COALESCE(bo.top5_domestic_prev_day_net_flow_tl, 0.0) AS bofa_vs_top5_total_flow_delta_tl,
+                    (COALESCE(bo.bofa_prev_day_turnover_tl, 0.0) + COALESCE(bo.top5_domestic_prev_day_turnover_tl, 0.0)) / 
+                        NULLIF(COALESCE(ms.total_market_turnover_tl, 1.0), 0.0) AS institutional_hegemony_share,
+                    COALESCE(ms.avg_cr5_concentration, 0.0) AS avg_cr5_concentration,
+                    COALESCE(ms.market_avg_return_pct, 0.0) AS market_avg_return_pct,
+                    COALESCE(ms.market_avg_range_pct, 0.0) AS market_avg_range_pct,
+                    (COALESCE(ms.market_avg_close_price, 0.0) - COALESCE(ms.market_avg_vwap, 0.0)) / 
+                        NULLIF(COALESCE(ms.market_avg_vwap, 1.0), 0.0) AS prev_day_close_vs_vwap_spread_pct,
+                    COALESCE(ms.bofa_daily_buy_vwap, 0.0) AS bofa_daily_buy_vwap,
+                    COALESCE(ms.market_avg_close_price, 0.0) AS market_avg_close_price,
+                    COALESCE(sf.bofa_banking_flow_prev_day, 0.0) AS bofa_banking_flow_prev_day,
+                    COALESCE(sf.bofa_transport_flow_prev_day, 0.0) AS bofa_transport_flow_prev_day,
+                    COALESCE(sf.bofa_holding_flow_prev_day, 0.0) AS bofa_holding_flow_prev_day,
+                    COALESCE(sf.bofa_energy_flow_prev_day, 0.0) AS bofa_energy_flow_prev_day,
+                    COALESCE(sf.bofa_defense_flow_prev_day, 0.0) AS bofa_defense_flow_prev_day,
+                    COALESCE(sf.top5_banking_flow_prev_day, 0.0) AS top5_banking_flow_prev_day
+                FROM daily_dates d
+                LEFT JOIN prev_day_w4_flows w4 ON d.trade_date = w4.trade_date
+                LEFT JOIN prev_day_broker_overview bo ON d.trade_date = bo.trade_date
+                LEFT JOIN prev_day_market_summary ms ON d.trade_date = ms.trade_date
+                LEFT JOIN prev_day_sector_flows sf ON d.trade_date = sf.trade_date
+            ),
+            -- Unlagged rolling aggregations evaluated up to the latest completed day
+            rolling AS (
+                SELECT 
+                    *,
+                    SUM(bofa_prev_day_net_flow_tl) OVER (
+                        ORDER BY trade_date ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                    ) AS bofa_cum_net_flow_5d_tl,
+                    SUM(top5_domestic_prev_day_net_flow_tl) OVER (
+                        ORDER BY trade_date ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                    ) AS top5_cum_net_flow_5d_tl,
+                    AVG(bofa_prev_day_net_flow_tl) OVER (
+                        ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) AS bofa_mean_20d,
+                    STDDEV(bofa_prev_day_net_flow_tl) OVER (
+                        ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) AS bofa_std_20d,
+                    AVG(bofa_daily_buy_vwap) OVER (
+                        ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) AS bofa_buy_vwap_20d
+                FROM daily_feature_base
+            )
+            SELECT 
+                trade_date AS source_date,
+                COALESCE(bofa_w4_net_flow_tl, 0.0) AS feat_bofa_w4_net_flow_tl,
+                COALESCE(bofa_w4_turnover_tl, 0.0) AS feat_bofa_w4_turnover_tl,
+                COALESCE(w4_flow_acceleration_ratio, 0.0) AS feat_w4_flow_acceleration_ratio,
+                COALESCE(bofa_prev_day_net_flow_tl, 0.0) AS feat_bofa_prev_day_net_flow_tl,
+                COALESCE(bofa_prev_day_turnover_tl, 0.0) AS feat_bofa_prev_day_turnover_tl,
+                COALESCE(bofa_prev_day_market_share, 0.0) AS feat_bofa_prev_day_market_share,
+                COALESCE(bofa_prev_day_turnover_rank, 10) AS feat_bofa_prev_day_turnover_rank,
+                COALESCE(top5_domestic_w4_net_flow_tl, 0.0) AS feat_top5_domestic_w4_net_flow_tl,
+                COALESCE(top5_domestic_prev_day_net_flow_tl, 0.0) AS feat_top5_domestic_prev_day_net_flow_tl,
+                COALESCE(bofa_vs_top5_w4_flow_delta_tl, 0.0) AS feat_bofa_vs_top5_w4_flow_delta_tl,
+                COALESCE(bofa_vs_top5_total_flow_delta_tl, 0.0) AS feat_bofa_vs_top5_total_flow_delta_tl,
+                COALESCE(institutional_hegemony_share, 0.0) AS feat_institutional_hegemony_share,
+                COALESCE(avg_cr5_concentration, 0.0) AS avg_cr5_concentration,
+                COALESCE(market_avg_return_pct, 0.0) AS market_avg_return_pct,
+                COALESCE(market_avg_range_pct, 0.0) AS market_avg_range_pct,
+                COALESCE(prev_day_close_vs_vwap_spread_pct, 0.0) AS feat_prev_day_close_vs_vwap_spread_pct,
+                COALESCE(bofa_banking_flow_prev_day, 0.0) AS feat_bofa_banking_flow_prev_day,
+                COALESCE(bofa_transport_flow_prev_day, 0.0) AS feat_bofa_transport_flow_prev_day,
+                COALESCE(bofa_holding_flow_prev_day, 0.0) AS feat_bofa_holding_flow_prev_day,
+                COALESCE(bofa_energy_flow_prev_day, 0.0) AS feat_bofa_energy_flow_prev_day,
+                COALESCE(bofa_defense_flow_prev_day, 0.0) AS feat_bofa_defense_flow_prev_day,
+                COALESCE(top5_banking_flow_prev_day, 0.0) AS feat_top5_banking_flow_prev_day,
+                COALESCE(bofa_cum_net_flow_5d_tl, 0.0) AS feat_bofa_cum_net_flow_5d_tl,
+                COALESCE(top5_cum_net_flow_5d_tl, 0.0) AS feat_top5_cum_net_flow_5d_tl,
+                COALESCE(CASE WHEN bofa_std_20d > 0 THEN (bofa_prev_day_net_flow_tl - bofa_mean_20d) / bofa_std_20d ELSE 0.0 END, 0.0) AS feat_bofa_flow_zscore_20d,
+                COALESCE(CASE WHEN bofa_buy_vwap_20d > 0 THEN (market_avg_close_price - bofa_buy_vwap_20d) / bofa_buy_vwap_20d ELSE 0.0 END, 0.0) AS feat_bofa_cost_basis_spread_20d_pct
+            FROM rolling
+            ORDER BY trade_date DESC
+            LIMIT 1;
+        """
+        df_latest = conn.execute(query).pl()
+        if df_latest.height == 0:
+            logger.warning("No historical sessions found to extract next-day features.")
+            return pl.DataFrame()
+
+        source_date = df_latest["source_date"][0]
+        next_date = get_next_trading_day(source_date)
+        dow = next_date.isoweekday()
+        is_mon = (dow == 1)
+        is_fri = (dow == 5)
+
+        # Build clean 1-row DataFrame aligned with next trading day
+        df_next = df_latest.with_columns([
+            pl.lit(next_date).alias("trade_date"),
+            pl.lit(dow).cast(pl.Int64).alias("day_of_week"),
+            pl.lit(is_mon).alias("is_monday"),
+            pl.lit(is_fri).alias("is_friday"),
+        ]).drop("source_date")
+
+        logger.info(
+            f"Assembled live next-day feature vector for {next_date} "
+            f"(Source: {source_date} Close, Day of Week: {dow}, is_monday: {is_mon})."
+        )
+        return df_next
+

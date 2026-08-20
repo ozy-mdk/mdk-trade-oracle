@@ -165,8 +165,8 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 99,825 | ✅ Verified |
 | **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | ✅ Verified |
 | **Gold** | `gold_institutional_daily_signals` | `(trade_date, symbol)` | 945 | ✅ Verified |
-| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 20 | ✅ Verified |
-| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | Extensible | ✅ Verified |
+| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 21 (incl. live T+1) | ✅ Verified |
+| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 546 (incl. live T+1) | ✅ Verified |
 
 ---
 
@@ -179,7 +179,9 @@ The pipeline is tightly integrated with interactive Jupyter notebooks located in
 | [`00_data_discovery_and_catalog_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/00_data_discovery_and_catalog_analysis.ipynb) | Raw Data Discovery & Catalog Audit | Scan raw partitions, inspect entity distributions, and verify zero-loss data completeness. |
 | [`01_bronze_data_exploration.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/01_bronze_data_exploration.ipynb) | Microsecond Tick Microstructure | Microsecond trade timestamp analysis, VWAP price curves, broker execution feeds. |
 | [`02_silver_transformations_and_intraday_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02_silver_transformations_and_intraday_analysis.ipynb) | Silver Layer & 4-Window Intraday | Broker market shares, BofA VWAP spreads, CR5 concentration, and 4-window execution profiles. |
-| [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 7 Feature Clusters extraction, walk-forward arena tournament, Bayesian Ridge / PyMC / LightGBM, and actionable trader playbooks. |
+| [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 7 Feature Clusters extraction, dynamic walk-forward arena tournament, live $T+1$ actionable signal card, and backtest calibration explorer. |
+| [`04_bofa_sector_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/04_bofa_sector_day_start_modeling.ipynb) | Model 2 Sector Allocation Forecaster | 5 Sector Feature Clusters across 26 sectors, dynamic champion crowning, live $T+1$ multi-sector allocation bar chart, and interactive historical sector dropdown explorer. |
+
 
 *Kernel requirement*: Always select **`Python 3.9 (mdk-trading-oracle)`**.
 

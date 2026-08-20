@@ -155,3 +155,61 @@ Continuous flow forecasts must be translated into discrete, tradeable decisions:
 - **`DEFENSE_SUPPORT`**: Underwater inventory ($< -4\%$ cost basis spread) with positive flow — institutional defense zone.
 - **`SECTOR_ROTATION`**: Capital shifts between Banking, Transportation, Holding, and Industrial equities.
 - **`NEUTRAL_WAIT`**: Ambiguous flow — wait for Window 2 intraday confirmation.
+
+---
+
+## 🚀 8. Live Next-Day Inference vs. Historical Backtesting Architecture ($T+1$ vs $T$)
+
+A common flaw in quantitative modeling pipelines is confusing historical evaluation with live inference. In **MDK Trading Oracle**, this separation is mathematically and architecturally strict:
+
+```
+                                      TIMING TAXONOMY & EXECUTION FLOW
+                      
+1. Historical Training / Backtest (Sessions 1 … T):
+   ┌────────────────────────────────────────────────────────┐
+   │ Session D_{k-1} Close (18:10 TRT)                      │  ─── Evaluated as LAG(..., 1) in SQL
+   │ [W4 Momentum] + [5d/20d Accum] + [Competitor Deltas]   │
+   └──────────────────────────┬─────────────────────────────┘
+                              │ Predicts
+                              ▼
+   ┌────────────────────────────────────────────────────────┐
+   │ Session D_k Window 1 (09:55 - 10:30 TRT)               │  ─── Target y = target_open_net_flow_tl (KNOWN)
+   └────────────────────────────────────────────────────────┘
+
+2. Live Next-Day Inference (Upcoming Session T+1):
+   ┌────────────────────────────────────────────────────────┐
+   │ Session T Close (Latest Available Date at 18:10 TRT)   │  ─── Evaluated UNLAGGED directly at T Close
+   │ [W4 Momentum] + [5d/20d Accum] + [Competitor Deltas]   │
+   └──────────────────────────┬─────────────────────────────┘
+                              │ Predicts
+                              ▼
+   ┌────────────────────────────────────────────────────────┐
+   │ Session T+1 Window 1 (Tomorrow Morning 09:55 TRT)      │  ─── Target y = NULL (UNKNOWN FUTURE)
+   │ Output: Live Signal Card, Direction, Playbook, CI      │
+   └────────────────────────────────────────────────────────┘
+```
+
+### Key Engineering Standards:
+1. **Business Day Progression**: Use `get_next_trading_day(latest_date)` to automatically advance to the next legitimate trading date (e.g. Friday $T \rightarrow$ Monday $T+1$).
+2. **`extract_next_day_features()`**: Evaluates rolling metrics directly at latest close ($T$) without target variables or LAG windowing.
+3. **Dual Forecaster Methods**:
+   - `forecaster.forecast_next_day()`: Real-time live inference on $T+1$ flow.
+   - `forecaster.backtest_all_history()`: Out-of-sample simulation across past sessions for calibration without polluting production forecast history.
+4. **Idempotent Primary Key Upsert**:
+   - Persisting via `INSERT OR REPLACE` into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`) allows daily pipeline runs to record tomorrow's forecast, organically accumulating an immutable historical ledger day by day as tomorrow becomes today.
+
+---
+
+## 📓 9. Interactive Research Notebook Standards & Dual Presentation
+
+Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_bofa_sector_day_start_modeling.ipynb`) adheres to these presentation rules:
+
+1. **Dynamic On-The-Fly Model Arena**:
+   - Never hardcode the champion model in research notebooks. Always instantiate `DayStartModelArena()` / `SectorDayStartModelArena()` and run `.run_tournament(X, y)` to crown the champion on the fly based on walk-forward performance.
+2. **Prominent Live Upcoming Session Card ($T+1$)**:
+   - Positioned prominently before historical charts. Displays upcoming date, predicted flow ($TL$), 90% credible intervals, directional conviction badges (`STRONG_ACCUMULATE`, `DISTRIBUTE`), institutional playbooks, and sector allocation bar charts.
+3. **Historical Backtest & Calibration Explorer**:
+   - Visualizes actual vs. predicted curves with 90% confidence ribbons and interactive dropdown inspectors for examining past session performance.
+4. **DuckDB Gold Verification**:
+   - Queries `gold_bofa_*_forecasts` using `read_only=True` to audit persisted production records.
+

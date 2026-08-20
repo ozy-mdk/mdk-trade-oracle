@@ -74,7 +74,22 @@ class GoldFeatureEngineer:
         """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection and persist forecasts to Gold table."""
         logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
         forecaster = DayStartForecaster(self.db, model_type="auto")
-        forecasts = forecaster.train_and_forecast_all()
+        try:
+            forecasts = forecaster.train_and_forecast_all()
+        except ValueError as exc:
+            if str(exc) != "No historical feature records found to train DayStartForecaster.":
+                raise
+            logger.warning(
+                "Skipping Model 1 forecast because the lakehouse does not yet contain "
+                "enough completed sessions for historical training."
+            )
+            return {
+                "table": "gold_bofa_day_start_forecasts",
+                "rows": 0,
+                "champion_model": None,
+                "status": "skipped_insufficient_history",
+                "reason": str(exc),
+            }
         saved_count = forecaster.save_forecasts_to_gold(forecasts)
         return {
             "table": "gold_bofa_day_start_forecasts",

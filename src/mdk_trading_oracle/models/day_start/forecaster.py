@@ -1,7 +1,7 @@
 """Production Day-Start Forecaster Orchestrator & Auto-Champion Model Arena."""
 
 from datetime import date
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -93,7 +93,8 @@ class DayStartForecaster:
         1. Feature extraction across all 7 Feature Clusters from DuckDB Silver tables
         2. Automated Model Arena tournament selection or configured model type
         3. Probabilistic model training and walk-forward validation
-        4. Persisting forecasts directly into DuckDB Gold layer tables
+        4. Live next-day forecasting (T+1) and historical backtest evaluation
+        5. Persisting forecasts directly into DuckDB Gold layer tables
     """
 
     def __init__(
@@ -131,18 +132,17 @@ class DayStartForecaster:
         else:  # "auto"
             self.model = None
 
-    def train_and_forecast_all(self) -> List[ForecastResult]:
-        """Extract features, select/fit champion model on historical data, and generate forecasts."""
+    def _ensure_champion_fitted(self) -> Tuple[pd.DataFrame, pd.Series]:
+        """Extract historical features, select champion model dynamically if auto, and fit champion model."""
         df_pl = self.feature_extractor.extract_features()
         if df_pl.height == 0:
-            logger.warning("No feature records found to train DayStartForecaster.")
-            return []
+            raise ValueError("No historical feature records found to train DayStartForecaster.")
 
         df_pd = df_pl.to_pandas()
         X = df_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
         y = df_pd["target_open_net_flow_tl"]
 
-        # Automatic Champion Selection on the fly if model_type == "auto"
+        # Automatic Champion Selection on the fly if model_type == "auto" or model is not instantiated
         if self.model_type == "auto" or self.model is None:
             logger.info(
                 f"Running DayStartModelArena Walk-Forward Tournament "
@@ -154,35 +154,84 @@ class DayStartForecaster:
             )
             self.model = champion_model
             self.champion_name = champion_model.model_name
+        else:
+            self.champion_name = self.model.model_name
 
         # Train champion model on full historical dataset
         logger.info(f"Fitting Champion Model '{self.model.model_name}' on {len(df_pd)} historical daily sessions...")
         self.model.fit(X, y)
+        return X, y
 
-        # Generate walk-forward / backtest predictions for each session
+    def forecast_next_day(self) -> ForecastResult:
+        """Generate the live prediction for the upcoming trading morning (T_next) based on latest T_close."""
+        self._ensure_champion_fitted()
+        df_next_pl = self.feature_extractor.extract_next_day_features()
+        if df_next_pl.height == 0:
+            raise ValueError("Failed to extract next-day feature vector.")
+
+        df_next_pd = df_next_pl.to_pandas()
+        res = self.model.predict(df_next_pd)
+
+        # Predict top buy/sell sector based on latest session flows
+        banking_flow = float(df_next_pd["feat_bofa_banking_flow_prev_day"].iloc[0]) if "feat_bofa_banking_flow_prev_day" in df_next_pd.columns else 0.0
+        transport_flow = float(df_next_pd["feat_bofa_transport_flow_prev_day"].iloc[0]) if "feat_bofa_transport_flow_prev_day" in df_next_pd.columns else 0.0
+        res.top_predicted_buy_sector = "Banking" if banking_flow > transport_flow else "Transportation"
+        res.top_predicted_sell_sector = "Holding" if res.predicted_net_flow_tl > 0 else "Energy & Refining"
+
+        logger.info(
+            f"🎯 Generated Live Next-Day Forecast for {res.forecast_date}: "
+            f"Predicted Flow = {res.predicted_net_flow_tl / 1e6:+.2f}M TL, "
+            f"Direction = {res.predicted_direction} ({res.direction_confidence*100:.1f}%), "
+            f"Playbook = {res.predicted_playbook} (Champion: '{self.champion_name}')."
+        )
+        return res
+
+    def backtest_all_history(self) -> List[ForecastResult]:
+        """Generate historical in-sample / backtest predictions across all historical training sessions."""
+        X, _ = self._ensure_champion_fitted()
         results: List[ForecastResult] = []
-        for idx in range(len(df_pd)):
+        for idx in range(len(X)):
             row = X.iloc[[idx]]
             res = self.model.predict(row)
-            
-            # Predict top buy/sell sector based on sector features
             banking_flow = float(row["feat_bofa_banking_flow_prev_day"].iloc[0]) if "feat_bofa_banking_flow_prev_day" in row.columns else 0.0
             transport_flow = float(row["feat_bofa_transport_flow_prev_day"].iloc[0]) if "feat_bofa_transport_flow_prev_day" in row.columns else 0.0
             res.top_predicted_buy_sector = "Banking" if banking_flow > transport_flow else "Transportation"
             res.top_predicted_sell_sector = "Holding" if res.predicted_net_flow_tl > 0 else "Energy & Refining"
-            
             results.append(res)
-
-        logger.info(f"Generated {len(results)} day-start forecasts using Champion '{self.model.model_name}'.")
+        logger.info(f"Generated {len(results)} historical backtest forecasts using Champion '{self.champion_name}'.")
         return results
 
-    def save_forecasts_to_gold(self, forecasts: List[ForecastResult]) -> int:
-        """Persist generated forecasts into DuckDB Gold tables (`gold_bofa_day_start_forecasts`)."""
-        if not forecasts:
+    def train_and_forecast_all(
+        self,
+        include_history: bool = False,
+        include_next_day: bool = True,
+    ) -> List[ForecastResult]:
+        """Extract features, fit champion model, and generate forecasts.
+        
+        Args:
+            include_history: If True, includes historical backtest forecasts for all training days.
+            include_next_day: If True (default), includes the live forecast for upcoming session T_next.
+        """
+        results: List[ForecastResult] = []
+        if include_history:
+            results.extend(self.backtest_all_history())
+        if include_next_day:
+            next_forecast = self.forecast_next_day()
+            results.append(next_forecast)
+        return results
+
+    def save_forecasts_to_gold(self, forecasts: Union[ForecastResult, List[ForecastResult]]) -> int:
+        """Persist generated forecast(s) into DuckDB Gold table (`gold_bofa_day_start_forecasts`)."""
+        if isinstance(forecasts, ForecastResult):
+            forecast_list = [forecasts]
+        else:
+            forecast_list = forecasts
+
+        if not forecast_list:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(forecasts)} forecasts to `gold_bofa_day_start_forecasts`...")
+        logger.info(f"Persisting {len(forecast_list)} forecast(s) to `gold_bofa_day_start_forecasts`...")
 
         # Ensure schema exists
         conn.execute("""
@@ -205,7 +254,7 @@ class DayStartForecaster:
         """)
 
         # Insert or replace predictions
-        for f in forecasts:
+        for f in forecast_list:
             d = f.forecast_date
             dow = d.weekday() + 1 if isinstance(d, date) else 1
             is_mon = (dow == 1)
@@ -237,3 +286,4 @@ class DayStartForecaster:
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_day_start_forecasts`: {saved_count:,} total forecasts.")
         return saved_count
+

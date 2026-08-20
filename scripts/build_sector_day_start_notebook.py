@@ -130,17 +130,66 @@ display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"]
                            .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
 
-    nbf.v4.new_markdown_cell("""## 🎮 4. Interactive Sector Forecast Explorer & Heat Matrix
+    nbf.v4.new_markdown_cell("""## 🎯 4. Live Next-Day Sector Allocation & Pair Trading Matrix (Tomorrow's Session)
 
-Select any sector from the dropdown to inspect BofA's predicted vs actual opening net flow and 90% credible ranges.
+Using the dynamically crowned champion model, we extract features from the latest market close and generate the **live sector-by-sector opening flow allocation forecast for tomorrow morning**.
 """),
 
-    nbf.v4.new_code_cell("""# Run production Sector Forecaster across all sectors
-forecaster = SectorDayStartForecaster(db, model_type="auto")
-all_sector_forecasts = forecaster.train_and_forecast_all(sectors=tracked_sectors[:8])
+    nbf.v4.new_code_cell("""# Initialize Forecaster with the dynamically crowned champion
+forecaster = SectorDayStartForecaster(db, model_type=champion_model.model_name)
+live_sector_forecasts = forecaster.forecast_next_day(sectors=tracked_sectors[:12])
+
+live_records = []
+for f in live_sector_forecasts:
+    live_records.append({
+        "forecast_date": str(f.forecast_date)[:10],
+        "sector": f.top_predicted_buy_sector,
+        "pred_flow_m": f.predicted_net_flow_tl / 1e6,
+        "lower_90_m": f.predicted_flow_lower_90 / 1e6,
+        "upper_90_m": f.predicted_flow_upper_90 / 1e6,
+        "pred_direction": f.predicted_direction,
+        "confidence_pct": f.direction_confidence * 100,
+        "playbook": f.predicted_playbook,
+    })
+
+live_df = pd.DataFrame(live_records).sort_values(by="pred_flow_m", ascending=False)
+next_date = live_df["forecast_date"].iloc[0] if len(live_df) > 0 else "N/A"
+
+# Horizontal Bar Chart for Tomorrow's Sector Allocation
+fig_live = px.bar(
+    live_df,
+    x="pred_flow_m",
+    y="sector",
+    orientation="h",
+    title=f"🚀 BofA Predicted Opening Capital Allocation for Upcoming Session: {next_date}",
+    labels={"pred_flow_m": "Forecasted Opening Net Flow (TL Million)", "sector": "Industry Sector"},
+    color="pred_flow_m",
+    color_continuous_scale="RdYlGn",
+    height=480
+)
+fig_live.update_layout(template="plotly_dark", showlegend=False)
+fig_live.show()
+
+# Display executive table for traders
+display(live_df.style.format({
+    "pred_flow_m": "{:+.2f} M TL",
+    "lower_90_m": "{:+.2f} M",
+    "upper_90_m": "{:+.2f} M",
+    "confidence_pct": "{:.1f}%",
+}).highlight_max(subset=["pred_flow_m"], color="#1b4332")
+  .highlight_min(subset=["pred_flow_m"], color="#4a0e17"))
+"""),
+
+    nbf.v4.new_markdown_cell("""## 🎮 5. Interactive Historical Sector Forecast Explorer (Backtest vs Actuals)
+
+Select any sector from the dropdown to inspect BofA's historical predicted vs actual opening net flow and 90% credible ranges.
+"""),
+
+    nbf.v4.new_code_cell("""# Generate historical backtests using crowned champion
+all_sector_backtests = forecaster.backtest_all_history(sectors=tracked_sectors[:8])
 
 records = []
-for f in all_sector_forecasts:
+for f in all_sector_backtests:
     records.append({
         "trade_date": str(f.forecast_date)[:10],
         "sector": f.top_predicted_buy_sector,
@@ -210,7 +259,7 @@ def update_sector_plot(change):
         ))
         
         fig.update_layout(
-            title=f"🎯 BofA Opening Flow in Sector: {sel_sector} (Predicted vs Actual)",
+            title=f"🎯 BofA Opening Flow in Sector: {sel_sector} (Backtest vs Actual)",
             xaxis_title="Trade Date",
             yaxis_title="Net Flow (Million TL)",
             template="plotly_dark",
@@ -223,29 +272,6 @@ sector_dropdown.observe(update_sector_plot, names="value")
 display(sector_dropdown, plot_output)
 if sector_dropdown.value:
     update_sector_plot({"new": sector_dropdown.value})
-"""),
-
-    nbf.v4.new_markdown_cell("""## 🔄 5. Cross-Sectional Sector Rotation & Capital Allocation
-
-Visualizing BofA's latest predicted capital allocation across all sectors simultaneously (detecting long/short sector pair trades).
-"""),
-
-    nbf.v4.new_code_cell("""latest_date = chart_df["trade_date"].max()
-latest_df = chart_df[chart_df["trade_date"] == latest_date].sort_values(by="pred_flow_m", ascending=False)
-
-fig_rot = px.bar(
-    latest_df,
-    x="pred_flow_m",
-    y="sector",
-    orientation="h",
-    title=f"🔄 BofA Predicted Opening Sector Allocation for Session: {latest_date}",
-    labels={"pred_flow_m": "Forecasted Opening Net Flow (TL M)", "sector": "Industry Sector"},
-    color="pred_flow_m",
-    color_continuous_scale="RdBu",
-    height=450
-)
-fig_rot.update_layout(template="plotly_dark", showlegend=False)
-fig_rot.show()
 """),
 
     nbf.v4.new_markdown_cell("""## 🥇 6. Gold Sector Table Inspection in DuckDB
@@ -279,3 +305,4 @@ with open("notebooks/04_bofa_sector_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("✅ Successfully generated notebooks/04_bofa_sector_day_start_modeling.ipynb!")
+

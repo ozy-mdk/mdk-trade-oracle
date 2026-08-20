@@ -135,6 +135,10 @@ def test_medallion_pipeline_in_memory():
     gold = GoldFeatureEngineer(db)
     gold_res = gold.run_all()
     assert gold_res["status"] == "success"
+    assert (
+        gold_res["gold_bofa_day_start_forecasts"]["status"]
+        == "skipped_insufficient_history"
+    )
 
     gold_signals = conn.execute("""
         SELECT symbol, bofa_net_flow_tl, bofa_accum_5d_tl

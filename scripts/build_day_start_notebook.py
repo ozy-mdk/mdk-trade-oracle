@@ -346,13 +346,62 @@ display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"]
                            .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
 
-    nbf.v4.new_markdown_cell("""## 📈 5. Champion Model Forecasts: Predicted vs Actual Opening Net Flow & 90% Confidence Interval
+    nbf.v4.new_markdown_cell("""## 🎯 5. Live Next-Day Forecast (Actionable Trading Signal for Tomorrow)
 
-Visualizing walk-forward forecasts of the crowned Champion model against actual opening net flows.
+Using the dynamically crowned champion model from the Tournament, we extract features strictly from the latest market close and generate the **live forecast for the upcoming morning opening auction**.
 """),
 
-    nbf.v4.new_code_cell("""# Fit champion on full history and generate session forecasts
-champion_model.fit(X, y)
+    nbf.v4.new_code_cell("""# Initialize Forecaster with the dynamically crowned champion
+forecaster = DayStartForecaster(db, model_type=champion_model.model_name)
+live_forecast = forecaster.forecast_next_day()
+
+# Display Live Signal Card for Traders
+next_date = live_forecast.forecast_date
+pred_flow = live_forecast.predicted_net_flow_tl / 1e6
+lower_90 = live_forecast.predicted_flow_lower_90 / 1e6
+upper_90 = live_forecast.predicted_flow_upper_90 / 1e6
+direction = live_forecast.predicted_direction
+confidence = live_forecast.direction_confidence * 100
+playbook = live_forecast.predicted_playbook
+buy_sec = live_forecast.top_predicted_buy_sector
+sell_sec = live_forecast.top_predicted_sell_sector
+
+dir_color = "#06d6a0" if "ACCUMULATE" in direction else ("#ef476f" if "DISTRIBUTE" in direction else "#ffd166")
+
+display(HTML(f\"\"\"
+<div style="background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%); padding: 24px; border-radius: 14px; border: 2px solid {dir_color}; box-shadow: 0 8px 25px rgba(0,0,0,0.4); margin-bottom: 25px; color: #fff;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="margin: 0; color: #e0e1dd; font-size: 20px;">🚀 Live Forecast for Upcoming Session: <span style="color: #00b4d8;">{next_date}</span></h2>
+        <span style="background: {dir_color}; color: #000; font-weight: bold; padding: 6px 14px; border-radius: 20px; font-size: 14px;">{direction} ({confidence:.1f}% Conviction)</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; font-size: 15px;">
+        <div style="background: rgba(255,255,255,0.05); padding: 14px; border-radius: 8px;">
+            <div style="color: #778da9; font-size: 13px;">EXPECTED OPENING NET FLOW</div>
+            <div style="font-size: 22px; font-weight: bold; color: {dir_color}; margin-top: 4px;">{pred_flow:+,.2f} M TL</div>
+            <div style="color: #778da9; font-size: 12px; margin-top: 2px;">90% CI: [{lower_90:+,.1f}M, {upper_90:+,.1f}M]</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.05); padding: 14px; border-radius: 8px;">
+            <div style="color: #778da9; font-size: 13px;">INSTITUTIONAL PLAYBOOK</div>
+            <div style="font-size: 20px; font-weight: bold; color: #00b4d8; margin-top: 4px;">{playbook}</div>
+            <div style="color: #778da9; font-size: 12px; margin-top: 2px;">Champion Model: {champion_name}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.05); padding: 14px; border-radius: 8px;">
+            <div style="color: #778da9; font-size: 13px;">TOP SECTOR ROTATION FOCUS</div>
+            <div style="font-size: 16px; margin-top: 4px;">🟢 <b>Buy:</b> <span style="color: #52b788;">{buy_sec}</span></div>
+            <div style="font-size: 16px; margin-top: 2px;">🔴 <b>Sell:</b> <span style="color: #e63946;">{sell_sec}</span></div>
+        </div>
+    </div>
+</div>
+\"\"\"))
+"""),
+
+    nbf.v4.new_markdown_cell("""## 📈 6. Historical Backtest Track Record: Predicted vs Actual Opening Net Flow & 90% Confidence Ribbon
+
+Visualizing historical out-of-sample and backtested performance of the crowned Champion model against actual opening net flows.
+"""),
+
+    nbf.v4.new_code_cell("""# Generate historical backtest track record using crowned champion
+backtest_forecasts = forecaster.backtest_all_history()
 
 predictions = []
 lowers = []
@@ -361,9 +410,7 @@ playbooks = []
 directions = []
 confidences = []
 
-for idx in range(len(df)):
-    row = X.iloc[[idx]].reset_index(drop=True)
-    res = champion_model.predict(row)
+for res in backtest_forecasts:
     predictions.append(res.predicted_net_flow_tl / 1e6)
     lowers.append(res.predicted_flow_lower_90 / 1e6)
     uppers.append(res.predicted_flow_upper_90 / 1e6)
@@ -415,7 +462,7 @@ fig.add_trace(go.Scatter(
 ))
 
 fig.update_layout(
-    title="🎯 Bank of America Day-Start Forecast: Predicted vs Actual Opening Net Flow (Million TL)",
+    title="🎯 Bank of America Day-Start Backtest: Predicted vs Actual Opening Net Flow (Million TL)",
     xaxis_title="Trading Date",
     yaxis_title="Net Flow (Million TL)",
     template="plotly_dark",
@@ -425,7 +472,7 @@ fig.update_layout(
 fig.show()
 """),
 
-    nbf.v4.new_markdown_cell("""## 🎮 6. Interactive Session Inspector & Playbook Breakdown
+    nbf.v4.new_markdown_cell("""## 🎮 7. Interactive Historical Session Inspector & Playbook Breakdown
 
 Select any historical date to inspect the model's opening conviction, competitor closing posture, and sector allocation forecast.
 """),
@@ -486,7 +533,7 @@ if date_dropdown.value:
     update_session({"new": date_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 🥇 7. Gold Table Inspection in DuckDB
+    nbf.v4.new_markdown_cell("""## 🥇 8. Gold Table Inspection in DuckDB
 
 Verifying the persisted production forecast table `gold_bofa_day_start_forecasts` in DuckDB.
 """),
@@ -519,3 +566,4 @@ with open("notebooks/03_bofa_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("✅ Successfully generated notebooks/03_bofa_day_start_modeling.ipynb!")
+
