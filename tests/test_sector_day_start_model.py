@@ -93,12 +93,41 @@ def test_sector_day_start_model_arena(db_conn):
     assert champion.model_name in [model.model_name for model in arena.candidates.values()]
 
 
-def test_sector_day_start_forecaster_orchestration(db_conn):
-    """Verify SectorDayStartForecaster end-to-end training and forecast generation."""
-    forecaster = SectorDayStartForecaster(db_conn, model_type="auto")
-    forecasts = forecaster.train_and_forecast_all(sectors=["Banking", "Transportation"])
-    assert len(forecasts) > 0
+def test_sector_day_start_next_day_feature_extraction(db_conn):
+    """Verify next-day sector feature extraction."""
+    extractor = SectorDayStartFeatureExtractor(db_conn, target_broker_id="MLB")
+    df_next = extractor.extract_next_day_features(sectors=["Banking", "Transportation"])
+    assert df_next.height == 2
+    assert "trade_date" in df_next.columns
+    assert "sector" in df_next.columns
+    assert "feat_sector_bofa_w4_net_flow_tl" in df_next.columns
+    assert "feat_sector_bofa_cum_net_flow_5d_tl" in df_next.columns
 
-    for f in forecasts:
+
+def test_sector_day_start_forecaster_orchestration(db_conn):
+    """Verify SectorDayStartForecaster end-to-end live next-day forecast and backtesting."""
+    forecaster = SectorDayStartForecaster(db_conn, model_type="auto")
+    
+    # 1. Live Next-Day Forecast across sectors
+    live_forecasts = forecaster.forecast_next_day(sectors=["Banking", "Transportation"])
+    assert len(live_forecasts) == 2
+
+    for f in live_forecasts:
         assert isinstance(f, ForecastResult)
         assert f.top_predicted_buy_sector in ["Banking", "Transportation"]
+        assert f.predicted_direction in [
+            ForecastDirection.STRONG_ACCUMULATE,
+            ForecastDirection.ACCUMULATE,
+            ForecastDirection.NEUTRAL,
+            ForecastDirection.DISTRIBUTE,
+            ForecastDirection.STRONG_DISTRIBUTE,
+        ]
+
+    # 2. Historical Backtest Track Record
+    backtest_forecasts = forecaster.backtest_all_history(sectors=["Banking", "Transportation"])
+    assert len(backtest_forecasts) > 0
+
+    # 3. Default train_and_forecast_all
+    forecasts = forecaster.train_and_forecast_all(sectors=["Banking", "Transportation"], include_history=False, include_next_day=True)
+    assert len(forecasts) == 2
+

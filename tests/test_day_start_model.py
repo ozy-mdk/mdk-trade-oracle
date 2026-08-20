@@ -133,20 +133,47 @@ def test_day_start_model_arena(populated_test_db):
     assert champion_model.model_name in ["day_start_bayesian_ridge", "day_start_pymc", "day_start_lightgbm", "day_start_baseline_persistence", "day_start_baseline_rolling_mean"]
 
 
+def test_day_start_next_day_feature_extraction(populated_test_db):
+    """Test DayStartFeatureExtractor computes next-day features for tomorrow morning."""
+    extractor = DayStartFeatureExtractor(populated_test_db, target_broker_id="MLB")
+    df_next = extractor.extract_next_day_features()
+
+    assert df_next.height == 1
+    assert "trade_date" in df_next.columns
+    assert "feat_bofa_w4_net_flow_tl" in df_next.columns
+    assert "feat_bofa_cum_net_flow_5d_tl" in df_next.columns
+    # Trade date for next day should be after the last bronze trade date (2026-03-05 -> 2026-03-06 Friday)
+    assert str(df_next["trade_date"][0])[:10] == "2026-03-06"
+
+
 def test_day_start_forecaster_auto_orchestration(populated_test_db):
-    """Test DayStartForecaster in 'auto' mode end-to-end training and DuckDB Gold table persistence."""
+    """Test DayStartForecaster in 'auto' mode end-to-end live next-day forecast and backtesting."""
     forecaster = DayStartForecaster(populated_test_db, model_type="auto")
-    forecasts = forecaster.train_and_forecast_all()
-    assert len(forecasts) > 0
+    
+    # 1. Live Next-Day Forecast
+    next_res = forecaster.forecast_next_day()
+    assert next_res is not None
+    assert str(next_res.forecast_date)[:10] == "2026-03-06"
+    assert next_res.predicted_direction in ["ACCUMULATE", "DISTRIBUTE", "NEUTRAL", "STRONG_ACCUMULATE", "STRONG_DISTRIBUTE"]
     assert forecaster.champion_name is not None
 
+    # 2. Historical Backtest Track Record
+    backtest_res = forecaster.backtest_all_history()
+    assert len(backtest_res) > 0
+
+    # 3. Default train_and_forecast_all (returns next day)
+    forecasts = forecaster.train_and_forecast_all(include_history=False, include_next_day=True)
+    assert len(forecasts) == 1
+    assert str(forecasts[0].forecast_date)[:10] == "2026-03-06"
+
     saved_count = forecaster.save_forecasts_to_gold(forecasts)
-    assert saved_count == len(forecasts)
+    assert saved_count >= 1
 
     conn = populated_test_db.get_connection()
     gold_row = conn.execute("""
         SELECT forecast_date, predicted_open_net_flow_tl, predicted_direction, direction_confidence, predicted_playbook, model_name
         FROM gold_bofa_day_start_forecasts
+        WHERE forecast_date = '2026-03-06'
         LIMIT 1;
     """).fetchone()
 
@@ -156,3 +183,4 @@ def test_day_start_forecaster_auto_orchestration(populated_test_db):
     assert gold_row[3] is not None
     assert gold_row[4] is not None
     assert gold_row[5] is not None
+
