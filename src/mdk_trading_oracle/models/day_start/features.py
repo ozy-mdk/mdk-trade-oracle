@@ -55,12 +55,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
             day_t_targets AS (
                 SELECT 
                     trade_date,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS target_open_net_flow_tl,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE 0.0 END) AS target_open_turnover_tl,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN buy_volume ELSE 0.0 END) AS target_open_buy_volume,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN sell_volume ELSE 0.0 END) AS target_open_sell_volume,
-                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN total_turnover_tl ELSE 0.0 END) / 
-                        NULLIF(SUM(total_turnover_tl), 0.0) AS target_open_market_share
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN net_flow_tl ELSE 0.0 END) AS target_open_net_flow_tl
                 FROM silver_intraday_broker_window_summary
                 WHERE window_name = 'day_start'
                 GROUP BY trade_date
@@ -259,8 +254,6 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_bofa_cost_basis_spread_20d_pct, 0.0) AS feat_bofa_cost_basis_spread_20d_pct,
                 -- Target Columns on Day T
                 COALESCE(t.target_open_net_flow_tl, 0.0) AS target_open_net_flow_tl,
-                COALESCE(t.target_open_turnover_tl, 0.0) AS target_open_turnover_tl,
-                COALESCE(t.target_open_market_share, 0.0) AS target_open_market_share,
                 CASE WHEN COALESCE(t.target_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_open_direction
             FROM lagged_features r
             LEFT JOIN day_t_targets t ON r.trade_date = t.trade_date

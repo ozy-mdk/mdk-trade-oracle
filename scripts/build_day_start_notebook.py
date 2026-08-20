@@ -40,10 +40,10 @@ The model trains against actual executed trade metrics extracted from DuckDB Sil
 
 | Target Variable | Data Type | Mathematical Formulation | Role & Description |
 | :--- | :--- | :--- | :--- |
-| `target_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{T, \text{W1}} = \sum_{i \in \text{Trades}_{T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Net executed capital in Turkish Lira (TL) by BofA in Window 1. |
-| `target_open_direction` | Categorical (`str`) | $$\text{Direction}_T = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{T, \text{W1}} \le 0 \end{cases}$$ | Directional binary outcome (`BUY` vs `SELL`). |
-| `target_open_turnover_tl` | Continuous (`float64`) | $$\text{Turnover}_{T, \text{W1}} = \sum (\text{Buy Value}_i + \text{Sell Value}_i)$$ | Total gross executed volume (TL) by BofA in Window 1 (Audit & ground-truth benchmark). |
-| `target_open_market_share` | Continuous (`float64`) | $$\text{Market Share}_{T, \text{W1}} = \frac{\text{Turnover}_{\text{MLB}, T, \text{W1}}}{\text{Turnover}_{\text{Market}, T, \text{W1}}}$$ | BofA's opening liquidity dominance ratio across all brokers. |
+| `target_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{T, \text{W1}} = \sum_{i \in \text{Trades}_{T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target ($y$)**: Total net executed capital in Turkish Lira (TL) by BofA across the market in Window 1. |
+| `target_open_direction` | Categorical (`str`) | $$\text{Direction}_T = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{T, \text{W1}} \le 0 \end{cases}$$ | **Derived Target**: Directional binary outcome (`BUY` vs `SELL`) computed directly from posterior probability. |
+
+*(Note: Sector-specific opening net flows and allocations are forecasted in **Model 2: Sector Day-Start Forecaster**).*
 
 ---
 

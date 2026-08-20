@@ -1,4 +1,4 @@
-"""Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, PyMC, and Probabilistic Ensemble."""
+"""Sector Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, and PyMC."""
 
 from typing import Any, Dict, List
 
@@ -16,39 +16,36 @@ from mdk_trading_oracle.models.base import (
 )
 from mdk_trading_oracle.models.registry import ModelRegistry
 
-logger = get_logger("mdk_oracle.models.day_start.models")
+logger = get_logger("mdk_oracle.models.sector_day_start.models")
 
 
-class BaseDayStartModel(BaseForecaster):
-    """Base class providing common evaluation logic and directional conviction classification."""
+class BaseSectorDayStartModel(BaseForecaster):
+    """Base class providing common evaluation logic and directional conviction classification for sectors."""
 
     def _classify_direction(self, net_flow_tl: float, confidence: float) -> str:
-        """Classify continuous predicted net flow (TL) into directional category."""
+        """Classify continuous predicted sector net flow (TL) into directional category."""
         million_flow = net_flow_tl / 1e6
-        if million_flow > 50.0 and confidence >= 0.70:
+        if million_flow > 20.0 and confidence >= 0.70:
             return ForecastDirection.STRONG_ACCUMULATE
-        elif million_flow > 10.0:
+        elif million_flow > 5.0:
             return ForecastDirection.ACCUMULATE
-        elif million_flow < -50.0 and confidence >= 0.70:
+        elif million_flow < -20.0 and confidence >= 0.70:
             return ForecastDirection.STRONG_DISTRIBUTE
-        elif million_flow < -10.0:
+        elif million_flow < -5.0:
             return ForecastDirection.DISTRIBUTE
         return ForecastDirection.NEUTRAL
 
     def _determine_playbook(self, row_dict: Dict[str, Any], predicted_flow: float) -> str:
-        """Determine the institutional execution playbook based on competitor and cost basis dynamics."""
-        w4_delta = float(row_dict.get("feat_bofa_vs_top5_w4_flow_delta_tl", 0.0))
-        cost_basis_spread = float(row_dict.get("feat_bofa_cost_basis_spread_20d_pct", 0.0))
+        """Determine the sector execution playbook based on competitor deltas and wallet share."""
+        w4_delta = float(row_dict.get("feat_sector_bofa_vs_top5_w4_delta_tl", 0.0))
         is_monday = bool(row_dict.get("is_monday", False))
 
-        if predicted_flow > 20e6 and w4_delta > 30e6:
+        if predicted_flow > 10e6 and w4_delta > 15e6:
             return OpeningPlaybook.SQUEEZE_LONG
-        elif predicted_flow > 40e6:
+        elif predicted_flow > 20e6:
             return OpeningPlaybook.MOMENTUM_EXPANSION
-        elif predicted_flow < -20e6 and cost_basis_spread > 0.05:
+        elif predicted_flow < -10e6:
             return OpeningPlaybook.LIQUIDITY_FADE
-        elif cost_basis_spread < -0.04 and predicted_flow > 0:
-            return OpeningPlaybook.DEFENSE_SUPPORT
         elif is_monday:
             return OpeningPlaybook.SECTOR_ROTATION
         return OpeningPlaybook.NEUTRAL_WAIT
@@ -72,13 +69,11 @@ class BaseDayStartModel(BaseForecaster):
         mae = float(mean_absolute_error(actuals, preds))
         rmse = float(root_mean_squared_error(actuals, preds))
 
-        # Directional Hit Rate (% of correct Buy vs Sell signs)
         pred_dir = np.sign(preds)
         actual_dir = np.sign(actuals)
         correct_directions = np.sum(pred_dir == actual_dir)
         hit_rate = float(correct_directions / len(actuals) * 100.0) if len(actuals) > 0 else 0.0
 
-        # Prediction Interval Coverage Probability (PICP) for 90% CI
         in_bounds = np.sum((actuals >= np.array(lowers)) & (actuals <= np.array(uppers)))
         picp = float(in_bounds / len(actuals) * 100.0) if len(actuals) > 0 else 0.0
 
@@ -93,10 +88,7 @@ class BaseDayStartModel(BaseForecaster):
     def walk_forward_evaluate(
         self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
     ) -> Dict[str, Any]:
-        """Perform expanding-window walk-forward validation (train on 1..t-1, predict t).
-        
-        Guarantees strictly out-of-sample evaluation with zero lookahead bias.
-        """
+        """Perform expanding-window walk-forward validation for a sector time series."""
         n_samples = len(X)
         if n_samples <= min_train_samples:
             self.fit(X, y)
@@ -155,24 +147,24 @@ class BaseDayStartModel(BaseForecaster):
 
 
 # ==========================================
-# 0. Baseline Models (Benchmark to Beat)
+# 0. Baselines
 # ==========================================
 
-@ModelRegistry.register("day_start_baseline_persistence")
-class DayStartNaivePersistenceModel(BaseDayStartModel):
-    """Baseline 0: Carries yesterday's closing Window 4 flow forward as today's opening expectation."""
+@ModelRegistry.register("sector_day_start_naive_persistence")
+class SectorDayStartNaivePersistenceModel(BaseSectorDayStartModel):
+    """Baseline 0: Carries yesterday's closing Window 4 sector flow forward."""
 
     def __init__(self):
-        super().__init__(model_name="day_start_baseline_persistence", model_version="1.0.0")
+        super().__init__(model_name="sector_day_start_naive_persistence", model_version="1.0.0")
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartNaivePersistenceModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartNaivePersistenceModel":
         self.is_fitted = True
         return self
 
     def predict(self, X: pd.DataFrame) -> ForecastResult:
         row_dict = X.iloc[0].to_dict()
-        pred_flow = float(row_dict.get("feat_bofa_w4_net_flow_tl", 0.0))
-        std_est = 25e6  # Baseline heuristic variance
+        pred_flow = float(row_dict.get("feat_sector_bofa_w4_net_flow_tl", 0.0))
+        std_est = 15e6
 
         confidence = 0.55
         direction = self._classify_direction(pred_flow, confidence)
@@ -187,22 +179,22 @@ class DayStartNaivePersistenceModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_flow > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_flow < 0 else "None",
+            top_predicted_buy_sector=str(row_dict.get("sector", "Sector")),
+            top_predicted_sell_sector="None",
             model_name=self.model_name,
             model_version=self.model_version,
         )
 
 
-@ModelRegistry.register("day_start_baseline_rolling_mean")
-class DayStartRollingMeanModel(BaseDayStartModel):
-    """Baseline 1: Predicts opening flow as historical 5-day rolling average."""
+@ModelRegistry.register("sector_day_start_rolling_mean")
+class SectorDayStartRollingMeanModel(BaseSectorDayStartModel):
+    """Baseline 1: Predicts opening sector flow as historical 5-day rolling average."""
 
     def __init__(self):
-        super().__init__(model_name="day_start_baseline_rolling_mean", model_version="1.0.0")
+        super().__init__(model_name="sector_day_start_rolling_mean", model_version="1.0.0")
         self.mean_flow = 0.0
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartRollingMeanModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartRollingMeanModel":
         self.mean_flow = float(y.tail(5).mean()) if len(y) > 0 else 0.0
         self.is_fitted = True
         return self
@@ -210,7 +202,7 @@ class DayStartRollingMeanModel(BaseDayStartModel):
     def predict(self, X: pd.DataFrame) -> ForecastResult:
         row_dict = X.iloc[0].to_dict()
         pred_flow = self.mean_flow
-        std_est = 30e6
+        std_est = 18e6
 
         confidence = 0.50
         direction = self._classify_direction(pred_flow, confidence)
@@ -225,7 +217,7 @@ class DayStartRollingMeanModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="None",
+            top_predicted_buy_sector=str(row_dict.get("sector", "Sector")),
             top_predicted_sell_sector="None",
             model_name=self.model_name,
             model_version=self.model_version,
@@ -233,28 +225,27 @@ class DayStartRollingMeanModel(BaseDayStartModel):
 
 
 # ==========================================
-# 1. Bayesian Probabilistic Models (Ridge & PyMC)
+# 1. Bayesian Probabilistic Forecaster
 # ==========================================
 
-@ModelRegistry.register("day_start_bayesian_ridge")
-class DayStartBayesianModel(BaseDayStartModel):
-    """Bayesian Probabilistic Forecaster (Ridge): Computes conjugate posterior distributions and exact credible intervals."""
+@ModelRegistry.register("sector_day_start_bayesian_ridge")
+class SectorDayStartBayesianModel(BaseSectorDayStartModel):
+    """Bayesian Ridge Probabilistic Forecaster for Sectors."""
 
     def __init__(self, max_iter: int = 300):
-        super().__init__(model_name="day_start_bayesian_ridge", model_version="1.0.0")
+        super().__init__(model_name="sector_day_start_bayesian_ridge", model_version="1.0.0")
         self.regressor = BayesianRidge(max_iter=max_iter, compute_score=True)
         self.feature_cols: list[str] = []
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = ["trade_date", "sector", "target_sector_open_net_flow_tl", "target_sector_open_direction"]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
         return feat_df.select_dtypes(include=[np.number, bool]).astype(float)
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartBayesianModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartBayesianModel":
         X_clean = self._prep_features(X)
         self.feature_cols = list(X_clean.columns)
         self.regressor.fit(X_clean, y)
@@ -264,7 +255,6 @@ class DayStartBayesianModel(BaseDayStartModel):
     def predict(self, X: pd.DataFrame) -> ForecastResult:
         row_dict = X.iloc[0].to_dict()
         X_clean = self._prep_features(X.iloc[[0]])
-        
         for col in self.feature_cols:
             if col not in X_clean.columns:
                 X_clean[col] = 0.0
@@ -274,11 +264,9 @@ class DayStartBayesianModel(BaseDayStartModel):
         pred_val = float(np.asarray(mean_pred)[0])
         std_val = float(np.asarray(std_pred)[0])
 
-        # 90% Bayesian Credible Interval (Z = 1.645)
         lower_90 = pred_val - 1.645 * std_val
         upper_90 = pred_val + 1.645 * std_val
 
-        # Directional probability from Gaussian CDF
         from scipy.stats import norm
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))
@@ -295,27 +283,31 @@ class DayStartBayesianModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=str(row_dict.get("sector", "Sector")),
+            top_predicted_sell_sector="None",
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
         )
 
 
-@ModelRegistry.register("day_start_pymc")
-class DayStartPyMCModel(BaseDayStartModel):
-    """PyMC Full Bayesian MCMC / NUTS Forecaster with custom institutional priors."""
+# ==========================================
+# 2. PyMC GLM Model
+# ==========================================
+
+@ModelRegistry.register("sector_day_start_pymc")
+class SectorDayStartPyMCModel(BaseSectorDayStartModel):
+    """PyMC Full Bayesian GLM Forecaster for Sectors with informative shrinkage priors."""
 
     def __init__(self, draws: int = 300, tune: int = 300, use_map: bool = True):
-        super().__init__(model_name="day_start_pymc", model_version="1.0.0")
+        super().__init__(model_name="sector_day_start_pymc", model_version="1.0.0")
         self.draws = draws
         self.tune = tune
         self.use_map = use_map
         self.feature_cols: List[str] = []
         self.posterior_mean_weights: np.ndarray = np.array([])
         self.posterior_mean_intercept: float = 0.0
-        self.posterior_sigma: float = 25e6
+        self.posterior_sigma: float = 15e6
         self.x_mean: np.ndarray = np.array([])
         self.x_std: np.ndarray = np.array([])
         self.y_mean: float = 0.0
@@ -323,14 +315,13 @@ class DayStartPyMCModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = ["trade_date", "sector", "target_sector_open_net_flow_tl", "target_sector_open_direction"]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
         return feat_df.select_dtypes(include=[np.number, bool]).astype(float)
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartPyMCModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartPyMCModel":
         import pymc as pm
 
         X_clean = self._prep_features(X)
@@ -339,7 +330,6 @@ class DayStartPyMCModel(BaseDayStartModel):
         X_mat = X_clean.to_numpy()
         y_vec = y.to_numpy().astype(float)
 
-        # Standardize for numerical stability
         self.x_mean = np.mean(X_mat, axis=0)
         self.x_std = np.std(X_mat, axis=0) + 1e-8
         X_scaled = (X_mat - self.x_mean) / self.x_std
@@ -350,42 +340,18 @@ class DayStartPyMCModel(BaseDayStartModel):
 
         n_features = X_scaled.shape[1]
 
-        logger.info(f"Fitting PyMC Bayesian Model ({'MAP' if self.use_map else 'NUTS MCMC'}) on {len(X_scaled)} samples with {n_features} features...")
-
         with pm.Model():
-            # Informative Gaussian & Half-Normal Priors
             intercept = pm.Normal("intercept", mu=0.0, sigma=1.0)
             beta = pm.Normal("beta", mu=0.0, sigma=0.5, shape=n_features)
             sigma = pm.HalfNormal("sigma", sigma=1.0)
 
-            # Likelihood
             mu = intercept + pm.math.dot(X_scaled, beta)
             pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y_scaled)
 
-            if self.use_map:
-                map_est = pm.find_MAP(progressbar=False)
-                self.posterior_mean_weights = np.asarray(map_est["beta"])
-                self.posterior_mean_intercept = float(map_est["intercept"])
-                self.posterior_sigma = float(map_est["sigma"]) * self.y_std
-            else:
-                try:
-                    idata = pm.sample(
-                        draws=self.draws,
-                        tune=self.tune,
-                        chains=2,
-                        random_seed=42,
-                        progressbar=False,
-                        compute_convergence_checks=False,
-                    )
-                    self.posterior_mean_weights = idata.posterior["beta"].mean(dim=["chain", "draw"]).values
-                    self.posterior_mean_intercept = float(idata.posterior["intercept"].mean().values)
-                    self.posterior_sigma = float(idata.posterior["sigma"].mean().values) * self.y_std
-                except Exception as e:
-                    logger.warning(f"PyMC sampling fallback to find_MAP: {e}")
-                    map_est = pm.find_MAP(progressbar=False)
-                    self.posterior_mean_weights = np.asarray(map_est["beta"])
-                    self.posterior_mean_intercept = float(map_est["intercept"])
-                    self.posterior_sigma = float(map_est["sigma"]) * self.y_std
+            map_est = pm.find_MAP(progressbar=False)
+            self.posterior_mean_weights = np.asarray(map_est["beta"])
+            self.posterior_mean_intercept = float(map_est["intercept"])
+            self.posterior_sigma = float(map_est["sigma"]) * self.y_std
 
         self.is_fitted = True
         return self
@@ -401,12 +367,10 @@ class DayStartPyMCModel(BaseDayStartModel):
         X_mat = X_clean.to_numpy()
         X_scaled = (X_mat - self.x_mean) / self.x_std
 
-        # Scaled prediction back to original TL units
         pred_scaled = self.posterior_mean_intercept + np.dot(X_scaled, self.posterior_mean_weights)
         pred_val = float(pred_scaled[0] * self.y_std + self.y_mean)
         std_val = float(self.posterior_sigma)
 
-        # 90% Bayesian Credible Interval
         lower_90 = pred_val - 1.645 * std_val
         upper_90 = pred_val + 1.645 * std_val
 
@@ -426,8 +390,8 @@ class DayStartPyMCModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=str(row_dict.get("sector", "Sector")),
+            top_predicted_sell_sector="None",
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
@@ -435,22 +399,22 @@ class DayStartPyMCModel(BaseDayStartModel):
 
 
 # ==========================================
-# 2. Gradient-Boosted LightGBM Model
+# 3. LightGBM Model
 # ==========================================
 
-@ModelRegistry.register("day_start_lightgbm")
-class DayStartLightGBMModel(BaseDayStartModel):
-    """LightGBM Non-Linear Ensemble: Models complex interactions between competitor posture and cost basis."""
+@ModelRegistry.register("sector_day_start_lightgbm")
+class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
+    """LightGBM Non-Linear Regressor for Sector Day-Start Flow."""
 
     def __init__(self, n_estimators: int = 50, learning_rate: float = 0.05):
-        super().__init__(model_name="day_start_lightgbm", model_version="1.0.0")
+        super().__init__(model_name="sector_day_start_lightgbm", model_version="1.0.0")
         try:
             import lightgbm as lgb
             self.model = lgb.LGBMRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
-                max_depth=4,
-                num_leaves=15,
+                max_depth=3,
+                num_leaves=10,
                 min_child_samples=3,
                 random_state=42,
                 verbosity=-1,
@@ -467,14 +431,13 @@ class DayStartLightGBMModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = ["trade_date", "sector", "target_sector_open_net_flow_tl", "target_sector_open_direction"]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
         return feat_df.select_dtypes(include=[np.number, bool]).astype(float)
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartLightGBMModel":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartLightGBMModel":
         X_clean = self._prep_features(X)
         self.feature_cols = list(X_clean.columns)
         self.model.fit(X_clean, y)
@@ -490,9 +453,9 @@ class DayStartLightGBMModel(BaseDayStartModel):
         X_clean = X_clean[self.feature_cols]
 
         pred_val = float(np.asarray(self.model.predict(X_clean))[0])
-        std_est = 22e6
+        std_est = 15e6
 
-        confidence = 0.72
+        confidence = 0.70
         direction = self._classify_direction(pred_val, confidence)
         playbook = self._determine_playbook(row_dict, pred_val)
 
@@ -505,8 +468,8 @@ class DayStartLightGBMModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=str(row_dict.get("sector", "Sector")),
+            top_predicted_sell_sector="None",
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},

@@ -160,7 +160,6 @@ class DayStartForecaster:
                 predicted_open_flow_upper_90 DOUBLE,
                 predicted_direction VARCHAR,
                 direction_confidence DOUBLE,
-                predicted_open_market_share DOUBLE,
                 predicted_playbook VARCHAR,
                 top_predicted_buy_sector VARCHAR,
                 top_predicted_sell_sector VARCHAR,
@@ -179,10 +178,10 @@ class DayStartForecaster:
                 INSERT OR REPLACE INTO gold_bofa_day_start_forecasts (
                     forecast_date, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
-                    predicted_direction, direction_confidence, predicted_open_market_share,
+                    predicted_direction, direction_confidence,
                     predicted_playbook, top_predicted_buy_sector, top_predicted_sell_sector,
                     model_name, model_version, generated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, [
                 f.forecast_date,
                 dow,
@@ -192,7 +191,6 @@ class DayStartForecaster:
                 f.predicted_flow_upper_90,
                 f.predicted_direction,
                 f.direction_confidence,
-                f.predicted_open_market_share,
                 f.predicted_playbook,
                 f.top_predicted_buy_sector,
                 f.top_predicted_sell_sector,

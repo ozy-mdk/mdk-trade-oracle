@@ -192,15 +192,20 @@ class MedallionPipeline:
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
+        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | Day-Start Forecasts: {forecasts_count:,}")
+        logger.info(
+            f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
+            f"Macro Forecasts: {forecasts_count:,} | Sector Forecasts: {sector_forecasts_count:,}"
+        )
         return {
             "layer": "gold",
             "elapsed_sec": elapsed,
             "metrics": {
                 "gold_institutional_daily_signals": signals_count,
                 "gold_bofa_day_start_forecasts": forecasts_count,
+                "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
             },
             "details": gold_res,
             "status": "success",

@@ -38,7 +38,6 @@ class ForecastResult:
     predicted_flow_upper_90: float
     predicted_direction: str
     direction_confidence: float
-    predicted_open_market_share: float
     predicted_playbook: str
     top_predicted_buy_sector: str
     top_predicted_sell_sector: str
