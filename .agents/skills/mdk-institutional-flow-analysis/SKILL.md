@@ -39,7 +39,24 @@ Whenever designing or building a new predictive model (e.g. Model 1 `day_start`,
 
 ---
 
-## 🧠 3. The 7 Quantitative Feature Clusters (Zero Data Leakage)
+## 🎯 3. Target Variables & Multi-Target Architecture
+
+The model trains against actual executed trade metrics extracted from DuckDB Silver table `silver_intraday_broker_window_summary` for **Window 1 (`day_start`)**:
+
+| Target Variable | Data Type | Mathematical Formulation | Role & Description |
+| :--- | :--- | :--- | :--- |
+| `target_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{T, \text{W1}} = \sum_{i \in \text{Trades}_{T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Net executed capital in TL by BofA in Window 1. |
+| `target_open_direction` | Categorical (`str`) | $$\text{Direction}_T = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{T, \text{W1}} \le 0 \end{cases}$$ | Directional binary outcome (`BUY` vs `SELL`). |
+| `target_open_turnover_tl` | Continuous (`float64`) | $$\text{Turnover}_{T, \text{W1}} = \sum (\text{Buy Value}_i + \text{Sell Value}_i)$$ | Total gross executed volume (TL) by BofA in Window 1 (Audit benchmark). |
+| `target_open_market_share` | Continuous (`float64`) | $$\text{Market Share}_{T, \text{W1}} = \frac{\text{Turnover}_{\text{MLB}, T, \text{W1}}}{\text{Turnover}_{\text{Market}, T, \text{W1}}}$$ | BofA's opening liquidity dominance ratio across all brokers. |
+
+### 💼 Business & Technical Mechanism: Unified Probabilistic Derivation
+1. **Primary Regression Target**: The model fits $y = \text{target\_open\_net\_flow\_tl}$, outputting mean flow $\hat{\mu}$ and posterior uncertainty $\hat{\sigma}$.
+2. **Harmonized Direction & Sizing (No Contradictions)**: Directional conviction ($P(\text{BUY}) = 1 - \Phi(0; \hat{\mu}, \hat{\sigma})$) and 90% credible ranges ($\hat{\mu} \pm 1.645\hat{\sigma}$) are derived directly from the exact same posterior distribution.
+
+---
+
+## 🧠 4. The 7 Quantitative Feature Clusters (Zero Data Leakage)
 
 All features must be computed **strictly from $T-1$ Close data** (or prior completed intraday windows):
 
