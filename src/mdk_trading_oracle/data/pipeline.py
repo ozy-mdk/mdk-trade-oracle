@@ -193,11 +193,14 @@ class MedallionPipeline:
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
         sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
+        backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
+        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
-            f"Macro Forecasts: {forecasts_count:,} | Sector Forecasts: {sector_forecasts_count:,}"
+            f"Macro Live: {forecasts_count:,} | Sector Live: {sector_forecasts_count:,} | "
+            f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,}"
         )
         return {
             "layer": "gold",
@@ -206,6 +209,8 @@ class MedallionPipeline:
                 "gold_institutional_daily_signals": signals_count,
                 "gold_bofa_day_start_forecasts": forecasts_count,
                 "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
+                "gold_bofa_day_start_backtests": backtests_count,
+                "gold_bofa_sector_day_start_backtests": sector_backtests_count,
             },
             "details": gold_res,
             "status": "success",

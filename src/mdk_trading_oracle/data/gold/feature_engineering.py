@@ -71,27 +71,43 @@ class GoldFeatureEngineer:
         return {"table": "gold_institutional_daily_signals", "rows": rows, "status": "success"}
 
     def run_day_start_forecasting(self) -> dict[str, Any]:
-        """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection and persist forecasts to Gold table."""
+        """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection and persist live forecasts and backtests."""
         logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
         forecaster = DayStartForecaster(self.db, model_type="auto")
-        forecasts = forecaster.train_and_forecast_all()
-        saved_count = forecaster.save_forecasts_to_gold(forecasts)
+        
+        # 1. Live Next-Day Forecast (T+1)
+        next_day_forecast = forecaster.forecast_next_day()
+        saved_forecasts = forecaster.save_forecasts_to_gold(next_day_forecast)
+        
+        # 2. Historical Out-of-Sample Backtests (1..T)
+        saved_backtests = forecaster.save_backtests_to_gold()
+        
         return {
-            "table": "gold_bofa_day_start_forecasts",
-            "rows": saved_count,
+            "forecast_table": "gold_bofa_day_start_forecasts",
+            "forecast_rows": saved_forecasts,
+            "backtest_table": "gold_bofa_day_start_backtests",
+            "backtest_rows": saved_backtests,
             "champion_model": forecaster.champion_name,
             "status": "success",
         }
 
     def run_sector_day_start_forecasting(self) -> dict[str, Any]:
-        """Execute Model 2 (Sector Day-Start Forecaster) and persist sector forecasts to Gold table."""
+        """Execute Model 2 (Sector Day-Start Forecaster) and persist sector live forecasts and backtests."""
         logger.info("Executing Gold Layer Model 2: Sector Day-Start Forecaster (Auto-Champion Mode)...")
         forecaster = SectorDayStartForecaster(self.db, model_type="auto")
-        forecasts = forecaster.train_and_forecast_all()
-        saved_count = forecaster.save_forecasts_to_gold(forecasts)
+        
+        # 1. Live Next-Day Sector Forecasts (T+1 across 26 sectors)
+        next_day_sector_forecasts = forecaster.forecast_next_day()
+        saved_sector_forecasts = forecaster.save_forecasts_to_gold(next_day_sector_forecasts)
+        
+        # 2. Historical Sector Backtests across tracked sectors
+        saved_sector_backtests = forecaster.save_backtests_to_gold()
+        
         return {
-            "table": "gold_bofa_sector_day_start_forecasts",
-            "rows": saved_count,
+            "forecast_table": "gold_bofa_sector_day_start_forecasts",
+            "forecast_rows": saved_sector_forecasts,
+            "backtest_table": "gold_bofa_sector_day_start_backtests",
+            "backtest_rows": saved_sector_backtests,
             "champion_model": forecaster.champion_name,
             "status": "success",
         }
@@ -109,3 +125,4 @@ class GoldFeatureEngineer:
             "gold_bofa_sector_day_start_forecasts": res_sector_day_start,
             "status": "success",
         }
+

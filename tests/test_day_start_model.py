@@ -169,6 +169,10 @@ def test_day_start_forecaster_auto_orchestration(populated_test_db):
     saved_count = forecaster.save_forecasts_to_gold(forecasts)
     assert saved_count >= 1
 
+    # 4. Persist historical backtests to dedicated table
+    saved_backtests = forecaster.save_backtests_to_gold(backtest_res)
+    assert saved_backtests >= 1
+
     conn = populated_test_db.get_connection()
     gold_row = conn.execute("""
         SELECT forecast_date, predicted_open_net_flow_tl, predicted_direction, direction_confidence, predicted_playbook, model_name
@@ -183,4 +187,17 @@ def test_day_start_forecaster_auto_orchestration(populated_test_db):
     assert gold_row[3] is not None
     assert gold_row[4] is not None
     assert gold_row[5] is not None
+
+    backtest_row = conn.execute("""
+        SELECT trade_date, predicted_open_net_flow_tl, actual_open_net_flow_tl, is_direction_hit, is_inside_90_ci, model_name
+        FROM gold_bofa_day_start_backtests
+        ORDER BY trade_date DESC
+        LIMIT 1;
+    """).fetchone()
+
+    assert backtest_row is not None
+    assert backtest_row[0] is not None
+    assert backtest_row[1] is not None
+    assert backtest_row[3] in [True, False]
+
 

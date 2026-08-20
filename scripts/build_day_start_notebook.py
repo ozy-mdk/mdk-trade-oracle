@@ -533,12 +533,16 @@ if date_dropdown.value:
     update_session({"new": date_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 🥇 8. Gold Table Inspection in DuckDB
+    nbf.v4.new_markdown_cell("""## 🥇 8. Gold Tables & Historical Backtest Ledger in DuckDB
 
-Verifying the persisted production forecast table `gold_bofa_day_start_forecasts` in DuckDB.
+Verifying the persisted production tables in DuckDB:
+1. `gold_bofa_day_start_forecasts`: Pure upcoming live forecasts ($T+1$) with directional badges and playbooks.
+2. `gold_bofa_day_start_backtests`: Dedicated historical walk-forward backtest ledger containing out-of-sample predictions, actual Window 1 flows, directional hit flags, 90% credible coverage, and prediction errors.
 """),
 
     nbf.v4.new_code_cell("""conn = db.get_connection()
+
+print("🔮 1. Live Upcoming Forecasts (gold_bofa_day_start_forecasts):")
 gold_forecasts_df = conn.execute(\"\"\"
     SELECT 
         forecast_date,
@@ -553,10 +557,88 @@ gold_forecasts_df = conn.execute(\"\"\"
         model_name
     FROM gold_bofa_day_start_forecasts
     ORDER BY forecast_date DESC
-    LIMIT 10;
-\"\"\").pl()
-
+    LIMIT 5;
+\"\"\").df()
 display(gold_forecasts_df)
+"""),
+
+    nbf.v4.new_markdown_cell("""### 📊 Historical Backtest Performance Dashboard (`gold_bofa_day_start_backtests`)
+
+Calculating executive summary KPIs directly from the DuckDB backtest ledger:
+"""),
+
+    nbf.v4.new_code_cell("""# Summary KPIs from DuckDB
+backtest_kpis = conn.execute(\"\"\"
+    SELECT 
+        COUNT(*) AS total_sessions,
+        ROUND(AVG(CASE WHEN is_direction_hit THEN 1.0 ELSE 0.0 END) * 100, 1) AS hit_rate_pct,
+        ROUND(AVG(CASE WHEN is_inside_90_ci THEN 1.0 ELSE 0.0 END) * 100, 1) AS picp_90_pct,
+        ROUND(AVG(ABS(error_open_net_flow_tl)) / 1e6, 2) AS mae_m_tl,
+        ROUND(SQRT(AVG(POWER(error_open_net_flow_tl, 2))) / 1e6, 2) AS rmse_m_tl
+    FROM gold_bofa_day_start_backtests;
+\"\"\").df().iloc[0]
+
+kpi_html = f\"\"\"
+<div style="display: flex; gap: 15px; margin-bottom: 20px;">
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #00b4d8; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Total Evaluated Sessions</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px;">{int(backtest_kpis['total_sessions'])}</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #06d6a0; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Out-of-Sample Hit Rate</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px; color: #06d6a0;">{backtest_kpis['hit_rate_pct']:.1f}%</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #ffd166; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">90% Credible Coverage (PICP)</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px; color: #ffd166;">{backtest_kpis['picp_90_pct']:.1f}%</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #ef476f; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Mean Absolute Error (MAE)</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px;">{backtest_kpis['mae_m_tl']:,.2f} M TL</div>
+    </div>
+</div>
+\"\"\"
+display(HTML(kpi_html))
+"""),
+
+    nbf.v4.new_code_cell("""print("📜 Full Day-Start Backtest Ledger (gold_bofa_day_start_backtests):")
+gold_backtests_full_df = conn.execute(\"\"\"
+    SELECT 
+        trade_date,
+        day_of_week,
+        is_monday,
+        predicted_open_net_flow_tl / 1e6 AS pred_net_flow_m,
+        actual_open_net_flow_tl / 1e6 AS act_net_flow_m,
+        error_open_net_flow_tl / 1e6 AS error_m,
+        predicted_direction,
+        actual_direction,
+        is_direction_hit,
+        is_inside_90_ci,
+        direction_confidence,
+        predicted_playbook,
+        model_name
+    FROM gold_bofa_day_start_backtests
+    ORDER BY trade_date DESC;
+\"\"\").df()
+
+# Display formatted full backtest table
+display(gold_backtests_full_df)
+"""),
+
+    nbf.v4.new_code_cell("""print("📅 Backtest Performance by Session Type (Day of Week):")
+dow_perf_df = conn.execute(\"\"\"
+    SELECT 
+        day_of_week,
+        COUNT(*) AS sessions,
+        ROUND(AVG(CASE WHEN is_direction_hit THEN 1.0 ELSE 0.0 END) * 100, 1) AS hit_rate_pct,
+        ROUND(AVG(CASE WHEN is_inside_90_ci THEN 1.0 ELSE 0.0 END) * 100, 1) AS picp_90_pct,
+        ROUND(AVG(ABS(error_open_net_flow_tl)) / 1e6, 2) AS mae_m_tl,
+        ROUND(AVG(actual_open_net_flow_tl) / 1e6, 2) AS avg_actual_flow_m
+    FROM gold_bofa_day_start_backtests
+    GROUP BY day_of_week
+    ORDER BY sessions DESC;
+\"\"\").df()
+display(dow_perf_df)
 """)
 ]
 
@@ -566,4 +648,5 @@ with open("notebooks/03_bofa_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("✅ Successfully generated notebooks/03_bofa_day_start_modeling.ipynb!")
+
 

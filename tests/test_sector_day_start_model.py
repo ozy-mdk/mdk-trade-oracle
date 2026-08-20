@@ -4,6 +4,9 @@ import pandas as pd
 import pytest
 
 from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.data.bronze import initialize_bronze_schema
+from mdk_trading_oracle.data.gold import initialize_gold_schema
+from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_schema
 from mdk_trading_oracle.models.base import ForecastDirection, ForecastResult
 from mdk_trading_oracle.models.sector_day_start import (
     SectorDayStartBayesianModel,
@@ -21,6 +24,39 @@ from mdk_trading_oracle.models.sector_day_start import (
 def db_conn():
     """Provides a read-only DuckDB connection manager for testing."""
     return DuckDBManager(read_only=True)
+
+
+@pytest.fixture
+def populated_test_db():
+    """Create in-memory DuckDB populated with synthetic multi-day trading data."""
+    db = DuckDBManager(in_memory=True)
+    conn = db.get_connection()
+
+    initialize_bronze_schema(db)
+    initialize_silver_schema(db)
+    initialize_gold_schema(db)
+
+    # Insert trades across 4 distinct days (Day 1 to Day 4)
+    conn.execute("""
+        INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
+        VALUES 
+            -- Day 1 (Monday)
+            ('t1', '2026-03-02 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
+            ('t2', '2026-03-02 15:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
+            -- Day 2 (Tuesday)
+            ('t3', '2026-03-03 08:15:00', 'THYAO', 306.0, 1500.0, 'MLB', 'ISY', 'test'),
+            ('t4', '2026-03-03 15:30:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'MLB', 'test'),
+            -- Day 3 (Wednesday)
+            ('t5', '2026-03-04 08:15:00', 'AKBNK', 61.0, 4000.0, 'MLB', 'YKR', 'test'),
+            ('t6', '2026-03-04 15:30:00', 'THYAO', 310.0, 3000.0, 'MLB', 'AKB', 'test'),
+            -- Day 4 (Thursday)
+            ('t7', '2026-03-05 08:15:00', 'THYAO', 312.0, 2500.0, 'MLB', 'ISY', 'test'),
+            ('t8', '2026-03-05 15:30:00', 'AKBNK', 62.0, 6000.0, 'MLB', 'GAR', 'test');
+    """)
+
+    silver = SilverTransformer(db)
+    silver.run_all()
+    return db
 
 
 def test_sector_day_start_feature_extraction(db_conn):
@@ -104,9 +140,9 @@ def test_sector_day_start_next_day_feature_extraction(db_conn):
     assert "feat_sector_bofa_cum_net_flow_5d_tl" in df_next.columns
 
 
-def test_sector_day_start_forecaster_orchestration(db_conn):
+def test_sector_day_start_forecaster_orchestration(populated_test_db):
     """Verify SectorDayStartForecaster end-to-end live next-day forecast and backtesting."""
-    forecaster = SectorDayStartForecaster(db_conn, model_type="auto")
+    forecaster = SectorDayStartForecaster(populated_test_db, model_type="auto")
     
     # 1. Live Next-Day Forecast across sectors
     live_forecasts = forecaster.forecast_next_day(sectors=["Banking", "Transportation"])
@@ -130,4 +166,34 @@ def test_sector_day_start_forecaster_orchestration(db_conn):
     # 3. Default train_and_forecast_all
     forecasts = forecaster.train_and_forecast_all(sectors=["Banking", "Transportation"], include_history=False, include_next_day=True)
     assert len(forecasts) == 2
+
+    saved_forecasts = forecaster.save_forecasts_to_gold(forecasts)
+    assert saved_forecasts >= 2
+
+    # 4. Persist historical sector backtests
+    saved_backtests = forecaster.save_backtests_to_gold(backtest_forecasts, sectors=["Banking", "Transportation"])
+    assert saved_backtests >= 2
+
+    conn = populated_test_db.get_connection()
+    gold_row = conn.execute("""
+        SELECT forecast_date, sector, predicted_open_net_flow_tl, predicted_direction, direction_confidence, model_name
+        FROM gold_bofa_sector_day_start_forecasts
+        WHERE forecast_date = '2026-03-06'
+        LIMIT 1;
+    """).fetchone()
+
+    assert gold_row is not None
+    assert gold_row[1] in ["Banking", "Transportation"]
+
+    backtest_row = conn.execute("""
+        SELECT trade_date, sector, predicted_open_net_flow_tl, actual_open_net_flow_tl, is_direction_hit, is_inside_90_ci, model_name
+        FROM gold_bofa_sector_day_start_backtests
+        ORDER BY trade_date DESC
+        LIMIT 1;
+    """).fetchone()
+
+    assert backtest_row is not None
+    assert backtest_row[1] in ["Banking", "Transportation"]
+    assert backtest_row[4] in [True, False]
+
 

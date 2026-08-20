@@ -274,12 +274,16 @@ if sector_dropdown.value:
     update_sector_plot({"new": sector_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 🥇 6. Gold Sector Table Inspection in DuckDB
+    nbf.v4.new_markdown_cell("""## 🥇 6. Gold Sector Tables & Cross-Sector Backtest Inspection in DuckDB
 
-Verifying the persisted production forecast table `gold_bofa_sector_day_start_forecasts` in DuckDB.
+Verifying the persisted production tables in DuckDB:
+1. `gold_bofa_sector_day_start_forecasts`: Pure upcoming live sector forecasts ($T+1$).
+2. `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward backtest ledger across all 26 sectors with ground-truth actuals.
 """),
 
     nbf.v4.new_code_cell("""conn = db.get_connection()
+
+print("🔮 1. Live Upcoming Sector Forecasts (gold_bofa_sector_day_start_forecasts):")
 gold_sector_df = conn.execute(\"\"\"
     SELECT 
         forecast_date,
@@ -292,10 +296,85 @@ gold_sector_df = conn.execute(\"\"\"
         model_name
     FROM gold_bofa_sector_day_start_forecasts
     ORDER BY forecast_date DESC, pred_flow_m_tl DESC
-    LIMIT 12;
-\"\"\").pl()
-
+    LIMIT 10;
+\"\"\").df()
 display(gold_sector_df)
+"""),
+
+    nbf.v4.new_markdown_cell("""### 🏆 Cross-Sector Backtest Leaderboard (`gold_bofa_sector_day_start_backtests`)
+
+Evaluating model accuracy and directional hit rate across all 26 tracked BIST sectors:
+"""),
+
+    nbf.v4.new_code_cell("""# Macro metrics across all sectors
+sector_macro_kpis = conn.execute(\"\"\"
+    SELECT 
+        COUNT(DISTINCT sector) AS total_sectors,
+        COUNT(*) AS total_backtest_records,
+        ROUND(AVG(CASE WHEN is_direction_hit THEN 1.0 ELSE 0.0 END) * 100, 1) AS mean_hit_rate_pct,
+        ROUND(AVG(CASE WHEN is_inside_90_ci THEN 1.0 ELSE 0.0 END) * 100, 1) AS mean_picp_90_pct,
+        ROUND(AVG(ABS(error_open_net_flow_tl)) / 1e6, 2) AS mean_mae_m_tl
+    FROM gold_bofa_sector_day_start_backtests;
+\"\"\").df().iloc[0]
+
+sector_kpi_html = f\"\"\"
+<div style="display: flex; gap: 15px; margin-bottom: 20px;">
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #00b4d8; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Tracked Sectors</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px;">{int(sector_macro_kpis['total_sectors'])} Sectors</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #7209b7; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Total Backtest Records</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px;">{int(sector_macro_kpis['total_backtest_records'])}</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #06d6a0; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">Cross-Sector Hit Rate</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px; color: #06d6a0;">{sector_macro_kpis['mean_hit_rate_pct']:.1f}%</div>
+    </div>
+    <div style="flex: 1; background: #1e1e2e; padding: 15px; border-radius: 10px; border-left: 5px solid #ffd166; color: #fff;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase;">90% Credible Coverage</div>
+        <div style="font-size: 24px; font-weight: bold; margin-top: 5px; color: #ffd166;">{sector_macro_kpis['mean_picp_90_pct']:.1f}%</div>
+    </div>
+</div>
+\"\"\"
+display(HTML(sector_kpi_html))
+
+print("🏆 Sector Backtest Leaderboard (Ranked by Out-of-Sample Hit Rate):")
+sector_leaderboard_df = conn.execute(\"\"\"
+    SELECT 
+        sector,
+        COUNT(*) AS sessions,
+        ROUND(AVG(CASE WHEN is_direction_hit THEN 1.0 ELSE 0.0 END) * 100, 1) AS hit_rate_pct,
+        ROUND(AVG(CASE WHEN is_inside_90_ci THEN 1.0 ELSE 0.0 END) * 100, 1) AS picp_90_pct,
+        ROUND(AVG(ABS(error_open_net_flow_tl)) / 1e6, 2) AS mae_m_tl,
+        ROUND(SUM(actual_open_net_flow_tl) / 1e6, 2) AS total_actual_flow_m,
+        model_name
+    FROM gold_bofa_sector_day_start_backtests
+    GROUP BY sector, model_name
+    ORDER BY hit_rate_pct DESC, sessions DESC;
+\"\"\").df()
+display(sector_leaderboard_df)
+"""),
+
+    nbf.v4.new_code_cell("""print("📜 Recent Sector Backtest Ledger Records (gold_bofa_sector_day_start_backtests):")
+gold_sector_backtests_df = conn.execute(\"\"\"
+    SELECT 
+        trade_date,
+        sector,
+        day_of_week,
+        predicted_open_net_flow_tl / 1e6 AS pred_net_flow_m,
+        actual_open_net_flow_tl / 1e6 AS act_net_flow_m,
+        error_open_net_flow_tl / 1e6 AS error_m,
+        predicted_direction,
+        actual_direction,
+        is_direction_hit,
+        is_inside_90_ci,
+        model_name
+    FROM gold_bofa_sector_day_start_backtests
+    ORDER BY trade_date DESC, pred_net_flow_m DESC
+    LIMIT 26;
+\"\"\").df()
+display(gold_sector_backtests_df)
 """)
 ]
 
@@ -305,4 +384,5 @@ with open("notebooks/04_bofa_sector_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("✅ Successfully generated notebooks/04_bofa_sector_day_start_modeling.ipynb!")
+
 

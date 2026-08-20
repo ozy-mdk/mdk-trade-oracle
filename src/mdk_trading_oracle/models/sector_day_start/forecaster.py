@@ -1,6 +1,6 @@
 """Production Sector Day-Start Forecaster Orchestrator & Auto-Champion Model Arena."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -316,4 +316,105 @@ class SectorDayStartForecaster:
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} total forecasts.")
         return saved_count
+
+    def save_backtests_to_gold(
+        self,
+        backtest_results: Optional[List[ForecastResult]] = None,
+        sectors: Optional[List[str]] = None,
+    ) -> int:
+        """Persist historical sector backtest results joined with actuals into `gold_bofa_sector_day_start_backtests`."""
+        if backtest_results is None:
+            backtest_results = self.backtest_all_history(sectors=sectors)
+
+        if not backtest_results:
+            return 0
+
+        conn = self.db.get_connection()
+        logger.info(f"Persisting {len(backtest_results)} sector backtest record(s) to `gold_bofa_sector_day_start_backtests`...")
+
+        # Ensure schema exists
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gold_bofa_sector_day_start_backtests (
+                trade_date DATE,
+                sector VARCHAR,
+                day_of_week INTEGER,
+                is_monday BOOLEAN,
+                predicted_open_net_flow_tl DOUBLE,
+                predicted_open_flow_lower_90 DOUBLE,
+                predicted_open_flow_upper_90 DOUBLE,
+                actual_open_net_flow_tl DOUBLE,
+                error_open_net_flow_tl DOUBLE,
+                predicted_direction VARCHAR,
+                actual_direction VARCHAR,
+                is_direction_hit BOOLEAN,
+                is_inside_90_ci BOOLEAN,
+                direction_confidence DOUBLE,
+                predicted_playbook VARCHAR,
+                model_name VARCHAR,
+                model_version VARCHAR,
+                calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (trade_date, sector)
+            );
+        """)
+
+        # Fetch actual sector Window 1 flows from silver_intraday_sector_window_summary
+        actuals_df = conn.execute(f"""
+            SELECT 
+                trade_date,
+                sector,
+                net_flow_tl AS actual_w1_net_flow_tl
+            FROM silver_intraday_sector_window_summary
+            WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start';
+        """).df()
+        actuals_df["trade_date_str"] = actuals_df["trade_date"].astype(str).str.slice(0, 10)
+        actuals_map = dict(zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"]))
+
+        for f in backtest_results:
+            d = f.forecast_date
+            d_str = str(d)[:10]
+            sector_name = f.top_predicted_buy_sector or "General"
+            dow = d.weekday() + 1 if isinstance(d, date) else 1
+            is_mon = (dow == 1)
+            actual_flow = float(actuals_map.get((d_str, sector_name), 0.0))
+            pred_flow = float(f.predicted_net_flow_tl)
+            error_flow = actual_flow - pred_flow
+            actual_dir = "BUY" if actual_flow > 0 else ("SELL" if actual_flow < 0 else "NEUTRAL")
+            is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
+            is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
+
+            conn.execute("""
+                INSERT OR REPLACE INTO gold_bofa_sector_day_start_backtests (
+                    trade_date, sector, day_of_week, is_monday,
+                    predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
+                    actual_open_net_flow_tl, error_open_net_flow_tl,
+                    predicted_direction, actual_direction,
+                    is_direction_hit, is_inside_90_ci,
+                    direction_confidence, predicted_playbook,
+                    model_name, model_version, calculated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, [
+                f.forecast_date,
+                sector_name,
+                dow,
+                is_mon,
+                pred_flow,
+                f.predicted_flow_lower_90,
+                f.predicted_flow_upper_90,
+                actual_flow,
+                error_flow,
+                f.predicted_direction,
+                actual_dir,
+                is_hit,
+                is_in_ci,
+                f.direction_confidence,
+                f.predicted_playbook,
+                f.model_name,
+                f.model_version,
+                datetime.now(),
+            ])
+
+        saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
+        logger.info(f"Successfully updated `gold_bofa_sector_day_start_backtests`: {saved_count:,} total records.")
+        return saved_count
+
 
