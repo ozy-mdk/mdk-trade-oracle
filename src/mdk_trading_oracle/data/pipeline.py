@@ -1,6 +1,7 @@
 """Medallion Lakehouse Pipeline Orchestrator (Bronze -> Silver -> Gold)."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional, Union
 
 from rich.console import Console
@@ -88,30 +89,53 @@ class MedallionPipeline:
             "status": "success",
         }
 
-    def run_bronze(self, raw_glob: Optional[str] = None, raw_source_label: str = "bist_2026_03_march") -> dict[str, Any]:
-        """Execute Bronze schema initialization and raw data ingestion."""
+    def run_bronze(
+        self,
+        raw_glob: Optional[str] = None,
+        target_date: Optional[str] = None,
+        target_month: Optional[str] = None,
+        target_file: Optional[Union[str, Path]] = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Bronze schema initialization and raw data ingestion (incremental or selective partition)."""
         logger.info("Starting Bronze Layer Ingestion...")
         start_time = datetime.now()
 
         initialize_bronze_schema(self.db)
-        target_glob = raw_glob or (self.settings.raw_data_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
-        ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(
-            glob_pattern=target_glob,
-            raw_source_label=raw_source_label,
-        )
+
+        if target_date:
+            logger.info(f"Bronze Ingestion targeting single date: {target_date}")
+            ingest_res = self.bronze_ingestor.ingest_date(target_date)
+        elif target_month:
+            logger.info(f"Bronze Ingestion targeting month: {target_month}")
+            ingest_res = self.bronze_ingestor.ingest_month(target_month)
+        elif target_file:
+            logger.info(f"Bronze Ingestion targeting single file: {target_file}")
+            ingest_res = self.bronze_ingestor.ingest_file(target_file, force=force)
+        elif raw_glob:
+            logger.info(f"Bronze Ingestion targeting glob pattern: {raw_glob}")
+            ingest_res = self.bronze_ingestor.ingest_bist_raw_csv_glob(glob_pattern=raw_glob)
+        else:
+            logger.info(f"Bronze Ingestion running incremental discovery (force={force})...")
+            ingest_res = self.bronze_ingestor.ingest_all(force=force)
 
         conn = self.db.get_connection()
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
         instruments_count = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
+        log_count = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(f"Bronze Layer completed in {elapsed:.2f}s | Raw Trades: {trades_count:,}")
+        logger.info(
+            f"Bronze Layer completed in {elapsed:.2f}s | "
+            f"Raw Trades: {trades_count:,} | Ingested Files Logged: {log_count:,}"
+        )
         return {
             "layer": "bronze",
             "elapsed_sec": elapsed,
             "metrics": {
                 "bronze_raw_trades": trades_count,
+                "bronze_ingestion_log": log_count,
                 "bronze_brokers": brokers_count,
                 "bronze_instruments": instruments_count,
             },
@@ -157,7 +181,6 @@ class MedallionPipeline:
             "status": "success",
         }
 
-
     def run_gold(self) -> dict[str, Any]:
         """Execute Gold layer feature engineering and institutional flow signals."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
@@ -183,11 +206,14 @@ class MedallionPipeline:
             "status": "success",
         }
 
-
     def run(
         self,
         target: Union[str, list[str]] = "all",
         raw_glob: Optional[str] = None,
+        target_date: Optional[str] = None,
+        target_month: Optional[str] = None,
+        target_file: Optional[Union[str, Path]] = None,
+        force: bool = False,
         sync_catalog: bool = False,
         resolve_dependencies: bool = True,
         print_summary: bool = True,
@@ -196,7 +222,10 @@ class MedallionPipeline:
         pipeline_start = datetime.now()
         layers_to_run = self._resolve_layers(target, resolve_dependencies=resolve_dependencies)
 
-        logger.info(f"Executing Medallion Pipeline DAG for layers: {layers_to_run} (sync_catalog={sync_catalog})")
+        logger.info(
+            f"Executing Medallion Pipeline DAG for layers: {layers_to_run} "
+            f"(target_date={target_date}, target_month={target_month}, force={force}, sync_catalog={sync_catalog})"
+        )
 
         results: dict[str, Any] = {}
 
@@ -207,7 +236,13 @@ class MedallionPipeline:
             if layer == "catalog":
                 results["catalog"] = self.run_catalog_sync(raw_glob=raw_glob)
             elif layer == "bronze":
-                results["bronze"] = self.run_bronze(raw_glob=raw_glob)
+                results["bronze"] = self.run_bronze(
+                    raw_glob=raw_glob,
+                    target_date=target_date,
+                    target_month=target_month,
+                    target_file=target_file,
+                    force=force,
+                )
             elif layer == "silver":
                 results["silver"] = self.run_silver()
             elif layer == "gold":

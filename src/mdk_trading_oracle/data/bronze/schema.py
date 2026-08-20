@@ -48,6 +48,21 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 4. Bronze Tracking Table: Ingestion Log (for incremental & partition-aware ingestion)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_ingestion_log (
+            file_path VARCHAR PRIMARY KEY,
+            file_name VARCHAR,
+            file_size_bytes BIGINT,
+            file_mtime_epoch DOUBLE,
+            trade_date DATE,
+            year_month VARCHAR,
+            rows_ingested BIGINT,
+            raw_source_label VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
     # Sync reference data from YAML configs
     sync_reference_data(db)
     logger.info("DuckDB Bronze schemas initialized.")

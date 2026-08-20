@@ -1,27 +1,392 @@
-"""Bronze Layer Ingestor for BIST raw files (CSVs and Parquets)."""
+"""Bronze Layer Ingestor for BIST raw files (CSVs and Parquets).
 
+Supports:
+- Incremental file discovery & ingestion (only ingest new or modified files)
+- Ingestion tracking log (`bronze_ingestion_log`)
+- Selective partition updates (by single date `YYYY-MM-DD`, month `YYYY-MM`, or individual file)
+- Multi-threaded DuckDB bulk ingestion
+"""
+
+import re
+from datetime import date
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
+from mdk_trading_oracle.data.bronze.schema import initialize_bronze_schema
 
 logger = get_logger("mdk_oracle.data.bronze.ingestor")
 
 
 class BronzeIngestor:
-    """Ingests raw trade CSV and Parquet files into the DuckDB `bronze_raw_trades` table."""
+    """Ingests raw trade CSV and Parquet files into the DuckDB `bronze_raw_trades` table with tracking."""
 
     def __init__(self, db: DuckDBManager):
         self.db = db
         self.settings = get_settings()
 
-    def ingest_bist_raw_csv_glob(self, glob_pattern: str, raw_source_label: str = "bist_raw_feed") -> dict[str, Any]:
-        """Ingest multiple BIST CSV files matching a glob pattern directly via DuckDB multi-threaded parser."""
+    def _extract_file_metadata(self, file_path: Path) -> Dict[str, Any]:
+        """Extract partition information, size, mtime, and trade date from a raw file path."""
+        path_str = file_path.resolve().as_posix()
+        stat = file_path.stat()
+        file_size = stat.st_size
+        file_mtime = stat.st_mtime
+
+        # Extract date (e.g. '2026-03-09' or '20260309')
+        date_match = re.search(r"(\d{4}-\d{2}-\d{2})", path_str)
+        if date_match:
+            trade_date_str = date_match.group(1)
+        else:
+            compact_date = re.search(r"/(\d{8})/", path_str)
+            if compact_date:
+                raw_d = compact_date.group(1)
+                trade_date_str = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
+            else:
+                trade_date_str = None
+
+        # Extract year_month (e.g. '2026-03' or '2026/03_march')
+        month_match = re.search(r"(\d{4})/(\d{2}[_\w]*)", path_str)
+        if month_match:
+            year_month = f"{month_match.group(1)}-{month_match.group(2)}"
+        elif trade_date_str:
+            year_month = trade_date_str[:7]
+        else:
+            year_month = "unknown"
+
+        return {
+            "file_path": path_str,
+            "file_name": file_path.name,
+            "file_size_bytes": file_size,
+            "file_mtime_epoch": file_mtime,
+            "trade_date": trade_date_str,
+            "year_month": year_month,
+            "extension": file_path.suffix.lower(),
+        }
+
+    def discover_raw_files(self, search_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+        """Recursively scan directory for raw CSV and Parquet files and extract metadata."""
+        base_dir = search_dir or self.settings.raw_data_dir
+        if not base_dir.exists():
+            logger.warning(f"Raw data directory does not exist: {base_dir}")
+            return []
+
+        discovered: List[Dict[str, Any]] = []
+        for ext in ["*.csv", "*.parquet", "*.txt"]:
+            for f in base_dir.rglob(ext):
+                # Ignore hidden files, temporary files, and mysql dump directories
+                if f.name.startswith(".") or "/mysql/" in f.as_posix():
+                    continue
+                discovered.append(self._extract_file_metadata(f))
+
+        logger.debug(f"Discovered {len(discovered)} raw trade files under {base_dir}")
+        return sorted(discovered, key=lambda x: x["file_path"])
+
+    def _ensure_ingestion_log_synced(self, discovered_files: List[Dict[str, Any]]) -> None:
+        """Backfill `bronze_ingestion_log` if database already contains legacy historical trades."""
+        conn = self.db.get_connection()
+        initialize_bronze_schema(self.db)
+
+        log_count = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
+        trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
+
+        if log_count == 0 and trades_count > 0:
+            logger.info("Syncing existing historical trades into `bronze_ingestion_log`...")
+            # Check if historical load was 'bist_2026_03_march'
+            legacy_sources = [
+                r[0] for r in conn.execute("SELECT DISTINCT raw_source FROM bronze_raw_trades;").fetchall()
+            ]
+            for meta in discovered_files:
+                conn.execute("""
+                    INSERT OR IGNORE INTO bronze_ingestion_log (
+                        file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """, [
+                    meta["file_path"],
+                    meta["file_name"],
+                    meta["file_size_bytes"],
+                    meta["file_mtime_epoch"],
+                    meta["trade_date"],
+                    meta["year_month"],
+                    0,
+                    legacy_sources[0] if legacy_sources else "historical_feed",
+                ])
+            logger.info(f"Backfilled {len(discovered_files)} file entries into `bronze_ingestion_log`.")
+
+    def get_pending_files(self, discovered_files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter discovered files down to only those not yet ingested or modified since last ingestion."""
+        initialize_bronze_schema(self.db)
+        self._ensure_ingestion_log_synced(discovered_files)
+
+        conn = self.db.get_connection()
+        logged_rows = conn.execute(
+            "SELECT file_path, file_size_bytes, file_mtime_epoch FROM bronze_ingestion_log;"
+        ).fetchall()
+
+        logged_map: Dict[str, Tuple[int, float]] = {
+            r[0]: (int(r[1]), float(r[2])) for r in logged_rows
+        }
+
+        pending: List[Dict[str, Any]] = []
+        for meta in discovered_files:
+            fp = meta["file_path"]
+            if fp not in logged_map:
+                pending.append(meta)
+            else:
+                log_size, log_mtime = logged_map[fp]
+                # Check if file size or mtime has changed
+                if meta["file_size_bytes"] != log_size or abs(meta["file_mtime_epoch"] - log_mtime) > 1e-2:
+                    pending.append(meta)
+
+        return pending
+
+    def _ingest_file_batch(self, file_metas: List[Dict[str, Any]], batch_size: int = 50) -> int:
+        """Ingest a batch of files in parallel via DuckDB multi-file parser and log entries."""
+        if not file_metas:
+            return 0
+
+        conn = self.db.get_connection()
+        total_rows_inserted = 0
+
+        # Group by extension
+        csv_metas = [m for m in file_metas if m["extension"] in [".csv", ".txt"]]
+        parquet_metas = [m for m in file_metas if m["extension"] == ".parquet"]
+
+        # 1. Process CSV files in chunks
+        for i in range(0, len(csv_metas), batch_size):
+            chunk = csv_metas[i : i + batch_size]
+            paths = [m["file_path"] for m in chunk]
+
+            # Ingest chunk into bronze_raw_trades
+            query = f"""
+                INSERT INTO bronze_raw_trades (
+                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
+                )
+                SELECT 
+                    md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
+                    TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
+                    CAST(symbol AS VARCHAR) AS symbol,
+                    CAST(price AS DOUBLE) AS price,
+                    CAST(quantity AS DOUBLE) AS volume,
+                    CAST(buyer AS VARCHAR) AS buyer_broker_id,
+                    CAST(seller AS VARCHAR) AS seller_broker_id,
+                    filename AS raw_source
+                FROM read_csv_auto({paths}, union_by_name=true, header=true, filename=true)
+                WHERE symbol IS NOT NULL AND price > 0;
+            """
+            conn.execute(query)
+
+            # Record each ingested file in bronze_ingestion_log
+            for meta in chunk:
+                conn.execute("""
+                    INSERT OR REPLACE INTO bronze_ingestion_log (
+                        file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """, [
+                    meta["file_path"],
+                    meta["file_name"],
+                    meta["file_size_bytes"],
+                    meta["file_mtime_epoch"],
+                    meta["trade_date"],
+                    meta["year_month"],
+                    0,
+                    meta["file_name"],
+                ])
+
+            total_rows_inserted += len(chunk)
+            logger.debug(f"Ingested CSV chunk {i // batch_size + 1}/{(len(csv_metas) - 1) // batch_size + 1} ({len(chunk)} files)")
+
+        # 2. Process Parquet files
+        for meta in parquet_metas:
+            p = meta["file_path"]
+            query = f"""
+                INSERT INTO bronze_raw_trades (
+                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
+                )
+                SELECT 
+                    CAST(trade_id AS VARCHAR),
+                    CAST(timestamp AS TIMESTAMP),
+                    CAST(symbol AS VARCHAR),
+                    CAST(price AS DOUBLE),
+                    CAST(volume AS DOUBLE),
+                    CAST(buyer_broker_id AS VARCHAR),
+                    CAST(seller_broker_id AS VARCHAR),
+                    '{meta["file_name"]}' AS raw_source
+                FROM read_parquet('{p}');
+            """
+            conn.execute(query)
+            conn.execute("""
+                INSERT OR REPLACE INTO bronze_ingestion_log (
+                    file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            """, [
+                meta["file_path"],
+                meta["file_name"],
+                meta["file_size_bytes"],
+                meta["file_mtime_epoch"],
+                meta["trade_date"],
+                meta["year_month"],
+                0,
+                meta["file_name"],
+            ])
+            total_rows_inserted += 1
+
+        return total_rows_inserted
+
+    def ingest_incremental(self, search_dir: Optional[Path] = None) -> Dict[str, Any]:
+        """Discover all raw files and ingest only newly arrived or modified files."""
+        initialize_bronze_schema(self.db)
+        discovered = self.discover_raw_files(search_dir)
+        pending = self.get_pending_files(discovered)
+
+        if not pending:
+            logger.info(f"Bronze layer is up to date. Discovered {len(discovered)} files, 0 pending ingestion.")
+            return {
+                "status": "up_to_date",
+                "total_discovered": len(discovered),
+                "pending_files": 0,
+                "rows_ingested": 0,
+            }
+
+        logger.info(f"Discovered {len(pending)} new/modified files to ingest into Bronze layer.")
+        self._ingest_file_batch(pending)
+
+        conn = self.db.get_connection()
+        total_trades = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
+
+        logger.info(f"Successfully ingested {len(pending)} files. Total Bronze trades: {total_trades:,}")
+        return {
+            "status": "success",
+            "total_discovered": len(discovered),
+            "pending_files": len(pending),
+            "files_ingested": len(pending),
+            "total_trades": total_trades,
+        }
+
+    def ingest_date(self, target_date: Union[str, date], search_dir: Optional[Path] = None) -> Dict[str, Any]:
+        """Atomically delete and re-ingest all trade data for a specific single date (YYYY-MM-DD)."""
+        date_str = target_date.strftime("%Y-%m-%d") if isinstance(target_date, date) else str(target_date)
+        initialize_bronze_schema(self.db)
         conn = self.db.get_connection()
 
-        # Check if already ingested
+        logger.info(f"Targeted Date Ingestion requested for date: {date_str}")
+
+        # 1. Delete existing rows for this date
+        deleted_trades = conn.execute(
+            "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str]
+        ).fetchone()[0]
+        conn.execute("DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str])
+        conn.execute("DELETE FROM bronze_ingestion_log WHERE trade_date = CAST(? AS DATE) OR file_path LIKE ?;", [date_str, f"%{date_str}%"])
+
+        logger.info(f"Cleared {deleted_trades:,} previous trades for date {date_str}.")
+
+        # 2. Discover files matching target_date
+        all_files = self.discover_raw_files(search_dir)
+        target_files = [
+            f for f in all_files if f["trade_date"] == date_str or f"/{date_str}/" in f["file_path"]
+        ]
+
+        if not target_files:
+            logger.warning(f"No raw files found for date: {date_str}")
+            return {
+                "status": "not_found",
+                "target_date": date_str,
+                "files_ingested": 0,
+                "deleted_trades": deleted_trades,
+            }
+
+        logger.info(f"Found {len(target_files)} raw files for date {date_str}. Ingesting...")
+        self._ingest_file_batch(target_files)
+
+        new_count = conn.execute(
+            "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str]
+        ).fetchone()[0]
+
+        logger.info(f"Successfully re-ingested {new_count:,} trades for date {date_str} across {len(target_files)} files.")
+        return {
+            "status": "success",
+            "target_date": date_str,
+            "files_ingested": len(target_files),
+            "deleted_previous_trades": deleted_trades,
+            "new_trades_ingested": new_count,
+        }
+
+    def ingest_month(self, year_month: str, search_dir: Optional[Path] = None) -> Dict[str, Any]:
+        """Atomically delete and re-ingest all trade data for a specific month (e.g. '2026-03' or '03_march')."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        logger.info(f"Targeted Month Ingestion requested for: {year_month}")
+
+        # Match files for this month
+        all_files = self.discover_raw_files(search_dir)
+        target_files = [
+            f for f in all_files if year_month in f["year_month"] or f"/{year_month}/" in f["file_path"] or year_month in f["file_path"]
+        ]
+
+        if not target_files:
+            logger.warning(f"No raw files found matching month: {year_month}")
+            return {"status": "not_found", "year_month": year_month, "files_ingested": 0}
+
+        # Collect dates involved
+        dates = sorted(list({f["trade_date"] for f in target_files if f["trade_date"]}))
+
+        # Delete existing data for matching dates or raw_sources
+        if dates:
+            conn.execute(
+                f"DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) >= '{dates[0]}' AND CAST(timestamp AS DATE) <= '{dates[-1]}';"
+            )
+            conn.execute(
+                f"DELETE FROM bronze_ingestion_log WHERE trade_date >= '{dates[0]}' AND trade_date <= '{dates[-1]}';"
+            )
+
+        logger.info(f"Cleared existing records. Ingesting {len(target_files)} files for {year_month}...")
+        self._ingest_file_batch(target_files)
+
+        total_ingested = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
+        return {
+            "status": "success",
+            "year_month": year_month,
+            "files_ingested": len(target_files),
+            "trading_days": len(dates),
+            "total_bronze_trades": total_ingested,
+        }
+
+    def ingest_file(self, source_path: Union[str, Path], force: bool = False) -> Dict[str, Any]:
+        """Ingest a single CSV or Parquet file into `bronze_raw_trades`."""
+        path = Path(source_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Source file does not exist: {path}")
+
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+        meta = self._extract_file_metadata(path)
+
+        if force:
+            conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = ? OR raw_source = ?;", [path.as_posix(), path.name])
+            conn.execute("DELETE FROM bronze_ingestion_log WHERE file_path = ?;", [path.as_posix()])
+
+        self._ingest_file_batch([meta])
+
+        row_count = conn.execute(
+            "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ? OR raw_source = ?;",
+            [path.as_posix(), path.name]
+        ).fetchone()[0]
+
+        logger.info(f"Successfully ingested {row_count:,} rows from {path.name} into Bronze.")
+        return {
+            "source_file": path.name,
+            "file_path": path.as_posix(),
+            "rows_ingested": row_count,
+            "status": "success",
+        }
+
+    def ingest_bist_raw_csv_glob(self, glob_pattern: str, raw_source_label: str = "bist_raw_feed") -> Dict[str, Any]:
+        """Ingest multiple BIST CSV files matching a glob pattern directly via DuckDB multi-threaded parser."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
         existing = conn.execute(
             "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ?", [raw_source_label]
         ).fetchone()[0]
@@ -35,7 +400,6 @@ class BronzeIngestor:
 
         logger.info(f"Ingesting BIST trade CSVs matching glob: {glob_pattern}")
 
-        # DuckDB ingests all matched CSVs in parallel while normalizing columns
         query = f"""
             INSERT INTO bronze_raw_trades (
                 trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
@@ -66,105 +430,13 @@ class BronzeIngestor:
             "status": "success",
         }
 
-    def ingest_file(self, source_path: Union[str, Path]) -> dict[str, Any]:
-        """Ingest a single CSV or Parquet file into `bronze_raw_trades`."""
-        path = Path(source_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Source file does not exist: {path}")
+    def ingest_all(self, target_dir: Optional[Path] = None, force: bool = False) -> Dict[str, Any]:
+        """Ingest all discovered raw files (incremental by default, or full rebuild if force=True)."""
+        initialize_bronze_schema(self.db)
+        if force:
+            conn = self.db.get_connection()
+            logger.warning("Force rebuild requested: Truncating `bronze_raw_trades` and `bronze_ingestion_log`...")
+            conn.execute("DELETE FROM bronze_raw_trades;")
+            conn.execute("DELETE FROM bronze_ingestion_log;")
 
-        conn = self.db.get_connection()
-        file_ext = path.suffix.lower()
-
-        logger.info(f"Ingesting raw data from: {path.name}")
-
-        if file_ext == ".parquet":
-            query = f"""
-                INSERT INTO bronze_raw_trades (
-                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                )
-                SELECT 
-                    CAST(trade_id AS VARCHAR),
-                    CAST(timestamp AS TIMESTAMP),
-                    CAST(symbol AS VARCHAR),
-                    CAST(price AS DOUBLE),
-                    CAST(volume AS DOUBLE),
-                    CAST(buyer_broker_id AS VARCHAR),
-                    CAST(seller_broker_id AS VARCHAR),
-                    '{path.name}' AS raw_source
-                FROM read_parquet('{path.as_posix()}');
-            """
-        elif file_ext in [".csv", ".txt"]:
-            sample_df = conn.execute(f"SELECT * FROM read_csv_auto('{path.as_posix()}', limit=2);").fetch_df()
-            cols = [c.lower() for c in sample_df.columns]
-
-            if "signal_time_text" in cols and "buyer" in cols and "seller" in cols:
-                query = f"""
-                    INSERT INTO bronze_raw_trades (
-                        trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                    )
-                    SELECT 
-                        md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
-                        TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
-                        CAST(symbol AS VARCHAR) AS symbol,
-                        CAST(price AS DOUBLE) AS price,
-                        CAST(quantity AS DOUBLE) AS volume,
-                        CAST(buyer AS VARCHAR) AS buyer_broker_id,
-                        CAST(seller AS VARCHAR) AS seller_broker_id,
-                        '{path.name}' AS raw_source
-                    FROM read_csv_auto('{path.as_posix()}', header=true)
-                    WHERE symbol IS NOT NULL AND price > 0;
-                """
-            else:
-                query = f"""
-                    INSERT INTO bronze_raw_trades (
-                        trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                    )
-                    SELECT 
-                        CAST(trade_id AS VARCHAR),
-                        CAST(timestamp AS TIMESTAMP),
-                        CAST(symbol AS VARCHAR),
-                        CAST(price AS DOUBLE),
-                        CAST(volume AS DOUBLE),
-                        CAST(buyer_broker_id AS VARCHAR),
-                        CAST(seller_broker_id AS VARCHAR),
-                        '{path.name}' AS raw_source
-                    FROM read_csv_auto('{path.as_posix()}');
-                """
-        else:
-            raise ValueError(f"Unsupported file format: {file_ext}")
-
-        conn.execute(query)
-        count_res = conn.execute(
-            "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ?", [path.name]
-        ).fetchone()
-        row_count = count_res[0] if count_res else 0
-
-        logger.info(f"Successfully ingested {row_count:,} rows from {path.name} into Bronze.")
-        return {
-            "source_file": path.name,
-            "rows_ingested": row_count,
-            "status": "success",
-        }
-
-    def ingest_all(self, target_dir: Optional[Path] = None) -> list[dict[str, Any]]:
-        """Ingest all pending raw files in `00_raw_data/` or a custom directory."""
-        search_dir = target_dir or self.settings.raw_data_dir
-        results = []
-
-        bist_csvs = list(search_dir.rglob("raw_csv/**/*.csv"))
-        if bist_csvs:
-            glob_path = (search_dir / "2026/03_march/raw_csv/**/*.csv").as_posix()
-            res = self.ingest_bist_raw_csv_glob(glob_path, raw_source_label="bist_2026_03_march")
-            results.append(res)
-            return results
-
-        files = sorted(list(search_dir.rglob("*.csv")) + list(search_dir.rglob("*.parquet")))
-        if not files:
-            logger.warning(f"No CSV or Parquet files found in {search_dir}")
-            return results
-
-        for file_path in files:
-            res = self.ingest_file(file_path)
-            results.append(res)
-
-        return results
+        return self.ingest_incremental(target_dir)

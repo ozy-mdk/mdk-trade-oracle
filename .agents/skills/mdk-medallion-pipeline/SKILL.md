@@ -44,18 +44,25 @@ When adding new tables, transforming features, or building predictive models:
 Run using the project virtual environment (`.venv/bin/python`):
 
 ```bash
-# 1. Full Lakehouse Pipeline (Bronze -> Silver -> Gold + Model 1 Forecasts)
+# 1. Incremental Lakehouse Pipeline (auto-detects and ingests only new/modified CSVs)
 .venv/bin/python scripts/run_pipeline.py --target all
 
-# 2. Pipeline with Raw Discovery & Catalog Auto-Sync (for newly added data)
+# 2. Pipeline with Raw Discovery & Catalog Auto-Sync (for newly added data/tickers/brokers)
 .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 
-# 3. Target Specific Layer
+# 3. Selective Date Re-ingestion & Pipeline Update (atomically replaces single trading day)
+.venv/bin/python scripts/run_pipeline.py --target all --date 2026-03-09
+
+# 4. Selective Month Re-ingestion
+.venv/bin/python scripts/run_pipeline.py --target all --month 2026-03
+
+# 5. Full Force Rebuild (clears tables and re-ingests everything from scratch)
+.venv/bin/python scripts/run_pipeline.py --target all --force
+
+# 6. Target Specific Layer
+.venv/bin/python scripts/run_pipeline.py --target bronze
 .venv/bin/python scripts/run_pipeline.py --target silver
 .venv/bin/python scripts/run_pipeline.py --target gold
-
-# 4. Via Typer CLI
-.venv/bin/mdk-oracle pipeline run --target all
 ```
 
 ---
