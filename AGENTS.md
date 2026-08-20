@@ -57,16 +57,24 @@ Every new model adheres to this **Universal Modeling Blueprint**:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
      - `Machine Learning`: Non-linear tree ensembles (LightGBM).
      - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC).
-6. **Trailing Evaluation Horizon & Walk-Forward Validation (Zero Lookahead Bias)**:
-   - Configurable in `config/default.yaml` (`lookback_months: 12`, `eval_window_days: 20`, `min_burn_in_days: 5`).
-   - For multi-year datasets (1–5 years), the Model Arena evaluates candidates across the **trailing $K$ sessions (`eval_window_days: 20`)** using expanding historical training windows ($1 \dots t-1$), guaranteeing both high execution speed and adaptation to current market regimes.
-7. **Automated Champion Selection (`model_type="auto"`) & Dual Delivery**:
-   - A dedicated `ModelArena` runs in both the production pipeline and interactive research notebooks, crowning and tagging the champion model in DuckDB Gold tables.
-8. **Actionable Trader Decision Outputs**:
-   - Continuous predictions are translated into concrete trader action items:
-     - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
-     - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
-     - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
+7. **Live Next-Day Inference vs. Historical Backtesting ($T+1$ vs Historical Walk-Forward)**:
+   - Every predictive Gold model must strictly separate **live upcoming session inference** from **historical performance backtesting**:
+     - `forecast_next_day()`: Live real-time inference for upcoming trading session $T+1$ using unlagged features evaluated strictly at latest completed session $T$ Close (with zero target columns or lookahead).
+     - `backtest_all_history()`: Out-of-sample historical walk-forward simulation across past sessions for calibration, residual diagnostics, and charting.
+     - `train_and_forecast_all(include_history=False, include_next_day=True)`: Default behavior for daily production pipelines to persist only the upcoming $T+1$ forecast.
+   - DuckDB Primary Key upsert (`INSERT OR REPLACE`) ensures that daily production pipeline runs persist tomorrow's forecast, organically accumulating an immutable historical ledger day by day as tomorrow becomes today.
+8. **Automated On-The-Fly Champion Selection (`model_type="auto"`) & No Hardcoding**:
+   - In both the production pipeline and interactive research notebooks, models are never hardcoded. A dedicated `ModelArena` runs tournaments on the fly across candidate paradigms, crowning and tagging the champion model based on multi-criteria metrics (Out-of-sample Hit Rate %, 90% PICP %, and RMSE).
+9. **Interactive Research Notebook Standards & Dual Presentation**:
+   - Every modeling notebook (`notebooks/03_*.ipynb`, `notebooks/04_*.ipynb`, etc.) must provide:
+     1. **Live Upcoming Session Signal Card ($T+1$)**: Prominent executive card with forecasted net flow ($TL$), 90% credible ranges, directional badges, institutional playbooks, and sector rotation allocations.
+     2. **Historical Backtest View**: Actual vs. predicted walk-forward track record with 90% confidence interval ribbons and interactive dropdown session inspectors.
+     3. **DuckDB Gold Table Verification**: Direct queries inspecting persisted production records.
+10. **Actionable Trader Decision Outputs**:
+    - Continuous predictions are translated into concrete trader action items:
+      - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
+      - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
+      - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
 
 ---
 
