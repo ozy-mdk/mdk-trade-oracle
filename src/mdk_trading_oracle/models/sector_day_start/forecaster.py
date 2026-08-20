@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import ForecastResult
@@ -37,12 +38,18 @@ class SectorDayStartModelArena:
             self.candidates["PyMC Bayesian GLM (MAP)"] = SectorDayStartPyMCModel(use_map=True)
 
     def run_tournament(
-        self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        min_train_samples: int = 5,
+        eval_window_days: Optional[int] = None,
     ) -> Tuple[pd.DataFrame, BaseSectorDayStartModel]:
         """Execute walk-forward out-of-sample tournament across all candidate sector models."""
         scoreboard = []
         for name, model in self.candidates.items():
-            metrics = model.walk_forward_evaluate(X, y, min_train_samples=min_train_samples)
+            metrics = model.walk_forward_evaluate(
+                X, y, min_train_samples=min_train_samples, eval_window_days=eval_window_days
+            )
             scoreboard.append({
                 "Model": name,
                 "hit_rate_pct": metrics["hit_rate_pct"],
@@ -84,12 +91,30 @@ class SectorDayStartForecaster:
         4. Persisting forecasts directly into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`
     """
 
-    def __init__(self, db: Optional[DuckDBManager] = None, model_type: str = "auto", include_pymc_arena: bool = False):
+    def __init__(
+        self,
+        db: Optional[DuckDBManager] = None,
+        model_type: Optional[str] = None,
+        lookback_months: Optional[int] = None,
+        eval_window_days: Optional[int] = None,
+        min_burn_in_days: Optional[int] = None,
+        include_pymc_arena: Optional[bool] = None,
+    ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
-        self.feature_extractor = SectorDayStartFeatureExtractor(self.db, target_broker_id=self.target_broker)
-        self.model_type = model_type
-        self.arena = SectorDayStartModelArena(include_pymc=include_pymc_arena)
+        self.settings = get_settings()
+        cfg = self.settings.get_model_config("sector_day_start")
+
+        self.lookback_months = lookback_months if lookback_months is not None else cfg.get("lookback_months", 12)
+        self.eval_window_days = eval_window_days if eval_window_days is not None else cfg.get("eval_window_days", 20)
+        self.min_burn_in_days = min_burn_in_days if min_burn_in_days is not None else cfg.get("min_burn_in_days", 5)
+        self.model_type = model_type or cfg.get("model_type", "auto")
+        include_pymc = include_pymc_arena if include_pymc_arena is not None else cfg.get("include_pymc_arena", False)
+
+        self.feature_extractor = SectorDayStartFeatureExtractor(
+            self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
+        )
+        self.arena = SectorDayStartModelArena(include_pymc=include_pymc)
         self.champion_name: Optional[str] = None
 
     def train_and_forecast_all(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
@@ -106,8 +131,10 @@ class SectorDayStartForecaster:
             if len(df_bm) > 5:
                 X_bm = df_bm.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
                 y_bm = df_bm["target_sector_open_net_flow_tl"]
-                min_burn_in = min(5, max(2, len(df_bm) - 1))
-                _, champion_model = self.arena.run_tournament(X_bm, y_bm, min_train_samples=min_burn_in)
+                min_burn_in = min(self.min_burn_in_days, max(2, len(df_bm) - 1))
+                _, champion_model = self.arena.run_tournament(
+                    X_bm, y_bm, min_train_samples=min_burn_in, eval_window_days=self.eval_window_days
+                )
                 self.champion_name = champion_model.model_name
             else:
                 self.champion_name = "sector_day_start_bayesian_ridge"

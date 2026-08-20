@@ -1,6 +1,6 @@
 """Sector Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, and PyMC."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -86,9 +86,20 @@ class BaseSectorDayStartModel(BaseForecaster):
         }
 
     def walk_forward_evaluate(
-        self, X: pd.DataFrame, y: pd.Series, min_train_samples: int = 5
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        min_train_samples: int = 5,
+        eval_window_days: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Perform expanding-window walk-forward validation for a sector time series."""
+        """Perform expanding-window walk-forward validation for a sector time series.
+        
+        Args:
+            X: Feature matrix for sector.
+            y: Continuous target series for sector.
+            min_train_samples: Minimum warmup sessions before walk-forward evaluation begins.
+            eval_window_days: Optional limit to evaluate only the trailing N days in the tournament.
+        """
         n_samples = len(X)
         if n_samples <= min_train_samples:
             self.fit(X, y)
@@ -98,13 +109,18 @@ class BaseSectorDayStartModel(BaseForecaster):
             eval_res["oos_dates"] = []
             return eval_res
 
+        # Determine start index (evaluate trailing eval_window_days if specified)
+        start_idx = min_train_samples
+        if eval_window_days is not None and n_samples > eval_window_days:
+            start_idx = max(min_train_samples, n_samples - eval_window_days)
+
         oos_preds = []
         oos_lowers = []
         oos_uppers = []
         oos_actuals = []
         oos_dates = []
 
-        for t in range(min_train_samples, n_samples):
+        for t in range(start_idx, n_samples):
             X_train = X.iloc[:t].copy()
             y_train = y.iloc[:t].copy()
             X_test_row = X.iloc[[t]].copy()

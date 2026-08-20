@@ -321,8 +321,9 @@ Models are trained strictly on past trading sessions ($1 \dots t-1$) to forecast
 y = df["target_open_net_flow_tl"]
 
 # Run Automated Walk-Forward Tournament across all 5 candidates
+# Configurable parameters: min_train_samples (warmup) and eval_window_days (trailing tournament horizon)
 arena = DayStartModelArena()
-scoreboard_df, champion_model = arena.run_tournament(X, y, min_train_samples=5)
+scoreboard_df, champion_model = arena.run_tournament(X, y, min_train_samples=5, eval_window_days=20)
 
 champion_name = scoreboard_df.iloc[0]["Model"]
 champ_hit_rate = scoreboard_df.iloc[0]["hit_rate_pct"]

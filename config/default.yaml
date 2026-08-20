@@ -21,6 +21,29 @@ oracle:
   bofa_distribution_zscore_threshold: -1.5
   min_confidence_score: 0.60
 
+# Quantitative Gold Predictive Models Configuration
+models:
+  # Global Fallback Defaults
+  default_lookback_months: 12        # Trailing history window (None = full available history)
+  default_eval_window_days: 20       # Out-of-sample evaluation window for Model Arena tournament
+  default_burn_in_days: 5            # Minimum warmup samples before walk-forward scoring starts
+
+  # Model 1: Macro Day-Start Forecaster
+  day_start:
+    lookback_months: 12              # Trailing 12 months (~250 trading days) from latest date
+    eval_window_days: 20             # Evaluate tournament on the trailing 20 days
+    min_burn_in_days: 5              # Minimum initial window for tournament
+    model_type: "auto"               # Default candidate selection paradigm ("auto", "bayesian", "lightgbm", "pymc")
+    include_pymc_arena: true
+
+  # Model 2: Sector Day-Start Allocation Forecaster
+  sector_day_start:
+    lookback_months: 12              # Trailing 12 months per sector
+    eval_window_days: 20             # Evaluate tournament on the trailing 20 days
+    min_burn_in_days: 5
+    model_type: "auto"
+    include_pymc_arena: false        # Fast mode across 26 sectors
+
 # Parameterized Intraday Time Windows (Raw feed timestamps in UTC)
 # BIST continuous session: 07:55 - 16:15 UTC (09:55 - 18:15 Istanbul TRT)
 intraday_windows:

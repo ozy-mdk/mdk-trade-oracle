@@ -107,6 +107,23 @@ class Settings(BaseSettings):
             {"name": "closing_session", "label": "15:00 to Day Close", "start_time": "13:00:00", "end_time": "16:15:00", "order": 4},
         ])
 
+    def get_model_config(self, model_name: str) -> Dict[str, Any]:
+        """Get predictive model configuration merged with defaults."""
+        data = self.get_default_config()
+        models_cfg = data.get("models", {})
+        default_lookback = models_cfg.get("default_lookback_months", 12)
+        default_eval_window = models_cfg.get("default_eval_window_days", 20)
+        default_burn_in = models_cfg.get("default_burn_in_days", 5)
+
+        model_specific = models_cfg.get(model_name, {})
+        return {
+            "lookback_months": model_specific.get("lookback_months", default_lookback),
+            "eval_window_days": model_specific.get("eval_window_days", default_eval_window),
+            "min_burn_in_days": model_specific.get("min_burn_in_days", default_burn_in),
+            "model_type": model_specific.get("model_type", "auto"),
+            "include_pymc_arena": model_specific.get("include_pymc_arena", False),
+        }
+
 
 
 @lru_cache(maxsize=1)

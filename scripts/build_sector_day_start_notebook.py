@@ -108,7 +108,7 @@ X_bank = df_banking.drop(columns=["target_sector_open_net_flow_tl", "target_sect
 y_bank = df_banking["target_sector_open_net_flow_tl"]
 
 arena = SectorDayStartModelArena()
-scoreboard_df, champion_model = arena.run_tournament(X_bank, y_bank, min_train_samples=5)
+scoreboard_df, champion_model = arena.run_tournament(X_bank, y_bank, min_train_samples=5, eval_window_days=20)
 
 champion_name = scoreboard_df.iloc[0]["Model"]
 champ_hit_rate = scoreboard_df.iloc[0]["hit_rate_pct"]
