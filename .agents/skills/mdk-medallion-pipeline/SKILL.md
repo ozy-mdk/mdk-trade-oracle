@@ -46,8 +46,8 @@ flowchart TD
 
     subgraph Gold["🥇 Gold Layer (Features & Predictive Models)"]
         G_SIG["gold_institutional_daily_signals<br/>(Rolling 5d/20d Accumulation & Z-Scores)"]
-        G_M1["gold_bofa_day_start_forecasts<br/>(Model 1 Champion Forecasts, 90% PICP, Playbooks)"]
-        G_M1_SEC["gold_bofa_sector_day_start_forecasts<br/>(Model 1 Sector Allocations)"]
+        G_M1["gold_bofa_day_start_forecasts<br/>(Model 1: Macro Day-Start Forecasts, 90% PICP, Playbooks)"]
+        G_M2["gold_bofa_sector_day_start_forecasts<br/>(Model 2: Sector Allocations across 26 Sectors)"]
     end
 
     B_RAW --> S_BROK_SUM
@@ -63,7 +63,8 @@ flowchart TD
     S_STK_SUM --> G_SIG
     S_WIN_BROK --> G_M1
     S_BROK_OVR --> G_M1
-    S_SEC_SUM --> G_M1_SEC
+    S_WIN_SEC --> G_M2
+    S_SEC_SUM --> G_M2
 ```
 
 ### A. Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)
@@ -87,8 +88,8 @@ flowchart TD
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Populated by Model 1 `DayStartForecaster(model_type="auto")`. Contains predicted opening net flow, 90% credible intervals (`predicted_open_flow_lower_90`, `predicted_open_flow_upper_90`), directional conviction (`predicted_direction`, `direction_confidence`), predicted opening market share, institutional playbooks (`predicted_playbook`), top predicted buy/sell sectors, and champion model metadata.
-- **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Sector-level opening flow allocation forecasts with predicted direction and confidence.
+- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Populated by Model 1 `DayStartForecaster(model_type="auto")`. Contains predicted macro opening net flow, 90% credible intervals (`predicted_open_flow_lower_90`, `predicted_open_flow_upper_90`), directional conviction (`predicted_direction`, `direction_confidence`), institutional playbooks (`predicted_playbook`), top predicted buy/sell sectors, and champion model metadata.
+- **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Populated by Model 2 `SectorDayStartForecaster(model_type="auto")`. Sector-level opening flow allocation forecasts across all 26 liquid sectors with predicted direction and confidence.
 
 ---
 

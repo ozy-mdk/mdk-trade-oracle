@@ -28,15 +28,17 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
 - **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Daily sector breadth and 4-window intraday execution splits (`Window 1` opening 09:55-10:30, `Window 2` midday, `Window 3` afternoon, `Window 4` closing 17:00-18:10).
-- **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_day_start_forecasts`)**:
+- **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_day_start_forecasts`, `gold_bofa_sector_day_start_forecasts`)**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
-  - Extensible quantitative predictive models (Model 1: `DayStartForecaster`, Model 2: `IntradayExpansionForecaster`, etc.) designed to host **10+ Gold models**.
+  - Extensible quantitative predictive models designed to host **10+ Gold models**:
+    - **Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)**: Forecasts exchange-wide BofA opening net flow ($TL$), directional conviction, 90% credible intervals, and macro execution playbooks.
+    - **Model 2: Sector Day-Start Forecaster (`SectorDayStartForecaster`)**: Forecasts BofA's capital allocation and sector rotation across all 26 tracked BIST sectors at the open.
 
 ---
 
 ## 🔬 Gold Layer Quantitative Modeling Blueprint & Standards
 
-The Gold Layer is designed as an extensible multi-model suite hosting **10+ distinct institutional models** (e.g. Model 1: Day-Start Flow, Model 2: Sector Buy/Sell Ratio & Rotation, Model 3: Intraday Flow Expansion, etc.). 
+The Gold Layer is designed as an extensible multi-model suite hosting **10+ distinct institutional models** (e.g. Model 1: Macro Day-Start Flow, Model 2: Sector Day-Start Allocation, Model 3: Intraday Flow Expansion, etc.). 
 
 Every new model adheres to this **Universal Modeling Blueprint**:
 
@@ -45,22 +47,25 @@ Every new model adheres to this **Universal Modeling Blueprint**:
    - Predictions produce structured `ForecastResult` instances containing continuous predictions, direction classifications, conviction probabilities, 90% credible ranges, and institutional execution playbooks.
 2. **Zero Data Leakage**:
    - Predictive features must be computed **strictly from prior completed windows / $T-1$ Close data**. Future session information must never leak into training or feature sets.
-3. **Problem-Specific Quantitative Feature Clusters**:
-   - Each modeling objective formulates targeted feature clusters (e.g. Model 1 uses the 7 Opening Clusters: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics; Model 2 will formulate Sector Imbalance & Buy/Sell Ratio clusters, etc.).
-4. **Candidate Model Arena & Baselines**:
-   - Every modeling objective benchmarks candidate paradigms:
-     - `Baselines`: Naive Persistence, Historical Moving Averages
-     - `Machine Learning`: Non-linear tree ensembles (LightGBM)
-     - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC)
-5. **Expanding-Window Walk-Forward Validation (Zero Lookahead Bias)**:
-   - Evaluated chronologically: train on $1 \dots t-1$ to predict $t$, expanding the window day-by-day.
-   - Scored on **Out-of-Sample Hit Rate (%)**, **90% PICP Credible Coverage (%)**, and **RMSE / MAE**.
-6. **Automated Champion Selection (`model_type="auto"`) & Dual Delivery**:
+3. **Rigorous & Clean Target Variables**:
+   - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
+4. **Problem-Specific Quantitative Feature Clusters**:
+   - **Model 1 (7 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics.
+   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context & Calendar Dynamics.
+5. **Candidate Model Arena & Baselines**:
+   - Every modeling objective benchmarks 5 candidate paradigms:
+     - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
+     - `Machine Learning`: Non-linear tree ensembles (LightGBM).
+     - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC).
+6. **Trailing Evaluation Horizon & Walk-Forward Validation (Zero Lookahead Bias)**:
+   - Configurable in `config/default.yaml` (`lookback_months: 12`, `eval_window_days: 20`, `min_burn_in_days: 5`).
+   - For multi-year datasets (1–5 years), the Model Arena evaluates candidates across the **trailing $K$ sessions (`eval_window_days: 20`)** using expanding historical training windows ($1 \dots t-1$), guaranteeing both high execution speed and adaptation to current market regimes.
+7. **Automated Champion Selection (`model_type="auto"`) & Dual Delivery**:
    - A dedicated `ModelArena` runs in both the production pipeline and interactive research notebooks, crowning and tagging the champion model in DuckDB Gold tables.
-7. **Actionable Trader Decision Outputs**:
+8. **Actionable Trader Decision Outputs**:
    - Continuous predictions are translated into concrete trader action items:
      - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
-     - **Institutional Playbooks**: Context-driven trade blueprints (e.g. `SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
+     - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
      - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
 
 ---
