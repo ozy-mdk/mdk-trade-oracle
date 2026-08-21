@@ -58,7 +58,7 @@ def test_domain_types():
 
 def test_turkish_time_utilities():
     """Test Turkish Time (Europe/Istanbul / UTC+3) utilities and DuckDB timezone configuration."""
-    from mdk_trading_oracle.core.time import TURKEY_TZ, now_turkey, now_turkey_naive, today_turkey
+    from mdk_trading_oracle.core.time import now_turkey, now_turkey_naive, today_turkey
     
     now_trt = now_turkey()
     assert now_trt.tzinfo is not None
