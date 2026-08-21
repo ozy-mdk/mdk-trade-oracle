@@ -28,8 +28,12 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
 - **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Daily sector breadth and 4-window intraday execution splits (`Window 1` opening 09:55-10:30, `Window 2` midday, `Window 3` afternoon, `Window 4` closing 17:00-18:10).
-- **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_day_start_forecasts`, `gold_bofa_sector_day_start_forecasts`, `gold_bofa_day_start_backtests`, `gold_bofa_sector_day_start_backtests`)**:
+- **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
+  - Three distinct Gold table categories per predictive model:
+    1. **Live Upcoming Forecasts (`gold_bofa_*_forecasts`)**: Strictly holds only active live predictions for upcoming session $T+1$.
+    2. **Historical Performance Ledgers (`gold_bofa_*_performance`)**: Permanent audited tracking ledgers recording past forecasts matched against actual realized Window 1 market data from Silver.
+    3. **Simulation Backtests (`gold_bofa_*_backtests`)**: Full historical walk-forward simulation ledgers for calibration, residual diagnostics, and tournament benchmarking.
   - Extensible quantitative predictive models designed to host **10+ Gold models**:
     - **Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)**: Forecasts exchange-wide BofA opening net flow ($TL$), directional conviction, 90% credible intervals, and macro execution playbooks.
     - **Model 2: Sector Day-Start Forecaster (`SectorDayStartForecaster`)**: Forecasts BofA's capital allocation and sector rotation across all 26 tracked BIST sectors at the open.
@@ -45,8 +49,9 @@ Every new model adheres to this **Universal Modeling Blueprint**:
 1. **Modular Extensible Framework**:
    - Every model inherits from `BaseForecaster`, extracts features via a dedicated `FeatureExtractor`, and registers in `ModelRegistry` (`@ModelRegistry.register("model_name")`).
    - Predictions produce structured `ForecastResult` instances containing continuous predictions, direction classifications, conviction probabilities, 90% credible ranges, and institutional execution playbooks.
-2. **Zero Data Leakage**:
+2. **Zero Data Leakage & Retrospective Anchoring**:
    - Predictive features must be computed **strictly from prior completed windows / $T-1$ Close data**. Future session information must never leak into training or feature sets.
+   - When evaluating any historical date retrospectively, the 12-month training lookback window dynamically and strictly anchors backwards from that exact reference date ($[T - 12\text{ months}, T-1]$).
 3. **Rigorous & Clean Target Variables**:
    - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
 4. **Problem-Specific Quantitative Feature Clusters**:
@@ -57,27 +62,31 @@ Every new model adheres to this **Universal Modeling Blueprint**:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
      - `Machine Learning`: Non-linear tree ensembles (LightGBM).
      - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC).
-6. **Live Next-Day Inference vs. Historical Backtesting ($T+1$ vs Historical Walk-Forward)**:
-   - Every predictive Gold model strictly separates **live upcoming session inference** from **historical performance backtesting**:
-     - `forecast_next_day()`: Live real-time inference for upcoming trading session $T+1$ using unlagged features evaluated strictly at latest completed session $T$ Close (with zero target columns or lookahead). Persisted to `gold_bofa_*_forecasts`.
-     - `backtest_all_history()`: Out-of-sample historical walk-forward simulation across past sessions for calibration, residual diagnostics, and performance evaluation. Persisted to dedicated `gold_bofa_*_backtests` tables.
-     - `train_and_forecast_all(include_history=False, include_next_day=True)`: Default behavior for daily production pipelines to persist only the upcoming $T+1$ forecast.
-7. **Automated On-The-Fly Champion Selection (`model_type="auto"`) & No Hardcoding**:
+6. **Three-Table Persistence Architecture ($T+1$ Forecasts vs Performance Ledgers vs Simulation Backtests)**:
+   - Every predictive Gold model strictly separates live predictions, audited performance tracking, and simulation ledgers:
+     - `forecast_next_day()`: Generates live inference for upcoming trading session $T+1$. Persisted to `gold_bofa_*_forecasts` with `replace_active=True` (strictly holds only $T+1$).
+     - `reconcile_and_update_performance_ledger()`: Reconciles past forecasts against realized actual Window 1 market data, logging `actual_open_net_flow_tl`, `error_open_net_flow_tl`, `absolute_error_tl`, `is_direction_hit`, and `is_inside_90_ci` into `gold_bofa_*_performance`.
+     - `backtest_all_history()`: Out-of-sample historical walk-forward simulation across past sessions persisted to dedicated `gold_bofa_*_backtests` tables.
+7. **Zero-Lookahead Point-In-Time Historical Backfill Engine**:
+   - Allows running retrospective point-in-time forecasts for past missed sessions (`--backfill-dates` or `--backfill-missing`).
+   - For every target date $T_{target}$, data cutoff is strictly $T_{as\_of} = \max(\text{dates} < T_{target})$, hiding all subsequent data.
+   - Configurable discovery lookback window (`default_lookback_months: 2` in `config/default.yaml`, overridable via `--backfill-lookback-months` or `--backfill-lookback-days`).
+   - Upserts into `gold_bofa_*_performance` for only the targeted dates while preserving all other historical performance records.
+8. **Automated On-The-Fly Champion Selection (`model_type="auto"`) & No Hardcoding**:
    - In both the production pipeline and interactive research notebooks, models are never hardcoded. A dedicated `ModelArena` runs tournaments on the fly across candidate paradigms, crowning and tagging the champion model based on multi-criteria metrics (Out-of-sample Hit Rate %, 90% PICP %, and RMSE).
-8. **Interactive Research Notebook Standards & Clean Presentation**:
+9. **Interactive Research Notebook Standards & Clean Presentation**:
    - Every modeling notebook (`notebooks/03_*.ipynb`, `notebooks/04_*.ipynb`, etc.) must provide:
      1. **Live Upcoming Session Signal Card ($T+1$)**: Prominent executive card with forecasted net flow ($TL$), 90% credible ranges, directional badges, institutional playbooks, and sector rotation allocations.
-     2. **Historical Backtest View**: Actual vs. predicted walk-forward track record with 90% confidence interval ribbons and interactive dropdown session inspectors.
-     3. **DuckDB Gold Table Verification**: Direct queries inspecting persisted production records (both live forecasts and historical backtest ledgers).
+     2. **Performance Ledger & Historical Backtest View**: Actual vs. predicted track record with 90% confidence interval ribbons and interactive dropdown session inspectors.
+     3. **DuckDB Gold Table Verification**: Direct queries inspecting persisted production records (live forecasts, performance ledgers, and backtest simulations).
    - **Clean & Professional Typography (No Excessive Emojis)**:
      - Keep documentation, markdown cells, headers, section titles, comments, and card templates clean, crisp, and professional.
-     - **Do NOT use excessive emojis** in headers, text blocks, or notebooks. Excessive emojis clutter the view and make technical documents harder to read.
-     - Use standard structured markdown headers, clean typography, tables, and minimal functional status badges (e.g. `[PASS]`, `[FAIL]`, `HIT`, `MISS`, or subtle text labels) instead of decorative emoji clutter.
-9. **Actionable Trader Decision Outputs**:
-   - Continuous predictions are translated into concrete trader action items:
-     - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
-     - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
-     - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
+     - **Do NOT use excessive emojis** in headers, text blocks, or notebooks. Use standard structured markdown headers, clean typography, tables, and minimal functional status badges (`[PASS]`, `[FAIL]`, `HIT`, `MISS`).
+10. **Actionable Trader Decision Outputs**:
+    - Continuous predictions are translated into concrete trader action items:
+      - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
+      - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
+      - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
 
 ---
 
@@ -118,6 +127,22 @@ To allow seamless portability across different team members' local machines:
   # Or with catalog auto-sync:
   .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
   ```
+- **Daily Gold Layer Execution & Live Inference ($T+1$)**:
+  ```bash
+  .venv/bin/python scripts/run_pipeline.py --target gold
+  ```
+- **Historical Point-in-Time Performance Backfilling**:
+  ```bash
+  # Backfill missing sessions within default 2-month window:
+  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing
+
+  # Custom lookback window (e.g., 3 months or 45 days):
+  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-months 3
+  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-days 45
+
+  # Backfill specific missed dates:
+  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-dates 2026-03-10,2026-03-18
+  ```
 - **Inspect & Sync Data Catalogs**:
   ```bash
   .venv/bin/python scripts/prepare_data_catalog.py         # Visual Dry-Run
@@ -135,4 +160,5 @@ To allow seamless portability across different team members' local machines:
 - **Primary Institutional Target**: **Bank of America (BofA) [Clearing Code: `MLB`]** — algorithmic execution and high-impact institutional flow.
 - **Domestic Major Banks**: `IYM` (İş Yatırım), `YKR` (Yapı Kredi), `AKM` (Ak Yatırım), `GRM` (Garanti BBVA), `ZRY` (Ziraat), `DZY` (Deniz), `VKY` (Vakıf), `HLY` (Halk).
 - **Equities Universe**: 45 liquid BIST stocks (BIST 30 + liquid BIST 50).
+
 

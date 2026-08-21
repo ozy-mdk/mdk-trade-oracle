@@ -48,22 +48,25 @@ flowchart TD
    - `silver_intraday_sector_window_summary`: 99,825 sector-level intraday window executions.
 3. **Gold Layer (`gold_*`) & Predictive Multi-Model Suite**:
    - `gold_institutional_daily_signals`: Rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
-   - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — exchange-wide opening flow predictions, 90% credible intervals, directional conviction, and institutional execution playbooks.
-   - `gold_bofa_sector_day_start_forecasts`: **Model 2: Sector Day-Start Forecaster** — cross-sectional opening capital allocation forecasts across all 26 tracked BIST sectors.
+   - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — active live predictions strictly for upcoming session $T+1$ (exchange-wide opening flow, 90% credible intervals, directional conviction, and institutional execution playbooks).
+   - `gold_bofa_sector_day_start_forecasts`: **Model 2: Sector Day-Start Forecaster** — active live sector opening allocation predictions strictly for upcoming session $T+1$ across 26 tracked BIST sectors.
+   - `gold_bofa_day_start_performance` & `gold_bofa_sector_day_start_performance`: **Permanent Audited Performance Ledgers** — historical records reconciling past predictions against actual realized Window 1 market data (MAE, RMSE, direction hit %, and 90% coverage).
+   - `gold_bofa_day_start_backtests` & `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward simulation ledgers for calibration and tournament benchmarking.
 
 ---
 
 ## 🔬 Predictive Modeling Blueprint & Trailing Walk-Forward Arena
 
 All Gold layer predictive models adhere to the Universal Modeling Blueprint:
-- **Zero Lookahead Bias**: Features are computed strictly from $T-1$ Close data (18:10 TRT).
+- **Zero Lookahead Bias & Retrospective Anchoring**: Features are computed strictly from $T-1$ Close data (18:10 TRT). When running retrospective backfills for missed past days, the training window dynamically and strictly anchors backwards 12 months from the target session.
 - **Candidate Model Suites**: Benchmarking 5 candidate paradigms:
   1. `NaivePersistenceModel` (prior W4 flow)
   2. `RollingMeanModel` (5-day rolling average)
   3. `LightGBMModel` (non-linear boosted tree ensemble)
   4. `BayesianModel` (Bayesian Ridge with analytical 90% credible intervals)
   5. `PyMCModel` (Bayesian GLM with shrinkage priors)
-- **Trailing Walk-Forward Arena**: Configured in `config/default.yaml` (`lookback_months: 12`, `eval_window_days: 20`, `min_burn_in_days: 5`). For multi-year datasets, the arena tests candidates across the trailing $K$ sessions against expanding historical training windows ($1 \dots t-1$), executing in seconds.
+- **Three-Table Persistence Architecture**: Strict separation between pure live $T+1$ inference (`gold_bofa_*_forecasts`), audited performance tracking (`gold_bofa_*_performance`), and simulation backtests (`gold_bofa_*_backtests`).
+- **Point-in-Time Historical Backfilling**: Seamlessly backfill missed sessions point-in-time (`--backfill-missing` or `--backfill-dates`) with zero lookahead leakage, upserting into the performance ledger.
 
 ---
 

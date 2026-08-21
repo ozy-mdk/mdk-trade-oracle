@@ -46,10 +46,12 @@ flowchart TD
 
     subgraph Gold["Gold Layer (Features & Predictive Models)"]
         G_SIG["gold_institutional_daily_signals<br/>(Rolling 5d/20d Accumulation & Z-Scores)"]
-        G_M1["gold_bofa_day_start_forecasts<br/>(Model 1: Macro Day-Start Forecasts, 90% PICP, Playbooks)"]
-        G_M2["gold_bofa_sector_day_start_forecasts<br/>(Model 2: Sector Allocations across 26 Sectors)"]
-        G_M1_BT["gold_bofa_day_start_backtests<br/>(Macro Day-Start Walk-Forward Backtest Ledger)"]
-        G_M2_BT["gold_bofa_sector_day_start_backtests<br/>(Sector Day-Start Walk-Forward Backtest Ledger)"]
+        G_M1["gold_bofa_day_start_forecasts<br/>(Model 1: Live Upcoming Macro T+1 Forecast)"]
+        G_M2["gold_bofa_sector_day_start_forecasts<br/>(Model 2: Live Upcoming Sector T+1 Allocations)"]
+        G_M1_PERF["gold_bofa_day_start_performance<br/>(Macro Audited Performance Ledger)"]
+        G_M2_PERF["gold_bofa_sector_day_start_performance<br/>(Sector Audited Performance Ledger)"]
+        G_M1_BT["gold_bofa_day_start_backtests<br/>(Macro Walk-Forward Backtest Ledger)"]
+        G_M2_BT["gold_bofa_sector_day_start_backtests<br/>(Sector Walk-Forward Backtest Ledger)"]
     end
 
     B_RAW --> S_BROK_SUM
@@ -67,6 +69,8 @@ flowchart TD
     S_BROK_OVR --> G_M1
     S_WIN_SEC --> G_M2
     S_SEC_SUM --> G_M2
+    G_M1 -. Reconcile .-> G_M1_PERF
+    G_M2 -. Reconcile .-> G_M2_PERF
 ```
 
 ### A. Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)
@@ -90,10 +94,12 @@ flowchart TD
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Populated by Model 1 `DayStartForecaster(model_type="auto")`. Contains predicted macro opening net flow, 90% credible intervals, directional conviction, institutional playbooks, top predicted buy/sell sectors, and champion model metadata.
-- **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Populated by Model 2 `SectorDayStartForecaster(model_type="auto")`. Sector-level opening flow allocation forecasts across all 26 liquid sectors with predicted direction and confidence.
-- **`gold_bofa_day_start_backtests`**: Primary key `trade_date`. Historical out-of-sample backtest ledger with actuals, errors, and hit flags.
-- **`gold_bofa_sector_day_start_backtests`**: Primary key `(trade_date, sector)`. Historical sector backtest ledger across all 26 sectors.
+- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Strictly holds active live predictions for upcoming session $T+1$.
+- **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Strictly holds active live sector allocations for upcoming session $T+1$ across 26 sectors.
+- **`gold_bofa_day_start_performance`**: Primary key `trade_date`. Permanent audited performance tracking ledger logging past forecasts matched against actual realized Window 1 market data from Silver.
+- **`gold_bofa_sector_day_start_performance`**: Primary key `(trade_date, sector)`. Permanent audited sector performance tracking ledger.
+- **`gold_bofa_day_start_backtests`**: Primary key `trade_date`. Historical out-of-sample simulation backtest ledger with actuals, errors, and hit flags.
+- **`gold_bofa_sector_day_start_backtests`**: Primary key `(trade_date, sector)`. Historical sector simulation backtest ledger across all 26 sectors.
 
 ---
 
@@ -110,22 +116,36 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 # 2. Pipeline with Catalog Auto-Sync (discovers new tickers/brokers & syncs YAMLs first)
 .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 
-# 3. Selective Single-Date Re-ingestion (atomically replaces single trading day)
+# 3. Daily Gold Layer Execution & Live Inference (T+1)
+.venv/bin/python scripts/run_pipeline.py --target gold
+
+# 4. Point-in-Time Historical Performance Backfilling
+# Auto-discover missing sessions within default 2-month window:
+.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing
+
+# Custom lookback window (e.g., 3 months or 45 days):
+.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-months 3
+.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-days 45
+
+# Backfill specific missed dates:
+.venv/bin/python scripts/run_pipeline.py --target gold --backfill-dates 2026-03-10,2026-03-18
+
+# 5. Selective Single-Date Re-ingestion (atomically replaces single trading day)
 .venv/bin/python scripts/run_pipeline.py --target all --date 2026-03-09
 
-# 4. Selective Month Re-ingestion (atomically replaces single monthly partition)
+# 6. Selective Month Re-ingestion (atomically replaces single monthly partition)
 .venv/bin/python scripts/run_pipeline.py --target all --month 2026-03
 
-# 5. Full Force Rebuild (clears tables and re-ingests everything from scratch)
+# 7. Full Force Rebuild (clears tables and re-ingests everything from scratch)
 .venv/bin/python scripts/run_pipeline.py --target all --force
 
-# 6. Target Specific Layer
+# 8. Target Specific Layer
 .venv/bin/python scripts/run_pipeline.py --target bronze
 .venv/bin/python scripts/run_pipeline.py --target silver
 .venv/bin/python scripts/run_pipeline.py --target gold
 .venv/bin/python scripts/run_pipeline.py --target catalog
 
-# 7. Disable DAG Dependency Resolution (execute isolated layer)
+# 9. Disable DAG Dependency Resolution (execute isolated layer)
 .venv/bin/python scripts/run_pipeline.py --target silver --no-deps
 ```
 
