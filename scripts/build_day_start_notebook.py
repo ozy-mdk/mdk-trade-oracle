@@ -531,16 +531,17 @@ if date_dropdown.value:
     update_session({"new": date_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 8. Gold Tables & Historical Backtest Ledger in DuckDB
+    nbf.v4.new_markdown_cell("""## 8. Gold Tables & Production Performance Ledgers in DuckDB
 
 Verifying the persisted production tables in DuckDB:
-1. `gold_bofa_day_start_forecasts`: Pure upcoming live forecasts ($T+1$) with directional badges and playbooks.
-2. `gold_bofa_day_start_backtests`: Dedicated historical walk-forward backtest ledger containing out-of-sample predictions, actual Window 1 flows, directional hit flags, 90% credible coverage, and prediction errors.
+1. `gold_bofa_day_start_forecasts`: Pure upcoming live forecasts ($T+1$) strictly for tomorrow's market open.
+2. `gold_bofa_day_start_performance`: Permanent historical performance tracking ledger recording prior forecasts matched against realized actual Window 1 market data.
+3. `gold_bofa_day_start_backtests`: Dedicated historical walk-forward backtest simulation ledger.
 """),
 
     nbf.v4.new_code_cell("""conn = db.get_connection()
 
-print("1. Live Upcoming Forecasts (gold_bofa_day_start_forecasts):")
+print("1. Live Active Upcoming Forecast (gold_bofa_day_start_forecasts) - Strictly T+1:")
 gold_forecasts_df = conn.execute(\"\"\"
     SELECT 
         forecast_date,
@@ -554,10 +555,28 @@ gold_forecasts_df = conn.execute(\"\"\"
         top_predicted_sell_sector,
         model_name
     FROM gold_bofa_day_start_forecasts
-    ORDER BY forecast_date DESC
-    LIMIT 5;
+    ORDER BY forecast_date DESC;
 \"\"\").df()
 display(gold_forecasts_df)
+
+print("2. Historical Performance Tracking Ledger (gold_bofa_day_start_performance) - Latest 5 Sessions:")
+gold_perf_df = conn.execute(\"\"\"
+    SELECT 
+        trade_date,
+        predicted_open_net_flow_tl / 1e6 AS pred_m_tl,
+        actual_open_net_flow_tl / 1e6 AS actual_m_tl,
+        error_open_net_flow_tl / 1e6 AS error_m_tl,
+        absolute_error_tl / 1e6 AS abs_error_m_tl,
+        predicted_direction,
+        actual_direction,
+        is_direction_hit,
+        is_inside_90_ci,
+        predicted_playbook
+    FROM gold_bofa_day_start_performance
+    ORDER BY trade_date DESC
+    LIMIT 5;
+\"\"\").df()
+display(gold_perf_df)
 """),
 
     nbf.v4.new_markdown_cell("""### Historical Backtest Performance Dashboard (`gold_bofa_day_start_backtests`)
@@ -575,6 +594,7 @@ backtest_kpis = conn.execute(\"\"\"
         ROUND(SQRT(AVG(POWER(error_open_net_flow_tl, 2))) / 1e6, 2) AS rmse_m_tl
     FROM gold_bofa_day_start_backtests;
 \"\"\").df().iloc[0]
+
 
 kpi_html = f\"\"\"
 <div style="display: flex; gap: 15px; margin-bottom: 20px;">

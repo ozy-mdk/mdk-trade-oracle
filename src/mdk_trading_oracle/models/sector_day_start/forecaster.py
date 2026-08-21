@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 
 from mdk_trading_oracle.core.config import get_settings
@@ -118,24 +119,53 @@ class SectorDayStartForecaster:
         self.arena = SectorDayStartModelArena(include_pymc=include_pymc)
         self.champion_name: Optional[str] = None
 
-    def _ensure_champion_selected(self, tracked_sectors: List[str]) -> str:
-        """Select champion model dynamically on the fly if model_type == 'auto'."""
-        if self.model_type == "auto" or self.champion_name is None:
-            benchmark_sector = "Banking" if "Banking" in tracked_sectors else tracked_sectors[0]
-            df_bm = self.feature_extractor.extract_features(sector=benchmark_sector).to_pandas()
-            if len(df_bm) > 5:
-                X_bm = df_bm.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
-                y_bm = df_bm["target_sector_open_net_flow_tl"]
-                min_burn_in = min(self.min_burn_in_days, max(2, len(df_bm) - 1))
-                _, champion_model = self.arena.run_tournament(
-                    X_bm, y_bm, min_train_samples=min_burn_in, eval_window_days=self.eval_window_days
+    def _ensure_champion_selected(
+        self,
+        tracked_sectors: List[str],
+        as_of_date: Optional[date] = None,
+    ) -> None:
+        """Run arena tournament across tracked sectors if model_type is auto."""
+        if self.model_type != "auto" and self.champion_name is not None:
+            return
+
+        scoreboard = []
+        for name, candidate_model in self.arena.candidates.items():
+            hit_rates = []
+            picps = []
+            rmses = []
+            for sector in tracked_sectors[:5]:
+                df_pl = self.feature_extractor.extract_features(sector=sector, end_date=as_of_date)
+                if df_pl.height < 5:
+                    continue
+                df_pd = df_pl.to_pandas()
+                X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+                y = df_pd["target_sector_open_net_flow_tl"]
+                min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
+                metrics = candidate_model.walk_forward_evaluate(
+                    X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days
                 )
-                self.champion_name = champion_model.model_name
-            else:
-                self.champion_name = "sector_day_start_bayesian_ridge"
+                hit_rates.append(metrics["hit_rate_pct"])
+                picps.append(metrics["picp_90_pct"])
+                rmses.append(metrics["rmse_million_tl"])
+
+            if hit_rates:
+                scoreboard.append({
+                    "model_name": name,
+                    "avg_hit_rate": float(np.mean(hit_rates)),
+                    "avg_picp": float(np.mean(picps)),
+                    "avg_rmse": float(np.mean(rmses)),
+                })
+
+        if scoreboard:
+            df_scores = pd.DataFrame(scoreboard).sort_values(
+                by=["avg_hit_rate", "avg_picp", "avg_rmse"],
+                ascending=[False, False, True],
+            )
+            self.champion_name = df_scores.iloc[0]["model_name"]
         else:
-            self.champion_name = self.model_type
-        return self.champion_name
+            self.champion_name = "sector_day_start_naive_persistence"
+
+        logger.info(f"🏆 Sector Model Arena Champion Selected: '{self.champion_name}'")
 
     def _create_sector_model(self) -> BaseSectorDayStartModel:
         """Instantiate a fresh model instance of the crowned champion paradigm."""
@@ -150,17 +180,37 @@ class SectorDayStartForecaster:
         else:
             return SectorDayStartNaivePersistenceModel()
 
-    def forecast_next_day(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
-        """Generate live sector forecasts for the upcoming trading session (T_next)."""
-        tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
+    def forecast_next_day(
+        self,
+        sectors: Optional[List[str]] = None,
+        sector: Optional[str] = None,
+        as_of_date: Optional[Union[str, date]] = None,
+    ) -> List[ForecastResult]:
+        """Generate live sector forecasts for the upcoming trading session (T_next) based on T_close.
+        
+        Args:
+            sectors: Optional list of sectors to forecast.
+            sector: Optional single sector filter.
+            as_of_date: Optional reference date for point-in-time historical inference (hiding subsequent data).
+        """
+        if isinstance(as_of_date, str):
+            as_of_date = datetime.strptime(as_of_date[:10], "%Y-%m-%d").date()
+
+        if sector:
+            tracked_sectors = [sector]
+        elif sectors:
+            tracked_sectors = sectors
+        else:
+            tracked_sectors = self.feature_extractor.get_tracked_sectors(min_session_count=10)
+
         if not tracked_sectors:
             logger.warning("No tracked sectors found for SectorDayStartForecaster.")
             return []
 
-        self._ensure_champion_selected(tracked_sectors)
+        self._ensure_champion_selected(tracked_sectors, as_of_date=as_of_date)
 
         # Extract next-day feature rows across tracked sectors
-        df_next_pl = self.feature_extractor.extract_next_day_features(sectors=tracked_sectors)
+        df_next_pl = self.feature_extractor.extract_next_day_features(sectors=tracked_sectors, as_of_date=as_of_date)
         if df_next_pl.height == 0:
             logger.warning("No next-day sector feature records extracted.")
             return []
@@ -168,13 +218,13 @@ class SectorDayStartForecaster:
         df_next_pd = df_next_pl.to_pandas()
         live_forecasts: List[ForecastResult] = []
 
-        for sector in tracked_sectors:
-            sec_next_row = df_next_pd[df_next_pd["sector"] == sector]
+        for sec in tracked_sectors:
+            sec_next_row = df_next_pd[df_next_pd["sector"] == sec]
             if sec_next_row.empty:
                 continue
 
-            # Train on historical sector data
-            df_hist_pl = self.feature_extractor.extract_features(sector=sector)
+            # Train on historical sector data up to as_of_date
+            df_hist_pl = self.feature_extractor.extract_features(sector=sec, end_date=as_of_date)
             if df_hist_pl.height == 0:
                 continue
 
@@ -186,11 +236,11 @@ class SectorDayStartForecaster:
             model.fit(X_hist, y_hist)
 
             res = model.predict(sec_next_row)
-            res.top_predicted_buy_sector = sector
+            res.top_predicted_buy_sector = sec
             live_forecasts.append(res)
 
         logger.info(
-            f"🎯 Generated {len(live_forecasts)} Live Next-Day Sector Forecasts across sectors "
+            f"🎯 Generated {len(live_forecasts)} Sector Forecasts across sectors "
             f"for {live_forecasts[0].forecast_date if live_forecasts else 'N/A'} (Champion: '{self.champion_name}')."
         )
         return live_forecasts
@@ -245,8 +295,18 @@ class SectorDayStartForecaster:
             results.extend(self.forecast_next_day(sectors=sectors))
         return results
 
-    def save_forecasts_to_gold(self, forecasts: Union[ForecastResult, List[ForecastResult]]) -> int:
-        """Persist sector forecasts into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`."""
+    def save_forecasts_to_gold(
+        self,
+        forecasts: Union[ForecastResult, List[ForecastResult]],
+        replace_active: bool = True,
+    ) -> int:
+        """Persist active live sector forecasts into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`.
+        
+        Args:
+            forecasts: The active sector forecast(s) to save.
+            replace_active: If True (default), cleans out previous forecasts so the table strictly
+                            holds only the active upcoming trading session (T+1).
+        """
         if isinstance(forecasts, ForecastResult):
             forecast_list = [forecasts]
         else:
@@ -256,7 +316,7 @@ class SectorDayStartForecaster:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(forecast_list)} forecast(s) to `gold_bofa_sector_day_start_forecasts`...")
+        logger.info(f"Persisting {len(forecast_list)} live sector forecast(s) to `gold_bofa_sector_day_start_forecasts` (replace_active={replace_active})...")
 
         # Ensure schema exists and has all current columns
         existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
@@ -283,6 +343,9 @@ class SectorDayStartForecaster:
                 PRIMARY KEY (forecast_date, sector)
             );
         """)
+
+        if replace_active:
+            conn.execute("DELETE FROM gold_bofa_sector_day_start_forecasts;")
 
         # Insert or replace predictions
         for f in forecast_list:
@@ -314,7 +377,168 @@ class SectorDayStartForecaster:
             ])
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
-        logger.info(f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} total forecasts.")
+        logger.info(f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} active sector forecast(s).")
+        return saved_count
+
+    def reconcile_and_update_performance_ledger(
+        self,
+        forecasts: Optional[List[ForecastResult]] = None,
+        sectors: Optional[List[str]] = None,
+    ) -> int:
+        """Reconcile completed sector forecasts against actual Silver Window 1 market data and upsert into `gold_bofa_sector_day_start_performance`."""
+        if forecasts is None:
+            forecasts = self.backtest_all_history(sectors=sectors)
+
+        if not forecasts:
+            return 0
+
+        conn = self.db.get_connection()
+        logger.info(f"Reconciling {len(forecasts)} sector session(s) into `gold_bofa_sector_day_start_performance`...")
+
+        # Ensure schema exists
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gold_bofa_sector_day_start_performance (
+                trade_date DATE,
+                sector VARCHAR,
+                day_of_week INTEGER,
+                is_monday BOOLEAN,
+                predicted_open_net_flow_tl DOUBLE,
+                predicted_open_flow_lower_90 DOUBLE,
+                predicted_open_flow_upper_90 DOUBLE,
+                actual_open_net_flow_tl DOUBLE,
+                error_open_net_flow_tl DOUBLE,
+                absolute_error_tl DOUBLE,
+                predicted_direction VARCHAR,
+                actual_direction VARCHAR,
+                is_direction_hit BOOLEAN,
+                is_inside_90_ci BOOLEAN,
+                direction_confidence DOUBLE,
+                predicted_playbook VARCHAR,
+                model_name VARCHAR,
+                model_version VARCHAR,
+                forecast_generated_at TIMESTAMP,
+                realized_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (trade_date, sector)
+            );
+        """)
+
+        # Fetch actual sector Window 1 flows from silver_intraday_sector_window_summary
+        actuals_df = conn.execute(f"""
+            SELECT 
+                trade_date,
+                sector,
+                net_flow_tl AS actual_w1_net_flow_tl
+            FROM silver_intraday_sector_window_summary
+            WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start';
+        """).df()
+        actuals_df["trade_date_str"] = actuals_df["trade_date"].astype(str).str.slice(0, 10)
+        actuals_map = dict(zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"]))
+
+        reconciled_count = 0
+        for f in forecasts:
+            d = f.forecast_date
+            d_str = str(d)[:10]
+            sector_name = f.top_predicted_buy_sector or "General"
+            if (d_str, sector_name) not in actuals_map:
+                continue
+
+            dow = d.weekday() + 1 if isinstance(d, date) else 1
+            is_mon = (dow == 1)
+            actual_flow = float(actuals_map[(d_str, sector_name)])
+            pred_flow = float(f.predicted_net_flow_tl)
+            error_flow = actual_flow - pred_flow
+            abs_error = abs(error_flow)
+            actual_dir = "BUY" if actual_flow > 0 else ("SELL" if actual_flow < 0 else "NEUTRAL")
+            is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
+            is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
+
+            conn.execute("""
+                INSERT OR REPLACE INTO gold_bofa_sector_day_start_performance (
+                    trade_date, sector, day_of_week, is_monday,
+                    predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
+                    actual_open_net_flow_tl, error_open_net_flow_tl, absolute_error_tl,
+                    predicted_direction, actual_direction,
+                    is_direction_hit, is_inside_90_ci,
+                    direction_confidence, predicted_playbook,
+                    model_name, model_version, forecast_generated_at, realized_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, [
+                f.forecast_date,
+                sector_name,
+                dow,
+                is_mon,
+                pred_flow,
+                f.predicted_flow_lower_90,
+                f.predicted_flow_upper_90,
+                actual_flow,
+                error_flow,
+                abs_error,
+                f.predicted_direction,
+                actual_dir,
+                is_hit,
+                is_in_ci,
+                f.direction_confidence,
+                f.predicted_playbook,
+                f.model_name,
+                f.model_version,
+                f.generated_at,
+                datetime.now(),
+            ])
+            reconciled_count += 1
+
+        total_perf = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
+        logger.info(f"Successfully updated `gold_bofa_sector_day_start_performance`: {total_perf:,} total recorded sector sessions ({reconciled_count} reconciled in this run).")
+        return total_perf
+
+    def backfill_historical_performance(
+        self,
+        target_dates: Optional[List[Union[str, date]]] = None,
+        sectors: Optional[List[str]] = None,
+        all_missing: bool = False,
+    ) -> int:
+        """Perform zero-lookahead point-in-time forecasting for past missed trading days across sectors and record into `gold_bofa_sector_day_start_performance`."""
+        conn = self.db.get_connection()
+        all_silver_dates = [
+            r[0] for r in conn.execute(
+                f"SELECT DISTINCT trade_date FROM silver_intraday_sector_window_summary WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start' ORDER BY trade_date ASC;"
+            ).fetchall()
+        ]
+
+        dates_to_backfill: List[date] = []
+        if target_dates:
+            for d in target_dates:
+                if isinstance(d, str):
+                    d_obj = datetime.strptime(d[:10], "%Y-%m-%d").date()
+                else:
+                    d_obj = d
+                dates_to_backfill.append(d_obj)
+        elif all_missing:
+            existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
+            existing_perf_dates = set()
+            if "gold_bofa_sector_day_start_performance" in existing_tables:
+                existing_perf_dates = set(r[0] for r in conn.execute("SELECT DISTINCT trade_date FROM gold_bofa_sector_day_start_performance;").fetchall())
+            dates_to_backfill = [d for d in all_silver_dates if d not in existing_perf_dates]
+
+        if not dates_to_backfill:
+            logger.info("No dates to backfill for Sector Day-Start model.")
+            return 0
+
+        logger.info(f"Starting zero-lookahead point-in-time sector backfill for {len(dates_to_backfill)} date(s): {dates_to_backfill}...")
+        backfilled_forecasts: List[ForecastResult] = []
+        for target_d in dates_to_backfill:
+            prior_dates = [d for d in all_silver_dates if d < target_d]
+            if not prior_dates:
+                logger.warning(f"Skipping sector backfill for {target_d}: No prior historical session available.")
+                continue
+            as_of_d = max(prior_dates)
+            logger.info(f"Backfilling sectors for {target_d} with strict zero-leakage cutoff as_of_date={as_of_d}...")
+            sec_results = self.forecast_next_day(sectors=sectors, as_of_date=as_of_d)
+            for res in sec_results:
+                res.forecast_date = target_d
+                backfilled_forecasts.append(res)
+
+        saved_count = self.reconcile_and_update_performance_ledger(backfilled_forecasts, sectors=sectors)
+        logger.info(f"Point-in-time sector backfill complete. Processed {len(backfilled_forecasts)} sector forecast(s).")
         return saved_count
 
     def save_backtests_to_gold(
@@ -416,5 +640,3 @@ class SectorDayStartForecaster:
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_sector_day_start_backtests`: {saved_count:,} total records.")
         return saved_count
-
-

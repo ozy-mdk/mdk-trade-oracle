@@ -274,16 +274,17 @@ if sector_dropdown.value:
     update_sector_plot({"new": sector_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 6. Gold Sector Tables & Cross-Sector Backtest Inspection in DuckDB
+    nbf.v4.new_markdown_cell("""## 6. Gold Sector Tables & Production Performance Ledgers in DuckDB
 
 Verifying the persisted production tables in DuckDB:
-1. `gold_bofa_sector_day_start_forecasts`: Pure upcoming live sector forecasts ($T+1$).
-2. `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward backtest ledger across all 26 sectors with ground-truth actuals.
+1. `gold_bofa_sector_day_start_forecasts`: Pure upcoming live sector forecasts ($T+1$) across tracked sectors.
+2. `gold_bofa_sector_day_start_performance`: Permanent historical sector performance tracking ledger recording prior sector forecasts matched against actual realized Window 1 market data.
+3. `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward backtest simulation ledger across all 26 sectors.
 """),
 
     nbf.v4.new_code_cell("""conn = db.get_connection()
 
-print("1. Live Upcoming Sector Forecasts (gold_bofa_sector_day_start_forecasts):")
+print("1. Live Active Sector Forecasts (gold_bofa_sector_day_start_forecasts) - Strictly T+1:")
 gold_sector_df = conn.execute(\"\"\"
     SELECT 
         forecast_date,
@@ -295,10 +296,28 @@ gold_sector_df = conn.execute(\"\"\"
         predicted_playbook,
         model_name
     FROM gold_bofa_sector_day_start_forecasts
-    ORDER BY forecast_date DESC, pred_flow_m_tl DESC
-    LIMIT 10;
+    ORDER BY pred_flow_m_tl DESC;
 \"\"\").df()
 display(gold_sector_df)
+
+print("2. Sector Historical Performance Ledger (gold_bofa_sector_day_start_performance) - Latest Session Sample:")
+gold_sector_perf_df = conn.execute(\"\"\"
+    SELECT 
+        trade_date,
+        sector,
+        predicted_open_net_flow_tl / 1e6 AS pred_m_tl,
+        actual_open_net_flow_tl / 1e6 AS actual_m_tl,
+        error_open_net_flow_tl / 1e6 AS error_m_tl,
+        absolute_error_tl / 1e6 AS abs_error_m_tl,
+        predicted_direction,
+        actual_direction,
+        is_direction_hit,
+        is_inside_90_ci
+    FROM gold_bofa_sector_day_start_performance
+    ORDER BY trade_date DESC, pred_m_tl DESC
+    LIMIT 10;
+\"\"\").df()
+display(gold_sector_perf_df)
 """),
 
     nbf.v4.new_markdown_cell("""### Cross-Sector Backtest Leaderboard (`gold_bofa_sector_day_start_backtests`)

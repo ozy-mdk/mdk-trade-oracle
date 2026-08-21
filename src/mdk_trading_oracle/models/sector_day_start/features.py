@@ -259,21 +259,24 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         self,
         sectors: Optional[List[str]] = None,
         sector: Optional[str] = None,
+        as_of_date: Optional[date] = None,
     ) -> pl.DataFrame:
-        """Extract multi-sector feature rows for the upcoming trading session (T_next) based on latest T_close.
+        """Extract multi-sector feature rows for the upcoming trading session (T_next) based on T_close.
         
-        Zero lookahead leakage: all sector metrics are computed from completed data up to the latest date in DuckDB.
+        Zero lookahead leakage: all sector metrics are computed from completed data strictly up to `as_of_date`
+        (or the latest date in DuckDB if as_of_date is None).
         The trade_date is automatically computed as the next trading business day.
         
         Args:
             sectors: Optional list of sectors to include.
             sector: Optional single sector filter.
+            as_of_date: Optional reference date. If provided, data after this date is completely hidden.
             
         Returns:
             pl.DataFrame: Multi-sector feature matrix (1 row per tracked sector) ready for live inference.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Next-Day Sector Features for broker '{self.target_broker}' (Sector: {sector or (len(sectors) if sectors else 'ALL')})...")
+        logger.info(f"Extracting Next-Day Sector Features for broker '{self.target_broker}' (Sector: {sector or (len(sectors) if sectors else 'ALL')}, as_of_date={as_of_date or 'LATEST'})...")
 
         sector_filter = ""
         if sector:
@@ -282,10 +285,13 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
             formatted_sectors = "', '".join(sectors)
             sector_filter = f"AND sector IN ('{formatted_sectors}')"
 
+        date_filter = f"WHERE trade_date <= '{as_of_date}'" if as_of_date is not None else ""
+
         query = f"""
             WITH daily_dates AS (
                 SELECT DISTINCT trade_date
                 FROM silver_daily_stock_summary
+                {date_filter}
                 ORDER BY trade_date ASC
             ),
             sector_universe AS (
@@ -373,7 +379,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM sector_feature_base
             ),
             latest_date_cte AS (
-                SELECT MAX(trade_date) AS max_trade_date FROM silver_daily_stock_summary
+                SELECT MAX(trade_date) AS max_trade_date FROM silver_daily_stock_summary {date_filter}
             )
             SELECT 
                 r.trade_date AS source_date,
@@ -420,4 +426,5 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
             f"(Source: {source_date} Close, Day of Week: {dow}, is_monday: {is_mon})."
         )
         return df_next
+
 

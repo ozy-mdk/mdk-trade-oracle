@@ -1,6 +1,5 @@
-"""Gold Layer Feature Engineering & Predictive Model Orchestration."""
-
-from typing import Any
+from datetime import date
+from typing import Any, List, Optional, Union
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
@@ -70,54 +69,97 @@ class GoldFeatureEngineer:
         logger.info(f"Successfully populated `gold_institutional_daily_signals`: {rows:,} rows.")
         return {"table": "gold_institutional_daily_signals", "rows": rows, "status": "success"}
 
-    def run_day_start_forecasting(self) -> dict[str, Any]:
-        """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection and persist live forecasts and backtests."""
+    def run_day_start_forecasting(
+        self,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection, reconcile performance ledger, and persist live forecasts."""
         logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
         forecaster = DayStartForecaster(self.db, model_type="auto")
         
-        # 1. Live Next-Day Forecast (T+1)
-        next_day_forecast = forecaster.forecast_next_day()
-        saved_forecasts = forecaster.save_forecasts_to_gold(next_day_forecast)
+        # 1. Reconcile Completed Historical Sessions into Performance Ledger
+        saved_performance = forecaster.reconcile_and_update_performance_ledger()
         
-        # 2. Historical Out-of-Sample Backtests (1..T)
+        # 2. Point-in-Time Backfill for specified missed dates if requested
+        if backfill_dates or all_missing:
+            saved_performance = forecaster.backfill_historical_performance(
+                target_dates=backfill_dates, all_missing=all_missing
+            )
+
+        # 3. Live Next-Day Forecast (strictly upcoming T+1)
+        saved_forecasts = 0
+        try:
+            next_day_forecast = forecaster.forecast_next_day()
+            saved_forecasts = forecaster.save_forecasts_to_gold(next_day_forecast, replace_active=True)
+        except Exception as e:
+            logger.warning(f"Could not generate live day-start forecast (insufficient data): {e}")
+        
+        # 4. Historical Out-of-Sample Walk-Forward Backtests (1..T)
         saved_backtests = forecaster.save_backtests_to_gold()
         
         return {
             "forecast_table": "gold_bofa_day_start_forecasts",
             "forecast_rows": saved_forecasts,
+            "performance_table": "gold_bofa_day_start_performance",
+            "performance_rows": saved_performance,
             "backtest_table": "gold_bofa_day_start_backtests",
             "backtest_rows": saved_backtests,
             "champion_model": forecaster.champion_name,
             "status": "success",
         }
 
-    def run_sector_day_start_forecasting(self) -> dict[str, Any]:
-        """Execute Model 2 (Sector Day-Start Forecaster) and persist sector live forecasts and backtests."""
+    def run_sector_day_start_forecasting(
+        self,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Model 2 (Sector Day-Start Forecaster), reconcile sector performance ledger, and persist live sector forecasts."""
         logger.info("Executing Gold Layer Model 2: Sector Day-Start Forecaster (Auto-Champion Mode)...")
         forecaster = SectorDayStartForecaster(self.db, model_type="auto")
         
-        # 1. Live Next-Day Sector Forecasts (T+1 across 26 sectors)
-        next_day_sector_forecasts = forecaster.forecast_next_day()
-        saved_sector_forecasts = forecaster.save_forecasts_to_gold(next_day_sector_forecasts)
+        # 1. Reconcile Completed Historical Sessions into Sector Performance Ledger
+        saved_sector_performance = forecaster.reconcile_and_update_performance_ledger()
         
-        # 2. Historical Sector Backtests across tracked sectors
+        # 2. Point-in-Time Backfill for specified missed dates if requested
+        if backfill_dates or all_missing:
+            saved_sector_performance = forecaster.backfill_historical_performance(
+                target_dates=backfill_dates, all_missing=all_missing
+            )
+
+        # 3. Live Next-Day Sector Forecasts (strictly upcoming T+1 across 26 sectors)
+        saved_sector_forecasts = 0
+        try:
+            next_day_sector_forecasts = forecaster.forecast_next_day()
+            if next_day_sector_forecasts:
+                saved_sector_forecasts = forecaster.save_forecasts_to_gold(next_day_sector_forecasts, replace_active=True)
+        except Exception as e:
+            logger.warning(f"Could not generate live sector day-start forecasts: {e}")
+        
+        # 4. Historical Sector Backtests across tracked sectors
         saved_sector_backtests = forecaster.save_backtests_to_gold()
         
         return {
             "forecast_table": "gold_bofa_sector_day_start_forecasts",
             "forecast_rows": saved_sector_forecasts,
+            "performance_table": "gold_bofa_sector_day_start_performance",
+            "performance_rows": saved_sector_performance,
             "backtest_table": "gold_bofa_sector_day_start_backtests",
             "backtest_rows": saved_sector_backtests,
             "champion_model": forecaster.champion_name,
             "status": "success",
         }
 
-    def run_all(self) -> dict[str, Any]:
+    def run_all(
+        self,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+    ) -> dict[str, Any]:
         """Run full Gold feature pipeline and predictive models."""
         initialize_gold_schema(self.db)
         res_signals = self.compute_institutional_signals()
-        res_day_start = self.run_day_start_forecasting()
-        res_sector_day_start = self.run_sector_day_start_forecasting()
+        res_day_start = self.run_day_start_forecasting(backfill_dates=backfill_dates, all_missing=all_missing)
+        res_sector_day_start = self.run_sector_day_start_forecasting(backfill_dates=backfill_dates, all_missing=all_missing)
 
         return {
             "gold_institutional_daily_signals": res_signals,
@@ -125,4 +167,5 @@ class GoldFeatureEngineer:
             "gold_bofa_sector_day_start_forecasts": res_sector_day_start,
             "status": "success",
         }
+
 

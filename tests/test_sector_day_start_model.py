@@ -167,23 +167,48 @@ def test_sector_day_start_forecaster_orchestration(populated_test_db):
     forecasts = forecaster.train_and_forecast_all(sectors=["Banking", "Transportation"], include_history=False, include_next_day=True)
     assert len(forecasts) == 2
 
-    saved_forecasts = forecaster.save_forecasts_to_gold(forecasts)
-    assert saved_forecasts >= 2
+    saved_forecasts = forecaster.save_forecasts_to_gold(forecasts, replace_active=True)
+    assert saved_forecasts == 2  # Strictly 2 active sector forecasts for tomorrow!
 
-    # 4. Persist historical sector backtests
+    # 4. Sector Performance Ledger Reconciliation
+    saved_perf = forecaster.reconcile_and_update_performance_ledger(backtest_forecasts, sectors=["Banking", "Transportation"])
+    assert saved_perf >= 2
+
+    # 5. Point-in-Time Historical Sector Backfill
+    backfilled_count = forecaster.backfill_historical_performance(target_dates=["2026-03-04", "2026-03-05"], sectors=["Banking", "Transportation"])
+    assert backfilled_count >= 2
+
+    # 6. Persist historical sector backtests
     saved_backtests = forecaster.save_backtests_to_gold(backtest_forecasts, sectors=["Banking", "Transportation"])
     assert saved_backtests >= 2
 
     conn = populated_test_db.get_connection()
-    gold_row = conn.execute("""
+    gold_rows = conn.execute("""
         SELECT forecast_date, sector, predicted_open_net_flow_tl, predicted_direction, direction_confidence, model_name
-        FROM gold_bofa_sector_day_start_forecasts
-        WHERE forecast_date = '2026-03-06'
+        FROM gold_bofa_sector_day_start_forecasts;
+    """).fetchall()
+
+    # Verify strictly 2 active forecast rows in forecast table
+    assert len(gold_rows) == 2
+    assert str(gold_rows[0][0])[:10] == "2026-03-06"
+    assert gold_rows[0][1] in ["Banking", "Transportation"]
+
+    # Verify sector performance ledger table has evaluated records with actuals and errors
+    perf_row = conn.execute("""
+        SELECT trade_date, sector, predicted_open_net_flow_tl, actual_open_net_flow_tl, error_open_net_flow_tl, absolute_error_tl, is_direction_hit, is_inside_90_ci, model_name
+        FROM gold_bofa_sector_day_start_performance
+        ORDER BY trade_date DESC
         LIMIT 1;
     """).fetchone()
 
-    assert gold_row is not None
-    assert gold_row[1] in ["Banking", "Transportation"]
+    assert perf_row is not None
+    assert perf_row[0] is not None
+    assert perf_row[1] in ["Banking", "Transportation"]
+    assert perf_row[2] is not None
+    assert perf_row[3] is not None
+    assert perf_row[5] >= 0.0  # absolute_error_tl >= 0
+    assert perf_row[6] in [True, False]
+    assert perf_row[7] in [True, False]
 
     backtest_row = conn.execute("""
         SELECT trade_date, sector, predicted_open_net_flow_tl, actual_open_net_flow_tl, is_direction_hit, is_inside_90_ci, model_name
@@ -195,5 +220,6 @@ def test_sector_day_start_forecaster_orchestration(populated_test_db):
     assert backtest_row is not None
     assert backtest_row[1] in ["Banking", "Transportation"]
     assert backtest_row[4] in [True, False]
+
 
 

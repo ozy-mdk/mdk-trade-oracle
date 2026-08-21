@@ -73,7 +73,61 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    # 4. Model 1 Dedicated Historical Backtest Table
+    # 4. Model 1 Dedicated Historical Performance Tracking Ledger
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS gold_bofa_day_start_performance (
+            trade_date DATE PRIMARY KEY,
+            day_of_week INTEGER,
+            is_monday BOOLEAN,
+            predicted_open_net_flow_tl DOUBLE,
+            predicted_open_flow_lower_90 DOUBLE,
+            predicted_open_flow_upper_90 DOUBLE,
+            actual_open_net_flow_tl DOUBLE,
+            error_open_net_flow_tl DOUBLE,
+            absolute_error_tl DOUBLE,
+            predicted_direction VARCHAR,
+            actual_direction VARCHAR,
+            is_direction_hit BOOLEAN,
+            is_inside_90_ci BOOLEAN,
+            direction_confidence DOUBLE,
+            predicted_playbook VARCHAR,
+            top_predicted_buy_sector VARCHAR,
+            top_predicted_sell_sector VARCHAR,
+            model_name VARCHAR,
+            model_version VARCHAR,
+            forecast_generated_at TIMESTAMP,
+            realized_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 5. Model 2 Dedicated Historical Sector Performance Tracking Ledger
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS gold_bofa_sector_day_start_performance (
+            trade_date DATE,
+            sector VARCHAR,
+            day_of_week INTEGER,
+            is_monday BOOLEAN,
+            predicted_open_net_flow_tl DOUBLE,
+            predicted_open_flow_lower_90 DOUBLE,
+            predicted_open_flow_upper_90 DOUBLE,
+            actual_open_net_flow_tl DOUBLE,
+            error_open_net_flow_tl DOUBLE,
+            absolute_error_tl DOUBLE,
+            predicted_direction VARCHAR,
+            actual_direction VARCHAR,
+            is_direction_hit BOOLEAN,
+            is_inside_90_ci BOOLEAN,
+            direction_confidence DOUBLE,
+            predicted_playbook VARCHAR,
+            model_name VARCHAR,
+            model_version VARCHAR,
+            forecast_generated_at TIMESTAMP,
+            realized_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (trade_date, sector)
+        );
+    """)
+
+    # 6. Model 1 Dedicated Historical Simulation Backtest Table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gold_bofa_day_start_backtests (
             trade_date DATE PRIMARY KEY,
@@ -98,7 +152,7 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    # 5. Model 2 Dedicated Historical Backtest Table
+    # 7. Model 2 Dedicated Historical Sector Simulation Backtest Table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gold_bofa_sector_day_start_backtests (
             trade_date DATE,

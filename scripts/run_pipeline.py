@@ -87,16 +87,29 @@ def main():
         action="store_true",
         help="Disable automatic dependency resolution (e.g., run only Silver without verifying Bronze)",
     )
+    parser.add_argument(
+        "--backfill-dates",
+        type=str,
+        default=None,
+        help="Comma-separated list of historical dates to point-in-time backfill into performance ledger (e.g. '2026-03-10,2026-03-18')",
+    )
+    parser.add_argument(
+        "--backfill-missing",
+        action="store_true",
+        help="Auto-discover all completed historical sessions in Silver missing from performance ledger and backfill point-in-time",
+    )
 
     args = parser.parse_args()
 
     db = DuckDBManager()
     pipeline = MedallionPipeline(db)
 
+    backfill_dates_list = [d.strip() for d in args.backfill_dates.split(",")] if args.backfill_dates else None
+
     logger.info(
         f"Triggering Medallion Lakehouse Pipeline ("
         f"Target: {args.target}, Date: {args.date}, Month: {args.month}, File: {args.file}, "
-        f"Force: {args.force}, Sync Catalog: {args.sync_catalog})..."
+        f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, Backfill: {backfill_dates_list or args.backfill_missing})..."
     )
     pipeline.run(
         target=args.target,
@@ -108,8 +121,11 @@ def main():
         sync_catalog=args.sync_catalog,
         resolve_dependencies=not args.no_deps,
         print_summary=True,
+        backfill_dates=backfill_dates_list,
+        all_missing=args.backfill_missing,
     )
 
 
 if __name__ == "__main__":
     main()
+

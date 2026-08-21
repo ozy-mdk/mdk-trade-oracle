@@ -295,22 +295,29 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         logger.info(f"Extracted {df.height} historical daily observations with {len(df.columns)} features.")
         return df
 
-    def extract_next_day_features(self) -> pl.DataFrame:
-        """Extract the single feature row for the upcoming trading session (T_next) based on latest T_close.
+    def extract_next_day_features(self, as_of_date: Optional[date] = None) -> pl.DataFrame:
+        """Extract the single feature row for the upcoming trading session (T_next) based on T_close.
         
-        Zero lookahead leakage: all metrics are computed from completed data up to the latest date in DuckDB.
+        Zero lookahead leakage: all metrics are computed from completed data strictly up to `as_of_date`
+        (or the latest date in DuckDB if as_of_date is None).
         The trade_date is automatically computed as the next trading business day.
         
+        Args:
+            as_of_date: Optional reference date. If provided, data after this date is completely hidden.
+            
         Returns:
             pl.DataFrame: 1-row feature matrix ready for live model inference for tomorrow morning.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Next-Day Day-Start Feature Vector for broker '{self.target_broker}'...")
+        logger.info(f"Extracting Next-Day Day-Start Feature Vector for broker '{self.target_broker}' (as_of_date={as_of_date or 'LATEST'})...")
+
+        date_filter = f"WHERE trade_date <= '{as_of_date}'" if as_of_date is not None else ""
 
         query = f"""
             WITH daily_dates AS (
                 SELECT DISTINCT trade_date
                 FROM silver_daily_stock_summary
+                {date_filter}
                 ORDER BY trade_date ASC
             ),
             -- 1. Prior Day Closing Window 4 Flow
@@ -483,4 +490,5 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
             f"(Source: {source_date} Close, Day of Week: {dow}, is_monday: {is_mon})."
         )
         return df_next
+
 

@@ -1,8 +1,8 @@
 """Medallion Lakehouse Pipeline Orchestrator (Bronze -> Silver -> Gold)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from rich.console import Console
 from rich.table import Table
@@ -181,18 +181,24 @@ class MedallionPipeline:
             "status": "success",
         }
 
-    def run_gold(self) -> dict[str, Any]:
-        """Execute Gold layer feature engineering and institutional flow signals."""
+    def run_gold(
+        self,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
         start_time = datetime.now()
 
         initialize_gold_schema(self.db)
-        gold_res = self.gold_engineer.run_all()
+        gold_res = self.gold_engineer.run_all(backfill_dates=backfill_dates, all_missing=all_missing)
 
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
         sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
+        perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_performance;").fetchone()[0]
+        sector_perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
         backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
         sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
@@ -200,6 +206,7 @@ class MedallionPipeline:
         logger.info(
             f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
             f"Macro Live: {forecasts_count:,} | Sector Live: {sector_forecasts_count:,} | "
+            f"Macro Perf Ledger: {perf_count:,} | Sector Perf Ledger: {sector_perf_count:,} | "
             f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,}"
         )
         return {
@@ -209,6 +216,8 @@ class MedallionPipeline:
                 "gold_institutional_daily_signals": signals_count,
                 "gold_bofa_day_start_forecasts": forecasts_count,
                 "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
+                "gold_bofa_day_start_performance": perf_count,
+                "gold_bofa_sector_day_start_performance": sector_perf_count,
                 "gold_bofa_day_start_backtests": backtests_count,
                 "gold_bofa_sector_day_start_backtests": sector_backtests_count,
             },
@@ -227,6 +236,8 @@ class MedallionPipeline:
         sync_catalog: bool = False,
         resolve_dependencies: bool = True,
         print_summary: bool = True,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -256,7 +267,8 @@ class MedallionPipeline:
             elif layer == "silver":
                 results["silver"] = self.run_silver()
             elif layer == "gold":
-                results["gold"] = self.run_gold()
+                results["gold"] = self.run_gold(backfill_dates=backfill_dates, all_missing=all_missing)
+
 
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()
         results["total_elapsed_sec"] = total_elapsed
