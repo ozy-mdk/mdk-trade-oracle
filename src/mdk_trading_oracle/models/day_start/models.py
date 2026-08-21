@@ -1,6 +1,6 @@
 """Day-Start Candidate Models: Baselines, LightGBM, Bayesian Ridge, PyMC, and Probabilistic Ensemble."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -61,6 +61,22 @@ class BaseDayStartModel(BaseForecaster):
         elif is_monday:
             return OpeningPlaybook.SECTOR_ROTATION
         return OpeningPlaybook.NEUTRAL_WAIT
+
+    def _determine_top_sectors(self, row_dict: Dict[str, Any]) -> Tuple[str, str]:
+        """Dynamically determine top accumulation and distribution sectors from historical T-1 feature vector."""
+        sector_flows = {
+            "Banking": float(row_dict.get("feat_bofa_banking_flow_prev_day", 0.0)),
+            "Transportation": float(row_dict.get("feat_bofa_transport_flow_prev_day", 0.0)),
+            "Holding": float(row_dict.get("feat_bofa_holding_flow_prev_day", 0.0)),
+            "Energy & Refining": float(row_dict.get("feat_bofa_energy_flow_prev_day", 0.0)),
+            "Defense & Tech": float(row_dict.get("feat_bofa_defense_flow_prev_day", 0.0)),
+        }
+        active_buys = {k: v for k, v in sector_flows.items() if v > 0}
+        active_sells = {k: v for k, v in sector_flows.items() if v < 0}
+
+        top_buy = max(active_buys.items(), key=lambda x: x[1])[0] if active_buys else "None"
+        top_sell = min(active_sells.items(), key=lambda x: x[1])[0] if active_sells else "None"
+        return top_buy, top_sell
 
     def evaluate(self, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
         """Compute MAE, RMSE, Directional Hit Rate (%), and Confidence Interval Coverage (PICP)."""
@@ -201,6 +217,7 @@ class DayStartNaivePersistenceModel(BaseDayStartModel):
         confidence = 0.55
         direction = self._classify_direction(pred_flow, confidence)
         playbook = self._determine_playbook(row_dict, pred_flow)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -211,8 +228,8 @@ class DayStartNaivePersistenceModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_flow > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_flow < 0 else "None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
         )
@@ -239,6 +256,7 @@ class DayStartRollingMeanModel(BaseDayStartModel):
         confidence = 0.50
         direction = self._classify_direction(pred_flow, confidence)
         playbook = self._determine_playbook(row_dict, pred_flow)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -249,8 +267,8 @@ class DayStartRollingMeanModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="None",
-            top_predicted_sell_sector="None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
         )
@@ -309,6 +327,7 @@ class DayStartBayesianModel(BaseDayStartModel):
 
         direction = self._classify_direction(pred_val, confidence)
         playbook = self._determine_playbook(row_dict, pred_val)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -319,8 +338,8 @@ class DayStartBayesianModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
@@ -426,6 +445,7 @@ class DayStartPyMCModel(BaseDayStartModel):
 
         direction = self._classify_direction(pred_val, confidence)
         playbook = self._determine_playbook(row_dict, pred_val)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -436,8 +456,8 @@ class DayStartPyMCModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
@@ -505,6 +525,7 @@ class DayStartLightGBMModel(BaseDayStartModel):
         confidence = 0.72
         direction = self._classify_direction(pred_val, confidence)
         playbook = self._determine_playbook(row_dict, pred_val)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -515,8 +536,8 @@ class DayStartLightGBMModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
@@ -602,6 +623,7 @@ class DayStartXGBoostModel(BaseDayStartModel):
         confidence = 0.72
         direction = self._classify_direction(pred_val, confidence)
         playbook = self._determine_playbook(row_dict, pred_val)
+        top_buy, top_sell = self._determine_top_sectors(row_dict)
 
         return ForecastResult(
             forecast_date=row_dict.get("trade_date"),
@@ -612,8 +634,8 @@ class DayStartXGBoostModel(BaseDayStartModel):
             predicted_direction=direction,
             direction_confidence=confidence,
             predicted_playbook=playbook,
-            top_predicted_buy_sector="Banking" if pred_val > 0 else "None",
-            top_predicted_sell_sector="Transportation" if pred_val < 0 else "None",
+            top_predicted_buy_sector=top_buy,
+            top_predicted_sell_sector=top_sell,
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},

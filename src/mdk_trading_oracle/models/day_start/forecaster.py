@@ -215,12 +215,6 @@ class DayStartForecaster:
         df_next_pd = df_next_pl.to_pandas()
         res = self.model.predict(df_next_pd)
 
-        # Predict top buy/sell sector based on latest session flows
-        banking_flow = float(df_next_pd["feat_bofa_banking_flow_prev_day"].iloc[0]) if "feat_bofa_banking_flow_prev_day" in df_next_pd.columns else 0.0
-        transport_flow = float(df_next_pd["feat_bofa_transport_flow_prev_day"].iloc[0]) if "feat_bofa_transport_flow_prev_day" in df_next_pd.columns else 0.0
-        res.top_predicted_buy_sector = "Banking" if banking_flow > transport_flow else "Transportation"
-        res.top_predicted_sell_sector = "Holding" if res.predicted_net_flow_tl > 0 else "Energy & Refining"
-
         logger.info(
             f"🎯 Generated Forecast for {res.forecast_date}: "
             f"Predicted Flow = {res.predicted_net_flow_tl / 1e6:+.2f}M TL, "
@@ -238,10 +232,6 @@ class DayStartForecaster:
         for idx in range(len(X)):
             row = X.iloc[[idx]]
             res = self.model.predict(row)
-            banking_flow = float(row["feat_bofa_banking_flow_prev_day"].iloc[0]) if "feat_bofa_banking_flow_prev_day" in row.columns else 0.0
-            transport_flow = float(row["feat_bofa_transport_flow_prev_day"].iloc[0]) if "feat_bofa_transport_flow_prev_day" in row.columns else 0.0
-            res.top_predicted_buy_sector = "Banking" if banking_flow > transport_flow else "Transportation"
-            res.top_predicted_sell_sector = "Holding" if res.predicted_net_flow_tl > 0 else "Energy & Refining"
             results.append(res)
         logger.info(f"Generated {len(results)} historical backtest forecasts using Champion '{self.champion_name}'.")
         return results
