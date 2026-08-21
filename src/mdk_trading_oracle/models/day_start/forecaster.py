@@ -18,6 +18,7 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartNaivePersistenceModel,
     DayStartPyMCModel,
     DayStartRollingMeanModel,
+    DayStartXGBoostModel,
 )
 from mdk_trading_oracle.models.registry import ModelRegistry
 
@@ -34,6 +35,7 @@ class DayStartModelArena:
             "Baseline 0: Naive W4 Persistence": DayStartNaivePersistenceModel(thresholds=self.thresholds),
             "Baseline 1: 5-Day Historical Mean": DayStartRollingMeanModel(thresholds=self.thresholds),
             "LightGBM Non-Linear Ensemble": DayStartLightGBMModel(thresholds=self.thresholds),
+            "XGBoost Non-Linear Ensemble": DayStartXGBoostModel(thresholds=self.thresholds),
             "Bayesian Ridge Probabilistic": DayStartBayesianModel(thresholds=self.thresholds),
             "PyMC Bayesian GLM (MAP)": DayStartPyMCModel(use_map=True, thresholds=self.thresholds),
         }
@@ -121,6 +123,8 @@ class DayStartForecaster:
         
         if self.model_type == "lightgbm":
             self.model: Optional[BaseForecaster] = DayStartLightGBMModel(thresholds=self.threshold_profile)
+        elif self.model_type == "xgboost":
+            self.model = DayStartXGBoostModel(thresholds=self.threshold_profile)
         elif self.model_type == "baseline":
             self.model = DayStartNaivePersistenceModel(thresholds=self.threshold_profile)
         elif self.model_type == "pymc":

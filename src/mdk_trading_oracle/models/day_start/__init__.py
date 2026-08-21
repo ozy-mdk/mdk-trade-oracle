@@ -11,6 +11,7 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartNaivePersistenceModel,
     DayStartPyMCModel,
     DayStartRollingMeanModel,
+    DayStartXGBoostModel,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "DayStartBayesianModel",
     "DayStartPyMCModel",
     "DayStartLightGBMModel",
+    "DayStartXGBoostModel",
 ]

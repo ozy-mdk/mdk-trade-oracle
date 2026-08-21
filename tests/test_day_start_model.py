@@ -16,6 +16,7 @@ from mdk_trading_oracle.models.day_start import (
     DayStartNaivePersistenceModel,
     DayStartPyMCModel,
     DayStartRollingMeanModel,
+    DayStartXGBoostModel,
 )
 
 
@@ -70,7 +71,7 @@ def test_day_start_feature_extraction(populated_test_db):
 
 
 def test_day_start_candidate_models(populated_test_db):
-    """Test candidate models (Baselines, Bayesian, LightGBM) fit and predict."""
+    """Test candidate models (Baselines, Bayesian, LightGBM, XGBoost, PyMC) fit and predict."""
     extractor = DayStartFeatureExtractor(populated_test_db, target_broker_id="MLB")
     df_pl = extractor.extract_features()
     df_pd = df_pl.to_pandas()
@@ -103,14 +104,21 @@ def test_day_start_candidate_models(populated_test_db):
     res_lgb = m_lgb.predict(X.iloc[[0]])
     assert res_lgb.predicted_net_flow_tl is not None
 
-    # 5. PyMC Full Bayesian Model (MAP)
+    # 5. XGBoost Model
+    m_xgb = DayStartXGBoostModel()
+    m_xgb.fit(X, y)
+    res_xgb = m_xgb.predict(X.iloc[[0]])
+    assert res_xgb.predicted_net_flow_tl is not None
+    assert res_xgb.predicted_flow_lower_90 <= res_xgb.predicted_flow_upper_90
+
+    # 6. PyMC Full Bayesian Model (MAP)
     m_pymc = DayStartPyMCModel(use_map=True)
     m_pymc.fit(X, y)
     res_pymc = m_pymc.predict(X.iloc[[0]])
     assert res_pymc.predicted_flow_lower_90 < res_pymc.predicted_flow_upper_90
     assert 0.0 <= res_pymc.direction_confidence <= 1.0
 
-    # 6. Walk-Forward Expanding Window Evaluation
+    # 7. Walk-Forward Expanding Window Evaluation
     wf_metrics = m_bayes.walk_forward_evaluate(X, y, min_train_samples=2)
     assert "hit_rate_pct" in wf_metrics
     assert "picp_90_pct" in wf_metrics
@@ -129,9 +137,16 @@ def test_day_start_model_arena(populated_test_db):
     arena = DayStartModelArena()
     scoreboard_df, champion_model = arena.run_tournament(X, y, min_train_samples=2)
 
-    assert len(scoreboard_df) == 5
+    assert len(scoreboard_df) == 6
     assert champion_model is not None
-    assert champion_model.model_name in ["day_start_bayesian_ridge", "day_start_pymc", "day_start_lightgbm", "day_start_baseline_persistence", "day_start_baseline_rolling_mean"]
+    assert champion_model.model_name in [
+        "day_start_bayesian_ridge",
+        "day_start_pymc",
+        "day_start_lightgbm",
+        "day_start_xgboost",
+        "day_start_baseline_persistence",
+        "day_start_baseline_rolling_mean",
+    ]
 
 
 def test_day_start_next_day_feature_extraction(populated_test_db):

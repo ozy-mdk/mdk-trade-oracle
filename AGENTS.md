@@ -62,9 +62,9 @@ Every new model adheres to this **Universal Modeling Blueprint**:
    - **Model 1 (8 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates` with strict $T-1$ lag).
    - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context, Rates & Seasonality (`feat_macro_interest_rate`, `feat_macro_days_since_last_rate_change`, `feat_sector_rate_x_flow_interaction`).
 5. **Candidate Model Arena & Baselines**:
-   - Every modeling objective benchmarks 5 candidate paradigms:
+   - Every modeling objective benchmarks 6 candidate paradigms:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
-     - `Machine Learning`: Non-linear tree ensembles (LightGBM).
+     - `Machine Learning`: Non-linear tree ensembles (LightGBM, XGBoost).
      - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC).
 6. **Three-Table Persistence Architecture ($T+1$ Forecasts vs Performance Ledgers vs Simulation Backtests)**:
    - Every predictive Gold model strictly separates live predictions, audited performance tracking, and simulation ledgers:

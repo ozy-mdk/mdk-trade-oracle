@@ -12,6 +12,7 @@ from mdk_trading_oracle.models.sector_day_start.models import (
     SectorDayStartNaivePersistenceModel,
     SectorDayStartPyMCModel,
     SectorDayStartRollingMeanModel,
+    SectorDayStartXGBoostModel,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "BaseSectorDayStartModel",
     "SectorDayStartBayesianModel",
     "SectorDayStartLightGBMModel",
+    "SectorDayStartXGBoostModel",
     "SectorDayStartNaivePersistenceModel",
     "SectorDayStartPyMCModel",
     "SectorDayStartRollingMeanModel",

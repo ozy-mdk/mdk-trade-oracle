@@ -21,6 +21,7 @@ from mdk_trading_oracle.models.sector_day_start.models import (
     SectorDayStartNaivePersistenceModel,
     SectorDayStartPyMCModel,
     SectorDayStartRollingMeanModel,
+    SectorDayStartXGBoostModel,
 )
 
 logger = get_logger("mdk_oracle.models.sector_day_start.forecaster")
@@ -40,6 +41,7 @@ class SectorDayStartModelArena:
             "Baseline 0: Naive W4 Sector Persistence": SectorDayStartNaivePersistenceModel(sector_thresholds=self.sector_thresholds),
             "Baseline 1: 5-Day Historical Sector Mean": SectorDayStartRollingMeanModel(sector_thresholds=self.sector_thresholds),
             "LightGBM Non-Linear Sector Ensemble": SectorDayStartLightGBMModel(sector_thresholds=self.sector_thresholds),
+            "XGBoost Non-Linear Sector Ensemble": SectorDayStartXGBoostModel(sector_thresholds=self.sector_thresholds),
             "Bayesian Ridge Probabilistic": SectorDayStartBayesianModel(sector_thresholds=self.sector_thresholds),
         }
         if include_pymc:
@@ -129,6 +131,8 @@ class SectorDayStartForecaster:
         self.sector_thresholds = self._load_sector_thresholds()
         self.arena = SectorDayStartModelArena(include_pymc=include_pymc, sector_thresholds=self.sector_thresholds)
         self.champion_name: Optional[str] = None
+        if self.model_type != "auto":
+            self.champion_name = self.model_type
 
     def _load_sector_thresholds(self) -> Dict[str, FlowThresholdProfile]:
         """Load empirical flow percentile thresholds for all sectors from silver_bofa_historical_flow_thresholds."""
@@ -212,6 +216,8 @@ class SectorDayStartForecaster:
             return SectorDayStartBayesianModel(sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_lightgbm", "lightgbm"]:
             return SectorDayStartLightGBMModel(sector_thresholds=self.sector_thresholds)
+        elif self.champion_name in ["sector_day_start_xgboost", "xgboost"]:
+            return SectorDayStartXGBoostModel(sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_pymc", "pymc"]:
             return SectorDayStartPyMCModel(use_map=True, sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_rolling_mean", "rolling_mean"]:

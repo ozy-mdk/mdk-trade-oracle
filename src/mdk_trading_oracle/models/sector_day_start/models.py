@@ -546,3 +546,103 @@ class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
             model_version=self.model_version,
             features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
         )
+
+
+# ==========================================
+# 4. XGBoost Model
+# ==========================================
+
+@ModelRegistry.register("sector_day_start_xgboost")
+class SectorDayStartXGBoostModel(BaseSectorDayStartModel):
+    """XGBoost Non-Linear Regressor for Sector Day-Start Flow."""
+
+    def __init__(
+        self,
+        n_estimators: int = 50,
+        learning_rate: float = 0.05,
+        max_depth: int = 3,
+        subsample: float = 0.8,
+        colsample_bytree: float = 0.8,
+        sector_thresholds: Optional[Dict[str, FlowThresholdProfile]] = None,
+    ):
+        super().__init__(
+            model_name="sector_day_start_xgboost",
+            model_version="1.0.0",
+            sector_thresholds=sector_thresholds,
+        )
+        try:
+            import xgboost as xgb
+            self.model = xgb.XGBRegressor(
+                n_estimators=n_estimators,
+                learning_rate=learning_rate,
+                max_depth=max_depth,
+                subsample=subsample,
+                colsample_bytree=colsample_bytree,
+                random_state=42,
+                verbosity=0,
+            )
+        except ImportError:
+            from sklearn.ensemble import GradientBoostingRegressor
+            self.model = GradientBoostingRegressor(
+                n_estimators=n_estimators,
+                learning_rate=learning_rate,
+                max_depth=max_depth,
+                random_state=42,
+            )
+        self.feature_cols: list[str] = []
+        self.residual_std: float = 15e6
+
+    def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        feat_df = X.copy()
+        drop_cols = ["trade_date", "sector", "target_sector_open_net_flow_tl", "target_sector_open_direction"]
+        for col in drop_cols:
+            if col in feat_df.columns:
+                feat_df = feat_df.drop(columns=[col])
+        return feat_df.select_dtypes(include=[np.number, bool]).astype(float)
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "SectorDayStartXGBoostModel":
+        X_clean = self._prep_features(X)
+        self.feature_cols = list(X_clean.columns)
+        self.model.fit(X_clean, y)
+
+        if len(X_clean) >= 3:
+            preds = self.model.predict(X_clean)
+            residuals = y.to_numpy() - preds
+            self.residual_std = float(np.std(residuals)) if np.std(residuals) > 0 else 15e6
+        else:
+            self.residual_std = 15e6
+
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> ForecastResult:
+        row_dict = X.iloc[0].to_dict()
+        sector = str(row_dict.get("sector", "Sector"))
+        X_clean = self._prep_features(X.iloc[[0]])
+        for col in self.feature_cols:
+            if col not in X_clean.columns:
+                X_clean[col] = 0.0
+        X_clean = X_clean[self.feature_cols]
+
+        pred_val = float(np.asarray(self.model.predict(X_clean))[0])
+        std_est = self.residual_std
+
+        confidence = 0.70
+        direction = self._classify_direction(pred_val, confidence, sector=sector)
+        playbook = self._determine_playbook(row_dict, pred_val)
+
+        return ForecastResult(
+            forecast_date=row_dict.get("trade_date"),
+            target_broker_id="MLB",
+            predicted_net_flow_tl=pred_val,
+            predicted_flow_lower_90=pred_val - 1.645 * std_est,
+            predicted_flow_upper_90=pred_val + 1.645 * std_est,
+            predicted_direction=direction,
+            direction_confidence=confidence,
+            predicted_playbook=playbook,
+            top_predicted_buy_sector=sector,
+            top_predicted_sell_sector="None",
+            model_name=self.model_name,
+            model_version=self.model_version,
+            features_used={c: float(row_dict.get(c, 0.0)) for c in self.feature_cols[:5]},
+        )

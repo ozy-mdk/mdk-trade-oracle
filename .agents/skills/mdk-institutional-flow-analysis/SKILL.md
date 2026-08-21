@@ -86,7 +86,7 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 
 ## 5. Candidate Model Suite & Probabilistic Architecture
 
-Every quantitative modeling objective benchmarks across 5 candidate paradigms:
+Every quantitative modeling objective benchmarks across 6 candidate paradigms:
 
 ```mermaid
 flowchart LR
@@ -96,6 +96,7 @@ flowchart LR
     end
     subgraph ML["Machine Learning"]
         LGB["LightGBM Non-Linear Ensemble"]
+        XGB["XGBoost Non-Linear Ensemble"]
     end
     subgraph Bayesian["Probabilistic Bayesian"]
         BR["Bayesian Ridge (Analytical Priors)"]
@@ -105,9 +106,10 @@ flowchart LR
 
 1. **`NaivePersistenceModel`**: Carries yesterday's closing Window 4 flow forward.
 2. **`RollingMeanModel`**: 5-day historical moving average.
-3. **`LightGBMModel`**: Gradient boosting regressor capturing non-linear interactions with L2 regularization.
-4. **`BayesianModel`**: Bayesian Ridge Regression with analytical conjugate priors, outputting posterior distributions and exact 90% credible intervals.
-5. **`PyMCModel`**: Full Bayesian GLM with custom Gaussian shrinkage priors $\beta \sim \mathcal{N}(0, 0.5)$ and Half-Normal residual variance $\sigma \sim \text{HalfNormal}(1.0)$. Supports fast Maximum A Posteriori (MAP) fitting or full NUTS MCMC sampling.
+3. **`LightGBMModel`**: Gradient boosting regressor capturing non-linear interactions with fast histogram binning and L2 regularization.
+4. **`XGBoostModel`**: Gradient boosting regressor using exact second-order Taylor expansion gradients with L1/L2 regularization and feature subsampling.
+5. **`BayesianModel`**: Bayesian Ridge Regression with analytical conjugate priors, outputting posterior distributions and exact 90% credible intervals.
+6. **`PyMCModel`**: Full Bayesian GLM with custom Gaussian shrinkage priors $\beta \sim \mathcal{N}(0, 0.5)$ and Half-Normal residual variance $\sigma \sim \text{HalfNormal}(1.0)$. Supports fast Maximum A Posteriori (MAP) fitting or full NUTS MCMC sampling.
 
 ---
 

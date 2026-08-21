@@ -17,6 +17,7 @@ from mdk_trading_oracle.models.sector_day_start import (
     SectorDayStartNaivePersistenceModel,
     SectorDayStartPyMCModel,
     SectorDayStartRollingMeanModel,
+    SectorDayStartXGBoostModel,
 )
 
 
@@ -76,7 +77,7 @@ def test_sector_day_start_feature_extraction(db_conn):
 
 
 def test_sector_day_start_candidate_models(db_conn):
-    """Verify fitting and forecasting across all 5 candidate sector models."""
+    """Verify fitting and forecasting across all 6 candidate sector models."""
     extractor = SectorDayStartFeatureExtractor(db_conn, target_broker_id="MLB")
     df_pl = extractor.extract_features(sector="Banking")
     df = df_pl.to_pandas()
@@ -88,6 +89,7 @@ def test_sector_day_start_candidate_models(db_conn):
         SectorDayStartNaivePersistenceModel(),
         SectorDayStartRollingMeanModel(),
         SectorDayStartLightGBMModel(),
+        SectorDayStartXGBoostModel(),
         SectorDayStartBayesianModel(),
         SectorDayStartPyMCModel(use_map=True),
     ]
@@ -116,7 +118,7 @@ def test_sector_day_start_model_arena(db_conn):
     scoreboard, champion = arena.run_tournament(X, y, min_train_samples=5)
 
     assert isinstance(scoreboard, pd.DataFrame)
-    assert len(scoreboard) == 4
+    assert len(scoreboard) == 5
     assert "hit_rate_pct" in scoreboard.columns
     assert "picp_90_pct" in scoreboard.columns
     assert champion is not None
