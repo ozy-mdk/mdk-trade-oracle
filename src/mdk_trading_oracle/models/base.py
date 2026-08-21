@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import polars as pl
 
+from mdk_trading_oracle.core.time import now_turkey_naive
+
 
 class ForecastDirection(str):
     """Institutional directional posture for opening session."""
@@ -45,7 +47,7 @@ class ForecastResult:
     model_version: str
     features_used: Dict[str, Any] = field(default_factory=dict)
     sector_forecasts: List[Dict[str, Any]] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=datetime.now)
+    generated_at: datetime = field(default_factory=now_turkey_naive)
 
 
 class BaseFeatureExtractor(ABC):

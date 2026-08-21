@@ -47,6 +47,9 @@ class DuckDBManager:
                     )
                 raise e
 
+            # Enforce Turkish Time (Europe/Istanbul / TRT / UTC+3) across all DuckDB operations
+            self._conn.execute(f"SET TimeZone = '{self.settings.timezone}';")
+
             # Performance and memory spill pragmas (only if read-write and not in-memory)
             if not self.read_only and self.db_path != ":memory:":
                 tmp_dir = self.settings.database_dir / "tmp"

@@ -20,15 +20,15 @@ def test_medallion_pipeline_in_memory():
     initialize_silver_schema(db)
     initialize_gold_schema(db)
 
-    # Insert synthetic Bronze trades across various intraday times
+    # Insert synthetic Bronze trades across various intraday times (Turkish Time TRT)
     conn.execute("""
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
-            ('t1', '2026-03-16 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window
-            ('t2', '2026-03-16 09:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window
-            ('t3', '2026-03-16 12:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Lunch window
-            ('t4', '2026-03-16 14:00:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window
-            ('t5', '2026-03-16 15:30:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window
+            ('t1', '2026-03-16 10:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window (09:55 - 10:30)
+            ('t2', '2026-03-16 11:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window (10:30 - 13:00)
+            ('t3', '2026-03-16 14:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Lunch/Afternoon window (13:00 - 17:00)
+            ('t4', '2026-03-16 17:15:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window (17:00 - 18:15)
+            ('t5', '2026-03-16 17:45:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window (17:00 - 18:15)
     """)
 
     # 2. Execute Silver Transformations

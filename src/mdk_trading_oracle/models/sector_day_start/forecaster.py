@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
+from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.models.base import ForecastResult
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.sector_day_start.features import SectorDayStartFeatureExtractor
@@ -483,7 +484,7 @@ class SectorDayStartForecaster:
                 f.model_name,
                 f.model_version,
                 f.generated_at,
-                datetime.now(),
+                now_turkey_naive(),
             ])
             reconciled_count += 1
 
@@ -665,7 +666,7 @@ class SectorDayStartForecaster:
                 f.predicted_playbook,
                 f.model_name,
                 f.model_version,
-                datetime.now(),
+                now_turkey_naive(),
             ])
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]

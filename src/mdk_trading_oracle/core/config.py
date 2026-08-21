@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # App meta
     app_env: str = Field(default="development", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    timezone: str = Field(default="Europe/Istanbul", alias="TIMEZONE")
     default_market: str = Field(default="BIST", alias="DEFAULT_MARKET")
     primary_institution: str = Field(default="MLB", alias="PRIMARY_INSTITUTION")
 
@@ -101,10 +102,10 @@ class Settings(BaseSettings):
         """Get parameterized intraday time windows list."""
         data = self.get_default_config()
         return data.get("intraday_windows", [
-            {"name": "day_start", "label": "Day Start", "start_time": "07:55:00", "end_time": "08:30:00", "order": 1},
-            {"name": "morning_to_lunch", "label": "Morning to Lunch", "start_time": "08:30:00", "end_time": "11:00:00", "order": 2},
-            {"name": "lunch_to_15", "label": "Lunch to 15:00", "start_time": "11:00:00", "end_time": "13:00:00", "order": 3},
-            {"name": "closing_session", "label": "15:00 to Day Close", "start_time": "13:00:00", "end_time": "16:15:00", "order": 4},
+            {"name": "day_start", "label": "Day Start (Opening 35m)", "start_time": "09:55:00", "end_time": "10:30:00", "order": 1},
+            {"name": "morning_to_lunch", "label": "Morning to Lunch", "start_time": "10:30:00", "end_time": "13:00:00", "order": 2},
+            {"name": "lunch_to_15", "label": "Lunch to 17:00", "start_time": "13:00:00", "end_time": "17:00:00", "order": 3},
+            {"name": "closing_session", "label": "17:00 to Day Close", "start_time": "17:00:00", "end_time": "18:15:00", "order": 4},
         ])
 
     def get_model_config(self, model_name: str) -> Dict[str, Any]:

@@ -6,6 +6,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from mdk_trading_oracle.core.time import now_turkey
+
 
 class TradeSide(str, Enum):
     BUY = "BUY"
@@ -97,4 +99,4 @@ class OracleDecisionSignal(BaseModel):
     bofa_flow_zscore: float
     summary: str
     reasons: List[str]
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=now_turkey)

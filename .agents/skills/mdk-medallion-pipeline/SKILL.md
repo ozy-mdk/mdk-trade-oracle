@@ -90,11 +90,11 @@ flowchart TD
 - **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC change, and 30-day rolling rate averages.
-- **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 4 canonical intraday windows:
-  - `Window 1: Opening Auction & Initial Flow` (09:55 – 10:30)
-  - `Window 2: Midday Discovery & Base Building` (10:30 – 13:00)
-  - `Window 3: Afternoon Liquidity & US Open Pre-Align` (13:00 – 17:00)
-  - `Window 4: Closing Ramp & MOC / Final VWAP` (17:00 – 18:10)
+- **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 4 canonical intraday windows in Turkish Time (TRT / UTC+3):
+  - `Window 1: day_start (Opening 35m)` (09:55 – 10:30 TRT)
+  - `Window 2: morning_to_lunch (Morning Continuous)` (10:30 – 13:00 TRT)
+  - `Window 3: lunch_to_15 (Midday to Afternoon)` (13:00 – 17:00 TRT)
+  - `Window 4: closing_session (Closing Ramp & Auction)` (17:00 – 18:15 TRT)
 - **`silver_intraday_sector_window_summary`**: Primary key `(trade_date, sector, broker_id, window_name)`. Intraday sector rotation and broker execution across the 4 windows.
 - **`silver_market_daily`**: Primary key `(trade_date, symbol)`. Backward-compatibility daily summary table.
 

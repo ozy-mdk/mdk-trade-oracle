@@ -49,27 +49,27 @@ backfill:
   default_lookback_months: 2         # Default window when running --backfill-missing (2 months)
   default_lookback_days: null        # Optional specific day lookback override (e.g., 60)
 
-# Parameterized Intraday Time Windows (Raw feed timestamps in UTC)
-# BIST continuous session: 07:55 - 16:15 UTC (09:55 - 18:15 Istanbul TRT)
+# Parameterized Intraday Time Windows (Turkish Time TRT / Europe/Istanbul)
+# BIST continuous session: 09:55 - 18:15 TRT
 intraday_windows:
   - name: "day_start"
-    label: "Day Start (Opening 30m)"
-    start_time: "07:55:00"
-    end_time: "08:30:00"
+    label: "Day Start (Opening 35m)"
+    start_time: "09:55:00"
+    end_time: "10:30:00"
     order: 1
   - name: "morning_to_lunch"
     label: "Morning to Lunch"
-    start_time: "08:30:00"
-    end_time: "11:00:00"
+    start_time: "10:30:00"
+    end_time: "13:00:00"
     order: 2
   - name: "lunch_to_15"
-    label: "Lunch to 15:00"
-    start_time: "11:00:00"
-    end_time: "13:00:00"
+    label: "Lunch to 17:00"
+    start_time: "13:00:00"
+    end_time: "17:00:00"
     order: 3
   - name: "closing_session"
-    label: "15:00 to Day Close"
-    start_time: "13:00:00"
-    end_time: "16:15:00"
+    label: "17:00 to Day Close"
+    start_time: "17:00:00"
+    end_time: "18:15:00"
     order: 4
 
