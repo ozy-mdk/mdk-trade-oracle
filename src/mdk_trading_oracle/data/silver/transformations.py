@@ -34,8 +34,8 @@ class SilverTransformer:
             start_branches.append(f"WHEN CAST(timestamp AS TIME) >= '{start_t}' AND CAST(timestamp AS TIME) < '{end_t}' THEN '{start_t}'")
 
         last_name = windows[-1]["name"] if windows else "closing_session"
-        last_order = windows[-1].get("order", 4) if windows else 4
-        last_start = windows[-1].get("start_time", "17:00:00") if windows else "17:00:00"
+        last_order = windows[-1].get("order", 5) if windows else 5
+        last_start = windows[-1].get("start_time", "16:00:00") if windows else "16:00:00"
 
         case_name = "CASE " + " ".join(name_branches) + f" ELSE '{last_name}' END"
         case_order = "CASE " + " ".join(order_branches) + f" ELSE {last_order} END"

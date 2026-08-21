@@ -90,12 +90,13 @@ flowchart TD
 - **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC change, and 30-day rolling rate averages.
-- **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 4 canonical intraday windows in Turkish Time (TRT / UTC+3):
+- **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 5 canonical intraday windows in Turkish Time (TRT / UTC+3):
   - `Window 1: day_start (Opening 35m)` (09:55 – 10:30 TRT)
-  - `Window 2: morning_to_lunch (Morning Continuous)` (10:30 – 13:00 TRT)
-  - `Window 3: lunch_to_15 (Midday to Afternoon)` (13:00 – 17:00 TRT)
-  - `Window 4: closing_session (Closing Ramp & Auction)` (17:00 – 18:15 TRT)
-- **`silver_intraday_sector_window_summary`**: Primary key `(trade_date, sector, broker_id, window_name)`. Intraday sector rotation and broker execution across the 4 windows.
+  - `Window 2: first_reaction (First Reaction)` (10:30 – 11:30 TRT)
+  - `Window 3: midday_followup (Midday Follow-up)` (11:30 – 14:30 TRT)
+  - `Window 4: afternoon_reaction (Afternoon Reaction)` (14:30 – 16:00 TRT)
+  - `Window 5: closing_session (Closing & Auction)` (16:00 – 18:15 TRT)
+- **`silver_intraday_sector_window_summary`**: Primary key `(trade_date, sector, broker_id, window_name)`. Intraday sector rotation and broker execution across the 5 windows.
 - **`silver_market_daily`**: Primary key `(trade_date, symbol)`. Backward-compatibility daily summary table.
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)

@@ -50,26 +50,31 @@ backfill:
   default_lookback_days: null        # Optional specific day lookback override (e.g., 60)
 
 # Parameterized Intraday Time Windows (Turkish Time TRT / Europe/Istanbul)
-# BIST continuous session: 09:55 - 18:15 TRT
+# BIST continuous session: 09:55 - 18:15 TRT across 5 distinct microstructure windows
 intraday_windows:
   - name: "day_start"
-    label: "Day Start (Opening 35m)"
+    label: "Day Start (09:55 - 10:30)"
     start_time: "09:55:00"
     end_time: "10:30:00"
     order: 1
-  - name: "morning_to_lunch"
-    label: "Morning to Lunch"
+  - name: "first_reaction"
+    label: "First Reaction (10:30 - 11:30)"
     start_time: "10:30:00"
-    end_time: "13:00:00"
+    end_time: "11:30:00"
     order: 2
-  - name: "lunch_to_15"
-    label: "Lunch to 17:00"
-    start_time: "13:00:00"
-    end_time: "17:00:00"
+  - name: "midday_followup"
+    label: "Midday Follow-up (11:30 - 14:30)"
+    start_time: "11:30:00"
+    end_time: "14:30:00"
     order: 3
-  - name: "closing_session"
-    label: "17:00 to Day Close"
-    start_time: "17:00:00"
-    end_time: "18:15:00"
+  - name: "afternoon_reaction"
+    label: "Afternoon Reaction (14:30 - 16:00)"
+    start_time: "14:30:00"
+    end_time: "16:00:00"
     order: 4
+  - name: "closing_session"
+    label: "Closing & Auction (16:00 - 18:15)"
+    start_time: "16:00:00"
+    end_time: "18:15:00"
+    order: 5
 

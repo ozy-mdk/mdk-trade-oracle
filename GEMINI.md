@@ -29,7 +29,7 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
 - **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate change and 30-day rolling rate averages.
-  - Daily sector breadth and 4-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (morning_to_lunch) 10:30-13:00, `Window 3` (lunch_to_15) afternoon 13:00-17:00, `Window 4` (closing_session) closing 17:00-18:15.
+  - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.

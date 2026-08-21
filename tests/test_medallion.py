@@ -24,11 +24,11 @@ def test_medallion_pipeline_in_memory():
     conn.execute("""
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
-            ('t1', '2026-03-16 10:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Day Start window (09:55 - 10:30)
-            ('t2', '2026-03-16 11:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Morning window (10:30 - 13:00)
-            ('t3', '2026-03-16 14:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Lunch/Afternoon window (13:00 - 17:00)
-            ('t4', '2026-03-16 17:15:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Close window (17:00 - 18:15)
-            ('t5', '2026-03-16 17:45:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Close window (17:00 - 18:15)
+            ('t1', '2026-03-16 10:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),  -- Window 1: Day Start (09:55 - 10:30)
+            ('t2', '2026-03-16 11:00:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),  -- Window 2: First Reaction (10:30 - 11:30)
+            ('t3', '2026-03-16 13:00:00', 'THYAO', 302.0, 500.0, 'YKR', 'MLB', 'test'),   -- Window 3: Midday Follow-up (11:30 - 14:30)
+            ('t4', '2026-03-16 15:15:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'AKB', 'test'),   -- Window 4: Afternoon Reaction (14:30 - 16:00)
+            ('t5', '2026-03-16 17:30:00', 'AKBNK', 62.0, 3000.0, 'MLB', 'YKR', 'test');   -- Window 5: Closing Session (16:00 - 18:15)
     """)
 
     # 2. Execute Silver Transformations
@@ -111,15 +111,15 @@ def test_medallion_pipeline_in_memory():
         ORDER BY window_order ASC;
     """).fetchall()
 
-    assert len(intraday_bofa) == 3  # Day Start (buy 1000), Morning (buy 2000), Lunch (sell 500)
-    # Day Start window (08:15)
+    assert len(intraday_bofa) == 3  # Day Start (buy 1000), First Reaction (buy 2000), Midday (sell 500)
+    # Window 1: Day Start window (10:15)
     assert intraday_bofa[0][0] == "day_start"
     assert intraday_bofa[0][2] == 1000.0
-    # Morning window (09:30)
-    assert intraday_bofa[1][0] == "morning_to_lunch"
+    # Window 2: First Reaction window (11:00)
+    assert intraday_bofa[1][0] == "first_reaction"
     assert intraday_bofa[1][2] == 2000.0
-    # Lunch window (12:00)
-    assert intraday_bofa[2][0] == "lunch_to_15"
+    # Window 3: Midday Follow-up window (13:00)
+    assert intraday_bofa[2][0] == "midday_followup"
     assert intraday_bofa[2][3] == 500.0
 
     # --- Verify Table 6: silver_intraday_sector_window_summary ---
