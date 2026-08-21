@@ -69,10 +69,14 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         # Determine effective start_date from lookback_months if not explicitly given
         effective_start = start_date
         if effective_start is None and self.lookback_months is not None:
-            max_d_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
-            if max_d_res and max_d_res[0]:
+            reference_end = end_date
+            if reference_end is None:
+                max_d_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
+                if max_d_res and max_d_res[0]:
+                    reference_end = max_d_res[0]
+            if reference_end:
                 from dateutil.relativedelta import relativedelta
-                effective_start = max_d_res[0] - relativedelta(months=self.lookback_months)
+                effective_start = reference_end - relativedelta(months=self.lookback_months)
 
         query = f"""
             WITH daily_dates AS (
