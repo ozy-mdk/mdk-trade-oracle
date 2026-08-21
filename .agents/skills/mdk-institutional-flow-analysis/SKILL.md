@@ -65,21 +65,22 @@ In strict adherence to quantitative and mathematical rigor, targets are defined 
 
 All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or prior completed intraday windows:
 
-### A. Model 1: The 7 Macro Feature Clusters (`DayStartFeatureExtractor`)
+### A. Model 1: The 8 Macro Feature Clusters (`DayStartFeatureExtractor`)
 1. **Prior Closing Window Momentum**: Window 4 net flow & turnover (`feat_bofa_w4_net_flow_tl`, `feat_bofa_w4_turnover_tl`, `feat_w4_flow_acceleration_ratio`).
 2. **Multi-Day Inventory & Sector Saturation**: 5-day / 20-day rolling flows & Z-scores (`feat_bofa_cum_net_flow_5d_tl`, `feat_bofa_flow_zscore_20d`).
 3. **Institutional Cost Basis & Unrealized PnL**: Spread between Close and 20d Buy VWAP (`feat_bofa_cost_basis_spread_20d_pct`).
 4. **Top-5 Competitor Posture & Flow Delta**: Flow deltas vs domestic major desks `IYM`, `YKR`, `AKM`, `GRM`, `ZRY` (`feat_top5_domestic_w4_net_flow_tl`, `feat_bofa_vs_top5_w4_flow_delta_tl`).
 5. **Institutional Hegemony & Market Control**: Turnover share and concentration (`feat_bofa_prev_day_market_share`, `feat_institutional_hegemony_share`, `feat_avg_cr5_concentration`).
 6. **Sector Cross-Sectional Stress & Breadth**: Flow across Banking, Transportation, Holding, Energy, Defense (`feat_bofa_banking_flow_prev_day`, `feat_bofa_transport_flow_prev_day`, `feat_bofa_holding_flow_prev_day`).
-7. **Macro Rates & Calendar Dynamics**: Central Bank 1-week repo rate, rate change flags, days since last MPC decision (`silver_daily_macro_rates`), day of week, Monday rebalancing, Friday hedging (`day_of_week`, `is_monday`, `is_friday`).
+7. **Calendar Dynamics**: Day of week, Monday rebalancing, Friday hedging (`day_of_week`, `is_monday`, `is_friday`).
+8. **Macro Interest Rate Dynamics**: Prevailing Central Bank (TCMB) 1-week repo policy rate, rate deltas, decision day flags, days elapsed since last rate hike/cut, rate spread vs 30-day mean, and daily carry cost bps (`silver_daily_macro_rates` with strict $T-1$ lag).
 
 ### B. Model 2: The 5 Sector Feature Clusters (`SectorDayStartFeatureExtractor`)
 1. **Sector Prior Closing Window Momentum**: Sector Window 4 net flow and turnover (`feat_sector_bofa_w4_net_flow_tl`, `feat_sector_bofa_w4_turnover_tl`).
 2. **Sector Competitor Imbalance**: BofA vs Top-5 domestic desk deltas in sector $s$ (`feat_sector_top5_w4_net_flow_tl`, `feat_sector_bofa_vs_top5_w4_delta_tl`, `feat_sector_bofa_vs_top5_daily_delta_tl`).
 3. **Sector Dominance & Share of Wallet**: Sector market share and sector share of total BofA flow (`feat_sector_bofa_market_share`, `feat_sector_bofa_share_of_wallet`).
 4. **Sector Multi-Day Accumulation & Saturation**: Rolling 5-day / 20-day sector cumulative flow and flow Z-scores (`feat_sector_bofa_cum_net_flow_5d_tl`, `feat_sector_top5_cum_net_flow_5d_tl`, `feat_sector_bofa_flow_zscore_20d`).
-5. **Macro Context, Rates & Seasonality**: Previous day total macro BofA flow, prevailing Central Bank policy rate, and calendar flags (`feat_macro_bofa_prev_day_net_flow_tl`, `feat_macro_top5_prev_day_net_flow_tl`, `is_monday`, `is_friday`, `day_of_week`).
+5. **Macro Context, Rates & Seasonality**: Prevailing Central Bank policy rate, days since last rate change, last rate change bps, rate spread vs 30-day mean, sector rate $\times$ flow interaction, previous day macro BofA flow, and calendar flags (`feat_macro_interest_rate`, `feat_macro_days_since_last_rate_change`, `feat_macro_last_rate_change_bps`, `feat_sector_rate_x_flow_interaction`, `is_monday`, `is_friday`, `day_of_week`).
 
 ---
 
@@ -137,24 +138,30 @@ Step 20: Train on [Day 1 … 249] (249 days)  ──► Predict Day 250 ──�
 
 ---
 
-## 7. Actionable Decision Items for Individual Traders
+## 7. Actionable Decision Items & Dynamic Empirical Percentiles
 
-Continuous flow forecasts must be translated into discrete, tradeable decisions:
+Continuous flow forecasts are translated into discrete, tradeable decisions calibrated dynamically from empirical historical distribution thresholds stored in `silver_bofa_historical_flow_thresholds`:
 
-### A. Directional Conviction Levels
-- **`STRONG_ACCUMULATE`**: Expected net flow $> +50\text{M TL}$ with conviction $\ge 70\%$.
-- **`ACCUMULATE`**: Expected net flow $> +10\text{M TL}$.
-- **`NEUTRAL`**: Expected net flow between $-10\text{M}$ and $+10\text{M TL}$.
-- **`DISTRIBUTE`**: Expected net flow $< -10\text{M TL}$.
-- **`STRONG_DISTRIBUTE`**: Expected net flow $< -50\text{M TL}$ with conviction $\ge 70\%$.
+### A. Empirical Percentile Calibration Architecture
+Nominal amounts (e.g. 50M TL) fail across sectors with vastly different liquidity scales (e.g. Banking vs Beverages). Instead, Silver computes empirical quantiles ($P_{25}, P_{50}, P_{85}$) across historical Window 1 (`day_start`) buy and sell actions:
+
+$$\text{Direction} = \begin{cases} 
+\text{STRONG\_BUY} & \text{if } \hat{y} \ge P_{85}(\text{buys}) \\
+\text{BUY} & \text{if } P_{50}(\text{buys}) \le \hat{y} < P_{85}(\text{buys}) \\
+\text{WEAK\_BUY} & \text{if } P_{25}(\text{buys}) \le \hat{y} < P_{50}(\text{buys}) \\
+\text{STRONG\_SELL} & \text{if } |\hat{y}| \ge P_{85}(\text{sells}) \text{ and } \hat{y} < 0 \\
+\text{SELL} & \text{if } P_{50}(\text{sells}) \le |\hat{y}| < P_{85}(\text{sells}) \text{ and } \hat{y} < 0 \\
+\text{WEAK\_SELL} & \text{if } P_{25}(\text{sells}) \le |\hat{y}| < P_{50}(\text{sells}) \text{ and } \hat{y} < 0 \\
+\text{NEUTRAL} & \text{otherwise}
+\end{cases}$$
 
 ### B. Institutional Execution Playbooks
-- **`SQUEEZE_LONG`**: High positive flow expectation with massive competitor flow delta ($> +30\text{M TL}$) — trade long momentum.
-- **`MOMENTUM_EXPANSION`**: Large opening accumulation ($> +40\text{M TL}$) — follow early breakout.
-- **`LIQUIDITY_FADE`**: High negative flow expectation with BofA holding $> +5\%$ unrealized gains — expect profit-taking / fade dips.
+- **`SQUEEZE_LONG`**: Positive flow expectation $\ge P_{50}(\text{buys})$ with massive competitor delta ($> P_{50}(\text{buys})$) — follow aggressive opening accumulation.
+- **`MOMENTUM_EXPANSION`**: Extreme opening accumulation $\ge P_{85}(\text{buys})$ — follow strong institutional momentum.
+- **`LIQUIDITY_FADE`**: High negative flow expectation $|\hat{y}| \ge P_{50}(\text{sells})$ with BofA holding $> +5\%$ unrealized gains — expect profit-taking / fade dips.
 - **`DEFENSE_SUPPORT`**: Underwater inventory ($< -4\%$ cost basis spread) with positive flow — institutional defense zone.
 - **`SECTOR_ROTATION`**: Capital shifts between Banking, Transportation, Holding, and Industrial equities.
-- **`NEUTRAL_WAIT`**: Ambiguous flow — wait for Window 2 intraday confirmation.
+- **`NEUTRAL_WAIT`**: Sub-threshold flow ($|\hat{y}| < P_{25}$) — wait for Window 2 intraday confirmation.
 
 ---
 

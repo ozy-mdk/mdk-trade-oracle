@@ -26,9 +26,10 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_bofa_historical_flow_thresholds`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
-  - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate change and 30-day rolling rate averages.
+  - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
+  - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
@@ -58,8 +59,8 @@ Every new model adheres to this **Universal Modeling Blueprint**:
 3. **Rigorous & Clean Target Variables**:
    - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
 4. **Problem-Specific Quantitative Feature Clusters**:
-   - **Model 1 (7 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics.
-   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context & Calendar Dynamics.
+   - **Model 1 (8 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates` with strict $T-1$ lag).
+   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context, Rates & Seasonality (`feat_macro_interest_rate`, `feat_macro_days_since_last_rate_change`, `feat_sector_rate_x_flow_interaction`).
 5. **Candidate Model Arena & Baselines**:
    - Every modeling objective benchmarks 5 candidate paradigms:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
@@ -85,10 +86,10 @@ Every new model adheres to this **Universal Modeling Blueprint**:
    - **Clean & Professional Typography (No Excessive Emojis)**:
      - Keep documentation, markdown cells, headers, section titles, comments, and card templates clean, crisp, and professional.
      - **Do NOT use excessive emojis** in headers, text blocks, or notebooks. Use standard structured markdown headers, clean typography, tables, and minimal functional status badges (`[PASS]`, `[FAIL]`, `HIT`, `MISS`).
-10. **Actionable Trader Decision Outputs**:
-    - Continuous predictions are translated into concrete trader action items:
-      - **Directional Conviction Levels**: `STRONG_ACCUMULATE`, `ACCUMULATE`, `NEUTRAL`, `DISTRIBUTE`, `STRONG_DISTRIBUTE`
-      - **Institutional Playbooks**: Context-driven trade blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
+10. **Actionable Trader Decision Outputs & Dynamic Empirical Quantiles**:
+    - Nominal values (e.g. 50M TL) are strictly avoided; direction is classified dynamically from empirical quantiles ($P_{25}, P_{50}, P_{85}$) computed in `silver_bofa_historical_flow_thresholds`:
+      - **Directional Conviction Levels**: `STRONG_BUY` ($\ge P_{85}$), `BUY` ($P_{50} \le \hat{y} < P_{85}$), `WEAK_BUY` ($P_{25} \le \hat{y} < P_{50}$), `NEUTRAL`, `WEAK_SELL`, `SELL`, `STRONG_SELL`.
+      - **Institutional Playbooks**: Dynamic context blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
       - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
 
 ---

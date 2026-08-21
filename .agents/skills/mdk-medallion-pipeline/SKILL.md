@@ -40,9 +40,10 @@ flowchart TD
         S_BROK_OVR["silver_daily_broker_overview<br/>(Broker Macro Market Share & Ranks)"]
         S_STK_SUM["silver_daily_stock_summary<br/>(OHLCV, CR5, BofA VWAP & Spreads)"]
         S_SEC_SUM["silver_daily_sector_summary<br/>(Sector Inflow & Breadth)"]
-        S_WIN_BROK["silver_intraday_broker_window_summary<br/>(4 Intraday Windows x Stock x Broker)"]
-        S_WIN_SEC["silver_intraday_sector_window_summary<br/>(4 Intraday Windows x Sector x Broker)"]
+        S_WIN_BROK["silver_intraday_broker_window_summary<br/>(5 Intraday Windows x Stock x Broker)"]
+        S_WIN_SEC["silver_intraday_sector_window_summary<br/>(5 Intraday Windows x Sector x Broker)"]
         S_MACRO["silver_daily_macro_rates<br/>(Daily Policy Rates & Momentum)"]
+        S_THRESH["silver_bofa_historical_flow_thresholds<br/>(Empirical P25/P50/P85 Quantiles)"]
         S_MKT["silver_market_daily<br/>(Backward-compatibility OHLCV)"]
     end
 
@@ -66,13 +67,16 @@ flowchart TD
     S_BROK_SUM --> S_STK_SUM
     S_BROK_SUM --> S_SEC_SUM
     S_WIN_BROK --> S_WIN_SEC
+    S_WIN_BROK --> S_THRESH
 
     S_STK_SUM --> G_SIG
     S_WIN_BROK --> G_M1
     S_BROK_OVR --> G_M1
     S_MACRO -.-> G_M1
+    S_THRESH -.-> G_M1
     S_WIN_SEC --> G_M2
     S_SEC_SUM --> G_M2
+    S_THRESH -.-> G_M2
     G_M1 -. Reconcile .-> G_M1_PERF
     G_M2 -. Reconcile .-> G_M2_PERF
 ```
@@ -89,7 +93,8 @@ flowchart TD
 - **`silver_daily_broker_overview`**: Primary key `(trade_date, broker_id)`. Macro broker statistics including market turnover share, market volume share, turnover rank, net flow rank, `is_top_5_broker`, top bought/sold symbols, top sector name, and top sector share.
 - **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
-- **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC change, and 30-day rolling rate averages.
+- **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
+- **`silver_bofa_historical_flow_thresholds`**: Primary key `(scope_type, scope_name, broker_id, window_name)`. Empirical flow percentiles ($P_{25}, P_{50}, P_{85}$) computed across historical buy actions ($\text{net\_flow} > 0$) and sell actions ($|\text{net\_flow}|$) for Macro (`ALL`) and each of the 26 tracked BIST sectors.
 - **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 5 canonical intraday windows in Turkish Time (TRT / UTC+3):
   - `Window 1: day_start (Opening 35m)` (09:55 – 10:30 TRT)
   - `Window 2: first_reaction (First Reaction)` (10:30 – 11:30 TRT)
@@ -194,14 +199,17 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | **Silver** | `silver_daily_stock_summary` | `(trade_date, symbol)` | 945 | [PASS] Verified |
 | **Silver** | `silver_daily_sector_summary` | `(trade_date, sector, broker_id)` | 28,516 | [PASS] Verified |
 | **Silver** | `silver_daily_macro_rates` | `trade_date` | 1,157 | [PASS] Verified |
-| **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 166,095 | [PASS] Verified |
-| **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 99,825 | [PASS] Verified |
+| **Silver** | `silver_bofa_historical_flow_thresholds` | `(scope_type, scope_name, broker_id, window_name)` | 27 | [PASS] Verified |
+| **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 209,500 | [PASS] Verified |
+| **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 126,300 | [PASS] Verified |
 | **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | [PASS] Verified |
 | **Gold** | `gold_institutional_daily_signals` | `(trade_date, symbol)` | 945 | [PASS] Verified |
-| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 21 (incl. live T+1) | [PASS] Verified |
-| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 546 (incl. live T+1) | [PASS] Verified |
-| **Gold** | `gold_bofa_day_start_backtests` | `trade_date` | 20 | [PASS] Verified |
-| **Gold** | `gold_bofa_sector_day_start_backtests` | `(trade_date, sector)` | 520 | [PASS] Verified |
+| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 1 (Active Live T+1) | [PASS] Verified |
+| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 26 (Active Live T+1) | [PASS] Verified |
+| **Gold** | `gold_bofa_day_start_performance` | `trade_date` | 20 (Audited Ledger) | [PASS] Verified |
+| **Gold** | `gold_bofa_sector_day_start_performance` | `(trade_date, sector)` | 520 (Audited Ledger) | [PASS] Verified |
+| **Gold** | `gold_bofa_day_start_backtests` | `trade_date` | 20 (Simulation Ledger) | [PASS] Verified |
+| **Gold** | `gold_bofa_sector_day_start_backtests` | `(trade_date, sector)` | 520 (Simulation Ledger) | [PASS] Verified |
 
 ---
 

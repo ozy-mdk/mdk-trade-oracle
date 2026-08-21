@@ -45,12 +45,13 @@ flowchart TD
    - `silver_daily_broker_overview`: 1,235 daily macro broker market share and liquidity rankings.
    - `silver_daily_stock_summary`: 945 daily stock OHLCV, market VWAP, CR5 concentration, and BofA spreads.
    - `silver_daily_sector_summary`: 28,516 sector breadth and turnaround metrics.
-   - `silver_daily_macro_rates`: 1,157 daily macroeconomic policy rate records with rate deltas, decision flags, days since last MPC change, and 30-day rolling means.
-   - `silver_intraday_broker_window_summary`: 166,095 executions split across 4 canonical intraday windows (Window 1 Day-Start 09:55–10:30, Window 2 Midday, Window 3 Afternoon, Window 4 Closing 17:00–18:10).
-   - `silver_intraday_sector_window_summary`: 99,825 sector-level intraday window executions.
+   - `silver_daily_macro_rates`: 1,157 daily macroeconomic policy rate records with rate deltas, decision flags, days since last MPC hike/cut, rate spreads vs 30-day mean, and daily carry cost bps.
+   - `silver_bofa_historical_flow_thresholds`: 27 empirical flow percentile profiles (1 Macro ALL + 26 BIST sectors) computing continuous $P_{25}, P_{50}, P_{85}$ quantiles across historical buy and sell actions.
+   - `silver_intraday_broker_window_summary`: 209,500 executions split across 5 canonical intraday windows in Turkish Time (Window 1 Day-Start 09:55–10:30, Window 2 First Reaction 10:30–11:30, Window 3 Midday 11:30–14:30, Window 4 Afternoon 14:30–16:00, Window 5 Closing 16:00–18:15).
+   - `silver_intraday_sector_window_summary`: 126,300 sector-level intraday window executions.
 3. **Gold Layer (`gold_*`) & Predictive Multi-Model Suite**:
    - `gold_institutional_daily_signals`: Rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
-   - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — active live predictions strictly for upcoming session $T+1$ (exchange-wide opening flow, 90% credible intervals, directional conviction, and institutional execution playbooks).
+   - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — active live predictions strictly for upcoming session $T+1$ (exchange-wide opening flow, 90% credible intervals, dynamic empirical percentile conviction `STRONG_BUY` through `STRONG_SELL`, and institutional execution playbooks).
    - `gold_bofa_sector_day_start_forecasts`: **Model 2: Sector Day-Start Forecaster** — active live sector opening allocation predictions strictly for upcoming session $T+1$ across 26 tracked BIST sectors.
    - `gold_bofa_day_start_performance` & `gold_bofa_sector_day_start_performance`: **Permanent Audited Performance Ledgers** — historical records reconciling past predictions against actual realized Window 1 market data (MAE, RMSE, direction hit %, and 90% coverage).
    - `gold_bofa_day_start_backtests` & `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward simulation ledgers for calibration and tournament benchmarking.
