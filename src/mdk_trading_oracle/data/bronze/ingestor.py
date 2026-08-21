@@ -8,9 +8,11 @@ Supports:
 """
 
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+import pandas as pd
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
@@ -75,8 +77,13 @@ class BronzeIngestor:
         discovered: List[Dict[str, Any]] = []
         for ext in ["*.csv", "*.parquet", "*.txt"]:
             for f in base_dir.rglob(ext):
-                # Ignore hidden files, temporary files, and mysql dump directories
-                if f.name.startswith(".") or "/mysql/" in f.as_posix():
+                # Ignore hidden files, temporary files, mysql dump directories, and central bank rates
+                path_str = f.as_posix()
+                if (
+                    f.name.startswith(".")
+                    or "/mysql/" in path_str
+                    or "/central_bank_interest_rates/" in path_str
+                ):
                     continue
                 discovered.append(self._extract_file_metadata(f))
 
@@ -440,3 +447,298 @@ class BronzeIngestor:
             conn.execute("DELETE FROM bronze_ingestion_log;")
 
         return self.ingest_incremental(target_dir)
+
+    def discover_central_bank_files(self, search_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+        """Recursively scan directory for Central Bank interest rate files (.xlsx, .xls, .csv, .parquet)."""
+        base_dir = search_dir or (self.settings.raw_data_dir / "central_bank_interest_rates")
+        if not base_dir.exists():
+            logger.debug(f"Central bank rates directory does not exist: {base_dir}")
+            return []
+
+        discovered: List[Dict[str, Any]] = []
+        for ext in ["*.xlsx", "*.xls", "*.csv", "*.parquet"]:
+            for f in base_dir.rglob(ext):
+                if f.name.startswith("."):
+                    continue
+                path_str = f.resolve().as_posix()
+                stat = f.stat()
+                discovered.append({
+                    "file_path": path_str,
+                    "file_name": f.name,
+                    "file_size_bytes": stat.st_size,
+                    "file_mtime_epoch": stat.st_mtime,
+                    "extension": f.suffix.lower(),
+                })
+
+        logger.debug(f"Discovered {len(discovered)} central bank rate files under {base_dir}")
+        return sorted(discovered, key=lambda x: x["file_path"])
+
+    def ingest_central_bank_rates(
+        self,
+        file_path: Optional[Union[str, Path]] = None,
+        force: bool = False,
+        sync_market_dates: bool = True,
+    ) -> Dict[str, Any]:
+        """Ingest Central Bank interest rate files into `bronze_central_bank_rates` with upserting and logging."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        if file_path:
+            target_files = [Path(file_path)]
+        else:
+            disc = self.discover_central_bank_files()
+            if not disc:
+                logger.info("No central bank rate files found to ingest.")
+                sync_res = {}
+                if sync_market_dates:
+                    sync_res = self.sync_central_bank_rates_to_market()
+                return {"files_processed": 0, "rows_ingested": 0, "market_sync": sync_res, "status": "no_files"}
+
+            if force:
+                target_files = [Path(d["file_path"]) for d in disc]
+            else:
+                logged = {
+                    r[0]: r[1]
+                    for r in conn.execute(
+                        "SELECT file_path, file_mtime_epoch FROM bronze_ingestion_log WHERE raw_source_label = 'cbrt_interest_rates';"
+                    ).fetchall()
+                }
+                target_files = [
+                    Path(d["file_path"])
+                    for d in disc
+                    if d["file_path"] not in logged or abs(logged[d["file_path"]] - d["file_mtime_epoch"]) > 1e-3
+                ]
+
+        if not target_files:
+            logger.info("All central bank rate files are already up-to-date in Bronze.")
+            sync_res = {}
+            if sync_market_dates:
+                sync_res = self.sync_central_bank_rates_to_market()
+            total_rows = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
+            return {"files_processed": 0, "rows_in_table": total_rows, "market_sync": sync_res, "status": "already_up_to_date"}
+
+        total_ingested = 0
+        for fpath in target_files:
+            if not fpath.exists():
+                logger.warning(f"Central bank rate file not found: {fpath}")
+                continue
+
+            logger.info(f"Ingesting central bank rate file: {fpath.name}")
+            ext = fpath.suffix.lower()
+            try:
+                if ext in [".xlsx", ".xls"]:
+                    df = pd.read_excel(fpath)
+                elif ext == ".csv":
+                    df = pd.read_csv(fpath)
+                elif ext == ".parquet":
+                    df = pd.read_parquet(fpath)
+                else:
+                    logger.warning(f"Unsupported file format for CBRT rates: {fpath}")
+                    continue
+            except Exception as e:
+                logger.error(f"Failed to read central bank file {fpath}: {e}")
+                continue
+
+            # Identify date and rate columns
+            date_col = None
+            rate_col = None
+            for c in df.columns:
+                c_clean = str(c).strip().lower()
+                if any(k in c_clean for k in ["tarih", "date", "time", "gun"]):
+                    date_col = c
+                if any(k in c_clean for k in ["repo", "faiz", "rate", "interest", "deger", "value"]):
+                    rate_col = c
+
+            if not date_col or not rate_col:
+                if len(df.columns) >= 2:
+                    date_col = df.columns[0]
+                    rate_col = df.columns[1]
+                else:
+                    logger.error(f"Could not identify date and rate columns in {fpath.name}: {df.columns.tolist()}")
+                    continue
+
+            df_clean = df[[date_col, rate_col]].dropna().copy()
+            df_clean["rate_date"] = pd.to_datetime(df_clean[date_col]).dt.strftime("%Y-%m-%d")
+            df_clean["interest_rate"] = pd.to_numeric(df_clean[rate_col], errors="coerce")
+            df_clean = df_clean.dropna(subset=["rate_date", "interest_rate"])
+            df_clean = df_clean.drop_duplicates(subset=["rate_date"]).sort_values("rate_date")
+
+            if df_clean.empty:
+                logger.warning(f"No valid rows found in central bank rate file: {fpath.name}")
+                continue
+
+            records = []
+            for _, row in df_clean.iterrows():
+                records.append((
+                    row["rate_date"],
+                    "1_week_repo",
+                    float(row["interest_rate"]),
+                    0.0,
+                    False,
+                    False,
+                    fpath.name,
+                ))
+
+            conn.executemany("""
+                INSERT OR REPLACE INTO bronze_central_bank_rates (
+                    rate_date, rate_type, interest_rate, rate_change, is_rate_change_day, is_forward_filled, raw_source, ingested_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+            """, records)
+
+            stat = fpath.stat()
+            conn.execute("""
+                INSERT OR REPLACE INTO bronze_ingestion_log (
+                    file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label, ingested_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+            """, [
+                fpath.resolve().as_posix(),
+                fpath.name,
+                stat.st_size,
+                stat.st_mtime,
+                df_clean["rate_date"].max(),
+                df_clean["rate_date"].max()[:7],
+                len(df_clean),
+                "cbrt_interest_rates",
+            ])
+            total_ingested += len(df_clean)
+
+        # Globally recalculate rate_change and is_rate_change_day for all records to maintain continuity
+        conn.execute("""
+            CREATE OR REPLACE TEMP TABLE _cbrt_recalculated AS
+            WITH ordered AS (
+                SELECT 
+                    rate_date,
+                    rate_type,
+                    interest_rate,
+                    COALESCE(interest_rate - LAG(interest_rate) OVER (PARTITION BY rate_type ORDER BY rate_date), 0.0) AS calculated_change,
+                    CASE 
+                        WHEN LAG(interest_rate) OVER (PARTITION BY rate_type ORDER BY rate_date) IS NOT NULL 
+                             AND ABS(interest_rate - LAG(interest_rate) OVER (PARTITION BY rate_type ORDER BY rate_date)) > 1e-6 
+                        THEN TRUE 
+                        ELSE FALSE 
+                    END AS calculated_is_change,
+                    is_forward_filled,
+                    raw_source,
+                    ingested_at
+                FROM bronze_central_bank_rates
+            )
+            SELECT 
+                rate_date,
+                rate_type,
+                interest_rate,
+                calculated_change AS rate_change,
+                calculated_is_change AS is_rate_change_day,
+                is_forward_filled,
+                raw_source,
+                ingested_at
+            FROM ordered;
+
+            DELETE FROM bronze_central_bank_rates;
+            INSERT INTO bronze_central_bank_rates SELECT * FROM _cbrt_recalculated;
+        """)
+
+        sync_res = {}
+        if sync_market_dates:
+            sync_res = self.sync_central_bank_rates_to_market()
+
+        total_rows = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
+        logger.info(f"Central bank rates ingestion complete. Total rows in table: {total_rows:,}")
+
+        return {
+            "files_processed": len(target_files),
+            "rows_ingested": total_ingested,
+            "rows_in_table": total_rows,
+            "market_sync": sync_res,
+            "status": "success",
+        }
+
+    def sync_central_bank_rates_to_market(
+        self,
+        target_end_date: Optional[Union[date, str]] = None,
+    ) -> Dict[str, Any]:
+        """Synchronize and forward-fill Central Bank rates up to the latest market date or target_end_date."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        # Check existing max CBRT rate date from non-forward-filled data first, then table max
+        cbrt_max_res = conn.execute(
+            "SELECT MAX(rate_date) FROM bronze_central_bank_rates WHERE is_forward_filled = FALSE;"
+        ).fetchone()
+        if not cbrt_max_res or not cbrt_max_res[0]:
+            cbrt_max_res = conn.execute("SELECT MAX(rate_date) FROM bronze_central_bank_rates;").fetchone()
+            if not cbrt_max_res or not cbrt_max_res[0]:
+                logger.debug("No base central bank rates present to forward-fill from.")
+                return {"forward_filled_count": 0, "status": "no_base_rates"}
+
+        max_cbrt_date = cbrt_max_res[0]
+        if isinstance(max_cbrt_date, str):
+            max_cbrt_date = datetime.strptime(max_cbrt_date, "%Y-%m-%d").date()
+
+        if target_end_date is not None:
+            if isinstance(target_end_date, str):
+                eff_target_date = datetime.strptime(target_end_date, "%Y-%m-%d").date()
+            else:
+                eff_target_date = target_end_date
+        else:
+            has_stock_sum = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'silver_daily_stock_summary';"
+            ).fetchone()[0]
+            max_mkt_date = None
+            if has_stock_sum > 0:
+                mkt_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
+                if mkt_res and mkt_res[0]:
+                    max_mkt_date = mkt_res[0]
+            if max_mkt_date is None:
+                has_trades = conn.execute(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
+                ).fetchone()[0]
+                if has_trades > 0:
+                    trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
+                    if trade_res and trade_res[0]:
+                        max_mkt_date = trade_res[0]
+
+            eff_target_date = max_mkt_date
+
+        if eff_target_date is None or eff_target_date <= max_cbrt_date:
+            logger.debug(f"Central bank rates are already synchronized through {max_cbrt_date} (target={eff_target_date}).")
+            return {"forward_filled_count": 0, "max_rate_date": str(max_cbrt_date), "status": "already_synced"}
+
+        latest_rate = conn.execute("""
+            SELECT interest_rate 
+            FROM bronze_central_bank_rates 
+            WHERE rate_date = ? 
+            LIMIT 1;
+        """, [max_cbrt_date]).fetchone()[0]
+
+        logger.info(
+            f"Forward-filling Central Bank rates from {max_cbrt_date + timedelta(days=1)} "
+            f"through {eff_target_date} at rate {latest_rate}%..."
+        )
+
+        start_fill = max_cbrt_date + timedelta(days=1)
+        conn.execute("""
+            INSERT OR REPLACE INTO bronze_central_bank_rates (
+                rate_date, rate_type, interest_rate, rate_change, is_rate_change_day, is_forward_filled, raw_source, ingested_at
+            )
+            SELECT 
+                d::DATE AS rate_date,
+                '1_week_repo' AS rate_type,
+                ? AS interest_rate,
+                0.0 AS rate_change,
+                FALSE AS is_rate_change_day,
+                TRUE AS is_forward_filled,
+                'forward_fill_market_sync' AS raw_source,
+                CURRENT_TIMESTAMP AS ingested_at
+            FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
+        """, [latest_rate, start_fill, eff_target_date])
+
+        filled_count = (eff_target_date - max_cbrt_date).days
+        logger.info(f"Forward-filled {filled_count} missing date(s) in `bronze_central_bank_rates`.")
+
+        return {
+            "forward_filled_count": filled_count,
+            "start_date": str(start_fill),
+            "end_date": str(eff_target_date),
+            "interest_rate": float(latest_rate),
+            "status": "success",
+        }

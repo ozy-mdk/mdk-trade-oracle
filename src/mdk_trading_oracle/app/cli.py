@@ -138,7 +138,7 @@ def load_bronze(
         help="Optional custom glob pattern for raw CSVs (defaults to settings.raw_data_dir/2026/03_march/raw_csv/**/*.csv)",
     )
 ):
-    """Ingest raw BIST trade CSV feeds into the Bronze DuckDB layer."""
+    """Ingest raw BIST trade CSV feeds and Central Bank interest rates into the Bronze DuckDB layer."""
     start_time = datetime.now()
     settings = get_settings()
 
@@ -156,8 +156,12 @@ def load_bronze(
         raw_source_label="bist_2026_03_march",
     )
 
+    console.print("[bold yellow]🏛️ Ingesting Central Bank interest rates and synchronizing market dates...[/bold yellow]")
+    ingestor.ingest_central_bank_rates(sync_market_dates=True)
+
     conn = db.get_connection()
     total_trades = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
+    total_rates = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
     total_brokers = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
     total_instruments = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
 
@@ -166,9 +170,49 @@ def load_bronze(
         Panel.fit(
             f"[bold green]✨ Bronze Ingestion Complete in {elapsed:.1f}s[/bold green]\n\n"
             f"• [bold]bronze_raw_trades[/bold]: [cyan]{total_trades:,}[/cyan] rows\n"
+            f"• [bold]bronze_central_bank_rates[/bold]: [cyan]{total_rates:,}[/cyan] rows\n"
             f"• [bold]bronze_brokers[/bold]: [cyan]{total_brokers}[/cyan] brokers\n"
             f"• [bold]bronze_instruments[/bold]: [cyan]{total_instruments}[/cyan] instruments",
             title="Bronze Summary",
+            border_style="green",
+        )
+    )
+
+
+@app.command()
+def load_rates(
+    file_path: Optional[str] = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="Optional path to a specific Central Bank rate file to ingest",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force re-ingestion of already processed rate files",
+    ),
+):
+    """Ingest Central Bank policy interest rates and synchronize with market trading dates."""
+    start_time = datetime.now()
+    console.print("[bold cyan]🏛️ Ingesting Central Bank interest rates...[/bold cyan]")
+
+    db = DuckDBManager()
+    ingestor = BronzeIngestor(db)
+    res = ingestor.ingest_central_bank_rates(file_path=file_path, force=force, sync_market_dates=True)
+
+    conn = db.get_connection()
+    total_rates = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
+    rate_range = conn.execute("SELECT MIN(rate_date), MAX(rate_date) FROM bronze_central_bank_rates;").fetchone()
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ Central Bank Rates Ingested & Synced in {elapsed:.1f}s[/bold green]\n\n"
+            f"• [bold]bronze_central_bank_rates[/bold]: [cyan]{total_rates:,}[/cyan] rows\n"
+            f"• [bold]Date Range[/bold]: [cyan]{rate_range[0]}[/cyan] to [cyan]{rate_range[1]}[/cyan]\n"
+            f"• [bold]Files Processed[/bold]: [cyan]{res.get('files_processed', 0)}[/cyan]",
+            title="CBRT Rates Summary",
             border_style="green",
         )
     )
@@ -186,6 +230,7 @@ def build_silver():
 
     conn = db.get_connection()
     broker_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_summary;").fetchone()[0]
+    macro_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
     market_rows = conn.execute("SELECT COUNT(*) FROM silver_market_daily;").fetchone()[0]
 
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -193,6 +238,7 @@ def build_silver():
         Panel.fit(
             f"[bold green]✨ Silver Layer Transformations Complete in {elapsed:.1f}s[/bold green]\n\n"
             f"• [bold]silver_daily_broker_summary[/bold]: [cyan]{broker_rows:,}[/cyan] rows\n"
+            f"• [bold]silver_daily_macro_rates[/bold]: [cyan]{macro_rows:,}[/cyan] rows\n"
             f"• [bold]silver_market_daily[/bold]: [cyan]{market_rows:,}[/cyan] rows",
             title="Silver Summary",
             border_style="green",

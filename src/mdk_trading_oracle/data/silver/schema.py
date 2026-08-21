@@ -219,4 +219,18 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    logger.info("DuckDB Silver schemas initialized for all 6 core aggregation tables.")
+    # 8. Silver Macro Table: Daily Policy Interest Rates & Decision Momentum
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_daily_macro_rates (
+            trade_date DATE PRIMARY KEY,
+            interest_rate DOUBLE NOT NULL,
+            rate_change DOUBLE DEFAULT 0.0,
+            is_rate_change_day BOOLEAN DEFAULT FALSE,
+            days_since_last_rate_change INTEGER,
+            rolling_30d_rate_mean DOUBLE,
+            is_forward_filled BOOLEAN DEFAULT FALSE,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    logger.info("DuckDB Silver schemas initialized for all core aggregation and macro tables.")

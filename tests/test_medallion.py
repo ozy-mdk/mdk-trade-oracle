@@ -35,6 +35,7 @@ def test_medallion_pipeline_in_memory():
     silver = SilverTransformer(db)
     silver_res = silver.run_all()
     assert silver_res["status"] == "success"
+    assert "silver_daily_macro_rates" in silver_res
 
     # --- Verify Table 1: silver_daily_broker_summary ---
     broker_summary = conn.execute("""

@@ -63,6 +63,21 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 5. Bronze Macro Table: Central Bank Interest Rates (TCMB 1-Week Repo & Policy Rates)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_central_bank_rates (
+            rate_date DATE,
+            rate_type VARCHAR DEFAULT '1_week_repo',
+            interest_rate DOUBLE NOT NULL,
+            rate_change DOUBLE DEFAULT 0.0,
+            is_rate_change_day BOOLEAN DEFAULT FALSE,
+            is_forward_filled BOOLEAN DEFAULT FALSE,
+            raw_source VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (rate_date, rate_type)
+        );
+    """)
+
     # Sync reference data from YAML configs
     sync_reference_data(db)
     logger.info("DuckDB Bronze schemas initialized.")

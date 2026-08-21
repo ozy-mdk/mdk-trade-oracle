@@ -119,27 +119,35 @@ class MedallionPipeline:
             logger.info(f"Bronze Ingestion running incremental discovery (force={force})...")
             ingest_res = self.bronze_ingestor.ingest_all(force=force)
 
+        # Ingest Central Bank policy interest rates and sync/forward-fill to latest market date
+        cbrt_res = self.bronze_ingestor.ingest_central_bank_rates(force=force, sync_market_dates=True)
+
         conn = self.db.get_connection()
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
         instruments_count = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
         log_count = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
+        cbrt_rates_count = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Bronze Layer completed in {elapsed:.2f}s | "
-            f"Raw Trades: {trades_count:,} | Ingested Files Logged: {log_count:,}"
+            f"Raw Trades: {trades_count:,} | CBRT Rates: {cbrt_rates_count:,} | Ingested Files Logged: {log_count:,}"
         )
         return {
             "layer": "bronze",
             "elapsed_sec": elapsed,
             "metrics": {
                 "bronze_raw_trades": trades_count,
+                "bronze_central_bank_rates": cbrt_rates_count,
                 "bronze_ingestion_log": log_count,
                 "bronze_brokers": brokers_count,
                 "bronze_instruments": instruments_count,
             },
-            "details": ingest_res,
+            "details": {
+                "trades": ingest_res,
+                "central_bank_rates": cbrt_res,
+            },
             "status": "success",
         }
 
@@ -158,13 +166,14 @@ class MedallionPipeline:
         sector_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_sector_summary;").fetchone()[0]
         win_broker_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_broker_window_summary;").fetchone()[0]
         win_sector_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_sector_window_summary;").fetchone()[0]
+        macro_rates_count = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Silver Layer completed in {elapsed:.2f}s | "
             f"Stock-Broker: {broker_summary_count:,} | Broker Overview: {broker_overview_count:,} | "
             f"Stock Summary: {stock_summary_count:,} | Sector: {sector_summary_count:,} | "
-            f"Intraday Windows: {win_broker_count:,}"
+            f"Intraday Windows: {win_broker_count:,} | Macro Rates: {macro_rates_count:,}"
         )
         return {
             "layer": "silver",
@@ -176,6 +185,7 @@ class MedallionPipeline:
                 "silver_daily_sector_summary": sector_summary_count,
                 "silver_intraday_broker_window_summary": win_broker_count,
                 "silver_intraday_sector_window_summary": win_sector_count,
+                "silver_daily_macro_rates": macro_rates_count,
             },
             "details": silver_res,
             "status": "success",

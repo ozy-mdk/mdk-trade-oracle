@@ -581,6 +581,76 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_intraday_sector_window_summary`: {rows:,} rows.")
         return {"table": "silver_intraday_sector_window_summary", "rows": rows, "status": "success"}
 
+    def transform_daily_macro_rates(self) -> dict[str, Any]:
+        """Aggregate and enrich daily Central Bank policy interest rates and decision momentum."""
+        conn = self.db.get_connection()
+        logger.info("Computing `silver_daily_macro_rates` from `bronze_central_bank_rates`...")
+
+        has_bronze_rates = conn.execute("""
+            SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_central_bank_rates';
+        """).fetchone()[0]
+
+        if has_bronze_rates == 0 or conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0] == 0:
+            logger.debug("No bronze central bank rates found. Initializing empty `silver_daily_macro_rates`.")
+            conn.execute("""
+                CREATE OR REPLACE TABLE silver_daily_macro_rates (
+                    trade_date DATE PRIMARY KEY,
+                    interest_rate DOUBLE NOT NULL,
+                    rate_change DOUBLE DEFAULT 0.0,
+                    is_rate_change_day BOOLEAN DEFAULT FALSE,
+                    days_since_last_rate_change INTEGER,
+                    rolling_30d_rate_mean DOUBLE,
+                    is_forward_filled BOOLEAN DEFAULT FALSE,
+                    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            return {"table": "silver_daily_macro_rates", "rows": 0, "status": "empty"}
+
+        query = """
+            CREATE OR REPLACE TABLE silver_daily_macro_rates AS
+            WITH change_dates AS (
+                SELECT rate_date AS change_date
+                FROM bronze_central_bank_rates
+                WHERE is_rate_change_day = TRUE
+            ),
+            rates_with_last_change AS (
+                SELECT 
+                    b.rate_date AS trade_date,
+                    b.interest_rate,
+                    b.rate_change,
+                    b.is_rate_change_day,
+                    b.is_forward_filled,
+                    (
+                        SELECT MAX(c.change_date) 
+                        FROM change_dates c 
+                        WHERE c.change_date <= b.rate_date
+                    ) AS last_change_date
+                FROM bronze_central_bank_rates b
+            ),
+            with_metrics AS (
+                SELECT 
+                    r.trade_date,
+                    r.interest_rate,
+                    r.rate_change,
+                    r.is_rate_change_day,
+                    CAST(r.trade_date - COALESCE(r.last_change_date, r.trade_date) AS INTEGER) AS days_since_last_rate_change,
+                    AVG(r.interest_rate) OVER (
+                        ORDER BY r.trade_date 
+                        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+                    ) AS rolling_30d_rate_mean,
+                    r.is_forward_filled,
+                    CURRENT_TIMESTAMP AS calculated_at
+                FROM rates_with_last_change r
+            )
+            SELECT * FROM with_metrics
+            ORDER BY trade_date ASC;
+        """
+        conn.execute(query)
+
+        rows = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
+        logger.info(f"Successfully populated `silver_daily_macro_rates`: {rows:,} rows.")
+        return {"table": "silver_daily_macro_rates", "rows": rows, "status": "success"}
+
     def run_all(self) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
         initialize_silver_schema(self.db)
@@ -590,6 +660,7 @@ class SilverTransformer:
         res_sector = self.transform_daily_sector_summary()
         res_win_broker = self.transform_intraday_broker_windows()
         res_win_sector = self.transform_intraday_sector_windows()
+        res_macro_rates = self.transform_daily_macro_rates()
 
         return {
             "silver_daily_broker_summary": res_broker,
@@ -598,5 +669,6 @@ class SilverTransformer:
             "silver_daily_sector_summary": res_sector,
             "silver_intraday_broker_window_summary": res_win_broker,
             "silver_intraday_sector_window_summary": res_win_sector,
+            "silver_daily_macro_rates": res_macro_rates,
             "status": "success",
         }

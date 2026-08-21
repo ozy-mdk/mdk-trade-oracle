@@ -32,15 +32,17 @@ flowchart TD
         B_LOG["bronze_ingestion_log<br/>(mtime & partition tracker)"]
         B_BROK["bronze_brokers<br/>(65 brokerages)"]
         B_INST["bronze_instruments<br/>(45 liquid BIST equities)"]
+        B_CBRT["bronze_central_bank_rates<br/>(TCMB 1-Week Repo & Policy Rates)"]
     end
 
-    subgraph Silver["Silver Layer (Aggregated Microstructure)"]
+    subgraph Silver["Silver Layer (Aggregated Microstructure & Macro)"]
         S_BROK_SUM["silver_daily_broker_summary<br/>(Stock x Broker x Date)"]
         S_BROK_OVR["silver_daily_broker_overview<br/>(Broker Macro Market Share & Ranks)"]
         S_STK_SUM["silver_daily_stock_summary<br/>(OHLCV, CR5, BofA VWAP & Spreads)"]
         S_SEC_SUM["silver_daily_sector_summary<br/>(Sector Inflow & Breadth)"]
         S_WIN_BROK["silver_intraday_broker_window_summary<br/>(4 Intraday Windows x Stock x Broker)"]
         S_WIN_SEC["silver_intraday_sector_window_summary<br/>(4 Intraday Windows x Sector x Broker)"]
+        S_MACRO["silver_daily_macro_rates<br/>(Daily Policy Rates & Momentum)"]
         S_MKT["silver_market_daily<br/>(Backward-compatibility OHLCV)"]
     end
 
@@ -58,6 +60,7 @@ flowchart TD
     B_RAW --> S_WIN_BROK
     B_BROK -.-> S_BROK_OVR
     B_INST -.-> S_STK_SUM
+    B_CBRT --> S_MACRO
 
     S_BROK_SUM --> S_BROK_OVR
     S_BROK_SUM --> S_STK_SUM
@@ -67,6 +70,7 @@ flowchart TD
     S_STK_SUM --> G_SIG
     S_WIN_BROK --> G_M1
     S_BROK_OVR --> G_M1
+    S_MACRO -.-> G_M1
     S_WIN_SEC --> G_M2
     S_SEC_SUM --> G_M2
     G_M1 -. Reconcile .-> G_M1_PERF
@@ -75,6 +79,7 @@ flowchart TD
 
 ### A. Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)
 - **`bronze_raw_trades`**: Raw microsecond tick executions (`trade_id`, `timestamp`, `symbol`, `price`, `volume`, `buyer_broker_id`, `seller_broker_id`, `raw_source`, `ingested_at`).
+- **`bronze_central_bank_rates`**: Central Bank 1-week repo interest rates (`rate_date`, `rate_type`, `interest_rate`, `rate_change`, `is_rate_change_day`, `is_forward_filled`, `raw_source`, `ingested_at`).
 - **`bronze_ingestion_log`**: Primary key `file_path`. Tracks file size, mtime epoch, `trade_date`, `year_month`, and row counts to enable fast incremental updates.
 - **`bronze_brokers`**: Dimension reference table (`broker_id`, `broker_name`, `category`, `is_primary_target`, `description`) synchronized from `config/brokers.yaml`.
 - **`bronze_instruments`**: Dimension reference table (`symbol`, `name`, `sector`, `index_name`, `lot_multiplier`) synchronized from `config/instruments.yaml`.
@@ -84,6 +89,7 @@ flowchart TD
 - **`silver_daily_broker_overview`**: Primary key `(trade_date, broker_id)`. Macro broker statistics including market turnover share, market volume share, turnover rank, net flow rank, `is_top_5_broker`, top bought/sold symbols, top sector name, and top sector share.
 - **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
+- **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC change, and 30-day rolling rate averages.
 - **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 4 canonical intraday windows:
   - `Window 1: Opening Auction & Initial Flow` (09:55 – 10:30)
   - `Window 2: Midday Discovery & Base Building` (10:30 – 13:00)
@@ -178,13 +184,15 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | Layer | Table Name | Granularity / Primary Key | March 2026 Rows | Status |
 | :--- | :--- | :--- | :---: | :---: |
 | **Bronze** | `bronze_raw_trades` | Tick execution (`trade_id`, `timestamp`) | 36,818,222 | [PASS] Verified |
-| **Bronze** | `bronze_ingestion_log` | `file_path` | 947 | [PASS] Verified |
+| **Bronze** | `bronze_central_bank_rates` | `(rate_date, rate_type)` | 1,157 | [PASS] Verified |
+| **Bronze** | `bronze_ingestion_log` | `file_path` | 948 | [PASS] Verified |
 | **Bronze** | `bronze_brokers` | `broker_id` | 65 | [PASS] Verified |
 | **Bronze** | `bronze_instruments` | `symbol` | 45 | [PASS] Verified |
 | **Silver** | `silver_daily_broker_summary` | `(trade_date, symbol, broker_id)` | 48,058 | [PASS] Verified |
 | **Silver** | `silver_daily_broker_overview` | `(trade_date, broker_id)` | 1,235 | [PASS] Verified |
 | **Silver** | `silver_daily_stock_summary` | `(trade_date, symbol)` | 945 | [PASS] Verified |
 | **Silver** | `silver_daily_sector_summary` | `(trade_date, sector, broker_id)` | 28,516 | [PASS] Verified |
+| **Silver** | `silver_daily_macro_rates` | `trade_date` | 1,157 | [PASS] Verified |
 | **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 166,095 | [PASS] Verified |
 | **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 99,825 | [PASS] Verified |
 | **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | [PASS] Verified |
