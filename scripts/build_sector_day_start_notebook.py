@@ -18,12 +18,12 @@ nb.metadata = {
 }
 
 cells = [
-    nbf.v4.new_markdown_cell(r"""# 🏛 MDK Trading Oracle — Gold Layer Model 2: Sector Day-Start Allocation Forecaster
+    nbf.v4.new_markdown_cell(r"""# MDK Trading Oracle — Gold Layer Model 2: Sector Day-Start Allocation Forecaster
 ### *"Where Will Bank of America (BofA / `MLB`) Allocate Capital Across Sectors at the Open?"*
 
 ---
 
-## 🎯 1. Model Objective & Microstructure Rationale
+## 1. Model Objective & Microstructure Rationale
 
 While **Model 1** forecasts BofA's total macro opening flow across the exchange, **Model 2** resolves the **cross-sectional sector allocation and rotation problem**:
 
@@ -32,7 +32,7 @@ While **Model 1** forecasts BofA's total macro opening flow across the exchange,
 
 ---
 
-## 🎯 2. Sector Target Variables
+## 2. Sector Target Variables
 
 For each tracked sector $s \in \{\text{Banking}, \text{Transportation}, \text{Defense \& Tech}, \text{Energy \& Refining}, \text{Holding}, \dots\}$:
 
@@ -43,7 +43,7 @@ For each tracked sector $s \in \{\text{Banking}, \text{Transportation}, \text{De
 
 ---
 
-## 🧠 3. The 5 Sector Quantitative Feature Clusters
+## 3. The 5 Sector Quantitative Feature Clusters
 
 All features are constructed strictly from $T-1$ Close data:
 
@@ -73,11 +73,11 @@ from mdk_trading_oracle.models.sector_day_start import (
 )
 
 settings = get_settings()
-print(f"✅ DuckDB Database: {settings.duckdb_path}")
-print(f"✅ Data Directory: {settings.data_dir}")
+print(f"[OK] DuckDB Database: {settings.duckdb_path}")
+print(f"[OK] Data Directory: {settings.data_dir}")
 """),
 
-    nbf.v4.new_markdown_cell("""## 📊 2. Sector Feature Extraction across BIST Industries
+    nbf.v4.new_markdown_cell("""## 2. Sector Feature Extraction across BIST Industries
 
 We extract sector-level feature matrices for all tracked liquid sectors at $T-1$ Close with **zero data leakage**.
 """),
@@ -86,18 +86,18 @@ We extract sector-level feature matrices for all tracked liquid sectors at $T-1$
 extractor = SectorDayStartFeatureExtractor(db, target_broker_id="MLB")
 tracked_sectors = extractor.get_tracked_sectors(min_session_count=10)
 
-print(f"✅ Tracked Liquid Sectors ({len(tracked_sectors)}): {', '.join(tracked_sectors[:8])}...")
+print(f"[OK] Tracked Liquid Sectors ({len(tracked_sectors)}): {', '.join(tracked_sectors[:8])}...")
 
 df_pl = extractor.extract_features()
 df = df_pl.to_pandas()
 
-print(f"✅ Total Sector-Session Observations: {len(df)} across {df['sector'].nunique()} sectors.")
+print(f"[OK] Total Sector-Session Observations: {len(df)} across {df['sector'].nunique()} sectors.")
 display(df.head(6)[["trade_date", "sector", "feat_sector_bofa_w4_net_flow_tl", 
                    "feat_sector_bofa_vs_top5_w4_delta_tl", "feat_sector_bofa_cum_net_flow_5d_tl", 
                    "target_sector_open_net_flow_tl", "target_sector_open_direction"]])
 """),
 
-    nbf.v4.new_markdown_cell("""## ⚔️ 3. Sector Model Arena: Walk-Forward Tournament
+    nbf.v4.new_markdown_cell("""## 3. Sector Model Arena: Walk-Forward Tournament
 
 Running expanding-window walk-forward validation across candidate models (Naive Persistence, Rolling Mean, LightGBM, Bayesian Ridge, PyMC GLM).
 """),
@@ -117,7 +117,7 @@ champ_rmse = scoreboard_df.iloc[0]["rmse_million_tl"]
 
 display(HTML(f\"\"\"
 <div style="background: linear-gradient(135deg, #1b4332 0%, #081c15 100%); padding: 18px 24px; border-radius: 12px; border-left: 6px solid #52b788; margin-bottom: 20px; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-    <h3 style="margin: 0; color: #52b788;">🏆 Sector Champion Crowned: {champion_name}</h3>
+    <h3 style="margin: 0; color: #52b788;">Sector Champion Crowned: {champion_name}</h3>
     <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.95;">
         <b>Out-of-Sample Hit Rate:</b> <span style="color: #74c69d; font-weight: bold;">{champ_hit_rate:.1f}%</span> &nbsp;|&nbsp; 
         <b>90% Credible Interval Coverage (PICP):</b> <span style="color: #74c69d; font-weight: bold;">{champ_picp:.1f}%</span> &nbsp;|&nbsp; 
@@ -130,7 +130,7 @@ display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"]
                            .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
 
-    nbf.v4.new_markdown_cell("""## 🎯 4. Live Next-Day Sector Allocation & Pair Trading Matrix (Tomorrow's Session)
+    nbf.v4.new_markdown_cell("""## 4. Live Next-Day Sector Allocation & Pair Trading Matrix (Tomorrow's Session)
 
 Using the dynamically crowned champion model, we extract features from the latest market close and generate the **live sector-by-sector opening flow allocation forecast for tomorrow morning**.
 """),
@@ -161,7 +161,7 @@ fig_live = px.bar(
     x="pred_flow_m",
     y="sector",
     orientation="h",
-    title=f"🚀 BofA Predicted Opening Capital Allocation for Upcoming Session: {next_date}",
+    title=f"BofA Predicted Opening Capital Allocation for Upcoming Session: {next_date}",
     labels={"pred_flow_m": "Forecasted Opening Net Flow (TL Million)", "sector": "Industry Sector"},
     color="pred_flow_m",
     color_continuous_scale="RdYlGn",
@@ -180,7 +180,7 @@ display(live_df.style.format({
   .highlight_min(subset=["pred_flow_m"], color="#4a0e17"))
 """),
 
-    nbf.v4.new_markdown_cell("""## 🎮 5. Interactive Historical Sector Forecast Explorer (Backtest vs Actuals)
+    nbf.v4.new_markdown_cell("""## 5. Interactive Historical Sector Forecast Explorer (Backtest vs Actuals)
 
 Select any sector from the dropdown to inspect BofA's historical predicted vs actual opening net flow and 90% credible ranges.
 """),
@@ -259,7 +259,7 @@ def update_sector_plot(change):
         ))
         
         fig.update_layout(
-            title=f"🎯 BofA Opening Flow in Sector: {sel_sector} (Backtest vs Actual)",
+            title=f"BofA Opening Flow in Sector: {sel_sector} (Backtest vs Actual)",
             xaxis_title="Trade Date",
             yaxis_title="Net Flow (Million TL)",
             template="plotly_dark",
@@ -274,7 +274,7 @@ if sector_dropdown.value:
     update_sector_plot({"new": sector_dropdown.value})
 """),
 
-    nbf.v4.new_markdown_cell("""## 🥇 6. Gold Sector Tables & Cross-Sector Backtest Inspection in DuckDB
+    nbf.v4.new_markdown_cell("""## 6. Gold Sector Tables & Cross-Sector Backtest Inspection in DuckDB
 
 Verifying the persisted production tables in DuckDB:
 1. `gold_bofa_sector_day_start_forecasts`: Pure upcoming live sector forecasts ($T+1$).
@@ -283,7 +283,7 @@ Verifying the persisted production tables in DuckDB:
 
     nbf.v4.new_code_cell("""conn = db.get_connection()
 
-print("🔮 1. Live Upcoming Sector Forecasts (gold_bofa_sector_day_start_forecasts):")
+print("1. Live Upcoming Sector Forecasts (gold_bofa_sector_day_start_forecasts):")
 gold_sector_df = conn.execute(\"\"\"
     SELECT 
         forecast_date,
@@ -301,7 +301,7 @@ gold_sector_df = conn.execute(\"\"\"
 display(gold_sector_df)
 """),
 
-    nbf.v4.new_markdown_cell("""### 🏆 Cross-Sector Backtest Leaderboard (`gold_bofa_sector_day_start_backtests`)
+    nbf.v4.new_markdown_cell("""### Cross-Sector Backtest Leaderboard (`gold_bofa_sector_day_start_backtests`)
 
 Evaluating model accuracy and directional hit rate across all 26 tracked BIST sectors:
 """),
@@ -339,7 +339,7 @@ sector_kpi_html = f\"\"\"
 \"\"\"
 display(HTML(sector_kpi_html))
 
-print("🏆 Sector Backtest Leaderboard (Ranked by Out-of-Sample Hit Rate):")
+print("1. Sector Backtest Leaderboard (Ranked by Out-of-Sample Hit Rate):")
 sector_leaderboard_df = conn.execute(\"\"\"
     SELECT 
         sector,
@@ -356,7 +356,7 @@ sector_leaderboard_df = conn.execute(\"\"\"
 display(sector_leaderboard_df)
 """),
 
-    nbf.v4.new_code_cell("""print("📜 Recent Sector Backtest Ledger Records (gold_bofa_sector_day_start_backtests):")
+    nbf.v4.new_code_cell("""print("2. Recent Sector Backtest Ledger Records (gold_bofa_sector_day_start_backtests):")
 gold_sector_backtests_df = conn.execute(\"\"\"
     SELECT 
         trade_date,
@@ -383,6 +383,7 @@ nb.cells.extend(cells)
 with open("notebooks/04_bofa_sector_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
-print("✅ Successfully generated notebooks/04_bofa_sector_day_start_modeling.ipynb!")
+print("[OK] Successfully generated notebooks/04_bofa_sector_day_start_modeling.ipynb!")
+
 
 

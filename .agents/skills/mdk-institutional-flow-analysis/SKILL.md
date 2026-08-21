@@ -13,7 +13,7 @@ This skill documents domain-specific metrics, institutional broker classificatio
 
 ---
 
-## 🤝 1. Collaborative Interaction & Modeling Workflow
+## 1. Collaborative Interaction & Modeling Workflow
 
 Whenever designing or building a new predictive model (e.g. Model 1 `day_start`, Model 2 `intraday_expansion`, etc.):
 
@@ -27,7 +27,7 @@ Whenever designing or building a new predictive model (e.g. Model 1 `day_start`,
 
 ---
 
-## 🏛 2. Primary Institutional Target & Competitor Matrix
+## 2. Primary Institutional Target & Competitor Matrix
 
 - **Primary Target**: **`MLB`** (Bank of America / Merrill Lynch Yatırım Bank A.Ş.) — dominant foreign algorithmic flow driver.
 - **Top 5 Domestic Competitor Powerhouses**:
@@ -39,7 +39,7 @@ Whenever designing or building a new predictive model (e.g. Model 1 `day_start`,
 
 ---
 
-## 🎯 3. Target Variables & Modeling Rigor
+## 3. Target Variables & Modeling Rigor
 
 In strict adherence to quantitative and mathematical rigor, targets are defined purely around the continuous net flow ($TL$) and derived directional conviction:
 
@@ -55,13 +55,13 @@ In strict adherence to quantitative and mathematical rigor, targets are defined 
 | `target_sector_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{s, T, \text{W1}} = \sum_{i \in \text{Trades}_{s, T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Net executed capital in TL by BofA in Sector $s$ in Window 1. |
 | `target_sector_open_direction` | Categorical (`str`) | $$\text{Direction}_{s, T} = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} \le 0 \end{cases}$$ | Derived sector directional binary outcome (`BUY` vs `SELL`). |
 
-### 💼 Business & Technical Mechanism: Unified Probabilistic Derivation
+### Business & Technical Mechanism: Unified Probabilistic Derivation
 1. **Primary Regression Target**: The model fits $y = \text{target\_(sector\_)open\_net\_flow\_tl}$, outputting mean flow $\hat{\mu}$ and posterior uncertainty $\hat{\sigma}$.
 2. **Harmonized Direction & Sizing (No Contradictions)**: Directional conviction ($P(\text{BUY}) = 1 - \Phi(0; \hat{\mu}, \hat{\sigma})$) and 90% credible ranges ($\hat{\mu} \pm 1.645\hat{\sigma}$) are derived directly from the exact same posterior distribution.
 
 ---
 
-## 🧠 4. Quantitative Feature Clusters (Zero Data Leakage)
+## 4. Quantitative Feature Clusters (Zero Data Leakage)
 
 All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or prior completed intraday windows:
 
@@ -83,7 +83,7 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 
 ---
 
-## 🔬 5. Candidate Model Suite & Probabilistic Architecture
+## 5. Candidate Model Suite & Probabilistic Architecture
 
 Every quantitative modeling objective benchmarks across 5 candidate paradigms:
 
@@ -110,7 +110,7 @@ flowchart LR
 
 ---
 
-## ⚔️ 6. Trailing Evaluation Horizon & Walk-Forward Validation
+## 6. Trailing Evaluation Horizon & Walk-Forward Validation
 
 To prevent lookahead bias in financial time series and scale efficiently from 1 month to 5+ years of data:
 
@@ -133,11 +133,11 @@ Step 20: Train on [Day 1 … 249] (249 days)  ──► Predict Day 250 ──�
   - `eval_window_days: 20`: Number of trailing out-of-sample evaluation steps in the tournament.
   - `min_burn_in_days: 5`: Minimum warmup sessions.
 - **`DayStartModelArena` & `SectorDayStartModelArena`**: Runs the tournament and crowns the champion.
-- **`DayStartForecaster` & `SectorDayStartForecaster`**: Fits the champion on 100% of historical data and writes forecasts into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`).
+- **`DayStartForecaster` & `SectorDayStartForecaster`**: Fits the champion on 100% of historical data and writes forecasts into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`) and backtest ledgers (`gold_bofa_day_start_backtests` and `gold_bofa_sector_day_start_backtests`).
 
 ---
 
-## 🎯 7. Actionable Decision Items for Individual Traders
+## 7. Actionable Decision Items for Individual Traders
 
 Continuous flow forecasts must be translated into discrete, tradeable decisions:
 
@@ -158,7 +158,7 @@ Continuous flow forecasts must be translated into discrete, tradeable decisions:
 
 ---
 
-## 🚀 8. Live Next-Day Inference vs. Historical Backtesting Architecture ($T+1$ vs $T$)
+## 8. Live Next-Day Inference vs. Historical Backtesting Architecture ($T+1$ vs $T$)
 
 A common flaw in quantitative modeling pipelines is confusing historical evaluation with live inference. In **MDK Trading Oracle**, this separation is mathematically and architecturally strict:
 
@@ -192,15 +192,15 @@ A common flaw in quantitative modeling pipelines is confusing historical evaluat
 ### Key Engineering Standards:
 1. **Business Day Progression**: Use `get_next_trading_day(latest_date)` to automatically advance to the next legitimate trading date (e.g. Friday $T \rightarrow$ Monday $T+1$).
 2. **`extract_next_day_features()`**: Evaluates rolling metrics directly at latest close ($T$) without target variables or LAG windowing.
-3. **Dual Forecaster Methods**:
-   - `forecaster.forecast_next_day()`: Real-time live inference on $T+1$ flow.
-   - `forecaster.backtest_all_history()`: Out-of-sample simulation across past sessions for calibration without polluting production forecast history.
+3. **Dual Forecaster Methods & Dedicated Tables**:
+   - `forecaster.forecast_next_day()`: Real-time live inference on $T+1$ flow saved to `gold_bofa_*_forecasts`.
+   - `forecaster.backtest_all_history()`: Out-of-sample simulation across past sessions saved to dedicated `gold_bofa_*_backtests` tables.
 4. **Idempotent Primary Key Upsert**:
-   - Persisting via `INSERT OR REPLACE` into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`) allows daily pipeline runs to record tomorrow's forecast, organically accumulating an immutable historical ledger day by day as tomorrow becomes today.
+   - Persisting via `INSERT OR REPLACE` allows daily pipeline runs to record tomorrow's forecast, organically accumulating an immutable historical ledger day by day as tomorrow becomes today.
 
 ---
 
-## 📓 9. Interactive Research Notebook Standards & Dual Presentation
+## 9. Interactive Research Notebook Standards & Clean Presentation
 
 Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_bofa_sector_day_start_modeling.ipynb`) adheres to these presentation rules:
 
@@ -211,5 +211,9 @@ Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_b
 3. **Historical Backtest & Calibration Explorer**:
    - Visualizes actual vs. predicted curves with 90% confidence ribbons and interactive dropdown inspectors for examining past session performance.
 4. **DuckDB Gold Verification**:
-   - Queries `gold_bofa_*_forecasts` using `read_only=True` to audit persisted production records.
+   - Queries `gold_bofa_*_forecasts` and `gold_bofa_*_backtests` using `read_only=True` to audit persisted production records.
+5. **Clean & Professional Documentation (No Excessive Emojis)**:
+   - **Do NOT use excessive emojis** in headers, text cells, logs, or card templates. Emojis clutter technical documents and impair readability.
+   - Use clean typography, structured headers, standard tables, and crisp text badges (`[PASS]`, `HIT`, `MISS`).
+
 

@@ -12,7 +12,7 @@ This skill provides comprehensive architectural reference and operational proced
 
 ---
 
-## 🤝 1. Collaborative Interaction & Pipeline Workflows
+## 1. Collaborative Interaction & Pipeline Workflows
 
 When adding new tables, transforming features, or integrating new Gold models:
 1. **Plan Together First**: Discuss table schemas, microstructural metrics, and modeling hypotheses.
@@ -21,20 +21,20 @@ When adding new tables, transforming features, or integrating new Gold models:
 
 ---
 
-## 🏛 2. Lakehouse Architecture & Table Reference
+## 2. Lakehouse Architecture & Table Reference
 
 A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
 
 ```mermaid
 flowchart TD
-    subgraph Bronze["🥉 Bronze Layer (Raw & Ingestion Audit)"]
+    subgraph Bronze["Bronze Layer (Raw & Ingestion Audit)"]
         B_RAW["bronze_raw_trades<br/>(36.8M+ microsecond ticks)"]
         B_LOG["bronze_ingestion_log<br/>(mtime & partition tracker)"]
         B_BROK["bronze_brokers<br/>(65 brokerages)"]
         B_INST["bronze_instruments<br/>(45 liquid BIST equities)"]
     end
 
-    subgraph Silver["🥈 Silver Layer (Aggregated Microstructure)"]
+    subgraph Silver["Silver Layer (Aggregated Microstructure)"]
         S_BROK_SUM["silver_daily_broker_summary<br/>(Stock x Broker x Date)"]
         S_BROK_OVR["silver_daily_broker_overview<br/>(Broker Macro Market Share & Ranks)"]
         S_STK_SUM["silver_daily_stock_summary<br/>(OHLCV, CR5, BofA VWAP & Spreads)"]
@@ -44,10 +44,12 @@ flowchart TD
         S_MKT["silver_market_daily<br/>(Backward-compatibility OHLCV)"]
     end
 
-    subgraph Gold["🥇 Gold Layer (Features & Predictive Models)"]
+    subgraph Gold["Gold Layer (Features & Predictive Models)"]
         G_SIG["gold_institutional_daily_signals<br/>(Rolling 5d/20d Accumulation & Z-Scores)"]
         G_M1["gold_bofa_day_start_forecasts<br/>(Model 1: Macro Day-Start Forecasts, 90% PICP, Playbooks)"]
         G_M2["gold_bofa_sector_day_start_forecasts<br/>(Model 2: Sector Allocations across 26 Sectors)"]
+        G_M1_BT["gold_bofa_day_start_backtests<br/>(Macro Day-Start Walk-Forward Backtest Ledger)"]
+        G_M2_BT["gold_bofa_sector_day_start_backtests<br/>(Sector Day-Start Walk-Forward Backtest Ledger)"]
     end
 
     B_RAW --> S_BROK_SUM
@@ -88,12 +90,14 @@ flowchart TD
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Populated by Model 1 `DayStartForecaster(model_type="auto")`. Contains predicted macro opening net flow, 90% credible intervals (`predicted_open_flow_lower_90`, `predicted_open_flow_upper_90`), directional conviction (`predicted_direction`, `direction_confidence`), institutional playbooks (`predicted_playbook`), top predicted buy/sell sectors, and champion model metadata.
+- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Populated by Model 1 `DayStartForecaster(model_type="auto")`. Contains predicted macro opening net flow, 90% credible intervals, directional conviction, institutional playbooks, top predicted buy/sell sectors, and champion model metadata.
 - **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Populated by Model 2 `SectorDayStartForecaster(model_type="auto")`. Sector-level opening flow allocation forecasts across all 26 liquid sectors with predicted direction and confidence.
+- **`gold_bofa_day_start_backtests`**: Primary key `trade_date`. Historical out-of-sample backtest ledger with actuals, errors, and hit flags.
+- **`gold_bofa_sector_day_start_backtests`**: Primary key `(trade_date, sector)`. Historical sector backtest ledger across all 26 sectors.
 
 ---
 
-## ⚡ 3. Pipeline Execution & Command Matrix
+## 3. Pipeline Execution & Command Matrix
 
 The pipeline is fully automated with dependency DAG resolution (e.g. running `gold` automatically builds `bronze` and `silver` if needed).
 
@@ -147,30 +151,32 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 
 ---
 
-## 📊 4. Medallion Table Inventory & Verification Matrix
+## 4. Medallion Table Inventory & Verification Matrix
 
 Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equities):
 
 | Layer | Table Name | Granularity / Primary Key | March 2026 Rows | Status |
 | :--- | :--- | :--- | :---: | :---: |
-| **Bronze** | `bronze_raw_trades` | Tick execution (`trade_id`, `timestamp`) | 36,818,222 | ✅ Verified |
-| **Bronze** | `bronze_ingestion_log` | `file_path` | 947 | ✅ Verified |
-| **Bronze** | `bronze_brokers` | `broker_id` | 65 | ✅ Verified |
-| **Bronze** | `bronze_instruments` | `symbol` | 45 | ✅ Verified |
-| **Silver** | `silver_daily_broker_summary` | `(trade_date, symbol, broker_id)` | 48,058 | ✅ Verified |
-| **Silver** | `silver_daily_broker_overview` | `(trade_date, broker_id)` | 1,235 | ✅ Verified |
-| **Silver** | `silver_daily_stock_summary` | `(trade_date, symbol)` | 945 | ✅ Verified |
-| **Silver** | `silver_daily_sector_summary` | `(trade_date, sector, broker_id)` | 28,516 | ✅ Verified |
-| **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 166,095 | ✅ Verified |
-| **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 99,825 | ✅ Verified |
-| **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | ✅ Verified |
-| **Gold** | `gold_institutional_daily_signals` | `(trade_date, symbol)` | 945 | ✅ Verified |
-| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 21 (incl. live T+1) | ✅ Verified |
-| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 546 (incl. live T+1) | ✅ Verified |
+| **Bronze** | `bronze_raw_trades` | Tick execution (`trade_id`, `timestamp`) | 36,818,222 | [PASS] Verified |
+| **Bronze** | `bronze_ingestion_log` | `file_path` | 947 | [PASS] Verified |
+| **Bronze** | `bronze_brokers` | `broker_id` | 65 | [PASS] Verified |
+| **Bronze** | `bronze_instruments` | `symbol` | 45 | [PASS] Verified |
+| **Silver** | `silver_daily_broker_summary` | `(trade_date, symbol, broker_id)` | 48,058 | [PASS] Verified |
+| **Silver** | `silver_daily_broker_overview` | `(trade_date, broker_id)` | 1,235 | [PASS] Verified |
+| **Silver** | `silver_daily_stock_summary` | `(trade_date, symbol)` | 945 | [PASS] Verified |
+| **Silver** | `silver_daily_sector_summary` | `(trade_date, sector, broker_id)` | 28,516 | [PASS] Verified |
+| **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 166,095 | [PASS] Verified |
+| **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 99,825 | [PASS] Verified |
+| **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | [PASS] Verified |
+| **Gold** | `gold_institutional_daily_signals` | `(trade_date, symbol)` | 945 | [PASS] Verified |
+| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 21 (incl. live T+1) | [PASS] Verified |
+| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 546 (incl. live T+1) | [PASS] Verified |
+| **Gold** | `gold_bofa_day_start_backtests` | `trade_date` | 20 | [PASS] Verified |
+| **Gold** | `gold_bofa_sector_day_start_backtests` | `(trade_date, sector)` | 520 | [PASS] Verified |
 
 ---
 
-## 📓 5. Interactive Research & Audit Notebooks
+## 5. Interactive Research & Audit Notebooks
 
 The pipeline is tightly integrated with interactive Jupyter notebooks located in `notebooks/`:
 
@@ -182,12 +188,11 @@ The pipeline is tightly integrated with interactive Jupyter notebooks located in
 | [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 7 Feature Clusters extraction, dynamic walk-forward arena tournament, live $T+1$ actionable signal card, and backtest calibration explorer. |
 | [`04_bofa_sector_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/04_bofa_sector_day_start_modeling.ipynb) | Model 2 Sector Allocation Forecaster | 5 Sector Feature Clusters across 26 sectors, dynamic champion crowning, live $T+1$ multi-sector allocation bar chart, and interactive historical sector dropdown explorer. |
 
-
 *Kernel requirement*: Always select **`Python 3.9 (mdk-trading-oracle)`**.
 
 ---
 
-## 🔒 6. Concurrency, Storage Portability & Lock Troubleshooting
+## 6. Concurrency, Storage Portability & Lock Troubleshooting
 
 ### DuckDB File Lock Protocol (CRITICAL)
 DuckDB enforces exclusive single-process write locks.
@@ -219,7 +224,7 @@ Never hardcode absolute user-specific paths (`/Users/...`). Always use:
 
 ---
 
-## 🧪 7. Automated Testing & Quality Assurance
+## 7. Automated Testing & Quality Assurance
 
 Verify pipeline integrity after any modifications:
 
@@ -230,3 +235,4 @@ Verify pipeline integrity after any modifications:
 # Run linting and code style checks
 .venv/bin/ruff check .
 ```
+
