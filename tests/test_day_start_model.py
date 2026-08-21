@@ -28,22 +28,22 @@ def populated_test_db():
     initialize_silver_schema(db)
     initialize_gold_schema(db)
 
-    # Insert trades across 4 distinct days (Day 1 to Day 4)
+    # Insert trades across 4 distinct days (Day 1 to Day 4) in Turkish Time (TRT)
     conn.execute("""
         INSERT INTO bronze_raw_trades (trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source)
         VALUES 
             -- Day 1 (Monday)
-            ('t1', '2026-03-02 08:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
-            ('t2', '2026-03-02 15:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
+            ('t1', '2026-03-02 10:15:00', 'THYAO', 300.0, 1000.0, 'MLB', 'ISY', 'test'),
+            ('t2', '2026-03-02 17:30:00', 'THYAO', 305.0, 2000.0, 'MLB', 'GAR', 'test'),
             -- Day 2 (Tuesday)
-            ('t3', '2026-03-03 08:15:00', 'THYAO', 306.0, 1500.0, 'MLB', 'ISY', 'test'),
-            ('t4', '2026-03-03 15:30:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'MLB', 'test'),
+            ('t3', '2026-03-03 10:15:00', 'THYAO', 306.0, 1500.0, 'MLB', 'ISY', 'test'),
+            ('t4', '2026-03-03 17:30:00', 'AKBNK', 60.0, 5000.0, 'GAR', 'MLB', 'test'),
             -- Day 3 (Wednesday)
-            ('t5', '2026-03-04 08:15:00', 'AKBNK', 61.0, 4000.0, 'MLB', 'YKR', 'test'),
-            ('t6', '2026-03-04 15:30:00', 'THYAO', 310.0, 3000.0, 'MLB', 'AKB', 'test'),
+            ('t5', '2026-03-04 10:15:00', 'AKBNK', 61.0, 4000.0, 'MLB', 'YKR', 'test'),
+            ('t6', '2026-03-04 17:30:00', 'THYAO', 310.0, 3000.0, 'MLB', 'AKB', 'test'),
             -- Day 4 (Thursday)
-            ('t7', '2026-03-05 08:15:00', 'THYAO', 312.0, 2500.0, 'MLB', 'ISY', 'test'),
-            ('t8', '2026-03-05 15:30:00', 'AKBNK', 62.0, 6000.0, 'MLB', 'GAR', 'test');
+            ('t7', '2026-03-05 10:15:00', 'THYAO', 312.0, 2500.0, 'MLB', 'ISY', 'test'),
+            ('t8', '2026-03-05 17:30:00', 'AKBNK', 62.0, 6000.0, 'MLB', 'GAR', 'test');
     """)
 
     silver = SilverTransformer(db)
