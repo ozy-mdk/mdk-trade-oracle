@@ -10,7 +10,7 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
-from mdk_trading_oracle.models.base import BaseForecaster, ForecastResult
+from mdk_trading_oracle.models.base import BaseForecaster, FlowThresholdProfile, ForecastResult
 from mdk_trading_oracle.models.day_start.features import DayStartFeatureExtractor
 from mdk_trading_oracle.models.day_start.models import (
     DayStartBayesianModel,
@@ -28,13 +28,14 @@ logger = get_logger("mdk_oracle.models.day_start.forecaster")
 class DayStartModelArena:
     """Evaluates all candidate models using expanding-window walk-forward validation and crowns the champion."""
 
-    def __init__(self):
+    def __init__(self, thresholds: Optional[FlowThresholdProfile] = None):
+        self.thresholds = thresholds or FlowThresholdProfile()
         self.candidates: Dict[str, BaseForecaster] = {
-            "Baseline 0: Naive W4 Persistence": DayStartNaivePersistenceModel(),
-            "Baseline 1: 5-Day Historical Mean": DayStartRollingMeanModel(),
-            "LightGBM Non-Linear Ensemble": DayStartLightGBMModel(),
-            "Bayesian Ridge Probabilistic": DayStartBayesianModel(),
-            "PyMC Bayesian GLM (MAP)": DayStartPyMCModel(use_map=True),
+            "Baseline 0: Naive W4 Persistence": DayStartNaivePersistenceModel(thresholds=self.thresholds),
+            "Baseline 1: 5-Day Historical Mean": DayStartRollingMeanModel(thresholds=self.thresholds),
+            "LightGBM Non-Linear Ensemble": DayStartLightGBMModel(thresholds=self.thresholds),
+            "Bayesian Ridge Probabilistic": DayStartBayesianModel(thresholds=self.thresholds),
+            "PyMC Bayesian GLM (MAP)": DayStartPyMCModel(use_map=True, thresholds=self.thresholds),
         }
 
     def run_tournament(
@@ -85,11 +86,12 @@ class DayStartForecaster:
     """Production Forecaster for Model 1: 'How Will BofA Start the Day?'
     
     Orchestrates end-to-end:
-        1. Feature extraction across all 7 Feature Clusters from DuckDB Silver tables
-        2. Automated Model Arena tournament selection or configured model type
-        3. Probabilistic model training and walk-forward validation
-        4. Live next-day forecasting (T+1) and historical backtest evaluation
-        5. Persisting forecasts directly into DuckDB Gold layer tables
+        1. Feature extraction across all 8 Feature Clusters from DuckDB Silver tables
+        2. Dynamic empirical flow percentile threshold integration
+        3. Automated Model Arena tournament selection or configured model type
+        4. Probabilistic model training and walk-forward validation
+        5. Live next-day forecasting (T+1) and historical backtest evaluation
+        6. Persisting forecasts directly into DuckDB Gold layer tables
     """
 
     def __init__(
@@ -113,19 +115,47 @@ class DayStartForecaster:
         self.feature_extractor = DayStartFeatureExtractor(
             self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
         )
-        self.arena = DayStartModelArena()
+        self.threshold_profile = self._load_threshold_profile()
+        self.arena = DayStartModelArena(thresholds=self.threshold_profile)
         self.champion_name: Optional[str] = None
         
         if self.model_type == "lightgbm":
-            self.model: Optional[BaseForecaster] = DayStartLightGBMModel()
+            self.model: Optional[BaseForecaster] = DayStartLightGBMModel(thresholds=self.threshold_profile)
         elif self.model_type == "baseline":
-            self.model = DayStartNaivePersistenceModel()
+            self.model = DayStartNaivePersistenceModel(thresholds=self.threshold_profile)
         elif self.model_type == "pymc":
-            self.model = DayStartPyMCModel(use_map=True)
+            self.model = DayStartPyMCModel(use_map=True, thresholds=self.threshold_profile)
         elif self.model_type == "bayesian":
-            self.model = DayStartBayesianModel()
+            self.model = DayStartBayesianModel(thresholds=self.threshold_profile)
         else:  # "auto"
             self.model = None
+
+    def _load_threshold_profile(self) -> FlowThresholdProfile:
+        """Load empirical flow percentile thresholds from silver_bofa_historical_flow_thresholds."""
+        conn = self.db.get_connection()
+        try:
+            row = conn.execute("""
+                SELECT buy_p25_tl, buy_p50_tl, buy_p85_tl, sell_p25_tl, sell_p50_tl, sell_p85_tl,
+                       buy_count, sell_count, total_sessions
+                FROM silver_bofa_historical_flow_thresholds
+                WHERE scope_type = 'MACRO' AND scope_name = 'ALL' AND broker_id = 'MLB' AND window_name = 'day_start'
+                LIMIT 1;
+            """).fetchone()
+            if row:
+                return FlowThresholdProfile(
+                    buy_p25_tl=float(row[0]),
+                    buy_p50_tl=float(row[1]),
+                    buy_p85_tl=float(row[2]),
+                    sell_p25_tl=float(row[3]),
+                    sell_p50_tl=float(row[4]),
+                    sell_p85_tl=float(row[5]),
+                    buy_count=int(row[6]),
+                    sell_count=int(row[7]),
+                    total_sessions=int(row[8]),
+                )
+        except Exception as e:
+            logger.debug(f"Could not load macro flow thresholds from silver table: {e}. Using fallback defaults.")
+        return FlowThresholdProfile()
 
     def _ensure_champion_fitted(self, as_of_date: Optional[date] = None) -> Tuple[pd.DataFrame, pd.Series]:
         """Extract historical features up to as_of_date, select champion model dynamically if auto, and fit champion model."""

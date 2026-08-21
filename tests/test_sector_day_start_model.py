@@ -98,13 +98,7 @@ def test_sector_day_start_candidate_models(db_conn):
 
         res: ForecastResult = model.predict(X.iloc[[0]])
         assert isinstance(res, ForecastResult)
-        assert res.predicted_direction in [
-            ForecastDirection.STRONG_ACCUMULATE,
-            ForecastDirection.ACCUMULATE,
-            ForecastDirection.NEUTRAL,
-            ForecastDirection.DISTRIBUTE,
-            ForecastDirection.STRONG_DISTRIBUTE,
-        ]
+        assert res.predicted_direction in ForecastDirection.all_valid()
         assert res.predicted_flow_lower_90 <= res.predicted_flow_upper_90
         assert 0.0 <= res.direction_confidence <= 1.0
 
@@ -151,13 +145,7 @@ def test_sector_day_start_forecaster_orchestration(populated_test_db):
     for f in live_forecasts:
         assert isinstance(f, ForecastResult)
         assert f.top_predicted_buy_sector in ["Banking", "Transportation"]
-        assert f.predicted_direction in [
-            ForecastDirection.STRONG_ACCUMULATE,
-            ForecastDirection.ACCUMULATE,
-            ForecastDirection.NEUTRAL,
-            ForecastDirection.DISTRIBUTE,
-            ForecastDirection.STRONG_DISTRIBUTE,
-        ]
+        assert f.predicted_direction in ForecastDirection.all_valid()
 
     # 2. Historical Backtest Track Record
     backtest_forecasts = forecaster.backtest_all_history(sectors=["Banking", "Transportation"])

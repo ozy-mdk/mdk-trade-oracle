@@ -582,7 +582,7 @@ class SilverTransformer:
         return {"table": "silver_intraday_sector_window_summary", "rows": rows, "status": "success"}
 
     def transform_daily_macro_rates(self) -> dict[str, Any]:
-        """Aggregate and enrich daily Central Bank policy interest rates and decision momentum."""
+        """Aggregate and enrich daily Central Bank policy interest rates, hike/cut momentum, and carry drag."""
         conn = self.db.get_connection()
         logger.info("Computing `silver_daily_macro_rates` from `bronze_central_bank_rates`...")
 
@@ -599,7 +599,12 @@ class SilverTransformer:
                     rate_change DOUBLE DEFAULT 0.0,
                     is_rate_change_day BOOLEAN DEFAULT FALSE,
                     days_since_last_rate_change INTEGER,
+                    days_since_last_hike INTEGER,
+                    days_since_last_cut INTEGER,
+                    last_rate_change_bps DOUBLE DEFAULT 0.0,
                     rolling_30d_rate_mean DOUBLE,
+                    rate_spread_vs_30d_mean DOUBLE,
+                    daily_carry_cost_bps DOUBLE,
                     is_forward_filled BOOLEAN DEFAULT FALSE,
                     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
@@ -609,9 +614,19 @@ class SilverTransformer:
         query = """
             CREATE OR REPLACE TABLE silver_daily_macro_rates AS
             WITH change_dates AS (
-                SELECT rate_date AS change_date
+                SELECT rate_date AS change_date, rate_change
                 FROM bronze_central_bank_rates
                 WHERE is_rate_change_day = TRUE
+            ),
+            hike_dates AS (
+                SELECT rate_date AS hike_date
+                FROM bronze_central_bank_rates
+                WHERE is_rate_change_day = TRUE AND rate_change > 0
+            ),
+            cut_dates AS (
+                SELECT rate_date AS cut_date
+                FROM bronze_central_bank_rates
+                WHERE is_rate_change_day = TRUE AND rate_change < 0
             ),
             rates_with_last_change AS (
                 SELECT 
@@ -624,8 +639,29 @@ class SilverTransformer:
                         SELECT MAX(c.change_date) 
                         FROM change_dates c 
                         WHERE c.change_date <= b.rate_date
-                    ) AS last_change_date
+                    ) AS last_change_date,
+                    (
+                        SELECT MAX(h.hike_date) 
+                        FROM hike_dates h 
+                        WHERE h.hike_date <= b.rate_date
+                    ) AS last_hike_date,
+                    (
+                        SELECT MAX(k.cut_date) 
+                        FROM cut_dates k 
+                        WHERE k.cut_date <= b.rate_date
+                    ) AS last_cut_date
                 FROM bronze_central_bank_rates b
+            ),
+            with_last_change_magnitude AS (
+                SELECT 
+                    r.*,
+                    (
+                        SELECT COALESCE(c.rate_change, 0.0) * 100.0
+                        FROM change_dates c
+                        WHERE c.change_date = r.last_change_date
+                        LIMIT 1
+                    ) AS last_rate_change_bps
+                FROM rates_with_last_change r
             ),
             with_metrics AS (
                 SELECT 
@@ -634,13 +670,25 @@ class SilverTransformer:
                     r.rate_change,
                     r.is_rate_change_day,
                     CAST(r.trade_date - COALESCE(r.last_change_date, r.trade_date) AS INTEGER) AS days_since_last_rate_change,
+                    CASE WHEN r.last_hike_date IS NOT NULL 
+                         THEN CAST(r.trade_date - r.last_hike_date AS INTEGER) 
+                         ELSE NULL END AS days_since_last_hike,
+                    CASE WHEN r.last_cut_date IS NOT NULL 
+                         THEN CAST(r.trade_date - r.last_cut_date AS INTEGER) 
+                         ELSE NULL END AS days_since_last_cut,
+                    COALESCE(r.last_rate_change_bps, 0.0) AS last_rate_change_bps,
                     AVG(r.interest_rate) OVER (
                         ORDER BY r.trade_date 
                         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
                     ) AS rolling_30d_rate_mean,
+                    r.interest_rate - AVG(r.interest_rate) OVER (
+                        ORDER BY r.trade_date 
+                        ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+                    ) AS rate_spread_vs_30d_mean,
+                    (r.interest_rate / 360.0) * 10000.0 AS daily_carry_cost_bps,
                     r.is_forward_filled,
                     CURRENT_TIMESTAMP AS calculated_at
-                FROM rates_with_last_change r
+                FROM with_last_change_magnitude r
             )
             SELECT * FROM with_metrics
             ORDER BY trade_date ASC;
@@ -650,6 +698,64 @@ class SilverTransformer:
         rows = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
         logger.info(f"Successfully populated `silver_daily_macro_rates`: {rows:,} rows.")
         return {"table": "silver_daily_macro_rates", "rows": rows, "status": "success"}
+
+    def transform_bofa_flow_thresholds(self, target_broker_id: str = "MLB", target_window: str = "day_start") -> dict[str, Any]:
+        """Compute empirical percentiles (P25, P50, P85) for positive and negative opening flows across Macro and all Sectors."""
+        conn = self.db.get_connection()
+        logger.info(f"Computing `silver_bofa_historical_flow_thresholds` for broker '{target_broker_id}' and window '{target_window}'...")
+
+        query = f"""
+            CREATE OR REPLACE TABLE silver_bofa_historical_flow_thresholds AS
+            WITH macro_flows AS (
+                SELECT 
+                    'MACRO' AS scope_type,
+                    'ALL' AS scope_name,
+                    '{target_broker_id}' AS broker_id,
+                    '{target_window}' AS window_name,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.25), 10e6) AS buy_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.50), 30e6) AS buy_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.85), 75e6) AS buy_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl > 0 THEN 1 ELSE NULL END) AS INTEGER) AS buy_count,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.25), 10e6) AS sell_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.50), 30e6) AS sell_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.85), 75e6) AS sell_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl < 0 THEN 1 ELSE NULL END) AS INTEGER) AS sell_count,
+                    CAST(COUNT(DISTINCT trade_date) AS INTEGER) AS total_sessions,
+                    CURRENT_TIMESTAMP AS calculated_at
+                FROM silver_intraday_broker_window_summary
+                WHERE broker_id = '{target_broker_id}' AND window_name = '{target_window}'
+            ),
+            sector_flows AS (
+                SELECT 
+                    'SECTOR' AS scope_type,
+                    sector AS scope_name,
+                    '{target_broker_id}' AS broker_id,
+                    '{target_window}' AS window_name,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.25), 2e6) AS buy_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.50), 5e6) AS buy_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.85), 15e6) AS buy_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl > 0 THEN 1 ELSE NULL END) AS INTEGER) AS buy_count,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.25), 2e6) AS sell_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.50), 5e6) AS sell_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.85), 15e6) AS sell_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl < 0 THEN 1 ELSE NULL END) AS INTEGER) AS sell_count,
+                    CAST(COUNT(DISTINCT trade_date) AS INTEGER) AS total_sessions,
+                    CURRENT_TIMESTAMP AS calculated_at
+                FROM silver_intraday_sector_window_summary
+                WHERE broker_id = '{target_broker_id}' 
+                  AND window_name = '{target_window}'
+                  AND sector IS NOT NULL AND sector != ''
+                GROUP BY sector
+            )
+            SELECT * FROM macro_flows
+            UNION ALL
+            SELECT * FROM sector_flows
+            ORDER BY scope_type ASC, scope_name ASC;
+        """
+        conn.execute(query)
+        rows = conn.execute("SELECT COUNT(*) FROM silver_bofa_historical_flow_thresholds;").fetchone()[0]
+        logger.info(f"Successfully populated `silver_bofa_historical_flow_thresholds`: {rows:,} distribution profiles.")
+        return {"table": "silver_bofa_historical_flow_thresholds", "rows": rows, "status": "success"}
 
     def run_all(self) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
@@ -661,6 +767,7 @@ class SilverTransformer:
         res_win_broker = self.transform_intraday_broker_windows()
         res_win_sector = self.transform_intraday_sector_windows()
         res_macro_rates = self.transform_daily_macro_rates()
+        res_flow_thresholds = self.transform_bofa_flow_thresholds()
 
         return {
             "silver_daily_broker_summary": res_broker,
@@ -670,5 +777,6 @@ class SilverTransformer:
             "silver_intraday_broker_window_summary": res_win_broker,
             "silver_intraday_sector_window_summary": res_win_sector,
             "silver_daily_macro_rates": res_macro_rates,
+            "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
             "status": "success",
         }

@@ -227,10 +227,36 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
             rate_change DOUBLE DEFAULT 0.0,
             is_rate_change_day BOOLEAN DEFAULT FALSE,
             days_since_last_rate_change INTEGER,
+            days_since_last_hike INTEGER,
+            days_since_last_cut INTEGER,
+            last_rate_change_bps DOUBLE DEFAULT 0.0,
             rolling_30d_rate_mean DOUBLE,
+            rate_spread_vs_30d_mean DOUBLE,
+            daily_carry_cost_bps DOUBLE,
             is_forward_filled BOOLEAN DEFAULT FALSE,
             calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
-    logger.info("DuckDB Silver schemas initialized for all core aggregation and macro tables.")
+    # 9. Silver Distribution Table: BofA Historical Flow Percentile Thresholds
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_bofa_historical_flow_thresholds (
+            scope_type VARCHAR NOT NULL,       -- 'MACRO' or 'SECTOR'
+            scope_name VARCHAR NOT NULL,       -- 'ALL' (for Macro) or Sector Name (e.g. 'Banking')
+            broker_id VARCHAR NOT NULL,        -- 'MLB'
+            window_name VARCHAR NOT NULL,      -- 'day_start'
+            buy_p25_tl DOUBLE NOT NULL,
+            buy_p50_tl DOUBLE NOT NULL,
+            buy_p85_tl DOUBLE NOT NULL,
+            buy_count INTEGER NOT NULL,
+            sell_p25_tl DOUBLE NOT NULL,
+            sell_p50_tl DOUBLE NOT NULL,
+            sell_p85_tl DOUBLE NOT NULL,
+            sell_count INTEGER NOT NULL,
+            total_sessions INTEGER NOT NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (scope_type, scope_name, broker_id, window_name)
+        );
+    """)
+
+    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, and distribution tables.")

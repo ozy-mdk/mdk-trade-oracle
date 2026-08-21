@@ -6,6 +6,7 @@ from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.data.bronze import initialize_bronze_schema
 from mdk_trading_oracle.data.gold import initialize_gold_schema
 from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_schema
+from mdk_trading_oracle.models.base import ForecastDirection
 from mdk_trading_oracle.models.day_start import (
     DayStartBayesianModel,
     DayStartFeatureExtractor,
@@ -81,7 +82,7 @@ def test_day_start_candidate_models(populated_test_db):
     m_base0 = DayStartNaivePersistenceModel()
     m_base0.fit(X, y)
     res0 = m_base0.predict(X.iloc[[0]])
-    assert res0.predicted_direction in ["ACCUMULATE", "DISTRIBUTE", "NEUTRAL", "STRONG_ACCUMULATE", "STRONG_DISTRIBUTE"]
+    assert res0.predicted_direction in ForecastDirection.all_valid()
 
     # 2. Baseline Rolling Mean
     m_base1 = DayStartRollingMeanModel()
@@ -154,7 +155,7 @@ def test_day_start_forecaster_auto_orchestration(populated_test_db):
     next_res = forecaster.forecast_next_day()
     assert next_res is not None
     assert str(next_res.forecast_date)[:10] == "2026-03-06"
-    assert next_res.predicted_direction in ["ACCUMULATE", "DISTRIBUTE", "NEUTRAL", "STRONG_ACCUMULATE", "STRONG_DISTRIBUTE"]
+    assert next_res.predicted_direction in ForecastDirection.all_valid()
     assert forecaster.champion_name is not None
 
     # 2. Historical Backtest Track Record

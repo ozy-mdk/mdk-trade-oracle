@@ -13,11 +13,79 @@ from mdk_trading_oracle.core.time import now_turkey_naive
 
 class ForecastDirection(str):
     """Institutional directional posture for opening session."""
-    STRONG_ACCUMULATE = "STRONG_ACCUMULATE"
-    ACCUMULATE = "ACCUMULATE"
+    STRONG_BUY = "STRONG_BUY"
+    BUY = "BUY"
+    WEAK_BUY = "WEAK_BUY"
     NEUTRAL = "NEUTRAL"
-    DISTRIBUTE = "DISTRIBUTE"
-    STRONG_DISTRIBUTE = "STRONG_DISTRIBUTE"
+    WEAK_SELL = "WEAK_SELL"
+    SELL = "SELL"
+    STRONG_SELL = "STRONG_SELL"
+
+    # Backward compatibility aliases
+    STRONG_ACCUMULATE = "STRONG_BUY"
+    ACCUMULATE = "BUY"
+    DISTRIBUTE = "SELL"
+    STRONG_DISTRIBUTE = "STRONG_SELL"
+
+    @classmethod
+    def all_valid(cls) -> List[str]:
+        """Return list of all valid directional classification values."""
+        return [
+            cls.STRONG_BUY,
+            cls.BUY,
+            cls.WEAK_BUY,
+            cls.NEUTRAL,
+            cls.WEAK_SELL,
+            cls.SELL,
+            cls.STRONG_SELL,
+            "STRONG_ACCUMULATE",
+            "ACCUMULATE",
+            "DISTRIBUTE",
+            "STRONG_DISTRIBUTE",
+        ]
+
+
+@dataclass
+class FlowThresholdProfile:
+    """Empirical percentile distribution thresholds for institutional net flow classification."""
+    buy_p25_tl: float = 10e6
+    buy_p50_tl: float = 30e6
+    buy_p85_tl: float = 75e6
+    sell_p25_tl: float = 10e6
+    sell_p50_tl: float = 30e6
+    sell_p85_tl: float = 75e6
+    buy_count: int = 0
+    sell_count: int = 0
+    total_sessions: int = 0
+
+
+class FlowThresholdClassifier:
+    """Classifies predicted net flows into statistical conviction levels based on empirical percentiles."""
+
+    @staticmethod
+    def classify(net_flow_tl: float, thresholds: Optional[FlowThresholdProfile] = None) -> str:
+        """Classify continuous predicted net flow (TL) into dynamic percentile direction."""
+        th = thresholds or FlowThresholdProfile()
+        if net_flow_tl > 0:
+            if net_flow_tl >= th.buy_p85_tl:
+                return ForecastDirection.STRONG_BUY
+            elif net_flow_tl >= th.buy_p50_tl:
+                return ForecastDirection.BUY
+            elif net_flow_tl >= th.buy_p25_tl:
+                return ForecastDirection.WEAK_BUY
+            else:
+                return ForecastDirection.NEUTRAL
+        elif net_flow_tl < 0:
+            abs_flow = abs(net_flow_tl)
+            if abs_flow >= th.sell_p85_tl:
+                return ForecastDirection.STRONG_SELL
+            elif abs_flow >= th.sell_p50_tl:
+                return ForecastDirection.SELL
+            elif abs_flow >= th.sell_p25_tl:
+                return ForecastDirection.WEAK_SELL
+            else:
+                return ForecastDirection.NEUTRAL
+        return ForecastDirection.NEUTRAL
 
 
 class OpeningPlaybook(str):

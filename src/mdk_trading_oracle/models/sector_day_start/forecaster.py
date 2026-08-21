@@ -11,7 +11,7 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
-from mdk_trading_oracle.models.base import ForecastResult
+from mdk_trading_oracle.models.base import FlowThresholdProfile, ForecastResult
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.sector_day_start.features import SectorDayStartFeatureExtractor
 from mdk_trading_oracle.models.sector_day_start.models import (
@@ -30,15 +30,22 @@ logger = get_logger("mdk_oracle.models.sector_day_start.forecaster")
 class SectorDayStartModelArena:
     """Evaluates candidate sector models using expanding-window walk-forward validation and crowns the champion."""
 
-    def __init__(self, include_pymc: bool = False):
+    def __init__(
+        self,
+        include_pymc: bool = False,
+        sector_thresholds: Optional[Dict[str, FlowThresholdProfile]] = None,
+    ):
+        self.sector_thresholds = sector_thresholds or {}
         self.candidates: Dict[str, BaseSectorDayStartModel] = {
-            "Baseline 0: Naive W4 Sector Persistence": SectorDayStartNaivePersistenceModel(),
-            "Baseline 1: 5-Day Historical Sector Mean": SectorDayStartRollingMeanModel(),
-            "LightGBM Non-Linear Sector Ensemble": SectorDayStartLightGBMModel(),
-            "Bayesian Ridge Probabilistic": SectorDayStartBayesianModel(),
+            "Baseline 0: Naive W4 Sector Persistence": SectorDayStartNaivePersistenceModel(sector_thresholds=self.sector_thresholds),
+            "Baseline 1: 5-Day Historical Sector Mean": SectorDayStartRollingMeanModel(sector_thresholds=self.sector_thresholds),
+            "LightGBM Non-Linear Sector Ensemble": SectorDayStartLightGBMModel(sector_thresholds=self.sector_thresholds),
+            "Bayesian Ridge Probabilistic": SectorDayStartBayesianModel(sector_thresholds=self.sector_thresholds),
         }
         if include_pymc:
-            self.candidates["PyMC Bayesian GLM (MAP)"] = SectorDayStartPyMCModel(use_map=True)
+            self.candidates["PyMC Bayesian GLM (MAP)"] = SectorDayStartPyMCModel(
+                use_map=True, sector_thresholds=self.sector_thresholds
+            )
 
     def run_tournament(
         self,
@@ -89,10 +96,11 @@ class SectorDayStartForecaster:
     
     Orchestrates end-to-end:
         1. Multi-sector feature extraction from DuckDB Silver tables at T-1 Close
-        2. Automated Model Arena tournament selection across sectors
-        3. Probabilistic model training and walk-forward validation
-        4. Live next-day sector forecasting (T+1) and historical backtest evaluation
-        5. Persisting forecasts directly into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`
+        2. Dynamic empirical sector percentile threshold integration
+        3. Automated Model Arena tournament selection across sectors
+        4. Probabilistic model training and walk-forward validation
+        5. Live next-day sector forecasting (T+1) and historical backtest evaluation
+        6. Persisting forecasts directly into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`
     """
 
     def __init__(
@@ -118,8 +126,37 @@ class SectorDayStartForecaster:
         self.feature_extractor = SectorDayStartFeatureExtractor(
             self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
         )
-        self.arena = SectorDayStartModelArena(include_pymc=include_pymc)
+        self.sector_thresholds = self._load_sector_thresholds()
+        self.arena = SectorDayStartModelArena(include_pymc=include_pymc, sector_thresholds=self.sector_thresholds)
         self.champion_name: Optional[str] = None
+
+    def _load_sector_thresholds(self) -> Dict[str, FlowThresholdProfile]:
+        """Load empirical flow percentile thresholds for all sectors from silver_bofa_historical_flow_thresholds."""
+        conn = self.db.get_connection()
+        profiles: Dict[str, FlowThresholdProfile] = {}
+        try:
+            rows = conn.execute("""
+                SELECT scope_name, buy_p25_tl, buy_p50_tl, buy_p85_tl, sell_p25_tl, sell_p50_tl, sell_p85_tl,
+                       buy_count, sell_count, total_sessions
+                FROM silver_bofa_historical_flow_thresholds
+                WHERE scope_type = 'SECTOR' AND broker_id = 'MLB' AND window_name = 'day_start';
+            """).fetchall()
+            for row in rows:
+                sec_name = str(row[0])
+                profiles[sec_name] = FlowThresholdProfile(
+                    buy_p25_tl=float(row[1]),
+                    buy_p50_tl=float(row[2]),
+                    buy_p85_tl=float(row[3]),
+                    sell_p25_tl=float(row[4]),
+                    sell_p50_tl=float(row[5]),
+                    sell_p85_tl=float(row[6]),
+                    buy_count=int(row[7]),
+                    sell_count=int(row[8]),
+                    total_sessions=int(row[9]),
+                )
+        except Exception as e:
+            logger.debug(f"Could not load sector flow thresholds from silver table: {e}. Using fallback defaults.")
+        return profiles
 
     def _ensure_champion_selected(
         self,
@@ -172,15 +209,15 @@ class SectorDayStartForecaster:
     def _create_sector_model(self) -> BaseSectorDayStartModel:
         """Instantiate a fresh model instance of the crowned champion paradigm."""
         if self.champion_name in ["sector_day_start_bayesian_ridge", "bayesian"]:
-            return SectorDayStartBayesianModel()
+            return SectorDayStartBayesianModel(sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_lightgbm", "lightgbm"]:
-            return SectorDayStartLightGBMModel()
+            return SectorDayStartLightGBMModel(sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_pymc", "pymc"]:
-            return SectorDayStartPyMCModel(use_map=True)
+            return SectorDayStartPyMCModel(use_map=True, sector_thresholds=self.sector_thresholds)
         elif self.champion_name in ["sector_day_start_rolling_mean", "rolling_mean"]:
-            return SectorDayStartRollingMeanModel()
+            return SectorDayStartRollingMeanModel(sector_thresholds=self.sector_thresholds)
         else:
-            return SectorDayStartNaivePersistenceModel()
+            return SectorDayStartNaivePersistenceModel(sector_thresholds=self.sector_thresholds)
 
     def forecast_next_day(
         self,

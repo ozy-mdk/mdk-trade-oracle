@@ -10,7 +10,8 @@ from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import (
     BaseForecaster,
-    ForecastDirection,
+    FlowThresholdClassifier,
+    FlowThresholdProfile,
     ForecastResult,
     OpeningPlaybook,
 )
@@ -20,32 +21,40 @@ logger = get_logger("mdk_oracle.models.day_start.models")
 
 
 class BaseDayStartModel(BaseForecaster):
-    """Base class providing common evaluation logic and directional conviction classification."""
+    """Base class providing common evaluation logic and dynamic percentile directional conviction classification."""
 
-    def _classify_direction(self, net_flow_tl: float, confidence: float) -> str:
-        """Classify continuous predicted net flow (TL) into directional category."""
-        million_flow = net_flow_tl / 1e6
-        if million_flow > 50.0 and confidence >= 0.70:
-            return ForecastDirection.STRONG_ACCUMULATE
-        elif million_flow > 10.0:
-            return ForecastDirection.ACCUMULATE
-        elif million_flow < -50.0 and confidence >= 0.70:
-            return ForecastDirection.STRONG_DISTRIBUTE
-        elif million_flow < -10.0:
-            return ForecastDirection.DISTRIBUTE
-        return ForecastDirection.NEUTRAL
+    def __init__(
+        self,
+        model_name: str,
+        model_version: str = "1.0.0",
+        thresholds: Optional[FlowThresholdProfile] = None,
+    ):
+        super().__init__(model_name=model_name, model_version=model_version)
+        self.thresholds = thresholds or FlowThresholdProfile()
+
+    def set_thresholds(self, thresholds: FlowThresholdProfile) -> None:
+        """Update empirical percentile flow thresholds profile."""
+        self.thresholds = thresholds
+
+    def _classify_direction(self, net_flow_tl: float, confidence: float = 0.5) -> str:
+        """Classify continuous predicted net flow (TL) into dynamic percentile directional category."""
+        return FlowThresholdClassifier.classify(net_flow_tl, self.thresholds)
 
     def _determine_playbook(self, row_dict: Dict[str, Any], predicted_flow: float) -> str:
-        """Determine the institutional execution playbook based on competitor and cost basis dynamics."""
+        """Determine the institutional execution playbook based on competitor, cost basis, and dynamic percentile triggers."""
         w4_delta = float(row_dict.get("feat_bofa_vs_top5_w4_flow_delta_tl", 0.0))
         cost_basis_spread = float(row_dict.get("feat_bofa_cost_basis_spread_20d_pct", 0.0))
         is_monday = bool(row_dict.get("is_monday", False))
 
-        if predicted_flow > 20e6 and w4_delta > 30e6:
+        buy_p50 = self.thresholds.buy_p50_tl
+        buy_p85 = self.thresholds.buy_p85_tl
+        sell_p50 = self.thresholds.sell_p50_tl
+
+        if predicted_flow >= buy_p50 and w4_delta >= buy_p50:
             return OpeningPlaybook.SQUEEZE_LONG
-        elif predicted_flow > 40e6:
+        elif predicted_flow >= buy_p85:
             return OpeningPlaybook.MOMENTUM_EXPANSION
-        elif predicted_flow < -20e6 and cost_basis_spread > 0.05:
+        elif predicted_flow <= -sell_p50 and cost_basis_spread > 0.05:
             return OpeningPlaybook.LIQUIDITY_FADE
         elif cost_basis_spread < -0.04 and predicted_flow > 0:
             return OpeningPlaybook.DEFENSE_SUPPORT
@@ -177,8 +186,8 @@ class BaseDayStartModel(BaseForecaster):
 class DayStartNaivePersistenceModel(BaseDayStartModel):
     """Baseline 0: Carries yesterday's closing Window 4 flow forward as today's opening expectation."""
 
-    def __init__(self):
-        super().__init__(model_name="day_start_baseline_persistence", model_version="1.0.0")
+    def __init__(self, thresholds: Optional[FlowThresholdProfile] = None):
+        super().__init__(model_name="day_start_baseline_persistence", model_version="1.0.0", thresholds=thresholds)
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartNaivePersistenceModel":
         self.is_fitted = True
@@ -213,8 +222,8 @@ class DayStartNaivePersistenceModel(BaseDayStartModel):
 class DayStartRollingMeanModel(BaseDayStartModel):
     """Baseline 1: Predicts opening flow as historical 5-day rolling average."""
 
-    def __init__(self):
-        super().__init__(model_name="day_start_baseline_rolling_mean", model_version="1.0.0")
+    def __init__(self, thresholds: Optional[FlowThresholdProfile] = None):
+        super().__init__(model_name="day_start_baseline_rolling_mean", model_version="1.0.0", thresholds=thresholds)
         self.mean_flow = 0.0
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "DayStartRollingMeanModel":
@@ -255,8 +264,8 @@ class DayStartRollingMeanModel(BaseDayStartModel):
 class DayStartBayesianModel(BaseDayStartModel):
     """Bayesian Probabilistic Forecaster (Ridge): Computes conjugate posterior distributions and exact credible intervals."""
 
-    def __init__(self, max_iter: int = 300):
-        super().__init__(model_name="day_start_bayesian_ridge", model_version="1.0.0")
+    def __init__(self, max_iter: int = 300, thresholds: Optional[FlowThresholdProfile] = None):
+        super().__init__(model_name="day_start_bayesian_ridge", model_version="1.0.0", thresholds=thresholds)
         self.regressor = BayesianRidge(max_iter=max_iter, compute_score=True)
         self.feature_cols: list[str] = []
 
@@ -322,8 +331,8 @@ class DayStartBayesianModel(BaseDayStartModel):
 class DayStartPyMCModel(BaseDayStartModel):
     """PyMC Full Bayesian MCMC / NUTS Forecaster with custom institutional priors."""
 
-    def __init__(self, draws: int = 300, tune: int = 300, use_map: bool = True):
-        super().__init__(model_name="day_start_pymc", model_version="1.0.0")
+    def __init__(self, draws: int = 300, tune: int = 300, use_map: bool = True, thresholds: Optional[FlowThresholdProfile] = None):
+        super().__init__(model_name="day_start_pymc", model_version="1.0.0", thresholds=thresholds)
         self.draws = draws
         self.tune = tune
         self.use_map = use_map
@@ -352,55 +361,46 @@ class DayStartPyMCModel(BaseDayStartModel):
         self.feature_cols = list(X_clean.columns)
 
         X_mat = X_clean.to_numpy()
-        y_vec = y.to_numpy().astype(float)
+        y_vec = y.to_numpy()
 
-        # Standardize for numerical stability
         self.x_mean = np.mean(X_mat, axis=0)
-        self.x_std = np.std(X_mat, axis=0) + 1e-8
-        X_scaled = (X_mat - self.x_mean) / self.x_std
+        self.x_std = np.std(X_mat, axis=0)
+        self.x_std[self.x_std == 0] = 1.0
 
         self.y_mean = float(np.mean(y_vec))
-        self.y_std = float(np.std(y_vec)) + 1e-8
+        self.y_std = float(np.std(y_vec))
+        if self.y_std == 0:
+            self.y_std = 1.0
+
+        X_scaled = (X_mat - self.x_mean) / self.x_std
         y_scaled = (y_vec - self.y_mean) / self.y_std
 
         n_features = X_scaled.shape[1]
 
-        logger.info(f"Fitting PyMC Bayesian Model ({'MAP' if self.use_map else 'NUTS MCMC'}) on {len(X_scaled)} samples with {n_features} features...")
-
         with pm.Model():
-            # Informative Gaussian & Half-Normal Priors
             intercept = pm.Normal("intercept", mu=0.0, sigma=1.0)
-            beta = pm.Normal("beta", mu=0.0, sigma=0.5, shape=n_features)
+            beta = pm.Normal("beta", mu=0.0, sigma=1.0, shape=n_features)
             sigma = pm.HalfNormal("sigma", sigma=1.0)
 
-            # Likelihood
             mu = intercept + pm.math.dot(X_scaled, beta)
             pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y_scaled)
 
-            if self.use_map:
-                map_est = pm.find_MAP(progressbar=False)
-                self.posterior_mean_weights = np.asarray(map_est["beta"])
-                self.posterior_mean_intercept = float(map_est["intercept"])
-                self.posterior_sigma = float(map_est["sigma"]) * self.y_std
+            if self.use_map or len(X) < 10:
+                map_estimate = pm.find_MAP(progressbar=False)
+                self.posterior_mean_intercept = float(map_estimate["intercept"]) * self.y_std + self.y_mean
+                self.posterior_mean_weights = np.asarray(map_estimate["beta"]) * (self.y_std / self.x_std)
+                self.posterior_sigma = float(map_estimate["sigma"]) * self.y_std
             else:
-                try:
-                    idata = pm.sample(
-                        draws=self.draws,
-                        tune=self.tune,
-                        chains=2,
-                        random_seed=42,
-                        progressbar=False,
-                        compute_convergence_checks=False,
-                    )
-                    self.posterior_mean_weights = idata.posterior["beta"].mean(dim=["chain", "draw"]).values
-                    self.posterior_mean_intercept = float(idata.posterior["intercept"].mean().values)
-                    self.posterior_sigma = float(idata.posterior["sigma"].mean().values) * self.y_std
-                except Exception as e:
-                    logger.warning(f"PyMC sampling fallback to find_MAP: {e}")
-                    map_est = pm.find_MAP(progressbar=False)
-                    self.posterior_mean_weights = np.asarray(map_est["beta"])
-                    self.posterior_mean_intercept = float(map_est["intercept"])
-                    self.posterior_sigma = float(map_est["sigma"]) * self.y_std
+                trace = pm.sample(
+                    draws=self.draws,
+                    tune=self.tune,
+                    chains=1,
+                    progressbar=False,
+                    return_inferencedata=True,
+                )
+                self.posterior_mean_intercept = float(trace.posterior["intercept"].mean()) * self.y_std + self.y_mean
+                self.posterior_mean_weights = np.asarray(trace.posterior["beta"].mean(dim=["chain", "draw"])) * (self.y_std / self.x_std)
+                self.posterior_sigma = float(trace.posterior["sigma"].mean()) * self.y_std
 
         self.is_fitted = True
         return self
@@ -414,14 +414,9 @@ class DayStartPyMCModel(BaseDayStartModel):
         X_clean = X_clean[self.feature_cols]
 
         X_mat = X_clean.to_numpy()
-        X_scaled = (X_mat - self.x_mean) / self.x_std
+        pred_val = float(self.posterior_mean_intercept + np.dot(X_mat, self.posterior_mean_weights)[0])
+        std_val = float(max(self.posterior_sigma, 1e6))
 
-        # Scaled prediction back to original TL units
-        pred_scaled = self.posterior_mean_intercept + np.dot(X_scaled, self.posterior_mean_weights)
-        pred_val = float(pred_scaled[0] * self.y_std + self.y_mean)
-        std_val = float(self.posterior_sigma)
-
-        # 90% Bayesian Credible Interval
         lower_90 = pred_val - 1.645 * std_val
         upper_90 = pred_val + 1.645 * std_val
 
@@ -457,8 +452,8 @@ class DayStartPyMCModel(BaseDayStartModel):
 class DayStartLightGBMModel(BaseDayStartModel):
     """LightGBM Non-Linear Ensemble: Models complex interactions between competitor posture and cost basis."""
 
-    def __init__(self, n_estimators: int = 50, learning_rate: float = 0.05):
-        super().__init__(model_name="day_start_lightgbm", model_version="1.0.0")
+    def __init__(self, n_estimators: int = 50, learning_rate: float = 0.05, thresholds: Optional[FlowThresholdProfile] = None):
+        super().__init__(model_name="day_start_lightgbm", model_version="1.0.0", thresholds=thresholds)
         try:
             import lightgbm as lgb
             self.model = lgb.LGBMRegressor(

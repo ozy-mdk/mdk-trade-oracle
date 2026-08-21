@@ -167,13 +167,15 @@ class MedallionPipeline:
         win_broker_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_broker_window_summary;").fetchone()[0]
         win_sector_count = conn.execute("SELECT COUNT(*) FROM silver_intraday_sector_window_summary;").fetchone()[0]
         macro_rates_count = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
+        thresholds_count = conn.execute("SELECT COUNT(*) FROM silver_bofa_historical_flow_thresholds;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Silver Layer completed in {elapsed:.2f}s | "
             f"Stock-Broker: {broker_summary_count:,} | Broker Overview: {broker_overview_count:,} | "
             f"Stock Summary: {stock_summary_count:,} | Sector: {sector_summary_count:,} | "
-            f"Intraday Windows: {win_broker_count:,} | Macro Rates: {macro_rates_count:,}"
+            f"Intraday Windows: {win_broker_count:,} | Macro Rates: {macro_rates_count:,} | "
+            f"Threshold Profiles: {thresholds_count:,}"
         )
         return {
             "layer": "silver",
@@ -186,6 +188,7 @@ class MedallionPipeline:
                 "silver_intraday_broker_window_summary": win_broker_count,
                 "silver_intraday_sector_window_summary": win_sector_count,
                 "silver_daily_macro_rates": macro_rates_count,
+                "silver_bofa_historical_flow_thresholds": thresholds_count,
             },
             "details": silver_res,
             "status": "success",

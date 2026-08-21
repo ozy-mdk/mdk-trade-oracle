@@ -149,6 +149,17 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_broker_overview
                 GROUP BY trade_date
             ),
+            -- 5. Macro Interest Rates & Monetary Policy Dynamics
+            prev_day_macro_rates AS (
+                SELECT 
+                    trade_date,
+                    interest_rate AS macro_interest_rate,
+                    days_since_last_rate_change AS macro_days_since_last_rate_change,
+                    last_rate_change_bps AS macro_last_rate_change_bps,
+                    rate_spread_vs_30d_mean AS macro_rate_spread_vs_30d_mean,
+                    daily_carry_cost_bps AS macro_daily_carry_cost_bps
+                FROM silver_daily_macro_rates
+            ),
             -- Combine base features
             sector_feature_base AS (
                 SELECT 
@@ -172,13 +183,19 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                         NULLIF(COALESCE(sd.total_sector_turnover_tl, 1.0), 0.0) AS bofa_sector_market_share,
                     COALESCE(sd.bofa_sector_prev_day_turnover_tl, 0.0) / 
                         NULLIF(COALESCE(mo.bofa_macro_prev_day_turnover_tl, 1.0), 0.0) AS bofa_sector_share_of_wallet,
-                    -- Cluster 5: Macro Flow Context
+                    -- Cluster 5: Macro Flow & Interest Rate Context
                     COALESCE(mo.bofa_macro_prev_day_net_flow_tl, 0.0) AS bofa_macro_prev_day_net_flow_tl,
-                    COALESCE(mo.top5_macro_prev_day_net_flow_tl, 0.0) AS top5_macro_prev_day_net_flow_tl
+                    COALESCE(mo.top5_macro_prev_day_net_flow_tl, 0.0) AS top5_macro_prev_day_net_flow_tl,
+                    COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
+                    COALESCE(mr.macro_days_since_last_rate_change, 30) AS macro_days_since_last_rate_change,
+                    COALESCE(mr.macro_last_rate_change_bps, 0.0) AS macro_last_rate_change_bps,
+                    COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
+                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
                 LEFT JOIN prev_day_macro_overview mo ON g.trade_date = mo.trade_date
+                LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
             ),
             -- Multi-Day Rolling Aggregations per Sector (Unlagged)
             unlagged_sector_rolling AS (
@@ -221,7 +238,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(bofa_sector_cum_net_flow_5d_tl, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_cum_net_flow_5d_tl,
                     LAG(top5_sector_cum_net_flow_5d_tl, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_top5_cum_net_flow_5d_tl,
                     LAG(CASE WHEN bofa_sector_std_20d > 0 THEN (bofa_sector_prev_day_net_flow_tl - bofa_sector_mean_20d) / bofa_sector_std_20d ELSE 0.0 END, 1) 
-                        OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_flow_zscore_20d
+                        OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_flow_zscore_20d,
+                    LAG(macro_interest_rate, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_interest_rate,
+                    LAG(macro_days_since_last_rate_change, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_days_since_last_rate_change,
+                    LAG(macro_last_rate_change_bps, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_last_rate_change_bps,
+                    LAG(macro_rate_spread_vs_30d_mean, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_rate_spread_vs_30d_mean,
+                    LAG(sector_rate_x_flow_interaction, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rate_x_flow_interaction
                 FROM unlagged_sector_rolling
             )
             SELECT 
@@ -245,6 +267,11 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_sector_bofa_cum_net_flow_5d_tl, 0.0) AS feat_sector_bofa_cum_net_flow_5d_tl,
                 COALESCE(r.feat_sector_top5_cum_net_flow_5d_tl, 0.0) AS feat_sector_top5_cum_net_flow_5d_tl,
                 COALESCE(r.feat_sector_bofa_flow_zscore_20d, 0.0) AS feat_sector_bofa_flow_zscore_20d,
+                COALESCE(r.feat_macro_interest_rate, 45.0) AS feat_macro_interest_rate,
+                COALESCE(r.feat_macro_days_since_last_rate_change, 30) AS feat_macro_days_since_last_rate_change,
+                COALESCE(r.feat_macro_last_rate_change_bps, 0.0) AS feat_macro_last_rate_change_bps,
+                COALESCE(r.feat_macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
+                COALESCE(r.feat_sector_rate_x_flow_interaction, 0.0) AS feat_sector_rate_x_flow_interaction,
                 -- Target Columns on Day T for Sector s
                 COALESCE(t.target_sector_open_net_flow_tl, 0.0) AS target_sector_open_net_flow_tl,
                 CASE WHEN COALESCE(t.target_sector_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_sector_open_direction
@@ -342,6 +369,16 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_broker_overview
                 GROUP BY trade_date
             ),
+            prev_day_macro_rates AS (
+                SELECT 
+                    trade_date,
+                    interest_rate AS macro_interest_rate,
+                    days_since_last_rate_change AS macro_days_since_last_rate_change,
+                    last_rate_change_bps AS macro_last_rate_change_bps,
+                    rate_spread_vs_30d_mean AS macro_rate_spread_vs_30d_mean,
+                    daily_carry_cost_bps AS macro_daily_carry_cost_bps
+                FROM silver_daily_macro_rates
+            ),
             sector_feature_base AS (
                 SELECT 
                     g.trade_date,
@@ -359,11 +396,17 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(sd.bofa_sector_prev_day_turnover_tl, 0.0) / 
                         NULLIF(COALESCE(mo.bofa_macro_prev_day_turnover_tl, 1.0), 0.0) AS bofa_sector_share_of_wallet,
                     COALESCE(mo.bofa_macro_prev_day_net_flow_tl, 0.0) AS bofa_macro_prev_day_net_flow_tl,
-                    COALESCE(mo.top5_macro_prev_day_net_flow_tl, 0.0) AS top5_macro_prev_day_net_flow_tl
+                    COALESCE(mo.top5_macro_prev_day_net_flow_tl, 0.0) AS top5_macro_prev_day_net_flow_tl,
+                    COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
+                    COALESCE(mr.macro_days_since_last_rate_change, 30) AS macro_days_since_last_rate_change,
+                    COALESCE(mr.macro_last_rate_change_bps, 0.0) AS macro_last_rate_change_bps,
+                    COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
+                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
                 LEFT JOIN prev_day_macro_overview mo ON g.trade_date = mo.trade_date
+                LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
             ),
             unlagged_sector_rolling AS (
                 SELECT 
@@ -402,7 +445,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.top5_macro_prev_day_net_flow_tl, 0.0) AS feat_macro_top5_prev_day_net_flow_tl,
                 COALESCE(r.bofa_sector_cum_net_flow_5d_tl, 0.0) AS feat_sector_bofa_cum_net_flow_5d_tl,
                 COALESCE(r.top5_sector_cum_net_flow_5d_tl, 0.0) AS feat_sector_top5_cum_net_flow_5d_tl,
-                COALESCE(CASE WHEN r.bofa_sector_std_20d > 0 THEN (r.bofa_sector_prev_day_net_flow_tl - r.bofa_sector_mean_20d) / r.bofa_sector_std_20d ELSE 0.0 END, 0.0) AS feat_sector_bofa_flow_zscore_20d
+                COALESCE(CASE WHEN r.bofa_sector_std_20d > 0 THEN (r.bofa_sector_prev_day_net_flow_tl - r.bofa_sector_mean_20d) / r.bofa_sector_std_20d ELSE 0.0 END, 0.0) AS feat_sector_bofa_flow_zscore_20d,
+                COALESCE(r.macro_interest_rate, 45.0) AS feat_macro_interest_rate,
+                COALESCE(r.macro_days_since_last_rate_change, 30) AS feat_macro_days_since_last_rate_change,
+                COALESCE(r.macro_last_rate_change_bps, 0.0) AS feat_macro_last_rate_change_bps,
+                COALESCE(r.macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
+                COALESCE(r.sector_rate_x_flow_interaction, 0.0) AS feat_sector_rate_x_flow_interaction
             FROM unlagged_sector_rolling r
             JOIN latest_date_cte l ON r.trade_date = l.max_trade_date
             ORDER BY r.sector ASC;
