@@ -98,6 +98,18 @@ def main():
         action="store_true",
         help="Auto-discover all completed historical sessions in Silver missing from performance ledger and backfill point-in-time",
     )
+    parser.add_argument(
+        "--backfill-lookback-months",
+        type=int,
+        default=None,
+        help="Number of trailing months to look back when running --backfill-missing (default: 2 months from config)",
+    )
+    parser.add_argument(
+        "--backfill-lookback-days",
+        type=int,
+        default=None,
+        help="Number of trailing days to look back when running --backfill-missing (e.g. 60 days)",
+    )
 
     args = parser.parse_args()
 
@@ -109,7 +121,9 @@ def main():
     logger.info(
         f"Triggering Medallion Lakehouse Pipeline ("
         f"Target: {args.target}, Date: {args.date}, Month: {args.month}, File: {args.file}, "
-        f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, Backfill: {backfill_dates_list or args.backfill_missing})..."
+        f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, "
+        f"Backfill: {backfill_dates_list or args.backfill_missing} "
+        f"[Lookback: {args.backfill_lookback_months or args.backfill_lookback_days or 'default 2 months'}])..."
     )
     pipeline.run(
         target=args.target,
@@ -123,6 +137,8 @@ def main():
         print_summary=True,
         backfill_dates=backfill_dates_list,
         all_missing=args.backfill_missing,
+        backfill_lookback_months=args.backfill_lookback_months,
+        backfill_lookback_days=args.backfill_lookback_days,
     )
 
 

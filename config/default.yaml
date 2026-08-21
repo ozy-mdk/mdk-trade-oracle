@@ -44,6 +44,11 @@ models:
     model_type: "auto"
     include_pymc_arena: false        # Fast mode across 26 sectors
 
+# Historical Performance Ledger & Point-in-Time Backfill Configuration
+backfill:
+  default_lookback_months: 2         # Default window when running --backfill-missing (2 months)
+  default_lookback_days: null        # Optional specific day lookback override (e.g., 60)
+
 # Parameterized Intraday Time Windows (Raw feed timestamps in UTC)
 # BIST continuous session: 07:55 - 16:15 UTC (09:55 - 18:15 Istanbul TRT)
 intraday_windows:

@@ -73,6 +73,8 @@ class GoldFeatureEngineer:
         self,
         backfill_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection, reconcile performance ledger, and persist live forecasts."""
         logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
@@ -84,7 +86,10 @@ class GoldFeatureEngineer:
         # 2. Point-in-Time Backfill for specified missed dates if requested
         if backfill_dates or all_missing:
             saved_performance = forecaster.backfill_historical_performance(
-                target_dates=backfill_dates, all_missing=all_missing
+                target_dates=backfill_dates,
+                all_missing=all_missing,
+                lookback_months=backfill_lookback_months,
+                lookback_days=backfill_lookback_days,
             )
 
         # 3. Live Next-Day Forecast (strictly upcoming T+1)
@@ -113,6 +118,8 @@ class GoldFeatureEngineer:
         self,
         backfill_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Execute Model 2 (Sector Day-Start Forecaster), reconcile sector performance ledger, and persist live sector forecasts."""
         logger.info("Executing Gold Layer Model 2: Sector Day-Start Forecaster (Auto-Champion Mode)...")
@@ -124,7 +131,10 @@ class GoldFeatureEngineer:
         # 2. Point-in-Time Backfill for specified missed dates if requested
         if backfill_dates or all_missing:
             saved_sector_performance = forecaster.backfill_historical_performance(
-                target_dates=backfill_dates, all_missing=all_missing
+                target_dates=backfill_dates,
+                all_missing=all_missing,
+                lookback_months=backfill_lookback_months,
+                lookback_days=backfill_lookback_days,
             )
 
         # 3. Live Next-Day Sector Forecasts (strictly upcoming T+1 across 26 sectors)
@@ -154,12 +164,24 @@ class GoldFeatureEngineer:
         self,
         backfill_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Run full Gold feature pipeline and predictive models."""
         initialize_gold_schema(self.db)
         res_signals = self.compute_institutional_signals()
-        res_day_start = self.run_day_start_forecasting(backfill_dates=backfill_dates, all_missing=all_missing)
-        res_sector_day_start = self.run_sector_day_start_forecasting(backfill_dates=backfill_dates, all_missing=all_missing)
+        res_day_start = self.run_day_start_forecasting(
+            backfill_dates=backfill_dates,
+            all_missing=all_missing,
+            backfill_lookback_months=backfill_lookback_months,
+            backfill_lookback_days=backfill_lookback_days,
+        )
+        res_sector_day_start = self.run_sector_day_start_forecasting(
+            backfill_dates=backfill_dates,
+            all_missing=all_missing,
+            backfill_lookback_months=backfill_lookback_months,
+            backfill_lookback_days=backfill_lookback_days,
+        )
 
         return {
             "gold_institutional_daily_signals": res_signals,

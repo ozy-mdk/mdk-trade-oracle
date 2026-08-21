@@ -185,13 +185,20 @@ class MedallionPipeline:
         self,
         backfill_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
         start_time = datetime.now()
 
         initialize_gold_schema(self.db)
-        gold_res = self.gold_engineer.run_all(backfill_dates=backfill_dates, all_missing=all_missing)
+        gold_res = self.gold_engineer.run_all(
+            backfill_dates=backfill_dates,
+            all_missing=all_missing,
+            backfill_lookback_months=backfill_lookback_months,
+            backfill_lookback_days=backfill_lookback_days,
+        )
 
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
@@ -238,6 +245,8 @@ class MedallionPipeline:
         print_summary: bool = True,
         backfill_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -267,7 +276,13 @@ class MedallionPipeline:
             elif layer == "silver":
                 results["silver"] = self.run_silver()
             elif layer == "gold":
-                results["gold"] = self.run_gold(backfill_dates=backfill_dates, all_missing=all_missing)
+                results["gold"] = self.run_gold(
+                    backfill_dates=backfill_dates,
+                    all_missing=all_missing,
+                    backfill_lookback_months=backfill_lookback_months,
+                    backfill_lookback_days=backfill_lookback_days,
+                )
+
 
 
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()

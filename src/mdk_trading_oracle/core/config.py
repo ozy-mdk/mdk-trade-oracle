@@ -124,6 +124,16 @@ class Settings(BaseSettings):
             "include_pymc_arena": model_specific.get("include_pymc_arena", False),
         }
 
+    def get_backfill_config(self) -> Dict[str, Any]:
+        """Get historical performance backfill configuration merged with defaults."""
+        data = self.get_default_config()
+        backfill_cfg = data.get("backfill", {})
+        return {
+            "default_lookback_months": backfill_cfg.get("default_lookback_months", 2),
+            "default_lookback_days": backfill_cfg.get("default_lookback_days", None),
+        }
+
+
 
 
 @lru_cache(maxsize=1)

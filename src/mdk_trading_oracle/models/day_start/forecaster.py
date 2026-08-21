@@ -1,9 +1,10 @@
 """Production Day-Start Forecaster Orchestrator & Auto-Champion Model Arena."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
@@ -428,13 +429,17 @@ class DayStartForecaster:
         self,
         target_dates: Optional[List[Union[str, date]]] = None,
         all_missing: bool = False,
+        lookback_months: Optional[int] = None,
+        lookback_days: Optional[int] = None,
     ) -> int:
         """Perform zero-lookahead point-in-time forecasting for past missed trading days and record into `gold_bofa_day_start_performance`.
         
         Args:
             target_dates: Specific list of past trading dates (e.g. ['2026-03-10', '2026-03-18']) to backfill.
-            all_missing: If True and target_dates is None, auto-discovers all completed dates in Silver
-                         that are currently missing from the performance ledger.
+            all_missing: If True and target_dates is None, auto-discovers dates in Silver within the configured lookback
+                         window that are currently missing from the performance ledger.
+            lookback_months: Number of trailing months to look back for missing dates (default: from config, usually 2 months).
+            lookback_days: Optional number of trailing days to look back (overrides lookback_months if provided).
         """
         conn = self.db.get_connection()
         all_silver_dates = [
@@ -452,11 +457,30 @@ class DayStartForecaster:
                     d_obj = d
                 dates_to_backfill.append(d_obj)
         elif all_missing:
+            backfill_cfg = self.settings.get_backfill_config()
+            eff_months = lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            eff_days = lookback_days if lookback_days is not None else backfill_cfg.get("default_lookback_days", None)
+
             existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
             existing_perf_dates = set()
             if "gold_bofa_day_start_performance" in existing_tables:
                 existing_perf_dates = set(r[0] for r in conn.execute("SELECT trade_date FROM gold_bofa_day_start_performance;").fetchall())
-            dates_to_backfill = [d for d in all_silver_dates if d not in existing_perf_dates]
+
+            if all_silver_dates:
+                latest_date = max(all_silver_dates)
+                if eff_days is not None:
+                    cutoff_date = latest_date - timedelta(days=eff_days)
+                else:
+                    cutoff_date = latest_date - relativedelta(months=eff_months)
+
+                candidate_dates = [d for d in all_silver_dates if d >= cutoff_date]
+                dates_to_backfill = [d for d in candidate_dates if d not in existing_perf_dates]
+                logger.info(
+                    f"Auto-discovering missing dates within trailing window (>= {cutoff_date}, lookback_months={eff_months}, lookback_days={eff_days}): "
+                    f"{len(dates_to_backfill)} missing of {len(candidate_dates)} eligible sessions."
+                )
+            else:
+                dates_to_backfill = []
 
         if not dates_to_backfill:
             logger.info("No dates to backfill for Day-Start Macro model.")
