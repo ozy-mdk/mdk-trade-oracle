@@ -22,11 +22,13 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ## 3. System Architecture (Medallion Lakehouse)
 A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
 
-- **Bronze Layer (`bronze_raw_trades`, `bronze_instruments`, `bronze_brokers`)**:
+- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_instruments`, `bronze_brokers`)**:
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
+  - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
+  - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate change and 30-day rolling rate averages.
   - Daily sector breadth and 4-window intraday execution splits (`Window 1` opening 09:55-10:30, `Window 2` midday, `Window 3` afternoon, `Window 4` closing 17:00-18:10).
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
@@ -96,15 +98,19 @@ To allow seamless portability across different team members' local machines:
 - **Source Code (Repository Root)**: `./` (where `pyproject.toml`, `src/`, `config/`, `notebooks/`, `scripts/` reside).
 - **External Data Lakehouse (Configurable & Portable)**:
   - Default path: `~/data/mdk_oracle/` (or configured via `DATA_DIR` in `.env`).
-  - Raw Landings: `~/data/mdk_oracle/00_raw_data/<year>/<month>/raw_csv/**/*.csv`
+  - Raw Landings:
+    - BIST Trades: `~/data/mdk_oracle/00_raw_data/<year>/<month>/raw_csv/**/*.csv`
+    - Central Bank Rates: `~/data/mdk_oracle/00_raw_data/central_bank_interest_rates/**/*.*` (`.xlsx`, `.xls`, `.csv`, `.parquet`)
   - DuckDB Storage: `~/data/mdk_oracle/database/mdk_oracle.duckdb`
   - **Rule**: Never hardcode absolute user-specific home paths (e.g. `/Users/ozkanyildirim/`). Always use `Path.home() / "data" / "mdk_oracle"` or `get_settings().data_dir`.
 
 ---
 
 ## 6. Incremental & Multi-Month Data Ingestion
-- Current baseline dataset: March 2026 (945 CSV files, 21 trading days, 36.8M+ trades).
-- The pipeline supports adding new daily and monthly raw data feeds under `00_raw_data/<year>/<month>/raw_csv/`.
+- Current baseline dataset: March 2026 (945 CSV files, 21 trading days, 36.8M+ trades) + Central Bank 1-week repo rate history (1,157 records from 2022 to 2026).
+- The pipeline supports adding new daily and monthly raw data feeds under `00_raw_data/<year>/<month>/raw_csv/` and monthly Central Bank policy updates under `00_raw_data/central_bank_interest_rates/`.
+- **Idempotent Upserting**: Central Bank files are upserted (`INSERT OR REPLACE`) to preserve historical series while updating new rates.
+- **Continuous Forward-Fill Sync**: When market trading dates advance beyond the latest CBRT file, the pipeline forward-fills the latest known rate (`is_forward_filled = TRUE`) so daily models never have date gaps.
 - Use `--sync-catalog` during ingestion to auto-discover any new stock tickers or broker codes.
 
 ---
@@ -126,6 +132,10 @@ To allow seamless portability across different team members' local machines:
   .venv/bin/python scripts/run_pipeline.py --target all
   # Or with catalog auto-sync:
   .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
+  ```
+- **Central Bank Rates Ingestion & Market Sync**:
+  ```bash
+  .venv/bin/mdk-oracle load-rates
   ```
 - **Daily Gold Layer Execution & Live Inference ($T+1$)**:
   ```bash

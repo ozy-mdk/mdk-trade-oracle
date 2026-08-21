@@ -36,6 +36,7 @@ flowchart TD
 
 1. **Bronze Layer (`bronze_*`)**:
    - `bronze_raw_trades`: 36,818,222 raw microsecond tick executions.
+   - `bronze_central_bank_rates`: 1,157 daily Central Bank (TCMB) 1-week repo policy interest rate observations (2022–2026).
    - `bronze_ingestion_log`: File metadata, mtime, and partition audit tracking.
    - `bronze_brokers`: 65 brokerage entity definitions.
    - `bronze_instruments`: 45 tracked liquid BIST equities.
@@ -44,6 +45,7 @@ flowchart TD
    - `silver_daily_broker_overview`: 1,235 daily macro broker market share and liquidity rankings.
    - `silver_daily_stock_summary`: 945 daily stock OHLCV, market VWAP, CR5 concentration, and BofA spreads.
    - `silver_daily_sector_summary`: 28,516 sector breadth and turnaround metrics.
+   - `silver_daily_macro_rates`: 1,157 daily macroeconomic policy rate records with rate deltas, decision flags, days since last MPC change, and 30-day rolling means.
    - `silver_intraday_broker_window_summary`: 166,095 executions split across 4 canonical intraday windows (Window 1 Day-Start 09:55–10:30, Window 2 Midday, Window 3 Afternoon, Window 4 Closing 17:00–18:10).
    - `silver_intraday_sector_window_summary`: 99,825 sector-level intraday window executions.
 3. **Gold Layer (`gold_*`) & Predictive Multi-Model Suite**:
@@ -78,9 +80,10 @@ To support zero-cost execution and portability across different team members:
 
 ```
 ~/data/mdk_oracle/
-├── 00_raw_data/              # Raw data landing zone (CSV feeds by year/month)
-│   └── 2026/03_march/
-│       └── raw_csv/          # 21 trading days of raw tick feeds (945 files)
+├── 00_raw_data/              # Raw data landing zone (CSV feeds & macro data)
+│   ├── 2026/03_march/
+│   │   └── raw_csv/          # 21 trading days of raw tick feeds (945 files)
+│   └── central_bank_interest_rates/ # CBRT 1-week repo rate history (.xlsx / .csv)
 └── database/
     └── mdk_oracle.duckdb     # Fast local DuckDB database (36.8M+ trades)
 ```
@@ -107,6 +110,9 @@ pip install -e ".[dev]"
 # Execute full incremental pipeline (Bronze -> Silver -> Gold):
 .venv/bin/python scripts/run_pipeline.py --target all
 
+# Ingest and forward-fill Central Bank interest rates:
+.venv/bin/mdk-oracle load-rates
+
 # Or run with data catalog auto-discovery:
 .venv/bin/python scripts/run_pipeline.py --target all --sync-catalog
 ```
@@ -122,7 +128,7 @@ jupyter lab
 ```
 
 Available notebooks in [`notebooks/`](notebooks/):
-1. **`00_data_catalog_discovery.ipynb`**: Raw CSV tick feed inspection and YAML catalog validation.
+1. **`00_data_discovery_and_catalog_analysis.ipynb`**: Raw CSV tick and Central Bank rate inspection, YAML catalog validation, and zero-loss coverage audits.
 2. **`01_bronze_data_exploration.ipynb`**: High-performance tick trade analytics, broker liquidity distributions, and execution spreads.
 3. **`02_silver_flow_and_vwap_analysis.ipynb`**: Daily broker turnarounds, stock CR5 concentration, and 4-window intraday execution splits.
 4. **`03_bofa_day_start_modeling.ipynb`**: Model 1 Macro Day-Start Forecaster, candidate arena scoreboard, 90% credible intervals, and institutional playbooks.
