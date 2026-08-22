@@ -80,7 +80,7 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 2. **Sector Competitor Imbalance**: BofA vs Top-5 domestic desk deltas in sector $s$ (`feat_sector_top5_w4_net_flow_tl`, `feat_sector_bofa_vs_top5_w4_delta_tl`, `feat_sector_bofa_vs_top5_daily_delta_tl`).
 3. **Sector Dominance & Share of Wallet**: Sector market share and sector share of total BofA flow (`feat_sector_bofa_market_share`, `feat_sector_bofa_share_of_wallet`).
 4. **Sector Multi-Day Accumulation & Saturation**: Rolling 5-day / 20-day sector cumulative flow and flow Z-scores (`feat_sector_bofa_cum_net_flow_5d_tl`, `feat_sector_top5_cum_net_flow_5d_tl`, `feat_sector_bofa_flow_zscore_20d`).
-5. **Macro Context, Rates & Seasonality**: Prevailing Central Bank policy rate, days since last rate change, last rate change bps, rate spread vs 30-day mean, sector rate $\times$ flow interaction, previous day macro BofA flow, and calendar flags (`feat_macro_interest_rate`, `feat_macro_days_since_last_rate_change`, `feat_macro_last_rate_change_bps`, `feat_sector_rate_x_flow_interaction`, `is_monday`, `is_friday`, `day_of_week`).
+5. **Macro Context, Rates & Seasonality**: Prevailing Central Bank policy rate, rate shock decay bps, rate spread vs 30-day mean, sector rate $\times$ flow interaction, previous day macro BofA flow, and calendar flags (`feat_macro_interest_rate`, `feat_macro_rate_shock_decay`, `feat_macro_rate_spread_vs_30d_mean`, `feat_sector_rate_x_flow_interaction`, `is_monday`, `is_friday`, `day_of_week`).
 
 ---
 

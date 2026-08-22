@@ -230,6 +230,7 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
             days_since_last_hike INTEGER,
             days_since_last_cut INTEGER,
             last_rate_change_bps DOUBLE DEFAULT 0.0,
+            rate_change_decay_bps DOUBLE DEFAULT 0.0,
             rolling_30d_rate_mean DOUBLE,
             rate_spread_vs_30d_mean DOUBLE,
             daily_carry_cost_bps DOUBLE,

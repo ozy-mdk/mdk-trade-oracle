@@ -60,7 +60,7 @@ Every new model adheres to this **Universal Modeling Blueprint**:
    - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
 4. **Problem-Specific Quantitative Feature Clusters**:
    - **Model 1 (8 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates` with strict $T-1$ lag).
-   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context, Rates & Seasonality (`feat_macro_interest_rate`, `feat_macro_days_since_last_rate_change`, `feat_sector_rate_x_flow_interaction`).
+   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context, Rates & Seasonality (`feat_macro_interest_rate`, `feat_macro_rate_shock_decay`, `feat_sector_rate_x_flow_interaction`).
 5. **Candidate Model Arena & Baselines**:
    - Every modeling objective benchmarks 6 candidate paradigms:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).

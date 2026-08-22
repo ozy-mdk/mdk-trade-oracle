@@ -602,6 +602,7 @@ class SilverTransformer:
                     days_since_last_hike INTEGER,
                     days_since_last_cut INTEGER,
                     last_rate_change_bps DOUBLE DEFAULT 0.0,
+                    rate_change_decay_bps DOUBLE DEFAULT 0.0,
                     rolling_30d_rate_mean DOUBLE,
                     rate_spread_vs_30d_mean DOUBLE,
                     daily_carry_cost_bps DOUBLE,
@@ -677,6 +678,8 @@ class SilverTransformer:
                          THEN CAST(r.trade_date - r.last_cut_date AS INTEGER) 
                          ELSE NULL END AS days_since_last_cut,
                     COALESCE(r.last_rate_change_bps, 0.0) AS last_rate_change_bps,
+                    COALESCE(r.last_rate_change_bps, 0.0) / 
+                        GREATEST(1, CAST(r.trade_date - COALESCE(r.last_change_date, r.trade_date) AS INTEGER)) AS rate_change_decay_bps,
                     AVG(r.interest_rate) OVER (
                         ORDER BY r.trade_date 
                         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW

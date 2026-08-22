@@ -155,10 +155,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 SELECT 
                     trade_date,
                     interest_rate AS macro_interest_rate,
-                    days_since_last_rate_change AS macro_days_since_last_rate_change,
-                    days_since_last_hike AS macro_days_since_last_hike,
-                    days_since_last_cut AS macro_days_since_last_cut,
-                    last_rate_change_bps AS macro_last_rate_change_bps,
+                    rate_change_decay_bps AS macro_rate_shock_decay,
                     rate_spread_vs_30d_mean AS macro_rate_spread_vs_30d_mean,
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
@@ -205,10 +202,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(sf.top5_banking_flow_prev_day, 0.0) AS top5_banking_flow_prev_day,
                     -- Cluster 8: Macro Interest Rates & Monetary Policy Dynamics
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
-                    COALESCE(mr.macro_days_since_last_rate_change, 30) AS macro_days_since_last_rate_change,
-                    COALESCE(mr.macro_days_since_last_hike, 90) AS macro_days_since_last_hike,
-                    COALESCE(mr.macro_days_since_last_cut, 90) AS macro_days_since_last_cut,
-                    COALESCE(mr.macro_last_rate_change_bps, 0.0) AS macro_last_rate_change_bps,
+                    COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
                     COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps
                 FROM daily_dates d
@@ -275,10 +269,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(CASE WHEN bofa_buy_vwap_20d > 0 THEN (market_avg_close_price - bofa_buy_vwap_20d) / bofa_buy_vwap_20d ELSE 0.0 END, 1) 
                         OVER (ORDER BY trade_date) AS feat_bofa_cost_basis_spread_20d_pct,
                     LAG(macro_interest_rate, 1) OVER (ORDER BY trade_date) AS feat_macro_interest_rate,
-                    LAG(macro_days_since_last_rate_change, 1) OVER (ORDER BY trade_date) AS feat_macro_days_since_last_rate_change,
-                    LAG(macro_days_since_last_hike, 1) OVER (ORDER BY trade_date) AS feat_macro_days_since_last_hike,
-                    LAG(macro_days_since_last_cut, 1) OVER (ORDER BY trade_date) AS feat_macro_days_since_last_cut,
-                    LAG(macro_last_rate_change_bps, 1) OVER (ORDER BY trade_date) AS feat_macro_last_rate_change_bps,
+                    LAG(macro_rate_shock_decay, 1) OVER (ORDER BY trade_date) AS feat_macro_rate_shock_decay,
                     LAG(macro_rate_spread_vs_30d_mean, 1) OVER (ORDER BY trade_date) AS feat_macro_rate_spread_vs_30d_mean,
                     LAG(macro_daily_carry_cost_bps, 1) OVER (ORDER BY trade_date) AS feat_macro_daily_carry_cost_bps
                 FROM unlagged_rolling
@@ -315,10 +306,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_bofa_flow_zscore_20d, 0.0) AS feat_bofa_flow_zscore_20d,
                 COALESCE(r.feat_bofa_cost_basis_spread_20d_pct, 0.0) AS feat_bofa_cost_basis_spread_20d_pct,
                 COALESCE(r.feat_macro_interest_rate, 45.0) AS feat_macro_interest_rate,
-                COALESCE(r.feat_macro_days_since_last_rate_change, 30) AS feat_macro_days_since_last_rate_change,
-                COALESCE(r.feat_macro_days_since_last_hike, 90) AS feat_macro_days_since_last_hike,
-                COALESCE(r.feat_macro_days_since_last_cut, 90) AS feat_macro_days_since_last_cut,
-                COALESCE(r.feat_macro_last_rate_change_bps, 0.0) AS feat_macro_last_rate_change_bps,
+                COALESCE(r.feat_macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(r.feat_macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
                 COALESCE(r.feat_macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps,
                 -- Target Columns on Day T
@@ -421,10 +409,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 SELECT 
                     trade_date,
                     interest_rate AS macro_interest_rate,
-                    days_since_last_rate_change AS macro_days_since_last_rate_change,
-                    days_since_last_hike AS macro_days_since_last_hike,
-                    days_since_last_cut AS macro_days_since_last_cut,
-                    last_rate_change_bps AS macro_last_rate_change_bps,
+                    rate_change_decay_bps AS macro_rate_shock_decay,
                     rate_spread_vs_30d_mean AS macro_rate_spread_vs_30d_mean,
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
@@ -461,10 +446,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(sf.bofa_defense_flow_prev_day, 0.0) AS bofa_defense_flow_prev_day,
                     COALESCE(sf.top5_banking_flow_prev_day, 0.0) AS top5_banking_flow_prev_day,
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
-                    COALESCE(mr.macro_days_since_last_rate_change, 30) AS macro_days_since_last_rate_change,
-                    COALESCE(mr.macro_days_since_last_hike, 90) AS macro_days_since_last_hike,
-                    COALESCE(mr.macro_days_since_last_cut, 90) AS macro_days_since_last_cut,
-                    COALESCE(mr.macro_last_rate_change_bps, 0.0) AS macro_last_rate_change_bps,
+                    COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
                     COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps
                 FROM daily_dates d
@@ -524,10 +506,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(CASE WHEN bofa_std_20d > 0 THEN (bofa_prev_day_net_flow_tl - bofa_mean_20d) / bofa_std_20d ELSE 0.0 END, 0.0) AS feat_bofa_flow_zscore_20d,
                 COALESCE(CASE WHEN bofa_buy_vwap_20d > 0 THEN (market_avg_close_price - bofa_buy_vwap_20d) / bofa_buy_vwap_20d ELSE 0.0 END, 0.0) AS feat_bofa_cost_basis_spread_20d_pct,
                 COALESCE(macro_interest_rate, 45.0) AS feat_macro_interest_rate,
-                COALESCE(macro_days_since_last_rate_change, 30) AS feat_macro_days_since_last_rate_change,
-                COALESCE(macro_days_since_last_hike, 90) AS feat_macro_days_since_last_hike,
-                COALESCE(macro_days_since_last_cut, 90) AS feat_macro_days_since_last_cut,
-                COALESCE(macro_last_rate_change_bps, 0.0) AS feat_macro_last_rate_change_bps,
+                COALESCE(macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
                 COALESCE(macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps
             FROM rolling

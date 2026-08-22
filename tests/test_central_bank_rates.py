@@ -204,23 +204,31 @@ def test_silver_macro_rates_transformation():
 
     # Verify columns in silver_daily_macro_rates
     sample = conn.execute("""
-        SELECT trade_date, interest_rate, rate_change, is_rate_change_day, days_since_last_rate_change, rolling_30d_rate_mean, is_forward_filled
+        SELECT trade_date, interest_rate, rate_change, is_rate_change_day, days_since_last_rate_change, rolling_30d_rate_mean, is_forward_filled, rate_change_decay_bps
         FROM silver_daily_macro_rates
         ORDER BY trade_date ASC;
     """).fetchall()
 
     assert len(sample) == 45
-    # Day 20 (Rate hike date)
+    # Day 20 (Rate hike date: +2.5% = +250 bps, day 0)
     day_20 = sample[20]
     assert day_20[1] == 42.5
     assert day_20[2] == 2.5
     assert day_20[3] is True
     assert day_20[4] == 0  # 0 days since rate change on decision day itself
+    assert day_20[7] == 250.0  # +250 bps / max(1, 0) = 250.0
 
-    # Day 25 (5 days after rate hike)
+    # Day 21 (1 day after rate hike: day 1 denominator is 1)
+    day_21 = sample[21]
+    assert day_21[4] == 1
+    assert day_21[7] == 250.0  # +250 bps / max(1, 1) = 250.0
+
+    # Day 25 (5 days after rate hike: day 5 denominator is 5)
     day_25 = sample[25]
     assert day_25[1] == 42.5
     assert day_25[2] == 0.0
     assert day_25[3] is False
     assert day_25[4] == 5  # 5 days since last rate change
     assert day_25[5] > 40.0  # Rolling 30d mean includes higher rates
+    assert day_25[7] == 50.0  # +250 bps / 5 = 50.0
+
