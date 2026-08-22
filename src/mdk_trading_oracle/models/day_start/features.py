@@ -28,7 +28,7 @@ def get_next_trading_day(latest_date: date) -> date:
 
 
 class DayStartFeatureExtractor(BaseFeatureExtractor):
-    """Extracts, engineers, and temporal-aligns the 7 Feature Clusters at T-1 Close to predict T_open (Window 1).
+    """Extracts, engineers, and temporal-aligns the 9 Feature Clusters at T-1 Close to predict T_open (Window 1).
     
     Clusters:
         1. Prior Closing Window Momentum (Window 4 net flow & acceleration)
@@ -38,6 +38,8 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         5. Competitor Alignment & Institutional Hegemony (Combined market share)
         6. Sector Cross-Sectional Stress & Crash Flags (Daily returns & breadth)
         7. Calendar & Temporal Seasonality (is_monday, is_friday, day_of_week)
+        8. Macro Interest Rates & Monetary Policy Dynamics (TCMB 1-Week Repo & Decay)
+        9. Benchmark Index (BIST 30) Momentum & Volatility (XU030 OHLCV, 5d/20d returns, 20d volatility)
     """
 
     def __init__(
@@ -160,6 +162,19 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
             ),
+            -- 7. Prior Day Official BIST 30 Benchmark Index Dynamics (T-1)
+            prev_day_benchmark_index AS (
+                SELECT 
+                    trade_date,
+                    daily_return_pct AS bist30_prev_day_return_pct,
+                    intraday_return_pct AS bist30_prev_day_intraday_return_pct,
+                    price_range_pct AS bist30_prev_day_range_pct,
+                    rolling_5d_return_pct AS bist30_cum_return_5d,
+                    index_trend_vs_20d_sma AS bist30_trend_vs_20d_sma,
+                    rolling_20d_volatility AS bist30_volatility_20d
+                FROM silver_daily_benchmark_index
+                WHERE index_code = 'XU030'
+            ),
             -- Combine Prior Day T-1 Features
             daily_feature_base AS (
                 SELECT 
@@ -204,13 +219,21 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
                     COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
-                    COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps
+                    COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps,
+                    -- Cluster 9: Benchmark Index (BIST 30) Momentum & Volatility
+                    COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_prev_day_return_pct,
+                    COALESCE(bi.bist30_prev_day_intraday_return_pct, 0.0) AS bist30_prev_day_intraday_return_pct,
+                    COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_prev_day_range_pct,
+                    COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
+                    COALESCE(bi.bist30_trend_vs_20d_sma, 0.0) AS bist30_trend_vs_20d_sma,
+                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d
                 FROM daily_dates d
                 LEFT JOIN prev_day_w4_flows w4 ON d.trade_date = w4.trade_date
                 LEFT JOIN prev_day_broker_overview bo ON d.trade_date = bo.trade_date
                 LEFT JOIN prev_day_market_summary ms ON d.trade_date = ms.trade_date
                 LEFT JOIN prev_day_sector_flows sf ON d.trade_date = sf.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON d.trade_date = mr.trade_date
+                LEFT JOIN prev_day_benchmark_index bi ON d.trade_date = bi.trade_date
             ),
             -- Intermediate Rolling Multi-Day Signals (Unlagged)
             unlagged_rolling AS (
@@ -271,7 +294,13 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(macro_interest_rate, 1) OVER (ORDER BY trade_date) AS feat_macro_interest_rate,
                     LAG(macro_rate_shock_decay, 1) OVER (ORDER BY trade_date) AS feat_macro_rate_shock_decay,
                     LAG(macro_rate_spread_vs_30d_mean, 1) OVER (ORDER BY trade_date) AS feat_macro_rate_spread_vs_30d_mean,
-                    LAG(macro_daily_carry_cost_bps, 1) OVER (ORDER BY trade_date) AS feat_macro_daily_carry_cost_bps
+                    LAG(macro_daily_carry_cost_bps, 1) OVER (ORDER BY trade_date) AS feat_macro_daily_carry_cost_bps,
+                    LAG(bist30_prev_day_return_pct, 1) OVER (ORDER BY trade_date) AS feat_bist30_prev_day_return_pct,
+                    LAG(bist30_prev_day_intraday_return_pct, 1) OVER (ORDER BY trade_date) AS feat_bist30_prev_day_intraday_return_pct,
+                    LAG(bist30_prev_day_range_pct, 1) OVER (ORDER BY trade_date) AS feat_bist30_prev_day_range_pct,
+                    LAG(bist30_cum_return_5d, 1) OVER (ORDER BY trade_date) AS feat_bist30_cum_return_5d,
+                    LAG(bist30_trend_vs_20d_sma, 1) OVER (ORDER BY trade_date) AS feat_bist30_trend_vs_20d_sma,
+                    LAG(bist30_volatility_20d, 1) OVER (ORDER BY trade_date) AS feat_bist30_volatility_20d
                 FROM unlagged_rolling
             )
             SELECT 
@@ -309,6 +338,12 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(r.feat_macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
                 COALESCE(r.feat_macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps,
+                COALESCE(r.feat_bist30_prev_day_return_pct, 0.0) AS feat_bist30_prev_day_return_pct,
+                COALESCE(r.feat_bist30_prev_day_intraday_return_pct, 0.0) AS feat_bist30_prev_day_intraday_return_pct,
+                COALESCE(r.feat_bist30_prev_day_range_pct, 0.0) AS feat_bist30_prev_day_range_pct,
+                COALESCE(r.feat_bist30_cum_return_5d, 0.0) AS feat_bist30_cum_return_5d,
+                COALESCE(r.feat_bist30_trend_vs_20d_sma, 0.0) AS feat_bist30_trend_vs_20d_sma,
+                COALESCE(r.feat_bist30_volatility_20d, 0.0) AS feat_bist30_volatility_20d,
                 -- Target Columns on Day T
                 COALESCE(t.target_open_net_flow_tl, 0.0) AS target_open_net_flow_tl,
                 CASE WHEN COALESCE(t.target_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_open_direction
@@ -414,6 +449,19 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
             ),
+            -- 6. Prior Day Official BIST 30 Benchmark Index Dynamics
+            prev_day_benchmark_index AS (
+                SELECT 
+                    trade_date,
+                    daily_return_pct AS bist30_prev_day_return_pct,
+                    intraday_return_pct AS bist30_prev_day_intraday_return_pct,
+                    price_range_pct AS bist30_prev_day_range_pct,
+                    rolling_5d_return_pct AS bist30_cum_return_5d,
+                    index_trend_vs_20d_sma AS bist30_trend_vs_20d_sma,
+                    rolling_20d_volatility AS bist30_volatility_20d
+                FROM silver_daily_benchmark_index
+                WHERE index_code = 'XU030'
+            ),
             -- Combine base
             daily_feature_base AS (
                 SELECT 
@@ -448,13 +496,20 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
                     COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
-                    COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps
+                    COALESCE(mr.macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps,
+                    COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_prev_day_return_pct,
+                    COALESCE(bi.bist30_prev_day_intraday_return_pct, 0.0) AS bist30_prev_day_intraday_return_pct,
+                    COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_prev_day_range_pct,
+                    COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
+                    COALESCE(bi.bist30_trend_vs_20d_sma, 0.0) AS bist30_trend_vs_20d_sma,
+                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d
                 FROM daily_dates d
                 LEFT JOIN prev_day_w4_flows w4 ON d.trade_date = w4.trade_date
                 LEFT JOIN prev_day_broker_overview bo ON d.trade_date = bo.trade_date
                 LEFT JOIN prev_day_market_summary ms ON d.trade_date = ms.trade_date
                 LEFT JOIN prev_day_sector_flows sf ON d.trade_date = sf.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON d.trade_date = mr.trade_date
+                LEFT JOIN prev_day_benchmark_index bi ON d.trade_date = bi.trade_date
             ),
             -- Unlagged rolling aggregations evaluated up to the latest completed day
             rolling AS (
@@ -508,7 +563,13 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(macro_interest_rate, 45.0) AS feat_macro_interest_rate,
                 COALESCE(macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
-                COALESCE(macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps
+                COALESCE(macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps,
+                COALESCE(bist30_prev_day_return_pct, 0.0) AS feat_bist30_prev_day_return_pct,
+                COALESCE(bist30_prev_day_intraday_return_pct, 0.0) AS feat_bist30_prev_day_intraday_return_pct,
+                COALESCE(bist30_prev_day_range_pct, 0.0) AS feat_bist30_prev_day_range_pct,
+                COALESCE(bist30_cum_return_5d, 0.0) AS feat_bist30_cum_return_5d,
+                COALESCE(bist30_trend_vs_20d_sma, 0.0) AS feat_bist30_trend_vs_20d_sma,
+                COALESCE(bist30_volatility_20d, 0.0) AS feat_bist30_volatility_20d
             FROM rolling
             ORDER BY trade_date DESC
             LIMIT 1;

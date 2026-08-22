@@ -112,3 +112,18 @@ All input features are strictly constructed from completed historical market ses
 | `feat_macro_rate_shock_decay` | Impulse ($T-1$) | $\frac{\Delta\text{Rate}_{\text{bps}, T-1}}{\max(1, \text{days\_since\_change}_{T-1})}$ | `0.0` | Decay-weighted rate shock ($100\%$ on $T=0,1$, decaying at $1/d$ on $T \ge 2$). |
 | `feat_macro_rate_spread_vs_30d_mean` | Delta ($T-1$) | $(\text{Rate}_{T-1} - \overline{\text{Rate}}_{30d, T-1}) \times 100$ | `0.0` | Policy stance vs 30-day moving average (monetary tightening/easing). |
 | `feat_macro_daily_carry_cost_bps` | Level ($T-1$) | $\frac{\text{Rate}_{T-1}}{365} \times 100\text{ (bps)}$ | `125.0` | Overnight carry and financing cost of holding long equity exposure. |
+
+---
+
+### Cluster 9: Benchmark Index (BIST 30) Momentum & Volatility
+*Official BIST 30 benchmark dynamics capture market-wide beta, index arbitrage pressure, and broad momentum follow-through.*
+
+| Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `feat_bist30_prev_day_return_pct` | Return ($T-1$) | $\frac{P_{\text{Close}, T-1} - P_{\text{Close}, T-2}}{P_{\text{Close}, T-2}} \times 100$ | `0.0` | Close-to-close return of the BIST 30 index. Strong closing momentum triggers morning basket orders. |
+| `feat_bist30_prev_day_intraday_return_pct` | Return ($T-1$) | $\frac{P_{\text{Close}, T-1} - P_{\text{Open}, T-1}}{P_{\text{Open}, T-1}} \times 100$ | `0.0` | Intraday trend from Open to Close on $T-1$, measuring day-session conviction. |
+| `feat_bist30_prev_day_range_pct` | Volatility ($T-1$) | $\frac{P_{\text{High}, T-1} - P_{\text{Low}, T-1}}{P_{\text{Low}, T-1}} \times 100$ | `0.0` | Intraday trading range of BIST 30 index measuring market volatility and price expansion. |
+| `feat_bist30_cum_return_5d` | Momentum ($T-1$) | $\frac{P_{\text{Close}, T-1} - P_{\text{Close}, T-6}}{P_{\text{Close}, T-6}} \times 100$ | `0.0` | 5-day rolling cumulative return of the benchmark index. |
+| `feat_bist30_trend_vs_20d_sma` | Trend ($T-1$) | $\frac{P_{\text{Close}, T-1}}{\text{SMA}_{20}(P_{\text{Close}, T-1})} - 1.0$ | `0.0` | Benchmark price relative to its 20-day Simple Moving Average. |
+| `feat_bist30_volatility_20d` | Volatility ($T-1$) | $\sigma_{20d}(\text{daily\_returns})$ | `0.0` | 20-day rolling annualized/daily volatility of BIST 30 returns (risk regime classifier). |
+

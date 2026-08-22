@@ -78,6 +78,24 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 6. Bronze Benchmark Table: Official BIST Index Benchmarks (XU030, etc.)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_bist_index_benchmarks (
+            trade_date DATE PRIMARY KEY,
+            index_code VARCHAR DEFAULT 'XU030',
+            open_price DOUBLE,
+            high_price DOUBLE,
+            low_price DOUBLE,
+            close_price DOUBLE NOT NULL,
+            volume DOUBLE,
+            daily_return_pct DOUBLE,
+            price_range_pct DOUBLE,
+            is_forward_filled BOOLEAN DEFAULT FALSE,
+            source VARCHAR DEFAULT 'yfinance_XU030.IS',
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
     # Sync reference data from YAML configs
     sync_reference_data(db)
     logger.info("DuckDB Bronze schemas initialized.")

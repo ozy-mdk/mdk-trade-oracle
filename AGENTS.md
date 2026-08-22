@@ -22,13 +22,15 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ## 3. System Architecture (Medallion Lakehouse)
 A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
 
-- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_instruments`, `bronze_brokers`)**:
+- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_instruments`, `bronze_brokers`)**:
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
+  - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_bofa_historical_flow_thresholds`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
+  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
@@ -59,8 +61,8 @@ Every new model adheres to this **Universal Modeling Blueprint**:
 3. **Rigorous & Clean Target Variables**:
    - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
 4. **Problem-Specific Quantitative Feature Clusters**:
-   - **Model 1 (8 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates` with strict $T-1$ lag).
-   - **Model 2 (5 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context, Rates & Seasonality (`feat_macro_interest_rate`, `feat_macro_rate_shock_decay`, `feat_sector_rate_x_flow_interaction`).
+   - **Model 1 (9 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates`), Benchmark Index Dynamics (`silver_daily_benchmark_index` with strict $T-1$ lag).
+   - **Model 2 (6 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context & Rates, Sector Relative Alpha & Benchmark Interaction (`feat_sector_rel_return_vs_bist30_1d`, `feat_sector_rel_return_vs_bist30_5d`, `feat_sector_beta_x_bist30_momentum`).
 5. **Candidate Model Arena & Baselines**:
    - Every modeling objective benchmarks 6 candidate paradigms:
      - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).

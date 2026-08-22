@@ -33,6 +33,7 @@ flowchart TD
         B_BROK["bronze_brokers<br/>(65 brokerages)"]
         B_INST["bronze_instruments<br/>(45 liquid BIST equities)"]
         B_CBRT["bronze_central_bank_rates<br/>(TCMB 1-Week Repo & Policy Rates)"]
+        B_BENCH["bronze_bist_index_benchmarks<br/>(Official BIST 30 OHLCV Benchmarks)"]
     end
 
     subgraph Silver["Silver Layer (Aggregated Microstructure & Macro)"]
@@ -43,6 +44,7 @@ flowchart TD
         S_WIN_BROK["silver_intraday_broker_window_summary<br/>(5 Intraday Windows x Stock x Broker)"]
         S_WIN_SEC["silver_intraday_sector_window_summary<br/>(5 Intraday Windows x Sector x Broker)"]
         S_MACRO["silver_daily_macro_rates<br/>(Daily Policy Rates & Momentum)"]
+        S_BENCH["silver_daily_benchmark_index<br/>(Rolling Returns, Volatility & SMA Spreads)"]
         S_THRESH["silver_bofa_historical_flow_thresholds<br/>(Empirical P25/P50/P85 Quantiles)"]
         S_MKT["silver_market_daily<br/>(Backward-compatibility OHLCV)"]
     end
@@ -62,6 +64,7 @@ flowchart TD
     B_BROK -.-> S_BROK_OVR
     B_INST -.-> S_STK_SUM
     B_CBRT --> S_MACRO
+    B_BENCH --> S_BENCH
 
     S_BROK_SUM --> S_BROK_OVR
     S_BROK_SUM --> S_STK_SUM
@@ -73,9 +76,11 @@ flowchart TD
     S_WIN_BROK --> G_M1
     S_BROK_OVR --> G_M1
     S_MACRO -.-> G_M1
+    S_BENCH -.-> G_M1
     S_THRESH -.-> G_M1
     S_WIN_SEC --> G_M2
     S_SEC_SUM --> G_M2
+    S_BENCH -.-> G_M2
     S_THRESH -.-> G_M2
     G_M1 -. Reconcile .-> G_M1_PERF
     G_M2 -. Reconcile .-> G_M2_PERF
@@ -84,6 +89,7 @@ flowchart TD
 ### A. Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)
 - **`bronze_raw_trades`**: Raw microsecond tick executions (`trade_id`, `timestamp`, `symbol`, `price`, `volume`, `buyer_broker_id`, `seller_broker_id`, `raw_source`, `ingested_at`).
 - **`bronze_central_bank_rates`**: Central Bank 1-week repo interest rates (`rate_date`, `rate_type`, `interest_rate`, `rate_change`, `is_rate_change_day`, `is_forward_filled`, `raw_source`, `ingested_at`).
+- **`bronze_bist_index_benchmarks`**: Official BIST 30 benchmark OHLCV metrics (`trade_date`, `index_code`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `daily_return_pct`, `price_range_pct`, `is_forward_filled`, `source`, `ingested_at`).
 - **`bronze_ingestion_log`**: Primary key `file_path`. Tracks file size, mtime epoch, `trade_date`, `year_month`, and row counts to enable fast incremental updates.
 - **`bronze_brokers`**: Dimension reference table (`broker_id`, `broker_name`, `category`, `is_primary_target`, `description`) synchronized from `config/brokers.yaml`.
 - **`bronze_instruments`**: Dimension reference table (`symbol`, `name`, `sector`, `index_name`, `lot_multiplier`) synchronized from `config/instruments.yaml`.
@@ -94,6 +100,7 @@ flowchart TD
 - **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
+- **`silver_daily_benchmark_index`**: Primary key `trade_date`. Rolling 5-day / 20-day returns, 20-day historical return volatility, Parkinson high-low spread, and trend relative to 20-day Simple Moving Average.
 - **`silver_bofa_historical_flow_thresholds`**: Primary key `(scope_type, scope_name, broker_id, window_name)`. Empirical flow percentiles ($P_{25}, P_{50}, P_{85}$) computed across historical buy actions ($\text{net\_flow} > 0$) and sell actions ($|\text{net\_flow}|$) for Macro (`ALL`) and each of the 26 tracked BIST sectors.
 - **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 5 canonical intraday windows in Turkish Time (TRT / UTC+3):
   - `Window 1: day_start (Opening 35m)` (09:55 – 10:30 TRT)

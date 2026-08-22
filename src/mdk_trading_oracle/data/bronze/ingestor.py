@@ -83,6 +83,7 @@ class BronzeIngestor:
                     f.name.startswith(".")
                     or "/mysql/" in path_str
                     or "/central_bank_interest_rates/" in path_str
+                    or "/benchmarks/" in path_str
                 ):
                     continue
                 discovered.append(self._extract_file_metadata(f))
@@ -740,5 +741,193 @@ class BronzeIngestor:
             "start_date": str(start_fill),
             "end_date": str(eff_target_date),
             "interest_rate": float(latest_rate),
+            "status": "success",
+        }
+
+    def ingest_bist30_benchmarks(
+        self,
+        years: int = 5,
+        ticker_symbol: str = "XU030.IS",
+        force: bool = False,
+        sync_market_dates: bool = True,
+    ) -> Dict[str, Any]:
+        """Download, format, and ingest official BIST 30 (XU030.IS) benchmark historical data into Bronze."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        # Check existing benchmark count
+        existing_count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+        if existing_count > 0 and not force:
+            logger.info(f"Bronze BIST 30 benchmark table already populated ({existing_count:,} rows).")
+            sync_res = {}
+            if sync_market_dates:
+                sync_res = self.sync_bist30_benchmarks_to_market()
+            total_rows = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+            return {
+                "status": "already_up_to_date",
+                "rows_in_table": total_rows,
+                "market_sync": sync_res,
+            }
+
+        logger.info(f"Fetching {years}-year BIST 30 benchmark ({ticker_symbol}) for Bronze layer...")
+        try:
+            import yfinance as yf
+
+            end_date = datetime.today().strftime("%Y-%m-%d")
+            start_date = (datetime.today() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+            df = yf.download(ticker_symbol, start=start_date, end=end_date, progress=False)
+
+            if df.empty:
+                logger.warning(f"No benchmark data received from Yahoo Finance for {ticker_symbol}.")
+                return {"status": "no_data_received", "rows_ingested": 0, "rows_in_table": existing_count}
+
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+
+            df = df.reset_index()
+            df.columns.name = None
+            df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+            df = df.sort_values(by="Date", ascending=True).reset_index(drop=True)
+
+            df["Daily_Return_Pct"] = df["Close"].pct_change()
+            df["Price_Range_Pct"] = (df["High"] - df["Low"]) / df["Low"].replace(0, pd.NA)
+
+            records = [
+                (
+                    row["Date"],
+                    "XU030",
+                    float(row["Open"]) if pd.notna(row.get("Open")) else None,
+                    float(row["High"]) if pd.notna(row.get("High")) else None,
+                    float(row["Low"]) if pd.notna(row.get("Low")) else None,
+                    float(row["Close"]),
+                    float(row["Volume"]) if pd.notna(row.get("Volume")) else None,
+                    float(row["Daily_Return_Pct"]) if pd.notna(row.get("Daily_Return_Pct")) else None,
+                    float(row["Price_Range_Pct"]) if pd.notna(row.get("Price_Range_Pct")) else None,
+                    False,
+                    f"yfinance_{ticker_symbol}",
+                )
+                for _, row in df.iterrows()
+            ]
+
+            conn.executemany("""
+                INSERT OR REPLACE INTO bronze_bist_index_benchmarks (
+                    trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct, is_forward_filled, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, records)
+
+            # Log to ingestion log
+            conn.execute("""
+                INSERT OR REPLACE INTO bronze_ingestion_log (
+                    file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label, ingested_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
+            """, [
+                f"yfinance://{ticker_symbol}",
+                f"{ticker_symbol}_5year",
+                len(df) * 64,
+                datetime.now().timestamp(),
+                df["Date"].max(),
+                df["Date"].max()[:7],
+                len(records),
+                "bist30_benchmark",
+            ])
+
+            logger.info(f"Ingested {len(records):,} benchmark trading days into `bronze_bist_index_benchmarks`.")
+        except Exception as e:
+            logger.error(f"Error fetching benchmark data from Yahoo Finance: {e}")
+
+        sync_res = {}
+        if sync_market_dates:
+            sync_res = self.sync_bist30_benchmarks_to_market()
+
+        total_rows = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+        return {
+            "status": "success",
+            "rows_ingested": len(records) if "records" in locals() else 0,
+            "rows_in_table": total_rows,
+            "market_sync": sync_res,
+        }
+
+    def sync_bist30_benchmarks_to_market(
+        self,
+        target_end_date: Optional[Union[date, str]] = None,
+    ) -> Dict[str, Any]:
+        """Synchronize and forward-fill BIST 30 benchmarks if market dates exceed benchmark feed."""
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        bench_max_res = conn.execute(
+            "SELECT MAX(trade_date) FROM bronze_bist_index_benchmarks WHERE is_forward_filled = FALSE;"
+        ).fetchone()
+        if not bench_max_res or not bench_max_res[0]:
+            bench_max_res = conn.execute("SELECT MAX(trade_date) FROM bronze_bist_index_benchmarks;").fetchone()
+            if not bench_max_res or not bench_max_res[0]:
+                return {"forward_filled_count": 0, "status": "no_base_benchmarks"}
+
+        max_bench_date = bench_max_res[0]
+        if isinstance(max_bench_date, str):
+            max_bench_date = datetime.strptime(max_bench_date, "%Y-%m-%d").date()
+
+        if target_end_date is not None:
+            if isinstance(target_end_date, str):
+                eff_target_date = datetime.strptime(target_end_date, "%Y-%m-%d").date()
+            else:
+                eff_target_date = target_end_date
+        else:
+            has_stock_sum = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'silver_daily_stock_summary';"
+            ).fetchone()[0]
+            max_mkt_date = None
+            if has_stock_sum > 0:
+                mkt_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
+                if mkt_res and mkt_res[0]:
+                    max_mkt_date = mkt_res[0]
+            if max_mkt_date is None:
+                has_trades = conn.execute(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
+                ).fetchone()[0]
+                if has_trades > 0:
+                    trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
+                    if trade_res and trade_res[0]:
+                        max_mkt_date = trade_res[0]
+
+            eff_target_date = max_mkt_date
+
+        if eff_target_date is None or eff_target_date <= max_bench_date:
+            return {"forward_filled_count": 0, "max_bench_date": str(max_bench_date), "status": "already_synced"}
+
+        latest_bench = conn.execute("""
+            SELECT open_price, high_price, low_price, close_price, volume
+            FROM bronze_bist_index_benchmarks 
+            WHERE trade_date = ? 
+            LIMIT 1;
+        """, [max_bench_date]).fetchone()
+
+        start_fill = max_bench_date + timedelta(days=1)
+        conn.execute("""
+            INSERT OR REPLACE INTO bronze_bist_index_benchmarks (
+                trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct, is_forward_filled, source
+            )
+            SELECT 
+                d::DATE AS trade_date,
+                'XU030' AS index_code,
+                ? AS open_price,
+                ? AS high_price,
+                ? AS low_price,
+                ? AS close_price,
+                ? AS volume,
+                0.0 AS daily_return_pct,
+                0.0 AS price_range_pct,
+                TRUE AS is_forward_filled,
+                'forward_fill_market_sync' AS source
+            FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
+        """, [latest_bench[0], latest_bench[1], latest_bench[2], latest_bench[3], latest_bench[4], start_fill, eff_target_date])
+
+        filled_count = (eff_target_date - max_bench_date).days
+        logger.info(f"Forward-filled {filled_count} missing date(s) in `bronze_bist_index_benchmarks`.")
+
+        return {
+            "forward_filled_count": filled_count,
+            "start_date": str(start_fill),
+            "end_date": str(eff_target_date),
             "status": "success",
         }

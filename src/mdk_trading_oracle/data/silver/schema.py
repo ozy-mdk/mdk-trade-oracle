@@ -260,4 +260,26 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, and distribution tables.")
+    # 10. Silver Benchmark Table: Daily BIST 30 Benchmark Metrics & Rolling Indicators
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_daily_benchmark_index (
+            trade_date DATE PRIMARY KEY,
+            index_code VARCHAR DEFAULT 'XU030',
+            open_price DOUBLE,
+            high_price DOUBLE,
+            low_price DOUBLE,
+            close_price DOUBLE NOT NULL,
+            volume DOUBLE,
+            daily_return_pct DOUBLE,
+            intraday_return_pct DOUBLE,
+            price_range_pct DOUBLE,
+            rolling_5d_return_pct DOUBLE,
+            rolling_20d_return_pct DOUBLE,
+            rolling_20d_volatility DOUBLE,
+            index_trend_vs_20d_sma DOUBLE,
+            is_forward_filled BOOLEAN DEFAULT FALSE,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, and distribution tables.")

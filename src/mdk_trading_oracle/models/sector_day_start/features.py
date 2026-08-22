@@ -22,7 +22,8 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         2. Sector Competitor Imbalance (BofA vs Top-5 domestic desk deltas in that sector)
         3. Sector Dominance & Share of Wallet (BofA sector share vs total BofA flow)
         4. Sector Multi-Day Accumulation & Saturation (5d/20d rolling flows & Z-scores)
-        5. Macro Context & Calendar Seasonality (is_monday, is_friday, macro BofA flow)
+        5. Macro Context, Interest Rates & Seasonality (is_monday, is_friday, macro rates, carry cost)
+        6. Sector Relative Alpha & Benchmark Interaction (Excess return vs BIST 30, beta momentum)
     """
 
     def __init__(
@@ -159,6 +160,27 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
             ),
+            -- 6. Sector Equities Daily Returns & Spread
+            prev_day_sector_returns AS (
+                SELECT 
+                    trade_date,
+                    sector,
+                    AVG(daily_return_pct) AS sector_avg_return_1d_pct,
+                    AVG(price_range_pct) AS sector_avg_range_pct
+                FROM silver_daily_stock_summary
+                WHERE sector IS NOT NULL AND sector != '' {sector_filter_macro}
+                GROUP BY trade_date, sector
+            ),
+            -- 7. Benchmark Index (BIST 30) Dynamics
+            prev_day_benchmark_index AS (
+                SELECT 
+                    trade_date,
+                    daily_return_pct AS bist30_prev_day_return_pct,
+                    price_range_pct AS bist30_prev_day_range_pct,
+                    rolling_5d_return_pct AS bist30_cum_return_5d
+                FROM silver_daily_benchmark_index
+                WHERE index_code = 'XU030'
+            ),
             -- Combine base features
             sector_feature_base AS (
                 SELECT 
@@ -188,12 +210,20 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
                     COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
-                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction
+                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction,
+                    -- Cluster 6: Sector Relative Alpha & Benchmark Interaction
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) AS sector_avg_return_1d_pct,
+                    COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_market_return_1d,
+                    COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_market_range_pct,
+                    COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
                 LEFT JOIN prev_day_macro_overview mo ON g.trade_date = mo.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
+                LEFT JOIN prev_day_sector_returns sr ON g.trade_date = sr.trade_date AND g.sector = sr.sector
+                LEFT JOIN prev_day_benchmark_index bi ON g.trade_date = bi.trade_date
             ),
             -- Multi-Day Rolling Aggregations per Sector (Unlagged)
             unlagged_sector_rolling AS (
@@ -210,7 +240,10 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     ) AS bofa_sector_mean_20d,
                     STDDEV(bofa_sector_prev_day_net_flow_tl) OVER (
                         PARTITION BY sector ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-                    ) AS bofa_sector_std_20d
+                    ) AS bofa_sector_std_20d,
+                    AVG(sector_avg_return_1d_pct) OVER (
+                        PARTITION BY sector ORDER BY trade_date ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                    ) * 5.0 AS sector_cum_return_5d_pct
                 FROM sector_feature_base
             ),
             -- Lag Alignment (Features of Day T for Sector s come strictly from T-1 Close)
@@ -240,7 +273,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(macro_interest_rate, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_interest_rate,
                     LAG(macro_rate_shock_decay, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_rate_shock_decay,
                     LAG(macro_rate_spread_vs_30d_mean, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_macro_rate_spread_vs_30d_mean,
-                    LAG(sector_rate_x_flow_interaction, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rate_x_flow_interaction
+                    LAG(sector_rate_x_flow_interaction, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rate_x_flow_interaction,
+                    LAG(sector_rel_return_vs_bist30_1d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rel_return_vs_bist30_1d,
+                    LAG(sector_cum_return_5d_pct - bist30_cum_return_5d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rel_return_vs_bist30_5d,
+                    LAG(bist30_market_return_1d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_bist30_market_return_1d,
+                    LAG(bist30_market_range_pct, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_bist30_market_range_pct,
+                    LAG(bofa_sector_market_share * bist30_cum_return_5d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_beta_x_bist30_momentum
                 FROM unlagged_sector_rolling
             )
             SELECT 
@@ -268,6 +306,11 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(r.feat_macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
                 COALESCE(r.feat_sector_rate_x_flow_interaction, 0.0) AS feat_sector_rate_x_flow_interaction,
+                COALESCE(r.feat_sector_rel_return_vs_bist30_1d, 0.0) AS feat_sector_rel_return_vs_bist30_1d,
+                COALESCE(r.feat_sector_rel_return_vs_bist30_5d, 0.0) AS feat_sector_rel_return_vs_bist30_5d,
+                COALESCE(r.feat_bist30_market_return_1d, 0.0) AS feat_bist30_market_return_1d,
+                COALESCE(r.feat_bist30_market_range_pct, 0.0) AS feat_bist30_market_range_pct,
+                COALESCE(r.feat_sector_beta_x_bist30_momentum, 0.0) AS feat_sector_beta_x_bist30_momentum,
                 -- Target Columns on Day T for Sector s
                 COALESCE(t.target_sector_open_net_flow_tl, 0.0) AS target_sector_open_net_flow_tl,
                 CASE WHEN COALESCE(t.target_sector_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_sector_open_direction
@@ -364,7 +407,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN net_flow_tl ELSE 0.0 END) AS top5_macro_prev_day_net_flow_tl
                 FROM silver_daily_broker_overview
                 GROUP BY trade_date
-            ),
+            ),            -- 5. Macro Interest Rates & Monetary Policy Dynamics
             prev_day_macro_rates AS (
                 SELECT 
                     trade_date,
@@ -373,6 +416,27 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     rate_spread_vs_30d_mean AS macro_rate_spread_vs_30d_mean,
                     daily_carry_cost_bps AS macro_daily_carry_cost_bps
                 FROM silver_daily_macro_rates
+            ),
+            -- 6. Sector Equities Daily Returns & Spread
+            prev_day_sector_returns AS (
+                SELECT 
+                    trade_date,
+                    sector,
+                    AVG(daily_return_pct) AS sector_avg_return_1d_pct,
+                    AVG(price_range_pct) AS sector_avg_range_pct
+                FROM silver_daily_stock_summary
+                WHERE sector IS NOT NULL AND sector != '' {sector_filter}
+                GROUP BY trade_date, sector
+            ),
+            -- 7. Benchmark Index (BIST 30) Dynamics
+            prev_day_benchmark_index AS (
+                SELECT 
+                    trade_date,
+                    daily_return_pct AS bist30_prev_day_return_pct,
+                    price_range_pct AS bist30_prev_day_range_pct,
+                    rolling_5d_return_pct AS bist30_cum_return_5d
+                FROM silver_daily_benchmark_index
+                WHERE index_code = 'XU030'
             ),
             sector_feature_base AS (
                 SELECT 
@@ -395,12 +459,19 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(mr.macro_interest_rate, 45.0) AS macro_interest_rate,
                     COALESCE(mr.macro_rate_shock_decay, 0.0) AS macro_rate_shock_decay,
                     COALESCE(mr.macro_rate_spread_vs_30d_mean, 0.0) AS macro_rate_spread_vs_30d_mean,
-                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction
+                    (COALESCE(mr.macro_interest_rate, 45.0) * COALESCE(sd.bofa_sector_prev_day_net_flow_tl, 0.0)) / 1e8 AS sector_rate_x_flow_interaction,
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) AS sector_avg_return_1d_pct,
+                    COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_market_return_1d,
+                    COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_market_range_pct,
+                    COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
                 LEFT JOIN prev_day_macro_overview mo ON g.trade_date = mo.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
+                LEFT JOIN prev_day_sector_returns sr ON g.trade_date = sr.trade_date AND g.sector = sr.sector
+                LEFT JOIN prev_day_benchmark_index bi ON g.trade_date = bi.trade_date
             ),
             unlagged_sector_rolling AS (
                 SELECT 
@@ -416,7 +487,10 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     ) AS bofa_sector_mean_20d,
                     STDDEV(bofa_sector_prev_day_net_flow_tl) OVER (
                         PARTITION BY sector ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-                    ) AS bofa_sector_std_20d
+                    ) AS bofa_sector_std_20d,
+                    AVG(sector_avg_return_1d_pct) OVER (
+                        PARTITION BY sector ORDER BY trade_date ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                    ) * 5.0 AS sector_cum_return_5d_pct
                 FROM sector_feature_base
             ),
             latest_date_cte AS (
@@ -443,7 +517,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.macro_interest_rate, 45.0) AS feat_macro_interest_rate,
                 COALESCE(r.macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(r.macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
-                COALESCE(r.sector_rate_x_flow_interaction, 0.0) AS feat_sector_rate_x_flow_interaction
+                COALESCE(r.sector_rate_x_flow_interaction, 0.0) AS feat_sector_rate_x_flow_interaction,
+                COALESCE(r.sector_rel_return_vs_bist30_1d, 0.0) AS feat_sector_rel_return_vs_bist30_1d,
+                COALESCE(r.sector_cum_return_5d_pct - r.bist30_cum_return_5d, 0.0) AS feat_sector_rel_return_vs_bist30_5d,
+                COALESCE(r.bist30_market_return_1d, 0.0) AS feat_bist30_market_return_1d,
+                COALESCE(r.bist30_market_range_pct, 0.0) AS feat_bist30_market_range_pct,
+                COALESCE(r.bofa_sector_market_share * r.bist30_cum_return_5d, 0.0) AS feat_sector_beta_x_bist30_momentum
             FROM unlagged_sector_rolling r
             JOIN latest_date_cte l ON r.trade_date = l.max_trade_date
             ORDER BY r.sector ASC;

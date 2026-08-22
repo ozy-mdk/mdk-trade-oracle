@@ -65,7 +65,7 @@ In strict adherence to quantitative and mathematical rigor, targets are defined 
 
 All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or prior completed intraday windows:
 
-### A. Model 1: The 8 Macro Feature Clusters (`DayStartFeatureExtractor`)
+### A. Model 1: The 9 Macro Feature Clusters (`DayStartFeatureExtractor`)
 1. **Prior Closing Window Momentum**: Window 4 net flow & turnover (`feat_bofa_w4_net_flow_tl`, `feat_bofa_w4_turnover_tl`, `feat_w4_flow_acceleration_ratio`).
 2. **Multi-Day Inventory & Sector Saturation**: 5-day / 20-day rolling flows & Z-scores (`feat_bofa_cum_net_flow_5d_tl`, `feat_bofa_flow_zscore_20d`).
 3. **Institutional Cost Basis & Unrealized PnL**: Spread between Close and 20d Buy VWAP (`feat_bofa_cost_basis_spread_20d_pct`).
@@ -74,13 +74,15 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 6. **Sector Cross-Sectional Stress & Breadth**: Flow across Banking, Transportation, Holding, Energy, Defense (`feat_bofa_banking_flow_prev_day`, `feat_bofa_transport_flow_prev_day`, `feat_bofa_holding_flow_prev_day`).
 7. **Calendar Dynamics**: Day of week, Monday rebalancing, Friday hedging (`day_of_week`, `is_monday`, `is_friday`).
 8. **Macro Interest Rate Dynamics**: Prevailing Central Bank (TCMB) 1-week repo policy rate, rate deltas, decision day flags, days elapsed since last rate hike/cut, rate spread vs 30-day mean, and daily carry cost bps (`silver_daily_macro_rates` with strict $T-1$ lag).
+9. **Benchmark Index (BIST 30) Momentum & Volatility**: Official BIST 30 (`XU030`) 1-day / 5-day return, intraday price range %, trend vs 20d SMA, and 20-day return volatility (`silver_daily_benchmark_index` with strict $T-1$ lag).
 
-### B. Model 2: The 5 Sector Feature Clusters (`SectorDayStartFeatureExtractor`)
+### B. Model 2: The 6 Sector Feature Clusters (`SectorDayStartFeatureExtractor`)
 1. **Sector Prior Closing Window Momentum**: Sector Window 4 net flow and turnover (`feat_sector_bofa_w4_net_flow_tl`, `feat_sector_bofa_w4_turnover_tl`).
 2. **Sector Competitor Imbalance**: BofA vs Top-5 domestic desk deltas in sector $s$ (`feat_sector_top5_w4_net_flow_tl`, `feat_sector_bofa_vs_top5_w4_delta_tl`, `feat_sector_bofa_vs_top5_daily_delta_tl`).
 3. **Sector Dominance & Share of Wallet**: Sector market share and sector share of total BofA flow (`feat_sector_bofa_market_share`, `feat_sector_bofa_share_of_wallet`).
 4. **Sector Multi-Day Accumulation & Saturation**: Rolling 5-day / 20-day sector cumulative flow and flow Z-scores (`feat_sector_bofa_cum_net_flow_5d_tl`, `feat_sector_top5_cum_net_flow_5d_tl`, `feat_sector_bofa_flow_zscore_20d`).
 5. **Macro Context, Rates & Seasonality**: Prevailing Central Bank policy rate, rate shock decay bps, rate spread vs 30-day mean, sector rate $\times$ flow interaction, previous day macro BofA flow, and calendar flags (`feat_macro_interest_rate`, `feat_macro_rate_shock_decay`, `feat_macro_rate_spread_vs_30d_mean`, `feat_sector_rate_x_flow_interaction`, `is_monday`, `is_friday`, `day_of_week`).
+6. **Sector Relative Alpha & Benchmark Interaction**: Sector excess return over BIST 30 index (1-day alpha, 5-day alpha), broad market volatility, and sector beta-momentum interaction (`feat_sector_rel_return_vs_bist30_1d`, `feat_sector_rel_return_vs_bist30_5d`, `feat_bist30_market_return_1d`, `feat_bist30_market_range_pct`, `feat_sector_beta_x_bist30_momentum`).
 
 ---
 

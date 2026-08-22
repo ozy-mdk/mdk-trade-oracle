@@ -1,6 +1,7 @@
 """Typer CLI interface for MDK Trading Oracle."""
 
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import duckdb
@@ -159,20 +160,23 @@ def load_bronze(
     console.print("[bold yellow]🏛️ Ingesting Central Bank interest rates and synchronizing market dates...[/bold yellow]")
     ingestor.ingest_central_bank_rates(sync_market_dates=True)
 
+    console.print("[bold yellow]📈 Ingesting BIST 30 benchmark data and synchronizing market dates...[/bold yellow]")
+    ingestor.ingest_bist30_benchmarks(sync_market_dates=True)
+
     conn = db.get_connection()
     total_trades = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
-    total_rates = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
-    total_brokers = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
-    total_instruments = conn.execute("SELECT COUNT(*) FROM bronze_instruments;").fetchone()[0]
+    total_cbrt = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
+    total_bench = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+    total_files = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
 
     elapsed = (datetime.now() - start_time).total_seconds()
     console.print(
         Panel.fit(
-            f"[bold green]✨ Bronze Ingestion Complete in {elapsed:.1f}s[/bold green]\n\n"
+            f"[bold green]✨ Bronze Layer Ingestion Complete in {elapsed:.1f}s[/bold green]\n\n"
             f"• [bold]bronze_raw_trades[/bold]: [cyan]{total_trades:,}[/cyan] rows\n"
-            f"• [bold]bronze_central_bank_rates[/bold]: [cyan]{total_rates:,}[/cyan] rows\n"
-            f"• [bold]bronze_brokers[/bold]: [cyan]{total_brokers}[/cyan] brokers\n"
-            f"• [bold]bronze_instruments[/bold]: [cyan]{total_instruments}[/cyan] instruments",
+            f"• [bold]bronze_central_bank_rates[/bold]: [cyan]{total_cbrt:,}[/cyan] rows\n"
+            f"• [bold]bronze_bist_index_benchmarks[/bold]: [cyan]{total_bench:,}[/cyan] rows\n"
+            f"• [bold]bronze_ingestion_log[/bold]: [cyan]{total_files:,}[/cyan] files logged",
             title="Bronze Summary",
             border_style="green",
         )
@@ -181,11 +185,11 @@ def load_bronze(
 
 @app.command()
 def load_rates(
-    file_path: Optional[str] = typer.Option(
+    file_path: Optional[Path] = typer.Option(
         None,
         "--file",
         "-f",
-        help="Optional path to a specific Central Bank rate file to ingest",
+        help="Optional path to a specific Central Bank Excel/CSV/Parquet rate file",
     ),
     force: bool = typer.Option(
         False,
@@ -219,8 +223,53 @@ def load_rates(
 
 
 @app.command()
+def load_benchmark(
+    years: int = typer.Option(
+        5,
+        "--years",
+        "-y",
+        help="Number of historical years to fetch (default: 5)",
+    ),
+    ticker: str = typer.Option(
+        "XU030.IS",
+        "--ticker",
+        "-t",
+        help="Benchmark ticker symbol on Yahoo Finance (default: XU030.IS)",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force re-download and re-ingestion of benchmark data",
+    ),
+):
+    """Ingest official BIST 30 (XU030.IS) benchmark historical data and synchronize with market dates."""
+    start_time = datetime.now()
+    console.print(f"[bold cyan]📈 Ingesting {years}-Year BIST 30 Benchmark Data ({ticker})...[/bold cyan]")
+
+    db = DuckDBManager()
+    ingestor = BronzeIngestor(db)
+    res = ingestor.ingest_bist30_benchmarks(years=years, ticker_symbol=ticker, force=force, sync_market_dates=True)
+
+    conn = db.get_connection()
+    total_bench = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+    bench_range = conn.execute("SELECT MIN(trade_date), MAX(trade_date) FROM bronze_bist_index_benchmarks;").fetchone()
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ BIST 30 Benchmark Data Ingested & Synced in {elapsed:.1f}s[/bold green]\n\n"
+            f"• [bold]bronze_bist_index_benchmarks[/bold]: [cyan]{total_bench:,}[/cyan] rows\n"
+            f"• [bold]Date Range[/bold]: [cyan]{bench_range[0]}[/cyan] to [cyan]{bench_range[1]}[/cyan]\n"
+            f"• [bold]Status[/bold]: [cyan]{res.get('status', 'success')}[/cyan]",
+            title="BIST 30 Benchmark Summary",
+            border_style="green",
+        )
+    )
+
+
+@app.command()
 def build_silver():
-    """Build Silver layer daily broker aggregations and market OHLCV metrics."""
+    """Build Silver layer daily broker aggregations, macro rates, benchmark indicators, and market OHLCV metrics."""
     start_time = datetime.now()
     console.print("[bold cyan]🚀 Building Silver Lakehouse Layer...[/bold cyan]")
 
@@ -231,6 +280,7 @@ def build_silver():
     conn = db.get_connection()
     broker_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_summary;").fetchone()[0]
     macro_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
+    bench_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_benchmark_index;").fetchone()[0]
     market_rows = conn.execute("SELECT COUNT(*) FROM silver_market_daily;").fetchone()[0]
 
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -239,6 +289,7 @@ def build_silver():
             f"[bold green]✨ Silver Layer Transformations Complete in {elapsed:.1f}s[/bold green]\n\n"
             f"• [bold]silver_daily_broker_summary[/bold]: [cyan]{broker_rows:,}[/cyan] rows\n"
             f"• [bold]silver_daily_macro_rates[/bold]: [cyan]{macro_rows:,}[/cyan] rows\n"
+            f"• [bold]silver_daily_benchmark_index[/bold]: [cyan]{bench_rows:,}[/cyan] rows\n"
             f"• [bold]silver_market_daily[/bold]: [cyan]{market_rows:,}[/cyan] rows",
             title="Silver Summary",
             border_style="green",

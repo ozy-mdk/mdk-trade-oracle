@@ -760,6 +760,48 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_bofa_historical_flow_thresholds`: {rows:,} distribution profiles.")
         return {"table": "silver_bofa_historical_flow_thresholds", "rows": rows, "status": "success"}
 
+    def transform_daily_benchmark_index(self) -> dict[str, Any]:
+        """Compute rolling momentum, volatility, and trend indicators for official BIST 30 benchmark."""
+        conn = self.db.get_connection()
+        logger.info("Computing `silver_daily_benchmark_index` rolling indicators...")
+
+        query = """
+            CREATE OR REPLACE TABLE silver_daily_benchmark_index AS
+            WITH ordered AS (
+                SELECT 
+                    trade_date,
+                    index_code,
+                    open_price,
+                    high_price,
+                    low_price,
+                    close_price,
+                    volume,
+                    daily_return_pct,
+                    (close_price - open_price) / NULLIF(open_price, 0.0) AS intraday_return_pct,
+                    (high_price - low_price) / NULLIF(low_price, 0.0) AS price_range_pct,
+                    -- Rolling 5-day return
+                    (close_price / NULLIF(LAG(close_price, 5) OVER (PARTITION BY index_code ORDER BY trade_date), 0.0)) - 1.0 AS rolling_5d_return_pct,
+                    -- Rolling 20-day return
+                    (close_price / NULLIF(LAG(close_price, 20) OVER (PARTITION BY index_code ORDER BY trade_date), 0.0)) - 1.0 AS rolling_20d_return_pct,
+                    -- Rolling 20-day volatility (std dev of daily returns)
+                    STDDEV(daily_return_pct) OVER (
+                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) AS rolling_20d_volatility,
+                    -- Trend vs 20-day SMA
+                    (close_price / NULLIF(AVG(close_price) OVER (
+                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ), 0.0)) - 1.0 AS index_trend_vs_20d_sma,
+                    is_forward_filled,
+                    CURRENT_TIMESTAMP AS calculated_at
+                FROM bronze_bist_index_benchmarks
+            )
+            SELECT * FROM ordered;
+        """
+        conn.execute(query)
+        rows = conn.execute("SELECT COUNT(*) FROM silver_daily_benchmark_index;").fetchone()[0]
+        logger.info(f"Successfully populated `silver_daily_benchmark_index`: {rows:,} rows.")
+        return {"table": "silver_daily_benchmark_index", "rows": rows, "status": "success"}
+
     def run_all(self) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
         initialize_silver_schema(self.db)
@@ -770,6 +812,7 @@ class SilverTransformer:
         res_win_broker = self.transform_intraday_broker_windows()
         res_win_sector = self.transform_intraday_sector_windows()
         res_macro_rates = self.transform_daily_macro_rates()
+        res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()
 
         return {
@@ -780,6 +823,7 @@ class SilverTransformer:
             "silver_intraday_broker_window_summary": res_win_broker,
             "silver_intraday_sector_window_summary": res_win_sector,
             "silver_daily_macro_rates": res_macro_rates,
+            "silver_daily_benchmark_index": res_benchmark,
             "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
             "status": "success",
         }

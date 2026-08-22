@@ -77,3 +77,17 @@ All input features are strictly constructed from completed historical market ses
 | `day_of_week` | Integer ($T$) | $\text{DayOfWeek}(\text{trade\_date})$ | `1..5` | Day of week integer ($1 = \text{Monday}, \dots, 5 = \text{Friday}$). |
 | `is_monday` | Binary ($T$) | $\text{day\_of\_week} = 1$ | `FALSE` | Monday session indicator (weekly sector re-allocation). |
 | `is_friday` | Binary ($T$) | $\text{day\_of\_week} = 5$ | `FALSE` | Friday session indicator (weekend sector risk trimming / hedging). |
+
+---
+
+### Cluster 6: Sector Relative Alpha & Benchmark Interaction
+*Quantifies whether a sector is leading or lagging the official BIST 30 (`XU030`) benchmark and captures beta-momentum interactions.*
+
+| Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `feat_sector_rel_return_vs_bist30_1d` | Alpha ($T-1$) | $\text{Return}_{s, 1d, T-1} - \text{Return}_{\text{XU030}, 1d, T-1}$ | `0.0` | 1-day excess return (alpha) of sector $s$ relative to BIST 30 benchmark. |
+| `feat_sector_rel_return_vs_bist30_5d` | Alpha ($T-1$) | $\text{Return}_{s, 5d, T-1} - \text{Return}_{\text{XU030}, 5d, T-1}$ | `0.0` | 5-day rolling relative outperformance/underperformance vs benchmark index. |
+| `feat_bist30_market_return_1d` | Return ($T-1$) | $\text{Return}_{\text{XU030}, 1d, T-1}$ | `0.0` | Broad market benchmark return (macro tailwind/headwind indicator). |
+| `feat_bist30_market_range_pct` | Volatility ($T-1$) | $\text{Range}_{\text{XU030}, 1d, T-1}$ | `0.0` | Broad market benchmark price range % measuring market-wide volatility. |
+| `feat_sector_beta_x_bist30_momentum` | Interaction ($T-1$) | $\text{MarketShare}_{\text{MLB}, s, T-1} \times \text{Return}_{\text{XU030}, 5d, T-1}$ | `0.0` | Interaction of BofA's sector market dominance with benchmark momentum. |
+
