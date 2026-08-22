@@ -91,3 +91,48 @@ All input features are strictly constructed from completed historical market ses
 | `feat_bist30_market_range_pct` | Volatility ($T-1$) | $\text{Range}_{\text{XU030}, 1d, T-1}$ | `0.0` | Broad market benchmark price range % measuring market-wide volatility. |
 | `feat_sector_beta_x_bist30_momentum` | Interaction ($T-1$) | $\text{MarketShare}_{\text{MLB}, s, T-1} \times \text{Return}_{\text{XU030}, 5d, T-1}$ | `0.0` | Interaction of BofA's sector market dominance with benchmark momentum. |
 
+---
+
+## 3. Feature Selection, Configuration & Ablation Engine
+
+All 27 sector feature columns are declaratively managed in `config/features.yaml` under `sector_day_start`.
+
+### Configuration (`config/features.yaml`)
+```yaml
+sector_day_start:
+  exclude_features: []
+  include_features: []
+  clusters:
+    sector_closing_momentum: { enabled: true }
+    sector_competitor_imbalance: { enabled: true }
+    sector_dominance: { enabled: true }
+    sector_accumulation: { enabled: true }
+    macro_context: { enabled: true }
+    benchmark_relative_alpha: { enabled: true }
+```
+
+### Programmatic & CLI Usage
+
+#### Python / Jupyter Notebooks
+```python
+from mdk_trading_oracle.models.sector_day_start.forecaster import SectorDayStartForecaster
+
+# Exclude specific features or disable clusters
+forecaster = SectorDayStartForecaster(
+    exclude_features=["feat_macro_rate_shock_decay"],
+    disabled_clusters=["benchmark_relative_alpha"],
+)
+forecasts = forecaster.forecast_next_day()
+
+# Run automated Leave-One-Cluster-Out (LOCO) ablation study across sectors
+ablation_df = forecaster.run_ablation_study()
+```
+
+#### CLI Pipeline
+```bash
+# Exclude features or clusters during pipeline execution
+.venv/bin/python scripts/run_pipeline.py --target gold --exclude-features feat_macro_rate_shock_decay
+.venv/bin/python scripts/run_pipeline.py --target gold --disabled-clusters benchmark_relative_alpha
+```
+
+

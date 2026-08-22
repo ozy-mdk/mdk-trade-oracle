@@ -20,6 +20,7 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartRollingMeanModel,
     DayStartXGBoostModel,
 )
+from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
 
 logger = get_logger("mdk_oracle.models.day_start.forecaster")
@@ -29,7 +30,7 @@ logger = get_logger("mdk_oracle.models.day_start.forecaster")
 class DayStartModelArena:
     """Evaluates all candidate models using expanding-window walk-forward validation and crowns the champion."""
 
-    def __init__(self, thresholds: Optional[FlowThresholdProfile] = None):
+    def __init__(self, thresholds: Optional[FlowThresholdProfile] = None, include_pymc: bool = True):
         self.thresholds = thresholds or FlowThresholdProfile()
         self.candidates: Dict[str, BaseForecaster] = {
             "Baseline 0: Naive W4 Persistence": DayStartNaivePersistenceModel(thresholds=self.thresholds),
@@ -37,8 +38,9 @@ class DayStartModelArena:
             "LightGBM Non-Linear Ensemble": DayStartLightGBMModel(thresholds=self.thresholds),
             "XGBoost Non-Linear Ensemble": DayStartXGBoostModel(thresholds=self.thresholds),
             "Bayesian Ridge Probabilistic": DayStartBayesianModel(thresholds=self.thresholds),
-            "PyMC Bayesian GLM (MAP)": DayStartPyMCModel(use_map=True, thresholds=self.thresholds),
         }
+        if include_pymc:
+            self.candidates["PyMC Bayesian GLM (MAP)"] = DayStartPyMCModel(use_map=True, thresholds=self.thresholds)
 
     def run_tournament(
         self,
@@ -103,6 +105,11 @@ class DayStartForecaster:
         lookback_months: Optional[int] = None,
         eval_window_days: Optional[int] = None,
         min_burn_in_days: Optional[int] = None,
+        feature_selector: Optional[FeatureSelector] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
@@ -113,6 +120,14 @@ class DayStartForecaster:
         self.eval_window_days = eval_window_days if eval_window_days is not None else cfg.get("eval_window_days", 20)
         self.min_burn_in_days = min_burn_in_days if min_burn_in_days is not None else cfg.get("min_burn_in_days", 5)
         self.model_type = model_type or cfg.get("model_type", "auto")
+
+        self.feature_selector = feature_selector or FeatureSelector(
+            model_name="day_start",
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
+        )
 
         self.feature_extractor = DayStartFeatureExtractor(
             self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
@@ -171,7 +186,8 @@ class DayStartForecaster:
             self.champion_name = self.model.model_name
             return pd.DataFrame(), pd.Series()
 
-        df_pd = df_pl.to_pandas()
+        df_filtered_pl = self.feature_selector.filter_dataframe(df_pl)
+        df_pd = df_filtered_pl.to_pandas()
         X = df_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
         y = df_pd["target_open_net_flow_tl"]
 
@@ -179,7 +195,8 @@ class DayStartForecaster:
         if (self.model_type == "auto" or self.model is None) and len(df_pd) >= 2:
             logger.info(
                 f"Running DayStartModelArena Walk-Forward Tournament "
-                f"(eval_window_days={self.eval_window_days}, min_burn_in={self.min_burn_in_days})..."
+                f"(eval_window_days={self.eval_window_days}, min_burn_in={self.min_burn_in_days}, "
+                f"active_features={len(self.feature_selector.active_features)})..."
             )
             min_burn_in = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
             _, champion_model = self.arena.run_tournament(
@@ -194,7 +211,10 @@ class DayStartForecaster:
             self.champion_name = self.model.model_name
 
         # Train champion model on historical dataset
-        logger.info(f"Fitting Champion Model '{self.model.model_name}' on {len(df_pd)} historical daily sessions...")
+        logger.info(
+            f"Fitting Champion Model '{self.model.model_name}' on {len(df_pd)} historical daily sessions "
+            f"with {len(self.feature_selector.active_features)} active feature(s)..."
+        )
         self.model.fit(X, y)
         return X, y
 
@@ -212,7 +232,8 @@ class DayStartForecaster:
         if df_next_pl.height == 0:
             raise ValueError("Failed to extract next-day feature vector.")
 
-        df_next_pd = df_next_pl.to_pandas()
+        df_next_filtered_pl = self.feature_selector.filter_dataframe(df_next_pl)
+        df_next_pd = df_next_filtered_pl.to_pandas()
         res = self.model.predict(df_next_pd)
 
         logger.info(
@@ -222,6 +243,71 @@ class DayStartForecaster:
             f"Playbook = {res.predicted_playbook} (Champion: '{self.champion_name}')."
         )
         return res
+
+    def run_ablation_study(self, include_pymc: bool = False) -> pd.DataFrame:
+        """Run an automated Leave-One-Cluster-Out (LOCO) ablation tournament across all semantic feature clusters.
+
+        Args:
+            include_pymc: Whether to include slow PyMC MCMC/MAP in the ablation candidate arena (default: False for speed).
+
+        Returns:
+            pd.DataFrame: Scoreboard comparing Hit Rate %, 90% PICP %, and RMSE when each cluster is removed.
+        """
+        df_pl = self.feature_extractor.extract_features()
+        if df_pl.height < 5:
+            logger.warning("Insufficient historical sessions to run ablation study.")
+            return pd.DataFrame()
+
+        clusters = self.feature_selector.get_available_clusters()
+        ablation_results = []
+
+        # 1. Baseline: All Features
+        sel_all = FeatureSelector(model_name="day_start")
+        df_all_pd = sel_all.filter_dataframe(df_pl).to_pandas()
+        X_all = df_all_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
+        y_all = df_all_pd["target_open_net_flow_tl"]
+
+        arena = DayStartModelArena(thresholds=self.threshold_profile, include_pymc=include_pymc)
+        min_burn = min(self.min_burn_in_days, max(2, len(df_all_pd) - 1))
+        scores_all, champ_all = arena.run_tournament(X_all, y_all, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+        best_all = scores_all.iloc[0]
+
+        ablation_results.append({
+            "Experiment": "Baseline (All Features)",
+            "Active_Features": len(sel_all.active_features),
+            "Removed_Cluster": "None",
+            "Champion_Model": champ_all.model_name,
+            "Hit_Rate_Pct": best_all["hit_rate_pct"],
+            "PICP_90_Pct": best_all["picp_90_pct"],
+            "RMSE_Million_TL": best_all["rmse_million_tl"],
+            "MAE_Million_TL": best_all["mae_million_tl"],
+        })
+
+        # 2. Leave each cluster out one by one
+        for cl in clusters:
+            sel_loco = FeatureSelector(model_name="day_start", disabled_clusters=[cl])
+            df_loco_pd = sel_loco.filter_dataframe(df_pl).to_pandas()
+            X_loco = df_loco_pd.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
+            y_loco = df_loco_pd["target_open_net_flow_tl"]
+
+            arena_loco = DayStartModelArena(thresholds=self.threshold_profile, include_pymc=include_pymc)
+            scores_loco, champ_loco = arena_loco.run_tournament(X_loco, y_loco, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+            best_loco = scores_loco.iloc[0]
+
+            ablation_results.append({
+                "Experiment": f"Without '{cl}'",
+                "Active_Features": len(sel_loco.active_features),
+                "Removed_Cluster": cl,
+                "Champion_Model": champ_loco.model_name,
+                "Hit_Rate_Pct": best_loco["hit_rate_pct"],
+                "PICP_90_Pct": best_loco["picp_90_pct"],
+                "RMSE_Million_TL": best_loco["rmse_million_tl"],
+                "MAE_Million_TL": best_loco["mae_million_tl"],
+            })
+
+        df_res = pd.DataFrame(ablation_results).sort_values(by=["Hit_Rate_Pct", "PICP_90_Pct", "RMSE_Million_TL"], ascending=[False, False, True]).reset_index(drop=True)
+        logger.info(f"Feature Ablation Study completed across {len(clusters)} clusters.")
+        return df_res
 
     def backtest_all_history(self) -> List[ForecastResult]:
         """Generate historical in-sample / backtest predictions across all historical training sessions."""

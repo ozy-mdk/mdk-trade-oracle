@@ -110,6 +110,30 @@ def main():
         default=None,
         help="Number of trailing days to look back when running --backfill-missing (e.g. 60 days)",
     )
+    parser.add_argument(
+        "--exclude-features",
+        type=str,
+        default=None,
+        help="Comma-separated list of specific feature column names to exclude (e.g. 'feat_macro_rate_shock_decay,feat_bofa_holding_flow_prev_day')",
+    )
+    parser.add_argument(
+        "--include-features",
+        type=str,
+        default=None,
+        help="Comma-separated list of specific feature column names to force include",
+    )
+    parser.add_argument(
+        "--disabled-clusters",
+        type=str,
+        default=None,
+        help="Comma-separated list of semantic feature clusters to disable (e.g. 'macro_rates,calendar_dynamics')",
+    )
+    parser.add_argument(
+        "--enabled-clusters",
+        type=str,
+        default=None,
+        help="Comma-separated list of semantic feature clusters to exclusively enable",
+    )
 
     args = parser.parse_args()
 
@@ -117,13 +141,18 @@ def main():
     pipeline = MedallionPipeline(db)
 
     backfill_dates_list = [d.strip() for d in args.backfill_dates.split(",")] if args.backfill_dates else None
+    exclude_features_list = [f.strip() for f in args.exclude_features.split(",")] if args.exclude_features else None
+    include_features_list = [f.strip() for f in args.include_features.split(",")] if args.include_features else None
+    disabled_clusters_list = [c.strip() for c in args.disabled_clusters.split(",")] if args.disabled_clusters else None
+    enabled_clusters_list = [c.strip() for c in args.enabled_clusters.split(",")] if args.enabled_clusters else None
 
     logger.info(
         f"Triggering Medallion Lakehouse Pipeline ("
         f"Target: {args.target}, Date: {args.date}, Month: {args.month}, File: {args.file}, "
         f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, "
         f"Backfill: {backfill_dates_list or args.backfill_missing} "
-        f"[Lookback: {args.backfill_lookback_months or args.backfill_lookback_days or 'default 2 months'}])..."
+        f"[Lookback: {args.backfill_lookback_months or args.backfill_lookback_days or 'default 2 months'}], "
+        f"Excluded Features: {exclude_features_list}, Disabled Clusters: {disabled_clusters_list})..."
     )
     pipeline.run(
         target=args.target,
@@ -139,6 +168,10 @@ def main():
         all_missing=args.backfill_missing,
         backfill_lookback_months=args.backfill_lookback_months,
         backfill_lookback_days=args.backfill_lookback_days,
+        disabled_clusters=disabled_clusters_list,
+        enabled_clusters=enabled_clusters_list,
+        include_features=include_features_list,
+        exclude_features=exclude_features_list,
     )
 
 

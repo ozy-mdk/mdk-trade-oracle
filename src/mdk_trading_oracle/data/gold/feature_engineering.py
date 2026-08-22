@@ -75,10 +75,21 @@ class GoldFeatureEngineer:
         all_missing: bool = False,
         backfill_lookback_months: Optional[int] = None,
         backfill_lookback_days: Optional[int] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ) -> dict[str, Any]:
         """Execute Model 1 (Day-Start Forecaster) with Auto-Champion Selection, reconcile performance ledger, and persist live forecasts."""
         logger.info("Executing Gold Layer Model 1: Day-Start Forecaster (Auto-Champion Mode)...")
-        forecaster = DayStartForecaster(self.db, model_type="auto")
+        forecaster = DayStartForecaster(
+            self.db,
+            model_type="auto",
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
+        )
         
         # 1. Reconcile Completed Historical Sessions into Performance Ledger
         saved_performance = forecaster.reconcile_and_update_performance_ledger()
@@ -120,10 +131,21 @@ class GoldFeatureEngineer:
         all_missing: bool = False,
         backfill_lookback_months: Optional[int] = None,
         backfill_lookback_days: Optional[int] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ) -> dict[str, Any]:
         """Execute Model 2 (Sector Day-Start Forecaster), reconcile sector performance ledger, and persist live sector forecasts."""
         logger.info("Executing Gold Layer Model 2: Sector Day-Start Forecaster (Auto-Champion Mode)...")
-        forecaster = SectorDayStartForecaster(self.db, model_type="auto")
+        forecaster = SectorDayStartForecaster(
+            self.db,
+            model_type="auto",
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
+        )
         
         # 1. Reconcile Completed Historical Sessions into Sector Performance Ledger
         saved_sector_performance = forecaster.reconcile_and_update_performance_ledger()
@@ -166,28 +188,37 @@ class GoldFeatureEngineer:
         all_missing: bool = False,
         backfill_lookback_months: Optional[int] = None,
         backfill_lookback_days: Optional[int] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ) -> dict[str, Any]:
-        """Run full Gold feature pipeline and predictive models."""
+        """Execute all Gold layer feature tables, institutional signals, predictive models, and ledgers."""
         initialize_gold_schema(self.db)
-        res_signals = self.compute_institutional_signals()
-        res_day_start = self.run_day_start_forecasting(
+        sig_res = self.compute_institutional_signals()
+        day_start_res = self.run_day_start_forecasting(
             backfill_dates=backfill_dates,
             all_missing=all_missing,
             backfill_lookback_months=backfill_lookback_months,
             backfill_lookback_days=backfill_lookback_days,
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
         )
-        res_sector_day_start = self.run_sector_day_start_forecasting(
+        sector_day_start_res = self.run_sector_day_start_forecasting(
             backfill_dates=backfill_dates,
             all_missing=all_missing,
             backfill_lookback_months=backfill_lookback_months,
             backfill_lookback_days=backfill_lookback_days,
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
         )
-
         return {
-            "gold_institutional_daily_signals": res_signals,
-            "gold_bofa_day_start_forecasts": res_day_start,
-            "gold_bofa_sector_day_start_forecasts": res_sector_day_start,
+            "institutional_signals": sig_res,
+            "day_start_macro_forecaster": day_start_res,
+            "sector_day_start_forecaster": sector_day_start_res,
             "status": "success",
         }
-
-

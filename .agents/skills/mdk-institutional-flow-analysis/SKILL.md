@@ -239,4 +239,19 @@ Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_b
    - **Do NOT use excessive emojis** in headers, text cells, logs, or card templates. Emojis clutter technical documents and impair readability.
    - Use clean typography, structured headers, standard tables, and crisp text badges (`[PASS]`, `HIT`, `MISS`).
 
+---
 
+## 11. Column-Granular Feature Selection & Ablation System
+
+Predictive models support column-level granularity and cluster-level toggling via declarative configuration and runtime overrides:
+
+1. **Declarative Catalog (`config/features.yaml`)**:
+   - Lists every engineered feature column grouped under its semantic cluster (39 features across 9 clusters for `day_start`, 27 features across 6 clusters for `sector_day_start`).
+   - Supports `enabled: true/false` per cluster and global `exclude_features` / `include_features`.
+2. **`FeatureSelector` Engine (`src/mdk_trading_oracle/models/features_config.py`)**:
+   - Computes resolved active feature columns and filters DataFrames consistently with zero lookahead bias.
+3. **Automated LOCO Ablation Studies (`forecaster.run_ablation_study()`)**:
+   - Runs Leave-One-Cluster-Out tournaments to quantitatively measure the alpha contribution (Hit Rate %, 90% PICP %, RMSE) of each feature cluster.
+4. **CLI Runner Support**:
+   - `.venv/bin/python scripts/run_pipeline.py --target gold --exclude-features feat_macro_rate_shock_decay`
+   - `.venv/bin/python scripts/run_pipeline.py --target gold --disabled-clusters macro_rates,calendar_dynamics`

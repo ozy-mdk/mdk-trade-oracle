@@ -127,3 +127,53 @@ All input features are strictly constructed from completed historical market ses
 | `feat_bist30_trend_vs_20d_sma` | Trend ($T-1$) | $\frac{P_{\text{Close}, T-1}}{\text{SMA}_{20}(P_{\text{Close}, T-1})} - 1.0$ | `0.0` | Benchmark price relative to its 20-day Simple Moving Average. |
 | `feat_bist30_volatility_20d` | Volatility ($T-1$) | $\sigma_{20d}(\text{daily\_returns})$ | `0.0` | 20-day rolling annualized/daily volatility of BIST 30 returns (risk regime classifier). |
 
+---
+
+## 3. Feature Selection, Configuration & Ablation Engine
+
+All 39 feature columns are declaratively managed in `config/features.yaml` under `day_start`.
+
+### Configuration (`config/features.yaml`)
+```yaml
+day_start:
+  exclude_features: []
+  include_features: []
+  clusters:
+    closing_momentum: { enabled: true }
+    inventory_saturation: { enabled: true }
+    cost_basis_pnl: { enabled: true }
+    competitor_deltas: { enabled: true }
+    institutional_hegemony: { enabled: true }
+    sector_flows: { enabled: true }
+    calendar_dynamics: { enabled: true }
+    macro_rates: { enabled: true }
+    benchmark_index: { enabled: true }
+```
+
+### Programmatic & CLI Usage
+
+#### Python / Jupyter Notebooks
+```python
+from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
+
+# Exclude specific features or disable clusters
+forecaster = DayStartForecaster(
+    exclude_features=["feat_macro_rate_shock_decay", "feat_bofa_holding_flow_prev_day"],
+    disabled_clusters=["calendar_dynamics"],
+)
+forecast = forecaster.forecast_next_day()
+
+# Run automated Leave-One-Cluster-Out (LOCO) ablation study
+ablation_df = forecaster.run_ablation_study()
+```
+
+#### CLI Pipeline
+```bash
+# Exclude features during pipeline execution
+.venv/bin/python scripts/run_pipeline.py --target gold --exclude-features feat_macro_rate_shock_decay,feat_bofa_holding_flow_prev_day
+
+# Disable entire cluster
+.venv/bin/python scripts/run_pipeline.py --target gold --disabled-clusters macro_rates,calendar_dynamics
+```
+
+

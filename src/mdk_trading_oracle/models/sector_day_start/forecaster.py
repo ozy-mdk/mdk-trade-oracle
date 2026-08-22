@@ -12,6 +12,7 @@ from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.models.base import FlowThresholdProfile, ForecastResult
+from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.sector_day_start.features import SectorDayStartFeatureExtractor
 from mdk_trading_oracle.models.sector_day_start.models import (
@@ -113,6 +114,11 @@ class SectorDayStartForecaster:
         eval_window_days: Optional[int] = None,
         min_burn_in_days: Optional[int] = None,
         include_pymc_arena: Optional[bool] = None,
+        feature_selector: Optional[FeatureSelector] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
@@ -124,6 +130,14 @@ class SectorDayStartForecaster:
         self.min_burn_in_days = min_burn_in_days if min_burn_in_days is not None else cfg.get("min_burn_in_days", 5)
         self.model_type = model_type or cfg.get("model_type", "auto")
         include_pymc = include_pymc_arena if include_pymc_arena is not None else cfg.get("include_pymc_arena", False)
+
+        self.feature_selector = feature_selector or FeatureSelector(
+            model_name="sector_day_start",
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
+        )
 
         self.feature_extractor = SectorDayStartFeatureExtractor(
             self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
@@ -180,7 +194,8 @@ class SectorDayStartForecaster:
                 df_pl = self.feature_extractor.extract_features(sector=sector, end_date=as_of_date)
                 if df_pl.height < 5:
                     continue
-                df_pd = df_pl.to_pandas()
+                df_filtered_pl = self.feature_selector.filter_dataframe(df_pl)
+                df_pd = df_filtered_pl.to_pandas()
                 X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
                 y = df_pd["target_sector_open_net_flow_tl"]
                 min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
@@ -208,7 +223,10 @@ class SectorDayStartForecaster:
         else:
             self.champion_name = "sector_day_start_naive_persistence"
 
-        logger.info(f"🏆 Sector Model Arena Champion Selected: '{self.champion_name}'")
+        logger.info(
+            f"🏆 Sector Model Arena Champion Selected: '{self.champion_name}' "
+            f"(with {len(self.feature_selector.active_features)} active feature(s))"
+        )
 
     def _create_sector_model(self) -> BaseSectorDayStartModel:
         """Instantiate a fresh model instance of the crowned champion paradigm."""
@@ -260,7 +278,8 @@ class SectorDayStartForecaster:
             logger.warning("No next-day sector feature records extracted.")
             return []
 
-        df_next_pd = df_next_pl.to_pandas()
+        df_next_filtered_pl = self.feature_selector.filter_dataframe(df_next_pl)
+        df_next_pd = df_next_filtered_pl.to_pandas()
         live_forecasts: List[ForecastResult] = []
 
         for sec in tracked_sectors:
@@ -273,7 +292,8 @@ class SectorDayStartForecaster:
             if df_hist_pl.height == 0:
                 continue
 
-            df_hist_pd = df_hist_pl.to_pandas()
+            df_hist_filtered_pl = self.feature_selector.filter_dataframe(df_hist_pl)
+            df_hist_pd = df_hist_filtered_pl.to_pandas()
             X_hist = df_hist_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
             y_hist = df_hist_pd["target_sector_open_net_flow_tl"]
 
@@ -290,6 +310,75 @@ class SectorDayStartForecaster:
         )
         return live_forecasts
 
+    def run_ablation_study(self, sectors: Optional[List[str]] = None) -> pd.DataFrame:
+        """Run an automated Leave-One-Cluster-Out (LOCO) ablation tournament across sector feature clusters.
+
+        Returns:
+            pd.DataFrame: Scoreboard comparing Hit Rate %, 90% PICP %, and RMSE when each cluster is removed.
+        """
+        tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
+        if not tracked_sectors:
+            return pd.DataFrame()
+
+        clusters = self.feature_selector.get_available_clusters()
+        ablation_results = []
+
+        # 1. Baseline: All Features
+        sel_all = FeatureSelector(model_name="sector_day_start")
+        hit_rates_all, picps_all, rmses_all = [], [], []
+        for sec in tracked_sectors[:5]:
+            df_pl = self.feature_extractor.extract_features(sector=sec)
+            if df_pl.height < 5:
+                continue
+            df_pd = sel_all.filter_dataframe(df_pl).to_pandas()
+            X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+            y = df_pd["target_sector_open_net_flow_tl"]
+            min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
+            scores, champ = self.arena.run_tournament(X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+            hit_rates_all.append(scores.iloc[0]["hit_rate_pct"])
+            picps_all.append(scores.iloc[0]["picp_90_pct"])
+            rmses_all.append(scores.iloc[0]["rmse_million_tl"])
+
+        if hit_rates_all:
+            ablation_results.append({
+                "Experiment": "Baseline (All Sector Features)",
+                "Active_Features": len(sel_all.active_features),
+                "Removed_Cluster": "None",
+                "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_all)),
+                "Avg_PICP_90_Pct": float(np.mean(picps_all)),
+                "Avg_RMSE_Million_TL": float(np.mean(rmses_all)),
+            })
+
+        # 2. Leave out each cluster
+        for cl in clusters:
+            sel_loco = FeatureSelector(model_name="sector_day_start", disabled_clusters=[cl])
+            hit_rates_loco, picps_loco, rmses_loco = [], [], []
+            for sec in tracked_sectors[:5]:
+                df_pl = self.feature_extractor.extract_features(sector=sec)
+                if df_pl.height < 5:
+                    continue
+                df_pd = sel_loco.filter_dataframe(df_pl).to_pandas()
+                X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+                y = df_pd["target_sector_open_net_flow_tl"]
+                min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
+                scores, champ = self.arena.run_tournament(X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+                hit_rates_loco.append(scores.iloc[0]["hit_rate_pct"])
+                picps_loco.append(scores.iloc[0]["picp_90_pct"])
+                rmses_loco.append(scores.iloc[0]["rmse_million_tl"])
+
+            if hit_rates_loco:
+                ablation_results.append({
+                    "Experiment": f"Without '{cl}'",
+                    "Active_Features": len(sel_loco.active_features),
+                    "Removed_Cluster": cl,
+                    "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_loco)),
+                    "Avg_PICP_90_Pct": float(np.mean(picps_loco)),
+                    "Avg_RMSE_Million_TL": float(np.mean(rmses_loco)),
+                })
+
+        df_res = pd.DataFrame(ablation_results).sort_values(by=["Avg_Hit_Rate_Pct", "Avg_PICP_90_Pct", "Avg_RMSE_Million_TL"], ascending=[False, False, True]).reset_index(drop=True)
+        return df_res
+
     def backtest_all_history(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
         """Generate historical in-sample / backtest predictions across all historical training sessions."""
         tracked_sectors = sectors or self.feature_extractor.get_tracked_sectors(min_session_count=10)
@@ -304,7 +393,8 @@ class SectorDayStartForecaster:
             if df_pl.height == 0:
                 continue
 
-            df_pd = df_pl.to_pandas()
+            df_filtered_pl = self.feature_selector.filter_dataframe(df_pl)
+            df_pd = df_filtered_pl.to_pandas()
             X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
             y = df_pd["target_sector_open_net_flow_tl"]
 

@@ -93,6 +93,11 @@ Every new model adheres to this **Universal Modeling Blueprint**:
       - **Directional Conviction Levels**: `STRONG_BUY` ($\ge P_{85}$), `BUY` ($P_{50} \le \hat{y} < P_{85}$), `WEAK_BUY` ($P_{25} \le \hat{y} < P_{50}$), `NEUTRAL`, `WEAK_SELL`, `SELL`, `STRONG_SELL`.
       - **Institutional Playbooks**: Dynamic context blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
       - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
+11. **Column-Granular Feature Selection & Ablation Architecture**:
+    - Complete transparency down to individual feature column names and semantic microstructure clusters cataloged in `config/features.yaml`.
+    - `FeatureSelector` resolves active feature subsets with zero lookahead leakage.
+    - Automated Leave-One-Cluster-Out (LOCO) ablation studies (`forecaster.run_ablation_study()`) benchmark the predictive alpha contribution of each feature cluster.
+    - Full CLI override support via `--exclude-features`, `--include-features`, `--disabled-clusters`, and `--enabled-clusters`.
 
 ---
 

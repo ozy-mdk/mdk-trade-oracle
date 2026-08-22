@@ -208,6 +208,10 @@ class MedallionPipeline:
         all_missing: bool = False,
         backfill_lookback_months: Optional[int] = None,
         backfill_lookback_days: Optional[int] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ) -> dict[str, Any]:
         """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
@@ -219,6 +223,10 @@ class MedallionPipeline:
             all_missing=all_missing,
             backfill_lookback_months=backfill_lookback_months,
             backfill_lookback_days=backfill_lookback_days,
+            disabled_clusters=disabled_clusters,
+            enabled_clusters=enabled_clusters,
+            include_features=include_features,
+            exclude_features=exclude_features,
         )
 
         conn = self.db.get_connection()
@@ -268,6 +276,10 @@ class MedallionPipeline:
         all_missing: bool = False,
         backfill_lookback_months: Optional[int] = None,
         backfill_lookback_days: Optional[int] = None,
+        disabled_clusters: Optional[List[str]] = None,
+        enabled_clusters: Optional[List[str]] = None,
+        include_features: Optional[List[str]] = None,
+        exclude_features: Optional[List[str]] = None,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -302,6 +314,10 @@ class MedallionPipeline:
                     all_missing=all_missing,
                     backfill_lookback_months=backfill_lookback_months,
                     backfill_lookback_days=backfill_lookback_days,
+                    disabled_clusters=disabled_clusters,
+                    enabled_clusters=enabled_clusters,
+                    include_features=include_features,
+                    exclude_features=exclude_features,
                 )
 
 

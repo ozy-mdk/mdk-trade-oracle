@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import Field, field_validator
@@ -134,6 +134,13 @@ class Settings(BaseSettings):
             "default_lookback_months": backfill_cfg.get("default_lookback_months", 2),
             "default_lookback_days": backfill_cfg.get("default_lookback_days", None),
         }
+
+    def get_features_config(self, model_name: Optional[str] = None) -> Dict[str, Any]:
+        """Get feature catalog and selection configuration from features.yaml."""
+        data = self.load_yaml("features.yaml")
+        if model_name:
+            return data.get(model_name, {})
+        return data
 
 
 

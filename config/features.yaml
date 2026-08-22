@@ -1,0 +1,186 @@
+# ==============================================================================
+# MDK Trading Oracle - Feature Configuration & Selection Catalog
+# ==============================================================================
+# This configuration defines the complete catalog of engineered feature columns
+# across semantic microstructure clusters for all predictive Gold models.
+#
+# Feature Selection Rules:
+# 1. Clusters can be enabled or disabled as a group (enabled: true/false).
+# 2. Individual feature columns within a cluster can be toggled by commenting or
+#    adding them to 'exclude_features'.
+# 3. Explicit 'include_features' will force-include a feature even if its cluster is disabled.
+# 4. Explicit 'exclude_features' will remove specific feature columns regardless of cluster status.
+# ==============================================================================
+
+# Model 1: Macro Day-Start Forecaster ('How Will BofA Start the Day?')
+day_start:
+  # Explicit feature overrides (applied on top of cluster settings)
+  exclude_features: []
+  include_features: []
+
+  # Complete catalog of all 33 available feature columns organized by cluster
+  clusters:
+    # Cluster 1: Closing Window Momentum (Window 4 net flow & acceleration)
+    closing_momentum:
+      enabled: true
+      description: "Window 4 closing net flow, turnover, and acceleration ratio"
+      features:
+        - feat_bofa_w4_net_flow_tl
+        - feat_bofa_w4_turnover_tl
+        - feat_w4_flow_acceleration_ratio
+
+    # Cluster 2: Multi-Day Inventory & Macro Saturation
+    inventory_saturation:
+      enabled: true
+      description: "T-1 net flow, market share, rank, 5d cumulative flow, and 20d flow Z-score"
+      features:
+        - feat_bofa_prev_day_net_flow_tl
+        - feat_bofa_prev_day_turnover_tl
+        - feat_bofa_prev_day_market_share
+        - feat_bofa_prev_day_turnover_rank
+        - feat_bofa_cum_net_flow_5d_tl
+        - feat_bofa_flow_zscore_20d
+
+    # Cluster 3: Institutional Cost Basis & Unrealized PnL
+    cost_basis_pnl:
+      enabled: true
+      description: "20-day buy VWAP cost basis spread and prior day close vs VWAP spread"
+      features:
+        - feat_bofa_cost_basis_spread_20d_pct
+        - feat_prev_day_close_vs_vwap_spread_pct
+
+    # Cluster 4: Top-5 Competitor Closing Posture & Imbalance
+    competitor_deltas:
+      enabled: true
+      description: "Domestic bank (IYM, YKR, AKM, GRM, ZRY) flows, W4 delta, and total delta"
+      features:
+        - feat_top5_domestic_w4_net_flow_tl
+        - feat_top5_domestic_prev_day_net_flow_tl
+        - feat_bofa_vs_top5_w4_flow_delta_tl
+        - feat_bofa_vs_top5_total_flow_delta_tl
+        - feat_top5_cum_net_flow_5d_tl
+
+    # Cluster 5: Institutional Hegemony & Market Concentration
+    institutional_hegemony:
+      enabled: true
+      description: "Combined institutional market turnover share and CR5 concentration ratio"
+      features:
+        - feat_institutional_hegemony_share
+        - feat_avg_cr5_concentration
+
+    # Cluster 6: Sector Breadth & Prior Day Sector Flows
+    sector_flows:
+      enabled: true
+      description: "Market return/range breadth and BofA/competitor flows across key sectors"
+      features:
+        - feat_market_avg_return_pct
+        - feat_market_avg_range_pct
+        - feat_bofa_banking_flow_prev_day
+        - feat_bofa_transport_flow_prev_day
+        - feat_bofa_holding_flow_prev_day
+        - feat_bofa_energy_flow_prev_day
+        - feat_bofa_defense_flow_prev_day
+        - feat_top5_banking_flow_prev_day
+
+    # Cluster 7: Calendar Dynamics & Temporal Seasonality
+    calendar_dynamics:
+      enabled: true
+      description: "Day of week and Monday / Friday trading flags"
+      features:
+        - day_of_week
+        - is_monday
+        - is_friday
+
+    # Cluster 8: Macro Interest Rates & Monetary Policy Dynamics
+    macro_rates:
+      enabled: true
+      description: "TCMB 1-Week Repo policy rate, shock decay, spread vs 30d mean, and daily carry cost"
+      features:
+        - feat_macro_interest_rate
+        - feat_macro_rate_shock_decay
+        - feat_macro_rate_spread_vs_30d_mean
+        - feat_macro_daily_carry_cost_bps
+
+    # Cluster 9: Benchmark Index (BIST 30) Momentum & Volatility
+    benchmark_index:
+      enabled: true
+      description: "Official BIST 30 (XU030) daily return, intraday return, 5d return, 20d SMA trend, and 20d volatility"
+      features:
+        - feat_bist30_prev_day_return_pct
+        - feat_bist30_prev_day_intraday_return_pct
+        - feat_bist30_prev_day_range_pct
+        - feat_bist30_cum_return_5d
+        - feat_bist30_trend_vs_20d_sma
+        - feat_bist30_volatility_20d
+
+
+# Model 2: Sector Day-Start Allocation Forecaster ('How Will BofA Allocate Across Sectors?')
+sector_day_start:
+  # Explicit feature overrides (applied on top of cluster settings)
+  exclude_features: []
+  include_features: []
+
+  # Complete catalog of all 24 available feature columns organized by cluster
+  clusters:
+    # Cluster 1: Sector Prior Closing Window Momentum
+    sector_closing_momentum:
+      enabled: true
+      description: "Sector Window 4 closing flow, turnover, and competitor delta"
+      features:
+        - feat_sector_bofa_w4_net_flow_tl
+        - feat_sector_bofa_w4_turnover_tl
+        - feat_sector_top5_w4_net_flow_tl
+        - feat_sector_bofa_vs_top5_w4_delta_tl
+
+    # Cluster 2: Sector Competitor Imbalance
+    sector_competitor_imbalance:
+      enabled: true
+      description: "Sector full-day net flow, turnover, and BofA vs Top-5 daily delta"
+      features:
+        - feat_sector_bofa_prev_day_net_flow_tl
+        - feat_sector_bofa_prev_day_turnover_tl
+        - feat_sector_top5_prev_day_net_flow_tl
+        - feat_sector_bofa_vs_top5_daily_delta_tl
+
+    # Cluster 3: Sector Dominance & Share of Wallet
+    sector_dominance:
+      enabled: true
+      description: "BofA sector market share, sector wallet share, and macro BofA/Top-5 context flows"
+      features:
+        - feat_sector_bofa_market_share
+        - feat_sector_bofa_share_of_wallet
+        - feat_macro_bofa_prev_day_net_flow_tl
+        - feat_macro_top5_prev_day_net_flow_tl
+
+    # Cluster 4: Sector Multi-Day Accumulation & Saturation
+    sector_accumulation:
+      enabled: true
+      description: "Sector 5d cumulative flow, Top-5 5d cumulative flow, and sector 20d flow Z-score"
+      features:
+        - feat_sector_bofa_cum_net_flow_5d_tl
+        - feat_sector_top5_cum_net_flow_5d_tl
+        - feat_sector_bofa_flow_zscore_20d
+
+    # Cluster 5: Macro Context, Interest Rates & Seasonality
+    macro_context:
+      enabled: true
+      description: "Calendar flags, TCMB interest rate dynamics, and sector rate-flow interaction"
+      features:
+        - day_of_week
+        - is_monday
+        - is_friday
+        - feat_macro_interest_rate
+        - feat_macro_rate_shock_decay
+        - feat_macro_rate_spread_vs_30d_mean
+        - feat_sector_rate_x_flow_interaction
+
+    # Cluster 6: Sector Relative Alpha & Benchmark Interaction
+    benchmark_relative_alpha:
+      enabled: true
+      description: "Sector relative alpha vs BIST 30 (1d/5d), BIST 30 market return, and beta momentum"
+      features:
+        - feat_sector_rel_return_vs_bist30_1d
+        - feat_sector_rel_return_vs_bist30_5d
+        - feat_bist30_market_return_1d
+        - feat_bist30_market_range_pct
+        - feat_sector_beta_x_bist30_momentum
