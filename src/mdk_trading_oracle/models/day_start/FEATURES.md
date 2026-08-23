@@ -16,7 +16,7 @@ All input features are strictly constructed from completed historical market ses
 
 ---
 
-## 3. The 8 Quantitative Feature Clusters (33 Features)
+## 3. The 10 Quantitative Feature Clusters (45 Features)
 
 ### Cluster 1: Prior Closing Window Momentum (Window 4: 17:00 – 18:10 TRT)
 *Unfinished institutional Market-on-Close (MOC) and VWAP benchmark programs carry over into the next morning's opening auction.*
@@ -129,9 +129,23 @@ All input features are strictly constructed from completed historical market ses
 
 ---
 
-## 3. Feature Selection, Configuration & Ablation Engine
+### Cluster 10: Institutional FIFO Tertip & Overnight Inventory
+*Tracks BofA's carried open stock positions, unrealized PnL, carry/intraday realization splits, and delta vs domestic inventory.*
 
-All 39 feature columns are declaratively managed in `config/features.yaml` under `day_start`.
+| Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `feat_bofa_net_open_inventory_tl` | Level ($T-1$) | $\sum (\text{Cost}_{\text{Long}} - \text{Cost}_{\text{Short}})$ | `0.0` | Signed total cost value of overnight open inventory. Positive = net long, negative = net short. |
+| `feat_bofa_unrealized_pnl_tl` | PnL ($T-1$) | $\sum \text{Unrealized PnL}_{T-1}$ | `0.0` | Total mark-to-market unrealized profit/loss on open FIFO lots. |
+| `feat_bofa_unrealized_pnl_return_pct` | Return ($T-1$) | $\frac{\sum \text{Unrealized PnL}}{\sum \text{Gross Open Cost}} \times 100$ | `0.0` | Overnight return % on carried book. High positive return prompts morning profit-taking. |
+| `feat_bofa_carry_fifo_pnl_prev_day_tl` | PnL ($T-1$) | $\sum \text{Carry FIFO PnL}_{T-1}$ | `0.0` | Realized PnL from closing multi-day carried FIFO lots on $T-1$. |
+| `feat_bofa_intraday_pnl_prev_day_tl` | PnL ($T-1$) | $\sum \text{Intraday PnL}_{T-1}$ | `0.0` | Realized PnL from intraday round-trip trade matching on $T-1$. |
+| `feat_bofa_vs_top5_inventory_delta_tl` | Delta ($T-1$) | $\text{NetInv}_{\text{MLB}} - \text{NetInv}_{\text{Top5}}$ | `0.0` | Inventory posture divergence between BofA and Top-5 domestic dealer desks. |
+
+---
+
+## 4. Feature Selection, Configuration & Ablation Engine
+
+All 45 feature columns are declaratively managed in `config/features.yaml` under `day_start`.
 
 ### Configuration (`config/features.yaml`)
 ```yaml
@@ -148,6 +162,7 @@ day_start:
     calendar_dynamics: { enabled: true }
     macro_rates: { enabled: true }
     benchmark_index: { enabled: true }
+    tertip_inventory: { enabled: true }
 ```
 
 ### Programmatic & CLI Usage

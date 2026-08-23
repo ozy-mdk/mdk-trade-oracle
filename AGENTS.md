@@ -105,6 +105,11 @@ Every new model adheres to this **Universal Modeling Blueprint**:
     - `FeatureSelector` resolves active feature subsets with zero lookahead leakage.
     - Automated Leave-One-Cluster-Out (LOCO) ablation studies (`forecaster.run_ablation_study()`) benchmark the predictive alpha contribution of each feature cluster.
     - Full CLI override support via `--exclude-features`, `--include-features`, `--disabled-clusters`, and `--enabled-clusters`.
+12. **Mandatory Documentation Synchronization for Features (`FEATURES.md`)**:
+    - Whenever feature definitions, semantic clusters, or engineered columns are added, modified, or ablated:
+      1. Update `config/features.yaml` with accurate column lists and cluster descriptions.
+      2. Update the model's dedicated feature documentation (`src/mdk_trading_oracle/models/<model_name>/FEATURES.md`) with mathematical formulations, microstructure hypotheses, default coalesce values, and updated cluster/feature count matrices.
+      3. Synchronize skill references (`.agents/skills/mdk-institutional-flow-analysis/SKILL.md`) and unit test count assertions (`tests/test_feature_selection.py`).
 
 ---
 

@@ -16,7 +16,7 @@ All input features are strictly constructed from completed historical market ses
 
 ---
 
-## 3. The 5 Sector Quantitative Feature Clusters (22 Features)
+## 3. The 7 Sector Quantitative Feature Clusters (32 Features)
 
 ### Cluster 1: Sector Closing Momentum (Window 4: 17:00 – 18:10 TRT)
 *Unfinished institutional sector benchmark orders (MOC/VWAP) carry over into next morning's sector opening auction.*
@@ -93,9 +93,22 @@ All input features are strictly constructed from completed historical market ses
 
 ---
 
-## 3. Feature Selection, Configuration & Ablation Engine
+### Cluster 7: Sector Institutional FIFO Tertip & Inventory
+*Tracks BofA's sector-level open positions, sector wallet inventory share, sector unrealized PnL, and competitor sector inventory delta.*
 
-All 27 sector feature columns are declaratively managed in `config/features.yaml` under `sector_day_start`.
+| Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `feat_sector_bofa_net_inventory_tl` | Level ($T-1$) | $\sum_{i \in s} (\text{Cost}_{\text{Long}} - \text{Cost}_{\text{Short}})$ | `0.0` | Signed total cost value of BofA's overnight open positions in sector $s$. |
+| `feat_sector_bofa_inventory_wallet_share` | Ratio ($T-1$) | $\frac{\|\text{NetInv}_{\text{MLB}, s}\|}{\sum_k \|\text{NetInv}_{\text{MLB}, k}\|} $ | `0.0` | Proportion of BofA's total multi-sector carried inventory allocated to sector $s$. |
+| `feat_sector_bofa_unrealized_pnl_tl` | PnL ($T-1$) | $\sum_{i \in s} \text{Unrealized PnL}_{T-1}$ | `0.0` | Mark-to-market unrealized PnL across open positions in sector $s$. |
+| `feat_sector_bofa_unrealized_pnl_return_pct` | Return ($T-1$) | $\frac{\sum_{i \in s} \text{Unrealized PnL}}{\sum_{i \in s} \text{Gross Open Cost}} \times 100$ | `0.0` | Overnight return % on carried sector exposure. High gains trigger morning profit-taking. |
+| `feat_sector_bofa_vs_top5_inventory_delta_tl` | Delta ($T-1$) | $\text{SectorNetInv}_{\text{MLB}} - \text{SectorNetInv}_{\text{Top5}}$ | `0.0` | Sector inventory divergence between BofA and Top-5 domestic dealer desks. |
+
+---
+
+## 4. Feature Selection, Configuration & Ablation Engine
+
+All 32 sector feature columns are declaratively managed in `config/features.yaml` under `sector_day_start`.
 
 ### Configuration (`config/features.yaml`)
 ```yaml
@@ -109,6 +122,7 @@ sector_day_start:
     sector_accumulation: { enabled: true }
     macro_context: { enabled: true }
     benchmark_relative_alpha: { enabled: true }
+    sector_tertip_inventory: { enabled: true }
 ```
 
 ### Programmatic & CLI Usage
