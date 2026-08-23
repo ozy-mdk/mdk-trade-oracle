@@ -6,15 +6,8 @@ nb = nbf.v4.new_notebook()
 
 # Metadata
 nb.metadata = {
-    "kernelspec": {
-        "display_name": "Python 3.9 (mdk-trading-oracle)",
-        "language": "python",
-        "name": "python3"
-    },
-    "language_info": {
-        "name": "python",
-        "version": "3.9.5"
-    }
+    "kernelspec": {"display_name": "Python 3.9 (mdk-trading-oracle)", "language": "python", "name": "python3"},
+    "language_info": {"name": "python", "version": "3.9.5"},
 }
 
 cells = [
@@ -53,7 +46,6 @@ All features are constructed strictly from $T-1$ Close data:
 4. **Sector Multi-Day Inventory Saturation**: 5-day cumulative sector flow and 20-day sector flow Z-score (`feat_sector_bofa_flow_zscore_20d`).
 5. **Macro Context & Calendar Dynamics**: Total BofA macro net flow on $T-1$, and calendar flags (`is_monday`, `is_friday`).
 """),
-
     nbf.v4.new_code_cell("""import duckdb
 import polars as pl
 import pandas as pd
@@ -76,12 +68,10 @@ settings = get_settings()
 print(f"[OK] DuckDB Database: {settings.duckdb_path}")
 print(f"[OK] Data Directory: {settings.data_dir}")
 """),
-
     nbf.v4.new_markdown_cell("""## 2. Sector Feature Extraction across BIST Industries
 
 We extract sector-level feature matrices for all tracked liquid sectors at $T-1$ Close with **zero data leakage**.
 """),
-
     nbf.v4.new_code_cell("""db = DuckDBManager(read_only=True)
 extractor = SectorDayStartFeatureExtractor(db, target_broker_id="MLB")
 tracked_sectors = extractor.get_tracked_sectors(min_session_count=10)
@@ -96,12 +86,10 @@ display(df.head(6)[["trade_date", "sector", "feat_sector_bofa_w4_net_flow_tl",
                    "feat_sector_bofa_vs_top5_w4_delta_tl", "feat_sector_bofa_cum_net_flow_5d_tl", 
                    "target_sector_open_net_flow_tl", "target_sector_open_direction"]])
 """),
-
     nbf.v4.new_markdown_cell("""## 3. Sector Model Arena: Walk-Forward Tournament
 
 Running expanding-window walk-forward validation across candidate models (Naive Persistence, Rolling Mean, LightGBM, Bayesian Ridge, PyMC GLM).
 """),
-
     nbf.v4.new_code_cell("""# Benchmark candidates across the banking sector as a representative high-liquidity benchmark
 df_banking = df[df["sector"] == "Banking"].copy()
 X_bank = df_banking.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
@@ -129,12 +117,10 @@ display(HTML(f\"\"\"
 display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"], color="#1b4332")
                            .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
-
     nbf.v4.new_markdown_cell("""## 4. Live Next-Day Sector Allocation & Pair Trading Matrix (Tomorrow's Session)
 
 Using the dynamically crowned champion model, we extract features from the latest market close and generate the **live sector-by-sector opening flow allocation forecast for tomorrow morning**.
 """),
-
     nbf.v4.new_code_cell("""# Initialize Forecaster with the dynamically crowned champion
 forecaster = SectorDayStartForecaster(db, model_type=champion_model.model_name)
 live_sector_forecasts = forecaster.forecast_next_day(sectors=tracked_sectors[:12])
@@ -179,12 +165,10 @@ display(live_df.style.format({
 }).highlight_max(subset=["pred_flow_m"], color="#1b4332")
   .highlight_min(subset=["pred_flow_m"], color="#4a0e17"))
 """),
-
     nbf.v4.new_markdown_cell("""## 5. Interactive Historical Sector Forecast Explorer (Backtest vs Actuals)
 
 Select any sector from the dropdown to inspect BofA's historical predicted vs actual opening net flow and 90% credible ranges.
 """),
-
     nbf.v4.new_code_cell("""# Generate historical backtests using crowned champion
 all_sector_backtests = forecaster.backtest_all_history(sectors=tracked_sectors[:8])
 
@@ -273,7 +257,6 @@ display(sector_dropdown, plot_output)
 if sector_dropdown.value:
     update_sector_plot({"new": sector_dropdown.value})
 """),
-
     nbf.v4.new_markdown_cell("""## 6. Gold Sector Tables & Production Performance Ledgers in DuckDB
 
 Verifying the persisted production tables in DuckDB:
@@ -281,7 +264,6 @@ Verifying the persisted production tables in DuckDB:
 2. `gold_bofa_sector_day_start_performance`: Permanent historical sector performance tracking ledger recording prior sector forecasts matched against actual realized Window 1 market data.
 3. `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward backtest simulation ledger across all 26 sectors.
 """),
-
     nbf.v4.new_code_cell("""conn = db.get_connection()
 
 print("1. Live Active Sector Forecasts (gold_bofa_sector_day_start_forecasts) - Strictly T+1:")
@@ -319,12 +301,10 @@ gold_sector_perf_df = conn.execute(\"\"\"
 \"\"\").df()
 display(gold_sector_perf_df)
 """),
-
     nbf.v4.new_markdown_cell("""### Cross-Sector Backtest Leaderboard (`gold_bofa_sector_day_start_backtests`)
 
 Evaluating model accuracy and directional hit rate across all 26 tracked BIST sectors:
 """),
-
     nbf.v4.new_code_cell("""# Macro metrics across all sectors
 sector_macro_kpis = conn.execute(\"\"\"
     SELECT 
@@ -374,7 +354,6 @@ sector_leaderboard_df = conn.execute(\"\"\"
 \"\"\").df()
 display(sector_leaderboard_df)
 """),
-
     nbf.v4.new_code_cell("""print("2. Recent Sector Backtest Ledger Records (gold_bofa_sector_day_start_backtests):")
 gold_sector_backtests_df = conn.execute(\"\"\"
     SELECT 
@@ -394,7 +373,7 @@ gold_sector_backtests_df = conn.execute(\"\"\"
     LIMIT 26;
 \"\"\").df()
 display(gold_sector_backtests_df)
-""")
+"""),
 ]
 
 nb.cells.extend(cells)
@@ -403,6 +382,3 @@ with open("notebooks/04_bofa_sector_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("[OK] Successfully generated notebooks/04_bofa_sector_day_start_modeling.ipynb!")
-
-
-

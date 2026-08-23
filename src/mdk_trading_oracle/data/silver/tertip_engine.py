@@ -42,6 +42,7 @@ def allocate_value(value: Decimal, available: Decimal, taken: Decimal) -> Decima
 @dataclass
 class Lot:
     """Active FIFO lot tracked in memory."""
+
     lot_id: str
     broker_id: str
     symbol: str
@@ -59,6 +60,7 @@ class Lot:
 @dataclass
 class LotEntryRecord:
     """Immutable entry record written once when a lot is created."""
+
     lot_id: str
     broker_id: str
     symbol: str
@@ -72,6 +74,7 @@ class LotEntryRecord:
 @dataclass
 class LotRealizationRecord:
     """Audited realization event created for each partial or full lot closure."""
+
     realization_id: str
     lot_id: str
     broker_id: str
@@ -89,6 +92,7 @@ class LotRealizationRecord:
 @dataclass
 class DailyFlowResult:
     """Result of intraday matching and residual FIFO execution for a single day."""
+
     trade_date: dt.date
     broker_id: str
     symbol: str
@@ -351,12 +355,8 @@ def match_daily_flow(
     sell_val = qmoney(sell_turnover)
 
     matched_quantity = min(buy_quantity, sell_quantity)
-    matched_buy_value = (
-        ZERO if matched_quantity == ZERO else allocate_value(buy_val, buy_quantity, matched_quantity)
-    )
-    matched_sell_value = (
-        ZERO if matched_quantity == ZERO else allocate_value(sell_val, sell_quantity, matched_quantity)
-    )
+    matched_buy_value = ZERO if matched_quantity == ZERO else allocate_value(buy_val, buy_quantity, matched_quantity)
+    matched_sell_value = ZERO if matched_quantity == ZERO else allocate_value(sell_val, sell_quantity, matched_quantity)
     intraday_realized = qmoney(matched_sell_value - matched_buy_value)
 
     if buy_quantity > sell_quantity:
@@ -369,9 +369,7 @@ def match_daily_flow(
         residual_quantity = ZERO
         residual_value = ZERO
 
-    residual_unit_cost = (
-        None if residual_quantity == ZERO else (residual_value / abs(residual_quantity))
-    )
+    residual_unit_cost = None if residual_quantity == ZERO else (residual_value / abs(residual_quantity))
 
     return (
         matched_quantity,

@@ -61,10 +61,15 @@ def test_day_start_feature_extraction(populated_test_db):
     assert df.height > 0
     # Verify key cluster features exist
     expected_cols = [
-        "trade_date", "is_monday", "is_friday",
-        "feat_bofa_w4_net_flow_tl", "feat_bofa_prev_day_net_flow_tl",
-        "feat_bofa_vs_top5_w4_flow_delta_tl", "feat_institutional_hegemony_share",
-        "feat_bofa_cum_net_flow_5d_tl", "target_open_net_flow_tl"
+        "trade_date",
+        "is_monday",
+        "is_friday",
+        "feat_bofa_w4_net_flow_tl",
+        "feat_bofa_prev_day_net_flow_tl",
+        "feat_bofa_vs_top5_w4_flow_delta_tl",
+        "feat_institutional_hegemony_share",
+        "feat_bofa_cum_net_flow_5d_tl",
+        "target_open_net_flow_tl",
     ]
     for col in expected_cols:
         assert col in df.columns, f"Missing feature column: {col}"
@@ -165,7 +170,7 @@ def test_day_start_next_day_feature_extraction(populated_test_db):
 def test_day_start_forecaster_auto_orchestration(populated_test_db):
     """Test DayStartForecaster in 'auto' mode end-to-end live next-day forecast and backtesting."""
     forecaster = DayStartForecaster(populated_test_db, model_type="auto")
-    
+
     # 1. Live Next-Day Forecast
     next_res = forecaster.forecast_next_day()
     assert next_res is not None
@@ -236,6 +241,3 @@ def test_day_start_forecaster_auto_orchestration(populated_test_db):
     assert backtest_row[0] is not None
     assert backtest_row[1] is not None
     assert backtest_row[3] in [True, False]
-
-
-

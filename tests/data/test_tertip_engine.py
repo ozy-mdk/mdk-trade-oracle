@@ -89,9 +89,7 @@ def test_three_day_full_numerical_scenario():
     apply_buy(state, Decimal("100"), Decimal("5000"), dt.date(2026, 1, 1), changes)
 
     # Day 1: Buy 40 @ 10 TL, Sell 100 @ 20 TL
-    res1 = execute_daily_flow_step(
-        state, dt.date(2026, 1, 2), 40.0, 400.0, 100.0, 2000.0, 20.0, changes
-    )
+    res1 = execute_daily_flow_step(state, dt.date(2026, 1, 2), 40.0, 400.0, 100.0, 2000.0, 20.0, changes)
     assert res1.intraday_realized_pnl == Decimal("400.000000")
     assert res1.carry_fifo_realized_pnl == Decimal("-1800.000000")
     assert res1.daily_realized_pnl == Decimal("-1400.000000")
@@ -100,9 +98,7 @@ def test_three_day_full_numerical_scenario():
     assert res1.open_fifo_cost_tl == Decimal("2000.000000")
 
     # Day 2: Net 50 sell @ 60 TL (3000 TL turnover, 0 buy)
-    res2 = execute_daily_flow_step(
-        state, dt.date(2026, 1, 3), 0.0, 0.0, 50.0, 3000.0, 60.0, changes
-    )
+    res2 = execute_daily_flow_step(state, dt.date(2026, 1, 3), 0.0, 0.0, 50.0, 3000.0, 60.0, changes)
     assert res2.intraday_realized_pnl == Decimal("0.000000")
     # 40 long @ 50 closed at 60 TL -> 40 * (60 - 50) = +400 TL
     assert res2.carry_fifo_realized_pnl == Decimal("400.000000")
@@ -114,9 +110,7 @@ def test_three_day_full_numerical_scenario():
     assert res2.fifo_avg_cost == Decimal("60")
 
     # Day 3: Net 10 buy @ 55 TL (550 TL turnover, 0 sell)
-    res3 = execute_daily_flow_step(
-        state, dt.date(2026, 1, 4), 10.0, 550.0, 0.0, 0.0, 55.0, changes
-    )
+    res3 = execute_daily_flow_step(state, dt.date(2026, 1, 4), 10.0, 550.0, 0.0, 0.0, 55.0, changes)
     assert res3.intraday_realized_pnl == Decimal("0.000000")
     # Short 10 @ 60 covered at 55 TL -> 600 - 550 = +50 TL
     assert res3.carry_fifo_realized_pnl == Decimal("50.000000")

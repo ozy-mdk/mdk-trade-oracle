@@ -22,13 +22,16 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ## 3. System Architecture (Medallion Lakehouse)
 A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
 
-- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_instruments`, `bronze_brokers`)**:
+- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_instruments`, `bronze_brokers`)**:
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
+  - Historical corporate actions (stock splits, rights issues, ticker symbol changes).
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_corporate_action_adjustment_periods`, `silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
+  - Precision corporate action adjustment periods (`silver_corporate_action_adjustment_periods`) providing continuous `quantity_factor` and `canonical_symbol` mappings with zero monetary distortion ($\text{Turnover TL} = \text{Conserved}$).
+  - Adjusted prices and returns enriched directly in `silver_daily_stock_summary` (`adj_close_price`, `adj_daily_return_pct`, `adj_market_vwap`, `adj_total_volume`, `adj_bofa_total_vwap`).
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
   - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
@@ -157,6 +160,10 @@ To allow seamless portability across different team members' local machines:
 - **Central Bank Rates Ingestion & Market Sync**:
   ```bash
   .venv/bin/mdk-oracle load-rates
+  ```
+- **Corporate Actions Ingestion & Share Adjustment Periods**:
+  ```bash
+  .venv/bin/mdk-oracle load-corporate-actions
   ```
 - **Daily Gold Layer Execution & Live Inference ($T+1$)**:
   ```bash

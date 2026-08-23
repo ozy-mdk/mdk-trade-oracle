@@ -73,7 +73,7 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    # 3. Silver Table: Daily Stock Summary (OHLCV, CR5 concentration, top desks, BofA footprint)
+    # 3. Silver Table: Daily Stock Summary (OHLCV, CR5 concentration, top desks, BofA footprint, adjusted metrics)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS silver_daily_stock_summary (
             trade_date DATE,
@@ -81,6 +81,7 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
             is_monday BOOLEAN,
             is_friday BOOLEAN,
             symbol VARCHAR,
+            canonical_symbol VARCHAR,
             symbol_name VARCHAR,
             sector VARCHAR,
             index_name VARCHAR,
@@ -95,6 +96,15 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
             total_turnover_tl DOUBLE,
             total_trades BIGINT,
             active_brokers_count BIGINT,
+            quantity_factor DOUBLE DEFAULT 1.0,
+            has_unresolved_paid_action BOOLEAN DEFAULT FALSE,
+            adj_open_price DOUBLE,
+            adj_high_price DOUBLE,
+            adj_low_price DOUBLE,
+            adj_close_price DOUBLE,
+            adj_market_vwap DOUBLE,
+            adj_total_volume DOUBLE,
+            adj_daily_return_pct DOUBLE,
             top_buyer_broker_id VARCHAR,
             top_buyer_turnover_tl DOUBLE,
             top_buyer_share DOUBLE,
@@ -113,6 +123,9 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
             bofa_sell_vwap DOUBLE,
             bofa_total_vwap DOUBLE,
             bofa_vwap_spread_pct DOUBLE,
+            adj_bofa_buy_vwap DOUBLE,
+            adj_bofa_sell_vwap DOUBLE,
+            adj_bofa_total_vwap DOUBLE,
             bofa_rank_in_stock INTEGER,
             calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (trade_date, symbol)
@@ -392,5 +405,20 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, tertip FIFO, and distribution tables.")
+    # 16. Silver Corporate Actions Table: Continuous Point-in-Time Share Adjustment Periods
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_corporate_action_adjustment_periods (
+            source_symbol VARCHAR NOT NULL,
+            effective_from DATE NOT NULL,
+            effective_to DATE NOT NULL,
+            canonical_symbol VARCHAR NOT NULL,
+            quantity_factor DOUBLE NOT NULL,
+            has_unresolved_paid_action BOOLEAN NOT NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (source_symbol, effective_from)
+        );
+    """)
 
+    logger.info(
+        "DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, tertip FIFO, and corporate action adjustment tables."
+    )

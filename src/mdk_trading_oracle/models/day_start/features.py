@@ -26,10 +26,9 @@ def get_next_trading_day(latest_date: date) -> date:
         return latest_date + timedelta(days=1)
 
 
-
 class DayStartFeatureExtractor(BaseFeatureExtractor):
     """Extracts, engineers, and temporal-aligns the 9 Feature Clusters at T-1 Close to predict T_open (Window 1).
-    
+
     Clusters:
         1. Prior Closing Window Momentum (Window 4 net flow & acceleration)
         2. Multi-Day Inventory & Sector Saturation (5d/20d rolling flows & Z-scores)
@@ -56,17 +55,19 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
 
     def extract_features(self, start_date: Optional[date] = None, end_date: Optional[date] = None) -> pl.DataFrame:
         """Extract multi-cluster feature matrix from DuckDB Silver tables with optional lookback filtering.
-        
+
         Args:
             start_date: Optional filter for minimum trade date.
             end_date: Optional filter for maximum trade date.
-            
+
         Returns:
-            pl.DataFrame: Clean dataset where each row is a trading day T with features computed 
+            pl.DataFrame: Clean dataset where each row is a trading day T with features computed
                           strictly from historical data up to T-1 Close, paired with actual Window 1 target outcomes on Day T.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Day-Start 7 Feature Clusters for broker '{self.target_broker}' (lookback_months={self.lookback_months})...")
+        logger.info(
+            f"Extracting Day-Start 7 Feature Clusters for broker '{self.target_broker}' (lookback_months={self.lookback_months})..."
+        )
 
         # Determine effective start_date from lookback_months if not explicitly given
         effective_start = start_date
@@ -78,6 +79,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     reference_end = max_d_res[0]
             if reference_end:
                 from dateutil.relativedelta import relativedelta
+
                 effective_start = reference_end - relativedelta(months=self.lookback_months)
 
         query = f"""
@@ -125,17 +127,17 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
             prev_day_market_summary AS (
                 SELECT 
                     trade_date,
-                    AVG(daily_return_pct) AS market_avg_return_pct,
+                    AVG(COALESCE(adj_daily_return_pct, daily_return_pct)) AS market_avg_return_pct,
                     AVG(price_range_pct) AS market_avg_range_pct,
                     SUM(total_turnover_tl) AS total_market_turnover_tl,
                     AVG(top_5_concentration_ratio) AS avg_cr5_concentration,
                     SUM(bofa_net_flow_tl) AS market_bofa_net_flow_tl,
                     -- Cost Basis aggregations
                     SUM(bofa_buy_turnover_tl) AS bofa_total_buy_turnover_tl,
-                    SUM(CASE WHEN bofa_buy_vwap > 0 THEN bofa_buy_vwap * total_volume ELSE 0.0 END) / 
-                        NULLIF(SUM(CASE WHEN bofa_buy_vwap > 0 THEN total_volume ELSE 0.0 END), 0.0) AS bofa_daily_buy_vwap,
-                    AVG(close_price) AS market_avg_close_price,
-                    AVG(market_vwap) AS market_avg_vwap
+                    SUM(CASE WHEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) > 0 THEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) * COALESCE(adj_total_volume, total_volume) ELSE 0.0 END) / 
+                        NULLIF(SUM(CASE WHEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) > 0 THEN COALESCE(adj_total_volume, total_volume) ELSE 0.0 END), 0.0) AS bofa_daily_buy_vwap,
+                    AVG(COALESCE(adj_close_price, close_price)) AS market_avg_close_price,
+                    AVG(COALESCE(adj_market_vwap, market_vwap)) AS market_avg_vwap
                 FROM silver_daily_stock_summary
                 GROUP BY trade_date
             ),
@@ -413,19 +415,21 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
 
     def extract_next_day_features(self, as_of_date: Optional[date] = None) -> pl.DataFrame:
         """Extract the single feature row for the upcoming trading session (T_next) based on T_close.
-        
+
         Zero lookahead leakage: all metrics are computed from completed data strictly up to `as_of_date`
         (or the latest date in DuckDB if as_of_date is None).
         The trade_date is automatically computed as the next trading business day.
-        
+
         Args:
             as_of_date: Optional reference date. If provided, data after this date is completely hidden.
-            
+
         Returns:
             pl.DataFrame: 1-row feature matrix ready for live model inference for tomorrow morning.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Next-Day Day-Start Feature Vector for broker '{self.target_broker}' (as_of_date={as_of_date or 'LATEST'})...")
+        logger.info(
+            f"Extracting Next-Day Day-Start Feature Vector for broker '{self.target_broker}' (as_of_date={as_of_date or 'LATEST'})..."
+        )
 
         date_filter = f"WHERE trade_date <= '{as_of_date}'" if as_of_date is not None else ""
 
@@ -466,16 +470,16 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
             prev_day_market_summary AS (
                 SELECT 
                     trade_date,
-                    AVG(daily_return_pct) AS market_avg_return_pct,
+                    AVG(COALESCE(adj_daily_return_pct, daily_return_pct)) AS market_avg_return_pct,
                     AVG(price_range_pct) AS market_avg_range_pct,
                     SUM(total_turnover_tl) AS total_market_turnover_tl,
                     AVG(top_5_concentration_ratio) AS avg_cr5_concentration,
                     SUM(bofa_net_flow_tl) AS market_bofa_net_flow_tl,
                     SUM(bofa_buy_turnover_tl) AS bofa_total_buy_turnover_tl,
-                    SUM(CASE WHEN bofa_buy_vwap > 0 THEN bofa_buy_vwap * total_volume ELSE 0.0 END) / 
-                        NULLIF(SUM(CASE WHEN bofa_buy_vwap > 0 THEN total_volume ELSE 0.0 END), 0.0) AS bofa_daily_buy_vwap,
-                    AVG(close_price) AS market_avg_close_price,
-                    AVG(market_vwap) AS market_avg_vwap
+                    SUM(CASE WHEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) > 0 THEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) * COALESCE(adj_total_volume, total_volume) ELSE 0.0 END) / 
+                        NULLIF(SUM(CASE WHEN COALESCE(adj_bofa_buy_vwap, bofa_buy_vwap) > 0 THEN COALESCE(adj_total_volume, total_volume) ELSE 0.0 END), 0.0) AS bofa_daily_buy_vwap,
+                    AVG(COALESCE(adj_close_price, close_price)) AS market_avg_close_price,
+                    AVG(COALESCE(adj_market_vwap, market_vwap)) AS market_avg_vwap
                 FROM silver_daily_stock_summary
                 GROUP BY trade_date
             ),
@@ -681,21 +685,21 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
         source_date = df_latest["source_date"][0]
         next_date = get_next_trading_day(source_date)
         dow = next_date.isoweekday()
-        is_mon = (dow == 1)
-        is_fri = (dow == 5)
+        is_mon = dow == 1
+        is_fri = dow == 5
 
         # Build clean 1-row DataFrame aligned with next trading day
-        df_next = df_latest.with_columns([
-            pl.lit(next_date).alias("trade_date"),
-            pl.lit(dow).cast(pl.Int64).alias("day_of_week"),
-            pl.lit(is_mon).alias("is_monday"),
-            pl.lit(is_fri).alias("is_friday"),
-        ]).drop("source_date")
+        df_next = df_latest.with_columns(
+            [
+                pl.lit(next_date).alias("trade_date"),
+                pl.lit(dow).cast(pl.Int64).alias("day_of_week"),
+                pl.lit(is_mon).alias("is_monday"),
+                pl.lit(is_fri).alias("is_friday"),
+            ]
+        ).drop("source_date")
 
         logger.info(
             f"Assembled live next-day feature vector for {next_date} "
             f"(Source: {source_date} Close, Day of Week: {dow}, is_monday: {is_mon})."
         )
         return df_next
-
-

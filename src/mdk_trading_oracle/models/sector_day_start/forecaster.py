@@ -39,9 +39,15 @@ class SectorDayStartModelArena:
     ):
         self.sector_thresholds = sector_thresholds or {}
         self.candidates: Dict[str, BaseSectorDayStartModel] = {
-            "Baseline 0: Naive W4 Sector Persistence": SectorDayStartNaivePersistenceModel(sector_thresholds=self.sector_thresholds),
-            "Baseline 1: 5-Day Historical Sector Mean": SectorDayStartRollingMeanModel(sector_thresholds=self.sector_thresholds),
-            "LightGBM Non-Linear Sector Ensemble": SectorDayStartLightGBMModel(sector_thresholds=self.sector_thresholds),
+            "Baseline 0: Naive W4 Sector Persistence": SectorDayStartNaivePersistenceModel(
+                sector_thresholds=self.sector_thresholds
+            ),
+            "Baseline 1: 5-Day Historical Sector Mean": SectorDayStartRollingMeanModel(
+                sector_thresholds=self.sector_thresholds
+            ),
+            "LightGBM Non-Linear Sector Ensemble": SectorDayStartLightGBMModel(
+                sector_thresholds=self.sector_thresholds
+            ),
             "XGBoost Non-Linear Sector Ensemble": SectorDayStartXGBoostModel(sector_thresholds=self.sector_thresholds),
             "Bayesian Ridge Probabilistic": SectorDayStartBayesianModel(sector_thresholds=self.sector_thresholds),
         }
@@ -63,20 +69,26 @@ class SectorDayStartModelArena:
             metrics = model.walk_forward_evaluate(
                 X, y, min_train_samples=min_train_samples, eval_window_days=eval_window_days
             )
-            scoreboard.append({
-                "Model": name,
-                "hit_rate_pct": metrics["hit_rate_pct"],
-                "picp_90_pct": metrics["picp_90_pct"],
-                "mae_million_tl": metrics["mae_million_tl"],
-                "rmse_million_tl": metrics["rmse_million_tl"],
-                "sample_size": metrics["sample_size"],
-                "_model_instance": model,
-            })
+            scoreboard.append(
+                {
+                    "Model": name,
+                    "hit_rate_pct": metrics["hit_rate_pct"],
+                    "picp_90_pct": metrics["picp_90_pct"],
+                    "mae_million_tl": metrics["mae_million_tl"],
+                    "rmse_million_tl": metrics["rmse_million_tl"],
+                    "sample_size": metrics["sample_size"],
+                    "_model_instance": model,
+                }
+            )
 
-        df_scores = pd.DataFrame(scoreboard).sort_values(
-            by=["hit_rate_pct", "picp_90_pct", "rmse_million_tl"],
-            ascending=[False, False, True],
-        ).reset_index(drop=True)
+        df_scores = (
+            pd.DataFrame(scoreboard)
+            .sort_values(
+                by=["hit_rate_pct", "picp_90_pct", "rmse_million_tl"],
+                ascending=[False, False, True],
+            )
+            .reset_index(drop=True)
+        )
 
         champion_row = df_scores.iloc[0]
         champion_model: BaseSectorDayStartModel = champion_row["_model_instance"]
@@ -96,7 +108,7 @@ class SectorDayStartModelArena:
 @ModelRegistry.register("sector_day_start_forecaster")
 class SectorDayStartForecaster:
     """Production Forecaster for Model 2: 'How Will BofA Allocate Across Sectors at the Open?'
-    
+
     Orchestrates end-to-end:
         1. Multi-sector feature extraction from DuckDB Silver tables at T-1 Close
         2. Dynamic empirical sector percentile threshold integration
@@ -196,7 +208,9 @@ class SectorDayStartForecaster:
                     continue
                 df_filtered_pl = self.feature_selector.filter_dataframe(df_pl)
                 df_pd = df_filtered_pl.to_pandas()
-                X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+                X = df_pd.drop(
+                    columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore"
+                )
                 y = df_pd["target_sector_open_net_flow_tl"]
                 min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
                 metrics = candidate_model.walk_forward_evaluate(
@@ -207,12 +221,14 @@ class SectorDayStartForecaster:
                 rmses.append(metrics["rmse_million_tl"])
 
             if hit_rates:
-                scoreboard.append({
-                    "model_name": name,
-                    "avg_hit_rate": float(np.mean(hit_rates)),
-                    "avg_picp": float(np.mean(picps)),
-                    "avg_rmse": float(np.mean(rmses)),
-                })
+                scoreboard.append(
+                    {
+                        "model_name": name,
+                        "avg_hit_rate": float(np.mean(hit_rates)),
+                        "avg_picp": float(np.mean(picps)),
+                        "avg_rmse": float(np.mean(rmses)),
+                    }
+                )
 
         if scoreboard:
             df_scores = pd.DataFrame(scoreboard).sort_values(
@@ -250,7 +266,7 @@ class SectorDayStartForecaster:
         as_of_date: Optional[Union[str, date]] = None,
     ) -> List[ForecastResult]:
         """Generate live sector forecasts for the upcoming trading session (T_next) based on T_close.
-        
+
         Args:
             sectors: Optional list of sectors to forecast.
             sector: Optional single sector filter.
@@ -294,7 +310,9 @@ class SectorDayStartForecaster:
 
             df_hist_filtered_pl = self.feature_selector.filter_dataframe(df_hist_pl)
             df_hist_pd = df_hist_filtered_pl.to_pandas()
-            X_hist = df_hist_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+            X_hist = df_hist_pd.drop(
+                columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore"
+            )
             y_hist = df_hist_pd["target_sector_open_net_flow_tl"]
 
             model = self._create_sector_model()
@@ -334,20 +352,24 @@ class SectorDayStartForecaster:
             X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
             y = df_pd["target_sector_open_net_flow_tl"]
             min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
-            scores, champ = self.arena.run_tournament(X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+            scores, champ = self.arena.run_tournament(
+                X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days
+            )
             hit_rates_all.append(scores.iloc[0]["hit_rate_pct"])
             picps_all.append(scores.iloc[0]["picp_90_pct"])
             rmses_all.append(scores.iloc[0]["rmse_million_tl"])
 
         if hit_rates_all:
-            ablation_results.append({
-                "Experiment": "Baseline (All Sector Features)",
-                "Active_Features": len(sel_all.active_features),
-                "Removed_Cluster": "None",
-                "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_all)),
-                "Avg_PICP_90_Pct": float(np.mean(picps_all)),
-                "Avg_RMSE_Million_TL": float(np.mean(rmses_all)),
-            })
+            ablation_results.append(
+                {
+                    "Experiment": "Baseline (All Sector Features)",
+                    "Active_Features": len(sel_all.active_features),
+                    "Removed_Cluster": "None",
+                    "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_all)),
+                    "Avg_PICP_90_Pct": float(np.mean(picps_all)),
+                    "Avg_RMSE_Million_TL": float(np.mean(rmses_all)),
+                }
+            )
 
         # 2. Leave out each cluster
         for cl in clusters:
@@ -358,25 +380,37 @@ class SectorDayStartForecaster:
                 if df_pl.height < 5:
                     continue
                 df_pd = sel_loco.filter_dataframe(df_pl).to_pandas()
-                X = df_pd.drop(columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore")
+                X = df_pd.drop(
+                    columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore"
+                )
                 y = df_pd["target_sector_open_net_flow_tl"]
                 min_burn = min(self.min_burn_in_days, max(2, len(df_pd) - 1))
-                scores, champ = self.arena.run_tournament(X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+                scores, champ = self.arena.run_tournament(
+                    X, y, min_train_samples=min_burn, eval_window_days=self.eval_window_days
+                )
                 hit_rates_loco.append(scores.iloc[0]["hit_rate_pct"])
                 picps_loco.append(scores.iloc[0]["picp_90_pct"])
                 rmses_loco.append(scores.iloc[0]["rmse_million_tl"])
 
             if hit_rates_loco:
-                ablation_results.append({
-                    "Experiment": f"Without '{cl}'",
-                    "Active_Features": len(sel_loco.active_features),
-                    "Removed_Cluster": cl,
-                    "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_loco)),
-                    "Avg_PICP_90_Pct": float(np.mean(picps_loco)),
-                    "Avg_RMSE_Million_TL": float(np.mean(rmses_loco)),
-                })
+                ablation_results.append(
+                    {
+                        "Experiment": f"Without '{cl}'",
+                        "Active_Features": len(sel_loco.active_features),
+                        "Removed_Cluster": cl,
+                        "Avg_Hit_Rate_Pct": float(np.mean(hit_rates_loco)),
+                        "Avg_PICP_90_Pct": float(np.mean(picps_loco)),
+                        "Avg_RMSE_Million_TL": float(np.mean(rmses_loco)),
+                    }
+                )
 
-        df_res = pd.DataFrame(ablation_results).sort_values(by=["Avg_Hit_Rate_Pct", "Avg_PICP_90_Pct", "Avg_RMSE_Million_TL"], ascending=[False, False, True]).reset_index(drop=True)
+        df_res = (
+            pd.DataFrame(ablation_results)
+            .sort_values(
+                by=["Avg_Hit_Rate_Pct", "Avg_PICP_90_Pct", "Avg_RMSE_Million_TL"], ascending=[False, False, True]
+            )
+            .reset_index(drop=True)
+        )
         return df_res
 
     def backtest_all_history(self, sectors: Optional[List[str]] = None) -> List[ForecastResult]:
@@ -407,7 +441,9 @@ class SectorDayStartForecaster:
                 res.top_predicted_buy_sector = sector
                 all_backtests.append(res)
 
-        logger.info(f"Generated {len(all_backtests)} historical backtest sector forecasts across {len(tracked_sectors)} sectors.")
+        logger.info(
+            f"Generated {len(all_backtests)} historical backtest sector forecasts across {len(tracked_sectors)} sectors."
+        )
         return all_backtests
 
     def train_and_forecast_all(
@@ -417,7 +453,7 @@ class SectorDayStartForecaster:
         include_next_day: bool = True,
     ) -> List[ForecastResult]:
         """Extract sector features, fit champion model, and generate forecasts.
-        
+
         Args:
             sectors: Optional list of sectors to forecast.
             include_history: If True, includes historical backtest forecasts.
@@ -436,7 +472,7 @@ class SectorDayStartForecaster:
         replace_active: bool = True,
     ) -> int:
         """Persist active live sector forecasts into DuckDB Gold table `gold_bofa_sector_day_start_forecasts`.
-        
+
         Args:
             forecasts: The active sector forecast(s) to save.
             replace_active: If True (default), cleans out previous forecasts so the table strictly
@@ -451,7 +487,9 @@ class SectorDayStartForecaster:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(forecast_list)} live sector forecast(s) to `gold_bofa_sector_day_start_forecasts` (replace_active={replace_active})...")
+        logger.info(
+            f"Persisting {len(forecast_list)} live sector forecast(s) to `gold_bofa_sector_day_start_forecasts` (replace_active={replace_active})..."
+        )
 
         # Ensure schema exists and has all current columns
         existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
@@ -486,33 +524,38 @@ class SectorDayStartForecaster:
         for f in forecast_list:
             d = f.forecast_date
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
+            is_mon = dow == 1
             sector_name = f.top_predicted_buy_sector or "General"
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_sector_day_start_forecasts (
                     forecast_date, sector, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
                     predicted_direction, direction_confidence,
                     predicted_playbook, model_name, model_version, generated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                sector_name,
-                dow,
-                is_mon,
-                f.predicted_net_flow_tl,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                f.predicted_direction,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.model_name,
-                f.model_version,
-                f.generated_at,
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    sector_name,
+                    dow,
+                    is_mon,
+                    f.predicted_net_flow_tl,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    f.predicted_direction,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.model_name,
+                    f.model_version,
+                    f.generated_at,
+                ],
+            )
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
-        logger.info(f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} active sector forecast(s).")
+        logger.info(
+            f"Successfully updated `gold_bofa_sector_day_start_forecasts`: {saved_count:,} active sector forecast(s)."
+        )
         return saved_count
 
     def reconcile_and_update_performance_ledger(
@@ -567,7 +610,9 @@ class SectorDayStartForecaster:
             WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start';
         """).df()
         actuals_df["trade_date_str"] = actuals_df["trade_date"].astype(str).str.slice(0, 10)
-        actuals_map = dict(zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"]))
+        actuals_map = dict(
+            zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"])
+        )
 
         reconciled_count = 0
         for f in forecasts:
@@ -578,7 +623,7 @@ class SectorDayStartForecaster:
                 continue
 
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
+            is_mon = dow == 1
             actual_flow = float(actuals_map[(d_str, sector_name)])
             pred_flow = float(f.predicted_net_flow_tl)
             error_flow = actual_flow - pred_flow
@@ -587,7 +632,8 @@ class SectorDayStartForecaster:
             is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
             is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_sector_day_start_performance (
                     trade_date, sector, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
@@ -597,32 +643,36 @@ class SectorDayStartForecaster:
                     direction_confidence, predicted_playbook,
                     model_name, model_version, forecast_generated_at, realized_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                sector_name,
-                dow,
-                is_mon,
-                pred_flow,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                actual_flow,
-                error_flow,
-                abs_error,
-                f.predicted_direction,
-                actual_dir,
-                is_hit,
-                is_in_ci,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.model_name,
-                f.model_version,
-                f.generated_at,
-                now_turkey_naive(),
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    sector_name,
+                    dow,
+                    is_mon,
+                    pred_flow,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    actual_flow,
+                    error_flow,
+                    abs_error,
+                    f.predicted_direction,
+                    actual_dir,
+                    is_hit,
+                    is_in_ci,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.model_name,
+                    f.model_version,
+                    f.generated_at,
+                    now_turkey_naive(),
+                ],
+            )
             reconciled_count += 1
 
         total_perf = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
-        logger.info(f"Successfully updated `gold_bofa_sector_day_start_performance`: {total_perf:,} total recorded sector sessions ({reconciled_count} reconciled in this run).")
+        logger.info(
+            f"Successfully updated `gold_bofa_sector_day_start_performance`: {total_perf:,} total recorded sector sessions ({reconciled_count} reconciled in this run)."
+        )
         return total_perf
 
     def backfill_historical_performance(
@@ -634,7 +684,7 @@ class SectorDayStartForecaster:
         lookback_days: Optional[int] = None,
     ) -> int:
         """Perform zero-lookahead point-in-time forecasting for past missed trading days across sectors and record into `gold_bofa_sector_day_start_performance`.
-        
+
         Args:
             target_dates: Specific list of past trading dates (e.g. ['2026-03-10', '2026-03-18']) to backfill.
             sectors: Optional list of sectors to evaluate (default: all tracked sectors).
@@ -645,7 +695,8 @@ class SectorDayStartForecaster:
         """
         conn = self.db.get_connection()
         all_silver_dates = [
-            r[0] for r in conn.execute(
+            r[0]
+            for r in conn.execute(
                 f"SELECT DISTINCT trade_date FROM silver_intraday_sector_window_summary WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start' ORDER BY trade_date ASC;"
             ).fetchall()
         ]
@@ -660,13 +711,20 @@ class SectorDayStartForecaster:
                 dates_to_backfill.append(d_obj)
         elif all_missing:
             backfill_cfg = self.settings.get_backfill_config()
-            eff_months = lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            eff_months = (
+                lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            )
             eff_days = lookback_days if lookback_days is not None else backfill_cfg.get("default_lookback_days", None)
 
             existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
             existing_perf_dates = set()
             if "gold_bofa_sector_day_start_performance" in existing_tables:
-                existing_perf_dates = set(r[0] for r in conn.execute("SELECT DISTINCT trade_date FROM gold_bofa_sector_day_start_performance;").fetchall())
+                existing_perf_dates = set(
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT DISTINCT trade_date FROM gold_bofa_sector_day_start_performance;"
+                    ).fetchall()
+                )
 
             if all_silver_dates:
                 latest_date = max(all_silver_dates)
@@ -688,7 +746,9 @@ class SectorDayStartForecaster:
             logger.info("No dates to backfill for Sector Day-Start model.")
             return 0
 
-        logger.info(f"Starting zero-lookahead point-in-time sector backfill for {len(dates_to_backfill)} date(s): {dates_to_backfill}...")
+        logger.info(
+            f"Starting zero-lookahead point-in-time sector backfill for {len(dates_to_backfill)} date(s): {dates_to_backfill}..."
+        )
         backfilled_forecasts: List[ForecastResult] = []
         for target_d in dates_to_backfill:
             prior_dates = [d for d in all_silver_dates if d < target_d]
@@ -703,7 +763,9 @@ class SectorDayStartForecaster:
                 backfilled_forecasts.append(res)
 
         saved_count = self.reconcile_and_update_performance_ledger(backfilled_forecasts, sectors=sectors)
-        logger.info(f"Point-in-time sector backfill complete. Processed {len(backfilled_forecasts)} sector forecast(s).")
+        logger.info(
+            f"Point-in-time sector backfill complete. Processed {len(backfilled_forecasts)} sector forecast(s)."
+        )
         return saved_count
 
     def save_backtests_to_gold(
@@ -719,7 +781,9 @@ class SectorDayStartForecaster:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(backtest_results)} sector backtest record(s) to `gold_bofa_sector_day_start_backtests`...")
+        logger.info(
+            f"Persisting {len(backtest_results)} sector backtest record(s) to `gold_bofa_sector_day_start_backtests`..."
+        )
 
         # Ensure schema exists
         conn.execute("""
@@ -756,14 +820,16 @@ class SectorDayStartForecaster:
             WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start';
         """).df()
         actuals_df["trade_date_str"] = actuals_df["trade_date"].astype(str).str.slice(0, 10)
-        actuals_map = dict(zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"]))
+        actuals_map = dict(
+            zip(zip(actuals_df["trade_date_str"], actuals_df["sector"]), actuals_df["actual_w1_net_flow_tl"])
+        )
 
         for f in backtest_results:
             d = f.forecast_date
             d_str = str(d)[:10]
             sector_name = f.top_predicted_buy_sector or "General"
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
+            is_mon = dow == 1
             actual_flow = float(actuals_map.get((d_str, sector_name), 0.0))
             pred_flow = float(f.predicted_net_flow_tl)
             error_flow = actual_flow - pred_flow
@@ -771,7 +837,8 @@ class SectorDayStartForecaster:
             is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
             is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_sector_day_start_backtests (
                     trade_date, sector, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
@@ -781,26 +848,28 @@ class SectorDayStartForecaster:
                     direction_confidence, predicted_playbook,
                     model_name, model_version, calculated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                sector_name,
-                dow,
-                is_mon,
-                pred_flow,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                actual_flow,
-                error_flow,
-                f.predicted_direction,
-                actual_dir,
-                is_hit,
-                is_in_ci,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.model_name,
-                f.model_version,
-                now_turkey_naive(),
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    sector_name,
+                    dow,
+                    is_mon,
+                    pred_flow,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    actual_flow,
+                    error_flow,
+                    f.predicted_direction,
+                    actual_dir,
+                    is_hit,
+                    is_in_ci,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.model_name,
+                    f.model_version,
+                    now_turkey_naive(),
+                ],
+            )
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_sector_day_start_backtests`: {saved_count:,} total records.")

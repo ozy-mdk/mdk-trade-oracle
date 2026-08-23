@@ -24,6 +24,7 @@ class SignalType(str, Enum):
 
 class RawTradeRecord(BaseModel):
     """Bronze layer: Raw trade line model."""
+
     trade_id: str
     timestamp: datetime
     symbol: str
@@ -36,6 +37,7 @@ class RawTradeRecord(BaseModel):
 
 class SilverBrokerTransaction(BaseModel):
     """Silver layer: Normalized single-sided broker transaction."""
+
     tx_id: str
     timestamp: datetime
     date_val: date
@@ -50,6 +52,7 @@ class SilverBrokerTransaction(BaseModel):
 
 class SilverDailyBrokerSummary(BaseModel):
     """Silver layer: Daily aggregate per symbol & broker."""
+
     date_val: date
     symbol: str
     broker_id: str
@@ -65,6 +68,7 @@ class SilverDailyBrokerSummary(BaseModel):
 
 class GoldBofAFlowMetrics(BaseModel):
     """Gold layer: Engineered BofA order flow features."""
+
     date_val: date
     symbol: str
     close_price: float
@@ -76,7 +80,7 @@ class GoldBofAFlowMetrics(BaseModel):
     bofa_sell_tl: float
     bofa_net_tl: float
     bofa_volume_share: float  # (buy + sell) / total
-    bofa_net_share: float     # net / total
+    bofa_net_share: float  # net / total
 
     # Rolling window metrics
     bofa_net_tl_roll_3d: float
@@ -89,6 +93,7 @@ class GoldBofAFlowMetrics(BaseModel):
 
 class OracleDecisionSignal(BaseModel):
     """Oracle decision layer: Final actionable decision output."""
+
     signal_id: str
     date_val: date
     symbol: str

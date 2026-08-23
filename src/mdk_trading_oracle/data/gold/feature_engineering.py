@@ -90,10 +90,10 @@ class GoldFeatureEngineer:
             include_features=include_features,
             exclude_features=exclude_features,
         )
-        
+
         # 1. Reconcile Completed Historical Sessions into Performance Ledger
         saved_performance = forecaster.reconcile_and_update_performance_ledger()
-        
+
         # 2. Point-in-Time Backfill for specified missed dates if requested
         if backfill_dates or all_missing:
             saved_performance = forecaster.backfill_historical_performance(
@@ -110,10 +110,10 @@ class GoldFeatureEngineer:
             saved_forecasts = forecaster.save_forecasts_to_gold(next_day_forecast, replace_active=True)
         except Exception as e:
             logger.warning(f"Could not generate live day-start forecast (insufficient data): {e}")
-        
+
         # 4. Historical Out-of-Sample Walk-Forward Backtests (1..T)
         saved_backtests = forecaster.save_backtests_to_gold()
-        
+
         return {
             "forecast_table": "gold_bofa_day_start_forecasts",
             "forecast_rows": saved_forecasts,
@@ -146,10 +146,10 @@ class GoldFeatureEngineer:
             include_features=include_features,
             exclude_features=exclude_features,
         )
-        
+
         # 1. Reconcile Completed Historical Sessions into Sector Performance Ledger
         saved_sector_performance = forecaster.reconcile_and_update_performance_ledger()
-        
+
         # 2. Point-in-Time Backfill for specified missed dates if requested
         if backfill_dates or all_missing:
             saved_sector_performance = forecaster.backfill_historical_performance(
@@ -164,13 +164,15 @@ class GoldFeatureEngineer:
         try:
             next_day_sector_forecasts = forecaster.forecast_next_day()
             if next_day_sector_forecasts:
-                saved_sector_forecasts = forecaster.save_forecasts_to_gold(next_day_sector_forecasts, replace_active=True)
+                saved_sector_forecasts = forecaster.save_forecasts_to_gold(
+                    next_day_sector_forecasts, replace_active=True
+                )
         except Exception as e:
             logger.warning(f"Could not generate live sector day-start forecasts: {e}")
-        
+
         # 4. Historical Sector Backtests across tracked sectors
         saved_sector_backtests = forecaster.save_backtests_to_gold()
-        
+
         return {
             "forecast_table": "gold_bofa_sector_day_start_forecasts",
             "forecast_rows": saved_sector_forecasts,

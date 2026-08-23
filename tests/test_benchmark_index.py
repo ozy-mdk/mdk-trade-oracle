@@ -24,7 +24,7 @@ def in_memory_db(tmp_path):
 def test_bronze_benchmark_schema_and_sync(in_memory_db):
     """Test that bronze_bist_index_benchmarks can insert and forward-fill."""
     conn = in_memory_db.get_connection()
-    
+
     # Insert mock benchmark data
     conn.execute("""
         INSERT INTO bronze_bist_index_benchmarks (
@@ -56,11 +56,14 @@ def test_silver_benchmark_transformation(in_memory_db):
         d_str = f"2026-01-{i:02d}"
         price = 10000.0 + i * 50.0
         ret = 0.005 if i > 1 else 0.0
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO bronze_bist_index_benchmarks (
                 trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct, is_forward_filled
             ) VALUES (?, 'XU030', ?, ?, ?, ?, 1000000.0, ?, 0.01, FALSE);
-        """, [d_str, price - 10, price + 20, price - 20, price, ret])
+        """,
+            [d_str, price - 10, price + 20, price - 20, price, ret],
+        )
 
     transformer = SilverTransformer(in_memory_db)
     res = transformer.transform_daily_benchmark_index()

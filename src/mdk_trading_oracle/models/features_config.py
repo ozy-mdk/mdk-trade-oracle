@@ -56,7 +56,7 @@ class FeatureSelector:
 
         for cluster_name, cluster_info in self.cluster_catalog.items():
             is_enabled_default = cluster_info.get("enabled", True)
-            
+
             # Check cluster activation
             if self.override_enabled_clusters is not None:
                 cluster_active = cluster_name in self.override_enabled_clusters

@@ -33,9 +33,7 @@ logger = get_logger("mdk_oracle.scripts.pipeline")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="MDK Trading Oracle - Medallion Lakehouse Pipeline Runner"
-    )
+    parser = argparse.ArgumentParser(description="MDK Trading Oracle - Medallion Lakehouse Pipeline Runner")
     parser.add_argument(
         "--target",
         "-t",
@@ -177,4 +175,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

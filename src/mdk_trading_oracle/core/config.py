@@ -101,13 +101,46 @@ class Settings(BaseSettings):
     def get_intraday_windows(self) -> List[Dict[str, Any]]:
         """Get parameterized intraday time windows list."""
         data = self.get_default_config()
-        return data.get("intraday_windows", [
-            {"name": "day_start", "label": "Day Start (09:55 - 10:30)", "start_time": "09:55:00", "end_time": "10:30:00", "order": 1},
-            {"name": "first_reaction", "label": "First Reaction (10:30 - 11:30)", "start_time": "10:30:00", "end_time": "11:30:00", "order": 2},
-            {"name": "midday_followup", "label": "Midday Follow-up (11:30 - 14:30)", "start_time": "11:30:00", "end_time": "14:30:00", "order": 3},
-            {"name": "afternoon_reaction", "label": "Afternoon Reaction (14:30 - 16:00)", "start_time": "14:30:00", "end_time": "16:00:00", "order": 4},
-            {"name": "closing_session", "label": "Closing & Auction (16:00 - 18:15)", "start_time": "16:00:00", "end_time": "18:15:00", "order": 5},
-        ])
+        return data.get(
+            "intraday_windows",
+            [
+                {
+                    "name": "day_start",
+                    "label": "Day Start (09:55 - 10:30)",
+                    "start_time": "09:55:00",
+                    "end_time": "10:30:00",
+                    "order": 1,
+                },
+                {
+                    "name": "first_reaction",
+                    "label": "First Reaction (10:30 - 11:30)",
+                    "start_time": "10:30:00",
+                    "end_time": "11:30:00",
+                    "order": 2,
+                },
+                {
+                    "name": "midday_followup",
+                    "label": "Midday Follow-up (11:30 - 14:30)",
+                    "start_time": "11:30:00",
+                    "end_time": "14:30:00",
+                    "order": 3,
+                },
+                {
+                    "name": "afternoon_reaction",
+                    "label": "Afternoon Reaction (14:30 - 16:00)",
+                    "start_time": "14:30:00",
+                    "end_time": "16:00:00",
+                    "order": 4,
+                },
+                {
+                    "name": "closing_session",
+                    "label": "Closing & Auction (16:00 - 18:15)",
+                    "start_time": "16:00:00",
+                    "end_time": "18:15:00",
+                    "order": 5,
+                },
+            ],
+        )
 
     def get_model_config(self, model_name: str) -> Dict[str, Any]:
         """Get predictive model configuration merged with defaults."""
@@ -141,8 +174,6 @@ class Settings(BaseSettings):
         if model_name:
             return data.get(model_name, {})
         return data
-
-
 
 
 @lru_cache(maxsize=1)

@@ -42,7 +42,11 @@ KNOWN_INSTRUMENTS_META: Dict[str, Dict[str, Any]] = {
     "HEKTS": {"name": "Hektaş Ticaret T.A.Ş.", "sector": "Chemicals & Agriculture", "index": "BIST50"},
     "ISCTR": {"name": "Türkiye İş Bankası C", "sector": "Banking", "index": "BIST30"},
     "KCHOL": {"name": "Koç Holding A.Ş.", "sector": "Holding", "index": "BIST30"},
-    "KONTR": {"name": "Kontrolmatik Teknoloji Enerji ve Mühendislik", "sector": "Technology & Energy", "index": "BIST50"},
+    "KONTR": {
+        "name": "Kontrolmatik Teknoloji Enerji ve Mühendislik",
+        "sector": "Technology & Energy",
+        "index": "BIST50",
+    },
     "KRDMD": {"name": "Kardemir Karabük Demir Çelik D", "sector": "Basic Materials", "index": "BIST30"},
     "MGROS": {"name": "Migros Ticaret A.Ş.", "sector": "Retail", "index": "BIST50"},
     "ODAS": {"name": "Odaş Elektrik Üretim Sanayi Ticaret A.Ş.", "sector": "Energy", "index": "BIST50"},
@@ -74,7 +78,11 @@ KNOWN_BROKERS_META: Dict[str, Dict[str, Any]] = {
     "PHC": {"name": "PhillipCapital Menkul Değerler", "type": "Foreign Institutional", "is_primary_target": False},
     "UNS": {"name": "Ünlü Menkul Değerler", "type": "Institutional Prime", "is_primary_target": False},
     "EFG": {"name": "EFG İstanbul Menkul Değerler", "type": "Institutional Prime", "is_primary_target": False},
-    "TBY": {"name": "TEB Yatırım Menkul Değerler (BNP Paribas)", "type": "Institutional / Bank", "is_primary_target": False},
+    "TBY": {
+        "name": "TEB Yatırım Menkul Değerler (BNP Paribas)",
+        "type": "Institutional / Bank",
+        "is_primary_target": False,
+    },
     "IYM": {"name": "İş Yatırım Menkul Değerler", "type": "Domestic Major Bank", "is_primary_target": False},
     "YKR": {"name": "Yapı Kredi Yatırım Menkul Değerler", "type": "Domestic Major Bank", "is_primary_target": False},
     "AKM": {"name": "Ak Yatırım Menkul Değerler", "type": "Domestic Major Bank", "is_primary_target": False},
@@ -162,9 +170,7 @@ class RawDataInspector:
             date_range = conn.execute(
                 f"SELECT MIN(timestamp::DATE), MAX(timestamp::DATE), COUNT(DISTINCT timestamp::DATE) {source_query};"
             ).fetchone()
-            total_turnover = conn.execute(
-                f"SELECT SUM(volume * price) {source_query};"
-            ).fetchone()[0]
+            total_turnover = conn.execute(f"SELECT SUM(volume * price) {source_query};").fetchone()[0]
         else:
             source_query = f"FROM read_csv_auto('{self.raw_glob}', union_by_name=True, header=True)"
             total_trades = conn.execute(f"SELECT COUNT(*) {source_query};").fetchone()[0]
@@ -174,9 +180,7 @@ class RawDataInspector:
         distinct_symbols = conn.execute(
             f"SELECT COUNT(DISTINCT REPLACE(REPLACE(symbol, '.E', ''), '.IS', '')) {source_query};"
         ).fetchone()[0]
-        distinct_buyers = conn.execute(
-            f"SELECT COUNT(DISTINCT buyer_broker_id) {source_query};"
-        ).fetchone()[0]
+        distinct_buyers = conn.execute(f"SELECT COUNT(DISTINCT buyer_broker_id) {source_query};").fetchone()[0]
 
         return {
             "total_trades": total_trades,
@@ -220,19 +224,21 @@ class RawDataInspector:
         for r in rows:
             sym = r[0]
             meta = KNOWN_INSTRUMENTS_META.get(sym, {})
-            instruments.append({
-                "symbol": sym,
-                "name": meta.get("name", f"{sym} BIST Equity"),
-                "sector": meta.get("sector", "Equities"),
-                "index": meta.get("index", "BIST100"),
-                "lot_multiplier": 1.0,
-                "trade_count": r[1],
-                "total_volume": r[2],
-                "total_turnover_tl": r[3],
-                "min_price": r[4],
-                "max_price": r[5],
-                "avg_price": r[6],
-            })
+            instruments.append(
+                {
+                    "symbol": sym,
+                    "name": meta.get("name", f"{sym} BIST Equity"),
+                    "sector": meta.get("sector", "Equities"),
+                    "index": meta.get("index", "BIST100"),
+                    "lot_multiplier": 1.0,
+                    "trade_count": r[1],
+                    "total_volume": r[2],
+                    "total_turnover_tl": r[3],
+                    "min_price": r[4],
+                    "max_price": r[5],
+                    "avg_price": r[6],
+                }
+            )
         return instruments
 
     def discover_brokers(self) -> List[Dict[str, Any]]:
@@ -278,15 +284,17 @@ class RawDataInspector:
             code = r[0]
             meta = KNOWN_BROKERS_META.get(code, {})
             mkt_share = (r[2] / total_market_turnover * 100.0) if total_market_turnover > 0 else 0.0
-            brokers.append({
-                "code": code,
-                "name": meta.get("name", f"Brokerage {code}"),
-                "type": meta.get("type", "Domestic Broker"),
-                "is_primary_target": meta.get("is_primary_target", (code == "MLB")),
-                "total_trades": r[1],
-                "total_turnover_tl": r[2],
-                "market_share_pct": mkt_share,
-            })
+            brokers.append(
+                {
+                    "code": code,
+                    "name": meta.get("name", f"Brokerage {code}"),
+                    "type": meta.get("type", "Domestic Broker"),
+                    "is_primary_target": meta.get("is_primary_target", (code == "MLB")),
+                    "total_trades": r[1],
+                    "total_turnover_tl": r[2],
+                    "market_share_pct": mkt_share,
+                }
+            )
         return brokers
 
     def sync_to_yaml_catalogs(
@@ -361,14 +369,18 @@ class RawDataInspector:
 
         summary_tbl.add_row("Total Raw Trades", f"{summary['total_trades']:,}")
         summary_tbl.add_row("Total Market Turnover", f"{summary['total_turnover_tl']:,.0f} TL")
-        summary_tbl.add_row("Date Span", f"{summary['min_date']} to {summary['max_date']} ({summary['trading_days']} trading days)")
+        summary_tbl.add_row(
+            "Date Span", f"{summary['min_date']} to {summary['max_date']} ({summary['trading_days']} trading days)"
+        )
         summary_tbl.add_row("Discovered Stock Symbols", str(summary["distinct_symbols"]))
         summary_tbl.add_row("Discovered Broker Houses", str(summary["distinct_brokers"]))
         console.print(summary_tbl)
 
         # Instruments Table
         instruments = self.discover_instruments()
-        inst_tbl = Table(title=f"📈 Discovered Equities Universe ({len(instruments)} Symbols)", title_style="bold magenta")
+        inst_tbl = Table(
+            title=f"📈 Discovered Equities Universe ({len(instruments)} Symbols)", title_style="bold magenta"
+        )
         inst_tbl.add_column("#", justify="right", style="dim")
         inst_tbl.add_column("Symbol", style="bold cyan")
         inst_tbl.add_column("Company / Name", style="white")

@@ -47,7 +47,7 @@ def test_medallion_pipeline_in_memory():
     assert broker_summary is not None
     assert broker_summary[1] == "Transportation"
     assert broker_summary[2] == 3000.0  # Buy Vol: 1000 + 2000
-    assert broker_summary[3] == 500.0   # Sell Vol: 500
+    assert broker_summary[3] == 500.0  # Sell Vol: 500
     assert broker_summary[4] == 2500.0  # Net Vol: 3000 - 500
     # Buy turnover = 1000*300 + 2000*305 = 910,000. Buy VWAP = 910000 / 3000 = 303.333...
     assert abs(broker_summary[6] - (910000.0 / 3000.0)) < 1e-4
@@ -86,9 +86,9 @@ def test_medallion_pipeline_in_memory():
     assert stock_summary[4] == 300.0  # Low
     assert stock_summary[5] == 302.0  # Close
     assert stock_summary[6] == 3500.0  # Total Volume
-    assert stock_summary[7] == "MLB"   # Top Buyer Broker
+    assert stock_summary[7] == "MLB"  # Top Buyer Broker
     assert stock_summary[8] == 759000.0  # BofA Net Flow TL
-    assert stock_summary[9] == 1.0     # CR5 is 100% since all 3 brokers <= 5
+    assert stock_summary[9] == 1.0  # CR5 is 100% since all 3 brokers <= 5
 
     # --- Verify Table 4: silver_daily_sector_summary ---
     sector_summary = conn.execute("""
@@ -183,8 +183,7 @@ def test_bronze_incremental_ingestion_and_logging():
         # 3. Third Ingestion (Add a new file): Only ingests the new file
         csv2 = day1_dir / "AKBNK.csv"
         csv2.write_text(
-            "symbol,signal_time_text,price,quantity,buyer,seller\n"
-            "AKBNK,2026-03-02 08:10:00,60,500,GAR,MLB\n"
+            "symbol,signal_time_text,price,quantity,buyer,seller\nAKBNK,2026-03-02 08:10:00,60,500,GAR,MLB\n"
         )
 
         res3 = ingestor.ingest_incremental(tmp_path)
@@ -209,12 +208,10 @@ def test_bronze_selective_date_partition_update():
         day2_dir.mkdir(parents=True, exist_ok=True)
 
         (day1_dir / "THYAO.csv").write_text(
-            "symbol,signal_time_text,price,quantity,buyer,seller\n"
-            "THYAO,2026-03-02 08:00:00,300,100,MLB,ISY\n"
+            "symbol,signal_time_text,price,quantity,buyer,seller\nTHYAO,2026-03-02 08:00:00,300,100,MLB,ISY\n"
         )
         (day2_dir / "THYAO.csv").write_text(
-            "symbol,signal_time_text,price,quantity,buyer,seller\n"
-            "THYAO,2026-03-03 08:00:00,310,500,MLB,ISY\n"
+            "symbol,signal_time_text,price,quantity,buyer,seller\nTHYAO,2026-03-03 08:00:00,310,500,MLB,ISY\n"
         )
 
         # Ingest both days
@@ -236,8 +233,18 @@ def test_bronze_selective_date_partition_update():
         assert date_res["new_trades_ingested"] == 3
 
         # Verify Day 2 remains intact (1 trade), Day 1 now has 3 trades -> Total 4 trades
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';").fetchone()[0] == 3
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-03';").fetchone()[0] == 1
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';"
+            ).fetchone()[0]
+            == 3
+        )
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-03';"
+            ).fetchone()[0]
+            == 1
+        )
         assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 4
 
 

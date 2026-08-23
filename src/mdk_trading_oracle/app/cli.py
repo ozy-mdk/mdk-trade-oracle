@@ -79,9 +79,7 @@ def info():
         for (tbl_name,) in tables:
             count = conn.execute(f"SELECT COUNT(*) FROM {tbl_name};").fetchone()[0]
             layer = (
-                "Bronze"
-                if tbl_name.startswith("bronze_")
-                else ("Silver" if tbl_name.startswith("silver_") else "Gold")
+                "Bronze" if tbl_name.startswith("bronze_") else ("Silver" if tbl_name.startswith("silver_") else "Gold")
             )
             db_table.add_row(tbl_name, f"{count:,}", layer)
 
@@ -137,7 +135,7 @@ def load_bronze(
         "--glob",
         "-g",
         help="Optional custom glob pattern for raw CSVs (defaults to settings.raw_data_dir/2026/03_march/raw_csv/**/*.csv)",
-    )
+    ),
 ):
     """Ingest raw BIST trade CSV feeds and Central Bank interest rates into the Bronze DuckDB layer."""
     start_time = datetime.now()
@@ -157,7 +155,9 @@ def load_bronze(
         raw_source_label="bist_2026_03_march",
     )
 
-    console.print("[bold yellow]🏛️ Ingesting Central Bank interest rates and synchronizing market dates...[/bold yellow]")
+    console.print(
+        "[bold yellow]🏛️ Ingesting Central Bank interest rates and synchronizing market dates...[/bold yellow]"
+    )
     ingestor.ingest_central_bank_rates(sync_market_dates=True)
 
     console.print("[bold yellow]📈 Ingesting BIST 30 benchmark data and synchronizing market dates...[/bold yellow]")
@@ -217,6 +217,45 @@ def load_rates(
             f"• [bold]Date Range[/bold]: [cyan]{rate_range[0]}[/cyan] to [cyan]{rate_range[1]}[/cyan]\n"
             f"• [bold]Files Processed[/bold]: [cyan]{res.get('files_processed', 0)}[/cyan]",
             title="CBRT Rates Summary",
+            border_style="green",
+        )
+    )
+
+
+@app.command()
+def load_corporate_actions(
+    file_path: Optional[Path] = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="Optional path to a specific corporate_actions.csv file",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force re-ingestion of corporate actions",
+    ),
+):
+    """Ingest corporate actions (bonus share issues, splits, ticker changes, rights notes) into DuckDB Bronze."""
+    start_time = datetime.now()
+    console.print("[bold cyan]🔄 Ingesting Corporate Actions...[/bold cyan]")
+
+    db = DuckDBManager()
+    ingestor = BronzeIngestor(db)
+    res = ingestor.ingest_corporate_actions(csv_path=file_path, force=force)
+
+    conn = db.get_connection()
+    total_actions = conn.execute("SELECT COUNT(*) FROM bronze_corporate_actions;").fetchone()[0]
+    action_range = conn.execute("SELECT MIN(action_date), MAX(action_date) FROM bronze_corporate_actions;").fetchone()
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ Corporate Actions Ingested Successfully in {elapsed:.1f}s[/bold green]\n\n"
+            f"• [bold]bronze_corporate_actions[/bold]: [cyan]{total_actions:,}[/cyan] rows\n"
+            f"• [bold]Date Range[/bold]: [cyan]{action_range[0]}[/cyan] to [cyan]{action_range[1]}[/cyan]\n"
+            f"• [bold]Source File[/bold]: [cyan]{res.get('source_path', '')}[/cyan]",
+            title="Corporate Actions Summary",
             border_style="green",
         )
     )
@@ -387,4 +426,3 @@ def pipeline_run(
 
 if __name__ == "__main__":
     app()
-

@@ -187,4 +187,3 @@ def test_day_start_ablation_study():
     assert "Hit_Rate_Pct" in ablation_df.columns
     assert "RMSE_Million_TL" in ablation_df.columns
     assert len(ablation_df) >= 2  # Baseline + at least 1 cluster removed
-

@@ -43,7 +43,9 @@ def main():
         print(f"✅ Successfully wrote {res['instruments_count']} instruments to {res['instruments_file']}")
         print(f"✅ Successfully wrote {res['brokers_count']} brokers to {res['brokers_file']}\n")
     else:
-        print("\n💡 [Tip] Run with '--sync' to automatically write these discovered instruments and brokers to config/ YAMLs:")
+        print(
+            "\n💡 [Tip] Run with '--sync' to automatically write these discovered instruments and brokers to config/ YAMLs:"
+        )
         print("   python scripts/prepare_data_catalog.py --sync\n")
 
 

@@ -50,7 +50,9 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
     # 3. Model 2 Output Table: Day-Start Sector Allocations
     existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
     if "gold_bofa_sector_day_start_forecasts" in existing_tables:
-        sector_cols = [r[1] for r in conn.execute("PRAGMA table_info('gold_bofa_sector_day_start_forecasts');").fetchall()]
+        sector_cols = [
+            r[1] for r in conn.execute("PRAGMA table_info('gold_bofa_sector_day_start_forecasts');").fetchall()
+        ]
         if "day_of_week" not in sector_cols:
             conn.execute("DROP TABLE gold_bofa_sector_day_start_forecasts;")
 
@@ -178,4 +180,3 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
     """)
 
     logger.info("DuckDB Gold schemas initialized.")
-

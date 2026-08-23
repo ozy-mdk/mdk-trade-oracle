@@ -96,6 +96,20 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 7. Bronze Corporate Actions Table: Stock Splits, Bonus Issues & Ticker Renames
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_corporate_actions (
+            action_date DATE NOT NULL,
+            symbol VARCHAR NOT NULL,
+            target_symbol VARCHAR,
+            quantity_multiplier DOUBLE NOT NULL,
+            note VARCHAR,
+            raw_source VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (action_date, symbol)
+        );
+    """)
+
     # Sync reference data from YAML configs
     sync_reference_data(db)
     logger.info("DuckDB Bronze schemas initialized.")
@@ -111,31 +125,37 @@ def sync_reference_data(db: DuckDBManager) -> None:
         broker_id = b.get("code") or b.get("broker_id")
         if not broker_id:
             continue
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO bronze_brokers (broker_id, broker_name, category, is_primary_target, description)
             VALUES (?, ?, ?, ?, ?);
-        """, [
-            broker_id,
-            b.get("name") or b.get("broker_name", broker_id),
-            b.get("type") or b.get("category", "unknown"),
-            b.get("is_primary_target", False),
-            b.get("description", ""),
-        ])
+        """,
+            [
+                broker_id,
+                b.get("name") or b.get("broker_name", broker_id),
+                b.get("type") or b.get("category", "unknown"),
+                b.get("is_primary_target", False),
+                b.get("description", ""),
+            ],
+        )
 
     instruments = settings.get_instruments()
     for inst in instruments:
         symbol = inst.get("symbol")
         if not symbol:
             continue
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO bronze_instruments (symbol, name, sector, index_name, lot_multiplier)
             VALUES (?, ?, ?, ?, ?);
-        """, [
-            symbol,
-            inst.get("name", symbol),
-            inst.get("sector", "unknown"),
-            inst.get("index") or inst.get("index_name", "BIST100"),
-            float(inst.get("lot_multiplier", 1.0)),
-        ])
+        """,
+            [
+                symbol,
+                inst.get("name", symbol),
+                inst.get("sector", "unknown"),
+                inst.get("index") or inst.get("index_name", "BIST100"),
+                float(inst.get("lot_multiplier", 1.0)),
+            ],
+        )
 
     logger.debug(f"Synced {len(brokers)} brokers and {len(instruments)} instruments into Bronze tables.")

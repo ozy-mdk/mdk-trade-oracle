@@ -12,9 +12,7 @@ logger = get_logger("mdk_oracle.load_bronze")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Load raw BIST trade CSV/Parquet feeds into the DuckDB Bronze Layer."
-    )
+    parser = argparse.ArgumentParser(description="Load raw BIST trade CSV/Parquet feeds into the DuckDB Bronze Layer.")
     parser.add_argument(
         "--date",
         "-d",

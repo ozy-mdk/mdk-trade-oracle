@@ -13,6 +13,7 @@ from mdk_trading_oracle.core.time import now_turkey_naive
 
 class ForecastDirection(str):
     """Institutional directional posture for opening session."""
+
     STRONG_BUY = "STRONG_BUY"
     BUY = "BUY"
     WEAK_BUY = "WEAK_BUY"
@@ -48,6 +49,7 @@ class ForecastDirection(str):
 @dataclass
 class FlowThresholdProfile:
     """Empirical percentile distribution thresholds for institutional net flow classification."""
+
     buy_p25_tl: float = 10e6
     buy_p50_tl: float = 30e6
     buy_p85_tl: float = 75e6
@@ -90,17 +92,19 @@ class FlowThresholdClassifier:
 
 class OpeningPlaybook(str):
     """Actionable institutional execution playbook classification."""
-    SQUEEZE_LONG = "SQUEEZE_LONG"          # Exploiting competitor short deficit / panic chasing
+
+    SQUEEZE_LONG = "SQUEEZE_LONG"  # Exploiting competitor short deficit / panic chasing
     MOMENTUM_EXPANSION = "MOMENTUM_EXPANSION"  # Coordinated institutional sweep of the offer
-    LIQUIDITY_FADE = "LIQUIDITY_FADE"      # Selling into domestic morning retail euphoria
-    SECTOR_ROTATION = "SECTOR_ROTATION"    # Shifting capital into uncrowded / lagging sectors
-    DEFENSE_SUPPORT = "DEFENSE_SUPPORT"    # Bidding at 20-day cost basis support level
-    NEUTRAL_WAIT = "NEUTRAL_WAIT"          # Low conviction / range-bound tape
+    LIQUIDITY_FADE = "LIQUIDITY_FADE"  # Selling into domestic morning retail euphoria
+    SECTOR_ROTATION = "SECTOR_ROTATION"  # Shifting capital into uncrowded / lagging sectors
+    DEFENSE_SUPPORT = "DEFENSE_SUPPORT"  # Bidding at 20-day cost basis support level
+    NEUTRAL_WAIT = "NEUTRAL_WAIT"  # Low conviction / range-bound tape
 
 
 @dataclass
 class ForecastResult:
     """Standardized output container for probabilistic model forecasts."""
+
     forecast_date: date
     target_broker_id: str
     predicted_net_flow_tl: float
@@ -124,7 +128,7 @@ class BaseFeatureExtractor(ABC):
     @abstractmethod
     def extract_features(self, start_date: Optional[date] = None, end_date: Optional[date] = None) -> pl.DataFrame:
         """Extract multi-cluster feature matrix from DuckDB Silver tables.
-        
+
         Returns:
             pl.DataFrame: Clean tabular dataset with features and target columns.
         """
@@ -133,8 +137,8 @@ class BaseFeatureExtractor(ABC):
 
 class BaseForecaster(ABC):
     """Abstract base class for all predictive models in MDK Trading Oracle.
-    
-    Designed to scale to 10+ distinct models (e.g. Day Start, Intraday Expansion, 
+
+    Designed to scale to 10+ distinct models (e.g. Day Start, Intraday Expansion,
     Weekly Bias, Sector Rotations, Institutional Divergence).
     """
 

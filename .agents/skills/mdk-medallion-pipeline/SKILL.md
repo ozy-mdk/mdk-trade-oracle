@@ -90,14 +90,16 @@ flowchart TD
 - **`bronze_raw_trades`**: Raw microsecond tick executions (`trade_id`, `timestamp`, `symbol`, `price`, `volume`, `buyer_broker_id`, `seller_broker_id`, `raw_source`, `ingested_at`).
 - **`bronze_central_bank_rates`**: Central Bank 1-week repo interest rates (`rate_date`, `rate_type`, `interest_rate`, `rate_change`, `is_rate_change_day`, `is_forward_filled`, `raw_source`, `ingested_at`).
 - **`bronze_bist_index_benchmarks`**: Official BIST 30 benchmark OHLCV metrics (`trade_date`, `index_code`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `daily_return_pct`, `price_range_pct`, `is_forward_filled`, `source`, `ingested_at`).
+- **`bronze_corporate_actions`**: Historical corporate actions (`action_date`, `symbol`, `target_symbol`, `multiplier`, `note`, `raw_source`, `ingested_at`).
 - **`bronze_ingestion_log`**: Primary key `file_path`. Tracks file size, mtime epoch, `trade_date`, `year_month`, and row counts to enable fast incremental updates.
 - **`bronze_brokers`**: Dimension reference table (`broker_id`, `broker_name`, `category`, `is_primary_target`, `description`) synchronized from `config/brokers.yaml`.
 - **`bronze_instruments`**: Dimension reference table (`symbol`, `name`, `sector`, `index_name`, `lot_multiplier`) synchronized from `config/instruments.yaml`.
 
 ### B. Silver Layer (`src/mdk_trading_oracle/data/silver/`)
+- **`silver_corporate_action_adjustment_periods`**: Primary key `(source_symbol, effective_from)`. Continuous date spans `[effective_from, effective_to]` with cumulative share multiplier `quantity_factor`, target `canonical_symbol`, and `has_unresolved_paid_action` boolean flag.
 - **`silver_daily_broker_summary`**: Primary key `(trade_date, symbol, broker_id)`. Aggregates buy/sell volume, turnover (TL), buy/sell/total VWAP, trade counts, net volume, net flow (TL), and broker-stock turnover share.
 - **`silver_daily_broker_overview`**: Primary key `(trade_date, broker_id)`. Macro broker statistics including market turnover share, market volume share, turnover rank, net flow rank, `is_top_5_broker`, top bought/sold symbols, top sector name, and top sector share.
-- **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock.
+- **`silver_daily_stock_summary`**: Primary key `(trade_date, symbol)`. Stock OHLCV, market VWAP, daily return %, price range %, total trades, CR5 concentration ratio, top buyer/seller broker IDs + turnover + share, top-5 domestic net flow, BofA buy/sell turnover, BofA net flow, BofA stock turnover share, BofA VWAP spread %, and BofA rank in stock. Directly enriched with continuous corporate action adjustments: `canonical_symbol`, `quantity_factor`, `has_unresolved_paid_action`, `adj_open_price`, `adj_high_price`, `adj_low_price`, `adj_close_price`, `adj_market_vwap`, `adj_total_volume`, `adj_daily_return_pct`, `adj_bofa_buy_vwap`, `adj_bofa_sell_vwap`, `adj_bofa_total_vwap`.
 - **`silver_daily_sector_summary`**: Primary key `(trade_date, sector, broker_id)`. Daily sector breadth, buy/sell turnover, net flow (TL), active symbol count, and sector turnover share.
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
 - **`silver_daily_benchmark_index`**: Primary key `trade_date`. Rolling 5-day / 20-day returns, 20-day historical return volatility, Parkinson high-low spread, and trend relative to 20-day Simple Moving Average.
@@ -186,6 +188,9 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 
 # Layer-by-layer executions
 .venv/bin/mdk-oracle load-bronze
+.venv/bin/mdk-oracle load-rates
+.venv/bin/mdk-oracle load-benchmarks
+.venv/bin/mdk-oracle load-corporate-actions
 .venv/bin/mdk-oracle build-silver
 .venv/bin/mdk-oracle build-gold
 .venv/bin/mdk-oracle build-all --sync-catalog
@@ -260,9 +265,11 @@ DuckDB enforces exclusive single-process write locks.
 - **Notebooks & Analytical Queries**: **MUST** use `read_only=True`:
   ```python
   from mdk_trading_oracle.core.db import DuckDBManager
+
   db = DuckDBManager(read_only=True)
   # Or directly via DuckDB:
   import duckdb
+
   conn = duckdb.connect(str(settings.database_path), read_only=True)
   ```
 

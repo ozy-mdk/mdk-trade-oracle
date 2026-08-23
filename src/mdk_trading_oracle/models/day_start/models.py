@@ -123,9 +123,9 @@ class BaseDayStartModel(BaseForecaster):
         eval_window_days: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Perform expanding-window walk-forward validation (train on 1..t-1, predict t).
-        
+
         Guarantees strictly out-of-sample evaluation with zero lookahead bias.
-        
+
         Args:
             X: Feature matrix.
             y: Continuous target series.
@@ -197,6 +197,7 @@ class BaseDayStartModel(BaseForecaster):
 # ==========================================
 # 0. Baseline Models (Benchmark to Beat)
 # ==========================================
+
 
 @ModelRegistry.register("day_start_baseline_persistence")
 class DayStartNaivePersistenceModel(BaseDayStartModel):
@@ -278,6 +279,7 @@ class DayStartRollingMeanModel(BaseDayStartModel):
 # 1. Bayesian Probabilistic Models (Ridge & PyMC)
 # ==========================================
 
+
 @ModelRegistry.register("day_start_bayesian_ridge")
 class DayStartBayesianModel(BaseDayStartModel):
     """Bayesian Probabilistic Forecaster (Ridge): Computes conjugate posterior distributions and exact credible intervals."""
@@ -289,8 +291,13 @@ class DayStartBayesianModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = [
+            "trade_date",
+            "target_open_net_flow_tl",
+            "target_open_turnover_tl",
+            "target_open_market_share",
+            "target_open_direction",
+        ]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
@@ -306,7 +313,7 @@ class DayStartBayesianModel(BaseDayStartModel):
     def predict(self, X: pd.DataFrame) -> ForecastResult:
         row_dict = X.iloc[0].to_dict()
         X_clean = self._prep_features(X.iloc[[0]])
-        
+
         for col in self.feature_cols:
             if col not in X_clean.columns:
                 X_clean[col] = 0.0
@@ -322,6 +329,7 @@ class DayStartBayesianModel(BaseDayStartModel):
 
         # Directional probability from Gaussian CDF
         from scipy.stats import norm
+
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))
 
@@ -350,7 +358,9 @@ class DayStartBayesianModel(BaseDayStartModel):
 class DayStartPyMCModel(BaseDayStartModel):
     """PyMC Full Bayesian MCMC / NUTS Forecaster with custom institutional priors."""
 
-    def __init__(self, draws: int = 300, tune: int = 300, use_map: bool = True, thresholds: Optional[FlowThresholdProfile] = None):
+    def __init__(
+        self, draws: int = 300, tune: int = 300, use_map: bool = True, thresholds: Optional[FlowThresholdProfile] = None
+    ):
         super().__init__(model_name="day_start_pymc", model_version="1.0.0", thresholds=thresholds)
         self.draws = draws
         self.tune = tune
@@ -366,8 +376,13 @@ class DayStartPyMCModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = [
+            "trade_date",
+            "target_open_net_flow_tl",
+            "target_open_turnover_tl",
+            "target_open_market_share",
+            "target_open_direction",
+        ]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
@@ -418,7 +433,9 @@ class DayStartPyMCModel(BaseDayStartModel):
                     return_inferencedata=True,
                 )
                 self.posterior_mean_intercept = float(trace.posterior["intercept"].mean()) * self.y_std + self.y_mean
-                self.posterior_mean_weights = np.asarray(trace.posterior["beta"].mean(dim=["chain", "draw"])) * (self.y_std / self.x_std)
+                self.posterior_mean_weights = np.asarray(trace.posterior["beta"].mean(dim=["chain", "draw"])) * (
+                    self.y_std / self.x_std
+                )
                 self.posterior_sigma = float(trace.posterior["sigma"].mean()) * self.y_std
 
         self.is_fitted = True
@@ -440,6 +457,7 @@ class DayStartPyMCModel(BaseDayStartModel):
         upper_90 = pred_val + 1.645 * std_val
 
         from scipy.stats import norm
+
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))
 
@@ -468,14 +486,18 @@ class DayStartPyMCModel(BaseDayStartModel):
 # 2. Gradient-Boosted LightGBM Model
 # ==========================================
 
+
 @ModelRegistry.register("day_start_lightgbm")
 class DayStartLightGBMModel(BaseDayStartModel):
     """LightGBM Non-Linear Ensemble: Models complex interactions between competitor posture and cost basis."""
 
-    def __init__(self, n_estimators: int = 50, learning_rate: float = 0.05, thresholds: Optional[FlowThresholdProfile] = None):
+    def __init__(
+        self, n_estimators: int = 50, learning_rate: float = 0.05, thresholds: Optional[FlowThresholdProfile] = None
+    ):
         super().__init__(model_name="day_start_lightgbm", model_version="1.0.0", thresholds=thresholds)
         try:
             import lightgbm as lgb
+
             self.model = lgb.LGBMRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -487,6 +509,7 @@ class DayStartLightGBMModel(BaseDayStartModel):
             )
         except ImportError:
             from sklearn.ensemble import GradientBoostingRegressor
+
             self.model = GradientBoostingRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -497,8 +520,13 @@ class DayStartLightGBMModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = [
+            "trade_date",
+            "target_open_net_flow_tl",
+            "target_open_turnover_tl",
+            "target_open_market_share",
+            "target_open_direction",
+        ]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
@@ -548,6 +576,7 @@ class DayStartLightGBMModel(BaseDayStartModel):
 # 3. Gradient-Boosted XGBoost Model
 # ==========================================
 
+
 @ModelRegistry.register("day_start_xgboost")
 class DayStartXGBoostModel(BaseDayStartModel):
     """XGBoost Non-Linear Ensemble: Gradient-boosted decision trees with exact second-order Taylor expansion gradients."""
@@ -564,6 +593,7 @@ class DayStartXGBoostModel(BaseDayStartModel):
         super().__init__(model_name="day_start_xgboost", model_version="1.0.0", thresholds=thresholds)
         try:
             import xgboost as xgb
+
             self.model = xgb.XGBRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -575,6 +605,7 @@ class DayStartXGBoostModel(BaseDayStartModel):
             )
         except ImportError:
             from sklearn.ensemble import GradientBoostingRegressor
+
             self.model = GradientBoostingRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -586,8 +617,13 @@ class DayStartXGBoostModel(BaseDayStartModel):
 
     def _prep_features(self, X: pd.DataFrame) -> pd.DataFrame:
         feat_df = X.copy()
-        drop_cols = ["trade_date", "target_open_net_flow_tl", "target_open_turnover_tl", 
-                     "target_open_market_share", "target_open_direction"]
+        drop_cols = [
+            "trade_date",
+            "target_open_net_flow_tl",
+            "target_open_turnover_tl",
+            "target_open_market_share",
+            "target_open_direction",
+        ]
         for col in drop_cols:
             if col in feat_df.columns:
                 feat_df = feat_df.drop(columns=[col])
@@ -597,7 +633,7 @@ class DayStartXGBoostModel(BaseDayStartModel):
         X_clean = self._prep_features(X)
         self.feature_cols = list(X_clean.columns)
         self.model.fit(X_clean, y)
-        
+
         # Calculate empirical residual standard deviation for credible bounds
         if len(X_clean) >= 3:
             preds = self.model.predict(X_clean)

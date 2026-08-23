@@ -16,7 +16,7 @@ logger = get_logger("mdk_oracle.models.sector_day_start.features")
 
 class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
     """Extracts, engineers, and temporal-aligns sector-specific features at T-1 Close to predict T_open (Window 1) per sector.
-    
+
     Clusters:
         1. Sector Prior Closing Window Momentum (Window 4 net flow & turnover)
         2. Sector Competitor Imbalance (BofA vs Top-5 domestic desk deltas in that sector)
@@ -59,14 +59,14 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         end_date: Optional[date] = None,
     ) -> pl.DataFrame:
         """Extract multi-cluster feature matrix for a specific sector (or all sectors) from DuckDB Silver tables with lookback support.
-        
+
         Args:
             sector: Optional specific sector name to filter (e.g. 'Banking').
             start_date: Optional filter for minimum trade date.
             end_date: Optional filter for maximum trade date.
-            
+
         Returns:
-            pl.DataFrame: Clean dataset where each row is (trade_date T, sector s) with features computed 
+            pl.DataFrame: Clean dataset where each row is (trade_date T, sector s) with features computed
                           strictly from historical data up to T-1 Close, paired with actual Window 1 target outcomes on Day T.
         """
         conn = self.db.get_connection()
@@ -74,7 +74,9 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         sector_filter_macro = f"AND sector = '{sector}'" if sector else ""
         sector_filter_tertip = f"AND i.sector = '{sector}'" if sector else ""
 
-        logger.info(f"Extracting Sector Day-Start Features for broker '{self.target_broker}' (Sector: {sector or 'ALL'}, lookback_months={self.lookback_months})...")
+        logger.info(
+            f"Extracting Sector Day-Start Features for broker '{self.target_broker}' (Sector: {sector or 'ALL'}, lookback_months={self.lookback_months})..."
+        )
 
         # Determine effective start_date from lookback_months if not explicitly given
         effective_start = start_date
@@ -86,6 +88,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     reference_end = max_d_res[0]
             if reference_end:
                 from dateutil.relativedelta import relativedelta
+
                 effective_start = reference_end - relativedelta(months=self.lookback_months)
 
         query = f"""
@@ -166,7 +169,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 SELECT 
                     trade_date,
                     sector,
-                    AVG(daily_return_pct) AS sector_avg_return_1d_pct,
+                    AVG(COALESCE(adj_daily_return_pct, daily_return_pct)) AS sector_avg_return_1d_pct,
                     AVG(price_range_pct) AS sector_avg_range_pct
                 FROM silver_daily_stock_summary
                 WHERE sector IS NOT NULL AND sector != '' {sector_filter_macro}
@@ -394,21 +397,23 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         as_of_date: Optional[date] = None,
     ) -> pl.DataFrame:
         """Extract multi-sector feature rows for the upcoming trading session (T_next) based on T_close.
-        
+
         Zero lookahead leakage: all sector metrics are computed from completed data strictly up to `as_of_date`
         (or the latest date in DuckDB if as_of_date is None).
         The trade_date is automatically computed as the next trading business day.
-        
+
         Args:
             sectors: Optional list of sectors to include.
             sector: Optional single sector filter.
             as_of_date: Optional reference date. If provided, data after this date is completely hidden.
-            
+
         Returns:
             pl.DataFrame: Multi-sector feature matrix (1 row per tracked sector) ready for live inference.
         """
         conn = self.db.get_connection()
-        logger.info(f"Extracting Next-Day Sector Features for broker '{self.target_broker}' (Sector: {sector or (len(sectors) if sectors else 'ALL')}, as_of_date={as_of_date or 'LATEST'})...")
+        logger.info(
+            f"Extracting Next-Day Sector Features for broker '{self.target_broker}' (Sector: {sector or (len(sectors) if sectors else 'ALL')}, as_of_date={as_of_date or 'LATEST'})..."
+        )
 
         sector_filter = ""
         sector_filter_tertip = ""
@@ -487,7 +492,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 SELECT 
                     trade_date,
                     sector,
-                    AVG(daily_return_pct) AS sector_avg_return_1d_pct,
+                    AVG(COALESCE(adj_daily_return_pct, daily_return_pct)) AS sector_avg_return_1d_pct,
                     AVG(price_range_pct) AS sector_avg_range_pct
                 FROM silver_daily_stock_summary
                 WHERE sector IS NOT NULL AND sector != '' {sector_filter}
@@ -656,20 +661,20 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         source_date = df_latest["source_date"][0]
         next_date = get_next_trading_day(source_date)
         dow = next_date.isoweekday()
-        is_mon = (dow == 1)
-        is_fri = (dow == 5)
+        is_mon = dow == 1
+        is_fri = dow == 5
 
-        df_next = df_latest.with_columns([
-            pl.lit(next_date).alias("trade_date"),
-            pl.lit(dow).cast(pl.Int64).alias("day_of_week"),
-            pl.lit(is_mon).alias("is_monday"),
-            pl.lit(is_fri).alias("is_friday"),
-        ]).drop("source_date")
+        df_next = df_latest.with_columns(
+            [
+                pl.lit(next_date).alias("trade_date"),
+                pl.lit(dow).cast(pl.Int64).alias("day_of_week"),
+                pl.lit(is_mon).alias("is_monday"),
+                pl.lit(is_fri).alias("is_friday"),
+            ]
+        ).drop("source_date")
 
         logger.info(
             f"Assembled next-day features across {df_next.height} sectors for {next_date} "
             f"(Source: {source_date} Close, Day of Week: {dow}, is_monday: {is_mon})."
         )
         return df_next
-
-

@@ -139,7 +139,7 @@ def test_sector_day_start_next_day_feature_extraction(db_conn):
 def test_sector_day_start_forecaster_orchestration(populated_test_db):
     """Verify SectorDayStartForecaster end-to-end live next-day forecast and backtesting."""
     forecaster = SectorDayStartForecaster(populated_test_db, model_type="auto")
-    
+
     # 1. Live Next-Day Forecast across sectors
     live_forecasts = forecaster.forecast_next_day(sectors=["Banking", "Transportation"])
     assert len(live_forecasts) == 2
@@ -154,18 +154,24 @@ def test_sector_day_start_forecaster_orchestration(populated_test_db):
     assert len(backtest_forecasts) > 0
 
     # 3. Default train_and_forecast_all
-    forecasts = forecaster.train_and_forecast_all(sectors=["Banking", "Transportation"], include_history=False, include_next_day=True)
+    forecasts = forecaster.train_and_forecast_all(
+        sectors=["Banking", "Transportation"], include_history=False, include_next_day=True
+    )
     assert len(forecasts) == 2
 
     saved_forecasts = forecaster.save_forecasts_to_gold(forecasts, replace_active=True)
     assert saved_forecasts == 2  # Strictly 2 active sector forecasts for tomorrow!
 
     # 4. Sector Performance Ledger Reconciliation
-    saved_perf = forecaster.reconcile_and_update_performance_ledger(backtest_forecasts, sectors=["Banking", "Transportation"])
+    saved_perf = forecaster.reconcile_and_update_performance_ledger(
+        backtest_forecasts, sectors=["Banking", "Transportation"]
+    )
     assert saved_perf >= 2
 
     # 5. Point-in-Time Historical Sector Backfill
-    backfilled_count = forecaster.backfill_historical_performance(target_dates=["2026-03-04", "2026-03-05"], sectors=["Banking", "Transportation"])
+    backfilled_count = forecaster.backfill_historical_performance(
+        target_dates=["2026-03-04", "2026-03-05"], sectors=["Banking", "Transportation"]
+    )
     assert backfilled_count >= 2
 
     # 6. Persist historical sector backtests
@@ -210,6 +216,3 @@ def test_sector_day_start_forecaster_orchestration(populated_test_db):
     assert backtest_row is not None
     assert backtest_row[1] in ["Banking", "Transportation"]
     assert backtest_row[4] in [True, False]
-
-
-

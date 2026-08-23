@@ -77,13 +77,14 @@ class BronzeIngestor:
         discovered: List[Dict[str, Any]] = []
         for ext in ["*.csv", "*.parquet", "*.txt"]:
             for f in base_dir.rglob(ext):
-                # Ignore hidden files, temporary files, mysql dump directories, and central bank rates
+                # Ignore hidden files, temporary files, mysql dump directories, central bank rates, benchmarks, and corporate actions
                 path_str = f.as_posix()
                 if (
                     f.name.startswith(".")
                     or "/mysql/" in path_str
                     or "/central_bank_interest_rates/" in path_str
                     or "/benchmarks/" in path_str
+                    or "/corporate_actions/" in path_str
                 ):
                     continue
                 discovered.append(self._extract_file_metadata(f))
@@ -106,20 +107,23 @@ class BronzeIngestor:
                 r[0] for r in conn.execute("SELECT DISTINCT raw_source FROM bronze_raw_trades;").fetchall()
             ]
             for meta in discovered_files:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR IGNORE INTO bronze_ingestion_log (
                         file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                """, [
-                    meta["file_path"],
-                    meta["file_name"],
-                    meta["file_size_bytes"],
-                    meta["file_mtime_epoch"],
-                    meta["trade_date"],
-                    meta["year_month"],
-                    0,
-                    legacy_sources[0] if legacy_sources else "historical_feed",
-                ])
+                """,
+                    [
+                        meta["file_path"],
+                        meta["file_name"],
+                        meta["file_size_bytes"],
+                        meta["file_mtime_epoch"],
+                        meta["trade_date"],
+                        meta["year_month"],
+                        0,
+                        legacy_sources[0] if legacy_sources else "historical_feed",
+                    ],
+                )
             logger.info(f"Backfilled {len(discovered_files)} file entries into `bronze_ingestion_log`.")
 
     def get_pending_files(self, discovered_files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -132,9 +136,7 @@ class BronzeIngestor:
             "SELECT file_path, file_size_bytes, file_mtime_epoch FROM bronze_ingestion_log;"
         ).fetchall()
 
-        logged_map: Dict[str, Tuple[int, float]] = {
-            r[0]: (int(r[1]), float(r[2])) for r in logged_rows
-        }
+        logged_map: Dict[str, Tuple[int, float]] = {r[0]: (int(r[1]), float(r[2])) for r in logged_rows}
 
         pending: List[Dict[str, Any]] = []
         for meta in discovered_files:
@@ -187,23 +189,28 @@ class BronzeIngestor:
 
             # Record each ingested file in bronze_ingestion_log
             for meta in chunk:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO bronze_ingestion_log (
                         file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                """, [
-                    meta["file_path"],
-                    meta["file_name"],
-                    meta["file_size_bytes"],
-                    meta["file_mtime_epoch"],
-                    meta["trade_date"],
-                    meta["year_month"],
-                    0,
-                    meta["file_name"],
-                ])
+                """,
+                    [
+                        meta["file_path"],
+                        meta["file_name"],
+                        meta["file_size_bytes"],
+                        meta["file_mtime_epoch"],
+                        meta["trade_date"],
+                        meta["year_month"],
+                        0,
+                        meta["file_name"],
+                    ],
+                )
 
             total_rows_inserted += len(chunk)
-            logger.debug(f"Ingested CSV chunk {i // batch_size + 1}/{(len(csv_metas) - 1) // batch_size + 1} ({len(chunk)} files)")
+            logger.debug(
+                f"Ingested CSV chunk {i // batch_size + 1}/{(len(csv_metas) - 1) // batch_size + 1} ({len(chunk)} files)"
+            )
 
         # 2. Process Parquet files
         for meta in parquet_metas:
@@ -224,20 +231,23 @@ class BronzeIngestor:
                 FROM read_parquet('{p}');
             """
             conn.execute(query)
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO bronze_ingestion_log (
                     file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                meta["file_path"],
-                meta["file_name"],
-                meta["file_size_bytes"],
-                meta["file_mtime_epoch"],
-                meta["trade_date"],
-                meta["year_month"],
-                0,
-                meta["file_name"],
-            ])
+            """,
+                [
+                    meta["file_path"],
+                    meta["file_name"],
+                    meta["file_size_bytes"],
+                    meta["file_mtime_epoch"],
+                    meta["trade_date"],
+                    meta["year_month"],
+                    0,
+                    meta["file_name"],
+                ],
+            )
             total_rows_inserted += 1
 
         return total_rows_inserted
@@ -285,15 +295,16 @@ class BronzeIngestor:
             "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str]
         ).fetchone()[0]
         conn.execute("DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str])
-        conn.execute("DELETE FROM bronze_ingestion_log WHERE trade_date = CAST(? AS DATE) OR file_path LIKE ?;", [date_str, f"%{date_str}%"])
+        conn.execute(
+            "DELETE FROM bronze_ingestion_log WHERE trade_date = CAST(? AS DATE) OR file_path LIKE ?;",
+            [date_str, f"%{date_str}%"],
+        )
 
         logger.info(f"Cleared {deleted_trades:,} previous trades for date {date_str}.")
 
         # 2. Discover files matching target_date
         all_files = self.discover_raw_files(search_dir)
-        target_files = [
-            f for f in all_files if f["trade_date"] == date_str or f"/{date_str}/" in f["file_path"]
-        ]
+        target_files = [f for f in all_files if f["trade_date"] == date_str or f"/{date_str}/" in f["file_path"]]
 
         if not target_files:
             logger.warning(f"No raw files found for date: {date_str}")
@@ -311,7 +322,9 @@ class BronzeIngestor:
             "SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = CAST(? AS DATE);", [date_str]
         ).fetchone()[0]
 
-        logger.info(f"Successfully re-ingested {new_count:,} trades for date {date_str} across {len(target_files)} files.")
+        logger.info(
+            f"Successfully re-ingested {new_count:,} trades for date {date_str} across {len(target_files)} files."
+        )
         return {
             "status": "success",
             "target_date": date_str,
@@ -330,7 +343,9 @@ class BronzeIngestor:
         # Match files for this month
         all_files = self.discover_raw_files(search_dir)
         target_files = [
-            f for f in all_files if year_month in f["year_month"] or f"/{year_month}/" in f["file_path"] or year_month in f["file_path"]
+            f
+            for f in all_files
+            if year_month in f["year_month"] or f"/{year_month}/" in f["file_path"] or year_month in f["file_path"]
         ]
 
         if not target_files:
@@ -372,14 +387,16 @@ class BronzeIngestor:
         meta = self._extract_file_metadata(path)
 
         if force:
-            conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = ? OR raw_source = ?;", [path.as_posix(), path.name])
+            conn.execute(
+                "DELETE FROM bronze_raw_trades WHERE raw_source = ? OR raw_source = ?;", [path.as_posix(), path.name]
+            )
             conn.execute("DELETE FROM bronze_ingestion_log WHERE file_path = ?;", [path.as_posix()])
 
         self._ingest_file_batch([meta])
 
         row_count = conn.execute(
             "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ? OR raw_source = ?;",
-            [path.as_posix(), path.name]
+            [path.as_posix(), path.name],
         ).fetchone()[0]
 
         logger.info(f"Successfully ingested {row_count:,} rows from {path.name} into Bronze.")
@@ -463,13 +480,15 @@ class BronzeIngestor:
                     continue
                 path_str = f.resolve().as_posix()
                 stat = f.stat()
-                discovered.append({
-                    "file_path": path_str,
-                    "file_name": f.name,
-                    "file_size_bytes": stat.st_size,
-                    "file_mtime_epoch": stat.st_mtime,
-                    "extension": f.suffix.lower(),
-                })
+                discovered.append(
+                    {
+                        "file_path": path_str,
+                        "file_name": f.name,
+                        "file_size_bytes": stat.st_size,
+                        "file_mtime_epoch": stat.st_mtime,
+                        "extension": f.suffix.lower(),
+                    }
+                )
 
         logger.debug(f"Discovered {len(discovered)} central bank rate files under {base_dir}")
         return sorted(discovered, key=lambda x: x["file_path"])
@@ -516,7 +535,12 @@ class BronzeIngestor:
             if sync_market_dates:
                 sync_res = self.sync_central_bank_rates_to_market()
             total_rows = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
-            return {"files_processed": 0, "rows_in_table": total_rows, "market_sync": sync_res, "status": "already_up_to_date"}
+            return {
+                "files_processed": 0,
+                "rows_in_table": total_rows,
+                "market_sync": sync_res,
+                "status": "already_up_to_date",
+            }
 
         total_ingested = 0
         for fpath in target_files:
@@ -570,37 +594,45 @@ class BronzeIngestor:
 
             records = []
             for _, row in df_clean.iterrows():
-                records.append((
-                    row["rate_date"],
-                    "1_week_repo",
-                    float(row["interest_rate"]),
-                    0.0,
-                    False,
-                    False,
-                    fpath.name,
-                ))
+                records.append(
+                    (
+                        row["rate_date"],
+                        "1_week_repo",
+                        float(row["interest_rate"]),
+                        0.0,
+                        False,
+                        False,
+                        fpath.name,
+                    )
+                )
 
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT OR REPLACE INTO bronze_central_bank_rates (
                     rate_date, rate_type, interest_rate, rate_change, is_rate_change_day, is_forward_filled, raw_source, ingested_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
-            """, records)
+            """,
+                records,
+            )
 
             stat = fpath.stat()
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO bronze_ingestion_log (
                     file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label, ingested_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
-            """, [
-                fpath.resolve().as_posix(),
-                fpath.name,
-                stat.st_size,
-                stat.st_mtime,
-                df_clean["rate_date"].max(),
-                df_clean["rate_date"].max()[:7],
-                len(df_clean),
-                "cbrt_interest_rates",
-            ])
+            """,
+                [
+                    fpath.resolve().as_posix(),
+                    fpath.name,
+                    stat.st_size,
+                    stat.st_mtime,
+                    df_clean["rate_date"].max(),
+                    df_clean["rate_date"].max()[:7],
+                    len(df_clean),
+                    "cbrt_interest_rates",
+                ],
+            )
             total_ingested += len(df_clean)
 
         # Globally recalculate rate_change and is_rate_change_day for all records to maintain continuity
@@ -701,15 +733,20 @@ class BronzeIngestor:
             eff_target_date = max_mkt_date
 
         if eff_target_date is None or eff_target_date <= max_cbrt_date:
-            logger.debug(f"Central bank rates are already synchronized through {max_cbrt_date} (target={eff_target_date}).")
+            logger.debug(
+                f"Central bank rates are already synchronized through {max_cbrt_date} (target={eff_target_date})."
+            )
             return {"forward_filled_count": 0, "max_rate_date": str(max_cbrt_date), "status": "already_synced"}
 
-        latest_rate = conn.execute("""
+        latest_rate = conn.execute(
+            """
             SELECT interest_rate 
             FROM bronze_central_bank_rates 
             WHERE rate_date = ? 
             LIMIT 1;
-        """, [max_cbrt_date]).fetchone()[0]
+        """,
+            [max_cbrt_date],
+        ).fetchone()[0]
 
         logger.info(
             f"Forward-filling Central Bank rates from {max_cbrt_date + timedelta(days=1)} "
@@ -717,7 +754,8 @@ class BronzeIngestor:
         )
 
         start_fill = max_cbrt_date + timedelta(days=1)
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO bronze_central_bank_rates (
                 rate_date, rate_type, interest_rate, rate_change, is_rate_change_day, is_forward_filled, raw_source, ingested_at
             )
@@ -731,7 +769,9 @@ class BronzeIngestor:
                 'forward_fill_market_sync' AS raw_source,
                 CURRENT_TIMESTAMP AS ingested_at
             FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
-        """, [latest_rate, start_fill, eff_target_date])
+        """,
+            [latest_rate, start_fill, eff_target_date],
+        )
 
         filled_count = (eff_target_date - max_cbrt_date).days
         logger.info(f"Forward-filled {filled_count} missing date(s) in `bronze_central_bank_rates`.")
@@ -809,27 +849,33 @@ class BronzeIngestor:
                 for _, row in df.iterrows()
             ]
 
-            conn.executemany("""
+            conn.executemany(
+                """
                 INSERT OR REPLACE INTO bronze_bist_index_benchmarks (
                     trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct, is_forward_filled, source
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, records)
+            """,
+                records,
+            )
 
             # Log to ingestion log
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO bronze_ingestion_log (
                     file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label, ingested_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);
-            """, [
-                f"yfinance://{ticker_symbol}",
-                f"{ticker_symbol}_5year",
-                len(df) * 64,
-                datetime.now().timestamp(),
-                df["Date"].max(),
-                df["Date"].max()[:7],
-                len(records),
-                "bist30_benchmark",
-            ])
+            """,
+                [
+                    f"yfinance://{ticker_symbol}",
+                    f"{ticker_symbol}_5year",
+                    len(df) * 64,
+                    datetime.now().timestamp(),
+                    df["Date"].max(),
+                    df["Date"].max()[:7],
+                    len(records),
+                    "bist30_benchmark",
+                ],
+            )
 
             logger.info(f"Ingested {len(records):,} benchmark trading days into `bronze_bist_index_benchmarks`.")
         except Exception as e:
@@ -895,15 +941,19 @@ class BronzeIngestor:
         if eff_target_date is None or eff_target_date <= max_bench_date:
             return {"forward_filled_count": 0, "max_bench_date": str(max_bench_date), "status": "already_synced"}
 
-        latest_bench = conn.execute("""
+        latest_bench = conn.execute(
+            """
             SELECT open_price, high_price, low_price, close_price, volume
             FROM bronze_bist_index_benchmarks 
             WHERE trade_date = ? 
             LIMIT 1;
-        """, [max_bench_date]).fetchone()
+        """,
+            [max_bench_date],
+        ).fetchone()
 
         start_fill = max_bench_date + timedelta(days=1)
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO bronze_bist_index_benchmarks (
                 trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct, is_forward_filled, source
             )
@@ -920,7 +970,17 @@ class BronzeIngestor:
                 TRUE AS is_forward_filled,
                 'forward_fill_market_sync' AS source
             FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
-        """, [latest_bench[0], latest_bench[1], latest_bench[2], latest_bench[3], latest_bench[4], start_fill, eff_target_date])
+        """,
+            [
+                latest_bench[0],
+                latest_bench[1],
+                latest_bench[2],
+                latest_bench[3],
+                latest_bench[4],
+                start_fill,
+                eff_target_date,
+            ],
+        )
 
         filled_count = (eff_target_date - max_bench_date).days
         logger.info(f"Forward-filled {filled_count} missing date(s) in `bronze_bist_index_benchmarks`.")
@@ -929,5 +989,94 @@ class BronzeIngestor:
             "forward_filled_count": filled_count,
             "start_date": str(start_fill),
             "end_date": str(eff_target_date),
+            "status": "success",
+        }
+
+    def ingest_corporate_actions(
+        self,
+        csv_path: Optional[Union[str, Path]] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """Ingest corporate actions (bonus issues, splits, ticker changes, rights notes) into DuckDB.
+
+        Args:
+            csv_path: Optional explicit path to corporate_actions.csv. If None, checks raw_data_dir/corporate_actions/
+                      and falls back to config/corporate_actions.csv.
+            force: If True, clears existing records before loading.
+
+        Returns:
+            Dict[str, Any]: Ingestion metrics and status summary.
+        """
+        import csv
+        from decimal import Decimal
+
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        if csv_path is not None:
+            resolved_path = Path(csv_path).resolve()
+        else:
+            raw_target = self.settings.raw_data_dir / "corporate_actions" / "corporate_actions.csv"
+            if raw_target.exists():
+                resolved_path = raw_target
+            else:
+                config_target = Path("config/corporate_actions.csv").resolve()
+                resolved_path = config_target
+
+        if not resolved_path.exists():
+            logger.warning(f"Corporate actions reference file not found at: {resolved_path}")
+            return {"rows_ingested": 0, "status": "file_not_found"}
+
+        if force:
+            logger.info("Force reloading `bronze_corporate_actions`...")
+            conn.execute("DELETE FROM bronze_corporate_actions;")
+
+        rows_to_insert = []
+        with resolved_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for line_no, row in enumerate(reader, start=2):
+                try:
+                    action_date = date.fromisoformat(row["action_date"].strip())
+                    multiplier = float(Decimal(row["quantity_multiplier"].strip()))
+                except Exception as exc:
+                    raise ValueError(f"Invalid date or multiplier in {resolved_path} line {line_no}: {exc}") from exc
+
+                symbol = row["symbol"].strip().upper()
+                target_symbol = row["target_symbol"].strip().upper() if row.get("target_symbol") else None
+                note = row.get("note", "").strip()
+
+                if not symbol or multiplier <= 0:
+                    raise ValueError(f"Empty symbol or non-positive multiplier in line {line_no}")
+
+                rows_to_insert.append(
+                    [
+                        action_date,
+                        symbol,
+                        target_symbol,
+                        multiplier,
+                        note,
+                        resolved_path.name,
+                    ]
+                )
+
+        for r in rows_to_insert:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO bronze_corporate_actions (
+                    action_date, symbol, target_symbol, quantity_multiplier, note, raw_source
+                ) VALUES (?, ?, ?, ?, ?, ?);
+            """,
+                r,
+            )
+
+        total_count = conn.execute("SELECT COUNT(*) FROM bronze_corporate_actions;").fetchone()[0]
+        logger.info(
+            f"Successfully ingested {len(rows_to_insert)} corporate action(s) into `bronze_corporate_actions` (Total: {total_count})."
+        )
+
+        return {
+            "rows_ingested": len(rows_to_insert),
+            "total_rows": total_count,
+            "source_path": str(resolved_path),
             "status": "success",
         }

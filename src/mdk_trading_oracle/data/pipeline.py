@@ -125,6 +125,9 @@ class MedallionPipeline:
         # Ingest official BIST 30 benchmark index data and sync/forward-fill to latest market date
         bench_res = self.bronze_ingestor.ingest_bist30_benchmarks(force=force, sync_market_dates=True)
 
+        # Ingest corporate action events (splits, bonus issues, ticker changes, rights notes)
+        actions_res = self.bronze_ingestor.ingest_corporate_actions(force=force)
+
         conn = self.db.get_connection()
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
@@ -132,11 +135,13 @@ class MedallionPipeline:
         log_count = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
         cbrt_rates_count = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
         benchmarks_count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+        actions_count = conn.execute("SELECT COUNT(*) FROM bronze_corporate_actions;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Bronze Layer completed in {elapsed:.2f}s | "
-            f"Raw Trades: {trades_count:,} | CBRT Rates: {cbrt_rates_count:,} | Benchmarks: {benchmarks_count:,} | Ingested Files Logged: {log_count:,}"
+            f"Raw Trades: {trades_count:,} | CBRT Rates: {cbrt_rates_count:,} | Benchmarks: {benchmarks_count:,} | "
+            f"Corporate Actions: {actions_count:,} | Ingested Files Logged: {log_count:,}"
         )
         return {
             "layer": "bronze",
@@ -145,6 +150,7 @@ class MedallionPipeline:
                 "bronze_raw_trades": trades_count,
                 "bronze_central_bank_rates": cbrt_rates_count,
                 "bronze_bist_index_benchmarks": benchmarks_count,
+                "bronze_corporate_actions": actions_count,
                 "bronze_ingestion_log": log_count,
                 "bronze_brokers": brokers_count,
                 "bronze_instruments": instruments_count,
@@ -153,6 +159,7 @@ class MedallionPipeline:
                 "trades": ingest_res,
                 "central_bank_rates": cbrt_res,
                 "benchmarks": bench_res,
+                "corporate_actions": actions_res,
             },
             "status": "success",
         }
@@ -166,6 +173,9 @@ class MedallionPipeline:
         silver_res = self.silver_transformer.run_all()
 
         conn = self.db.get_connection()
+        adj_periods_count = conn.execute("SELECT COUNT(*) FROM silver_corporate_action_adjustment_periods;").fetchone()[
+            0
+        ]
         broker_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_summary;").fetchone()[0]
         broker_overview_count = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_overview;").fetchone()[0]
         stock_summary_count = conn.execute("SELECT COUNT(*) FROM silver_daily_stock_summary;").fetchone()[0]
@@ -178,26 +188,29 @@ class MedallionPipeline:
         fifo_daily_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_daily;").fetchone()[0]
         fifo_entries_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_entries;").fetchone()[0]
         fifo_lots_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lots;").fetchone()[0]
-        fifo_realizations_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_realizations;").fetchone()[0]
+        fifo_realizations_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_realizations;").fetchone()[
+            0
+        ]
         fifo_lifecycle_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_lifecycle;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Silver Layer completed in {elapsed:.2f}s | "
+            f"Adjustment Periods: {adj_periods_count:,} | Stock Summary: {stock_summary_count:,} | "
             f"Stock-Broker: {broker_summary_count:,} | Broker Overview: {broker_overview_count:,} | "
-            f"Stock Summary: {stock_summary_count:,} | Sector: {sector_summary_count:,} | "
-            f"Intraday Windows: {win_broker_count:,} | Macro Rates: {macro_rates_count:,} | "
-            f"Benchmark Days: {benchmark_count:,} | Threshold Profiles: {thresholds_count:,} | "
-            f"FIFO Daily: {fifo_daily_count:,} | Lot Entries: {fifo_entries_count:,} | "
-            f"Active Lots: {fifo_lots_count:,} | Realizations: {fifo_realizations_count:,}"
+            f"Sector: {sector_summary_count:,} | Intraday Windows: {win_broker_count:,} | "
+            f"Macro Rates: {macro_rates_count:,} | Benchmark Days: {benchmark_count:,} | "
+            f"Threshold Profiles: {thresholds_count:,} | FIFO Daily: {fifo_daily_count:,} | "
+            f"Lot Entries: {fifo_entries_count:,} | Active Lots: {fifo_lots_count:,}"
         )
         return {
             "layer": "silver",
             "elapsed_sec": elapsed,
             "metrics": {
+                "silver_corporate_action_adjustment_periods": adj_periods_count,
+                "silver_daily_stock_summary": stock_summary_count,
                 "silver_daily_broker_summary": broker_summary_count,
                 "silver_daily_broker_overview": broker_overview_count,
-                "silver_daily_stock_summary": stock_summary_count,
                 "silver_daily_sector_summary": sector_summary_count,
                 "silver_intraday_broker_window_summary": win_broker_count,
                 "silver_intraday_sector_window_summary": win_sector_count,
@@ -213,7 +226,6 @@ class MedallionPipeline:
             "details": silver_res,
             "status": "success",
         }
-
 
     def run_gold(
         self,
@@ -245,11 +257,15 @@ class MedallionPipeline:
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
-        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
+        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[
+            0
+        ]
         perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_performance;").fetchone()[0]
         sector_perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
         backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
-        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
+        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[
+            0
+        ]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
@@ -333,8 +349,6 @@ class MedallionPipeline:
                     exclude_features=exclude_features,
                 )
 
-
-
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()
         results["total_elapsed_sec"] = total_elapsed
         results["status"] = "success"
@@ -373,5 +387,7 @@ class MedallionPipeline:
                 first = False
 
         table.add_section()
-        table.add_row("TOTAL", "Full Pipeline Execution", "", f"{results.get('total_elapsed_sec', 0.0):.2f}s", "🚀 COMPLETE")
+        table.add_row(
+            "TOTAL", "Full Pipeline Execution", "", f"{results.get('total_elapsed_sec', 0.0):.2f}s", "🚀 COMPLETE"
+        )
         console.print(table)

@@ -55,20 +55,26 @@ class DayStartModelArena:
             metrics = model.walk_forward_evaluate(
                 X, y, min_train_samples=min_train_samples, eval_window_days=eval_window_days
             )
-            scoreboard.append({
-                "Model": name,
-                "hit_rate_pct": metrics["hit_rate_pct"],
-                "picp_90_pct": metrics["picp_90_pct"],
-                "mae_million_tl": metrics["mae_million_tl"],
-                "rmse_million_tl": metrics["rmse_million_tl"],
-                "sample_size": metrics["sample_size"],
-                "_model_instance": model,
-            })
+            scoreboard.append(
+                {
+                    "Model": name,
+                    "hit_rate_pct": metrics["hit_rate_pct"],
+                    "picp_90_pct": metrics["picp_90_pct"],
+                    "mae_million_tl": metrics["mae_million_tl"],
+                    "rmse_million_tl": metrics["rmse_million_tl"],
+                    "sample_size": metrics["sample_size"],
+                    "_model_instance": model,
+                }
+            )
 
-        df_scores = pd.DataFrame(scoreboard).sort_values(
-            by=["hit_rate_pct", "picp_90_pct", "rmse_million_tl"],
-            ascending=[False, False, True],
-        ).reset_index(drop=True)
+        df_scores = (
+            pd.DataFrame(scoreboard)
+            .sort_values(
+                by=["hit_rate_pct", "picp_90_pct", "rmse_million_tl"],
+                ascending=[False, False, True],
+            )
+            .reset_index(drop=True)
+        )
 
         champion_row = df_scores.iloc[0]
         champion_model: BaseForecaster = champion_row["_model_instance"]
@@ -88,7 +94,7 @@ class DayStartModelArena:
 @ModelRegistry.register("day_start_forecaster")
 class DayStartForecaster:
     """Production Forecaster for Model 1: 'How Will BofA Start the Day?'
-    
+
     Orchestrates end-to-end:
         1. Feature extraction across all 8 Feature Clusters from DuckDB Silver tables
         2. Dynamic empirical flow percentile threshold integration
@@ -135,7 +141,7 @@ class DayStartForecaster:
         self.threshold_profile = self._load_threshold_profile()
         self.arena = DayStartModelArena(thresholds=self.threshold_profile)
         self.champion_name: Optional[str] = None
-        
+
         if self.model_type == "lightgbm":
             self.model: Optional[BaseForecaster] = DayStartLightGBMModel(thresholds=self.threshold_profile)
         elif self.model_type == "xgboost":
@@ -220,7 +226,7 @@ class DayStartForecaster:
 
     def forecast_next_day(self, as_of_date: Optional[Union[str, date]] = None) -> ForecastResult:
         """Generate the live prediction for the upcoming trading morning (T_next) based on T_close.
-        
+
         Args:
             as_of_date: Optional reference date for point-in-time historical inference (hiding subsequent data).
         """
@@ -239,7 +245,7 @@ class DayStartForecaster:
         logger.info(
             f"🎯 Generated Forecast for {res.forecast_date}: "
             f"Predicted Flow = {res.predicted_net_flow_tl / 1e6:+.2f}M TL, "
-            f"Direction = {res.predicted_direction} ({res.direction_confidence*100:.1f}%), "
+            f"Direction = {res.predicted_direction} ({res.direction_confidence * 100:.1f}%), "
             f"Playbook = {res.predicted_playbook} (Champion: '{self.champion_name}')."
         )
         return res
@@ -269,19 +275,23 @@ class DayStartForecaster:
 
         arena = DayStartModelArena(thresholds=self.threshold_profile, include_pymc=include_pymc)
         min_burn = min(self.min_burn_in_days, max(2, len(df_all_pd) - 1))
-        scores_all, champ_all = arena.run_tournament(X_all, y_all, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+        scores_all, champ_all = arena.run_tournament(
+            X_all, y_all, min_train_samples=min_burn, eval_window_days=self.eval_window_days
+        )
         best_all = scores_all.iloc[0]
 
-        ablation_results.append({
-            "Experiment": "Baseline (All Features)",
-            "Active_Features": len(sel_all.active_features),
-            "Removed_Cluster": "None",
-            "Champion_Model": champ_all.model_name,
-            "Hit_Rate_Pct": best_all["hit_rate_pct"],
-            "PICP_90_Pct": best_all["picp_90_pct"],
-            "RMSE_Million_TL": best_all["rmse_million_tl"],
-            "MAE_Million_TL": best_all["mae_million_tl"],
-        })
+        ablation_results.append(
+            {
+                "Experiment": "Baseline (All Features)",
+                "Active_Features": len(sel_all.active_features),
+                "Removed_Cluster": "None",
+                "Champion_Model": champ_all.model_name,
+                "Hit_Rate_Pct": best_all["hit_rate_pct"],
+                "PICP_90_Pct": best_all["picp_90_pct"],
+                "RMSE_Million_TL": best_all["rmse_million_tl"],
+                "MAE_Million_TL": best_all["mae_million_tl"],
+            }
+        )
 
         # 2. Leave each cluster out one by one
         for cl in clusters:
@@ -291,21 +301,29 @@ class DayStartForecaster:
             y_loco = df_loco_pd["target_open_net_flow_tl"]
 
             arena_loco = DayStartModelArena(thresholds=self.threshold_profile, include_pymc=include_pymc)
-            scores_loco, champ_loco = arena_loco.run_tournament(X_loco, y_loco, min_train_samples=min_burn, eval_window_days=self.eval_window_days)
+            scores_loco, champ_loco = arena_loco.run_tournament(
+                X_loco, y_loco, min_train_samples=min_burn, eval_window_days=self.eval_window_days
+            )
             best_loco = scores_loco.iloc[0]
 
-            ablation_results.append({
-                "Experiment": f"Without '{cl}'",
-                "Active_Features": len(sel_loco.active_features),
-                "Removed_Cluster": cl,
-                "Champion_Model": champ_loco.model_name,
-                "Hit_Rate_Pct": best_loco["hit_rate_pct"],
-                "PICP_90_Pct": best_loco["picp_90_pct"],
-                "RMSE_Million_TL": best_loco["rmse_million_tl"],
-                "MAE_Million_TL": best_loco["mae_million_tl"],
-            })
+            ablation_results.append(
+                {
+                    "Experiment": f"Without '{cl}'",
+                    "Active_Features": len(sel_loco.active_features),
+                    "Removed_Cluster": cl,
+                    "Champion_Model": champ_loco.model_name,
+                    "Hit_Rate_Pct": best_loco["hit_rate_pct"],
+                    "PICP_90_Pct": best_loco["picp_90_pct"],
+                    "RMSE_Million_TL": best_loco["rmse_million_tl"],
+                    "MAE_Million_TL": best_loco["mae_million_tl"],
+                }
+            )
 
-        df_res = pd.DataFrame(ablation_results).sort_values(by=["Hit_Rate_Pct", "PICP_90_Pct", "RMSE_Million_TL"], ascending=[False, False, True]).reset_index(drop=True)
+        df_res = (
+            pd.DataFrame(ablation_results)
+            .sort_values(by=["Hit_Rate_Pct", "PICP_90_Pct", "RMSE_Million_TL"], ascending=[False, False, True])
+            .reset_index(drop=True)
+        )
         logger.info(f"Feature Ablation Study completed across {len(clusters)} clusters.")
         return df_res
 
@@ -328,7 +346,7 @@ class DayStartForecaster:
         include_next_day: bool = True,
     ) -> List[ForecastResult]:
         """Extract features, fit champion model, and generate forecasts.
-        
+
         Args:
             include_history: If True, includes historical backtest forecasts for all training days.
             include_next_day: If True (default), includes the live forecast for upcoming session T_next.
@@ -347,7 +365,7 @@ class DayStartForecaster:
         replace_active: bool = True,
     ) -> int:
         """Persist active live forecast(s) into DuckDB Gold table (`gold_bofa_day_start_forecasts`).
-        
+
         Args:
             forecasts: The active forecast(s) to save.
             replace_active: If True (default), cleans out previous forecasts so the table strictly
@@ -362,7 +380,9 @@ class DayStartForecaster:
             return 0
 
         conn = self.db.get_connection()
-        logger.info(f"Persisting {len(forecast_list)} live forecast(s) to `gold_bofa_day_start_forecasts` (replace_active={replace_active})...")
+        logger.info(
+            f"Persisting {len(forecast_list)} live forecast(s) to `gold_bofa_day_start_forecasts` (replace_active={replace_active})..."
+        )
 
         # Ensure schema exists
         conn.execute("""
@@ -391,8 +411,9 @@ class DayStartForecaster:
         for f in forecast_list:
             d = f.forecast_date
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
-            conn.execute("""
+            is_mon = dow == 1
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_day_start_forecasts (
                     forecast_date, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
@@ -400,22 +421,24 @@ class DayStartForecaster:
                     predicted_playbook, top_predicted_buy_sector, top_predicted_sell_sector,
                     model_name, model_version, generated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                dow,
-                is_mon,
-                f.predicted_net_flow_tl,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                f.predicted_direction,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.top_predicted_buy_sector,
-                f.top_predicted_sell_sector,
-                f.model_name,
-                f.model_version,
-                f.generated_at,
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    dow,
+                    is_mon,
+                    f.predicted_net_flow_tl,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    f.predicted_direction,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.top_predicted_buy_sector,
+                    f.top_predicted_sell_sector,
+                    f.model_name,
+                    f.model_version,
+                    f.generated_at,
+                ],
+            )
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_day_start_forecasts`: {saved_count:,} active forecast(s).")
@@ -426,7 +449,7 @@ class DayStartForecaster:
         forecasts: Optional[List[ForecastResult]] = None,
     ) -> int:
         """Reconcile completed session forecasts against actual Silver Window 1 market data and upsert into `gold_bofa_day_start_performance`.
-        
+
         Args:
             forecasts: Optional list of previously generated ForecastResult objects. If None, backtest results
                        are used to reconcile all completed historical dates.
@@ -476,7 +499,9 @@ class DayStartForecaster:
             WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start'
             GROUP BY trade_date;
         """).df()
-        actuals_map = dict(zip(actuals_df["trade_date"].astype(str).str.slice(0, 10), actuals_df["actual_w1_net_flow_tl"]))
+        actuals_map = dict(
+            zip(actuals_df["trade_date"].astype(str).str.slice(0, 10), actuals_df["actual_w1_net_flow_tl"])
+        )
 
         reconciled_count = 0
         for f in forecasts:
@@ -487,7 +512,7 @@ class DayStartForecaster:
                 continue
 
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
+            is_mon = dow == 1
             actual_flow = float(actuals_map[d_str])
             pred_flow = float(f.predicted_net_flow_tl)
             error_flow = actual_flow - pred_flow
@@ -496,7 +521,8 @@ class DayStartForecaster:
             is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
             is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_day_start_performance (
                     trade_date, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
@@ -507,33 +533,37 @@ class DayStartForecaster:
                     top_predicted_buy_sector, top_predicted_sell_sector,
                     model_name, model_version, forecast_generated_at, realized_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                dow,
-                is_mon,
-                pred_flow,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                actual_flow,
-                error_flow,
-                abs_error,
-                f.predicted_direction,
-                actual_dir,
-                is_hit,
-                is_in_ci,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.top_predicted_buy_sector,
-                f.top_predicted_sell_sector,
-                f.model_name,
-                f.model_version,
-                f.generated_at,
-                now_turkey_naive(),
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    dow,
+                    is_mon,
+                    pred_flow,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    actual_flow,
+                    error_flow,
+                    abs_error,
+                    f.predicted_direction,
+                    actual_dir,
+                    is_hit,
+                    is_in_ci,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.top_predicted_buy_sector,
+                    f.top_predicted_sell_sector,
+                    f.model_name,
+                    f.model_version,
+                    f.generated_at,
+                    now_turkey_naive(),
+                ],
+            )
             reconciled_count += 1
 
         total_perf = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_performance;").fetchone()[0]
-        logger.info(f"Successfully updated `gold_bofa_day_start_performance`: {total_perf:,} total recorded sessions ({reconciled_count} reconciled in this run).")
+        logger.info(
+            f"Successfully updated `gold_bofa_day_start_performance`: {total_perf:,} total recorded sessions ({reconciled_count} reconciled in this run)."
+        )
         return total_perf
 
     def backfill_historical_performance(
@@ -544,7 +574,7 @@ class DayStartForecaster:
         lookback_days: Optional[int] = None,
     ) -> int:
         """Perform zero-lookahead point-in-time forecasting for past missed trading days and record into `gold_bofa_day_start_performance`.
-        
+
         Args:
             target_dates: Specific list of past trading dates (e.g. ['2026-03-10', '2026-03-18']) to backfill.
             all_missing: If True and target_dates is None, auto-discovers dates in Silver within the configured lookback
@@ -554,7 +584,8 @@ class DayStartForecaster:
         """
         conn = self.db.get_connection()
         all_silver_dates = [
-            r[0] for r in conn.execute(
+            r[0]
+            for r in conn.execute(
                 f"SELECT DISTINCT trade_date FROM silver_intraday_broker_window_summary WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start' ORDER BY trade_date ASC;"
             ).fetchall()
         ]
@@ -569,13 +600,17 @@ class DayStartForecaster:
                 dates_to_backfill.append(d_obj)
         elif all_missing:
             backfill_cfg = self.settings.get_backfill_config()
-            eff_months = lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            eff_months = (
+                lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            )
             eff_days = lookback_days if lookback_days is not None else backfill_cfg.get("default_lookback_days", None)
 
             existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
             existing_perf_dates = set()
             if "gold_bofa_day_start_performance" in existing_tables:
-                existing_perf_dates = set(r[0] for r in conn.execute("SELECT trade_date FROM gold_bofa_day_start_performance;").fetchall())
+                existing_perf_dates = set(
+                    r[0] for r in conn.execute("SELECT trade_date FROM gold_bofa_day_start_performance;").fetchall()
+                )
 
             if all_silver_dates:
                 latest_date = max(all_silver_dates)
@@ -597,12 +632,16 @@ class DayStartForecaster:
             logger.info("No dates to backfill for Day-Start Macro model.")
             return 0
 
-        logger.info(f"Starting zero-lookahead point-in-time backfill for {len(dates_to_backfill)} date(s): {dates_to_backfill}...")
+        logger.info(
+            f"Starting zero-lookahead point-in-time backfill for {len(dates_to_backfill)} date(s): {dates_to_backfill}..."
+        )
         backfilled_forecasts: List[ForecastResult] = []
         for target_d in dates_to_backfill:
             prior_dates = [d for d in all_silver_dates if d < target_d]
             if not prior_dates:
-                logger.warning(f"Skipping backfill for {target_d}: No prior historical session available for feature computation.")
+                logger.warning(
+                    f"Skipping backfill for {target_d}: No prior historical session available for feature computation."
+                )
                 continue
             as_of_d = max(prior_dates)
             logger.info(f"Backfilling {target_d} with strict zero-leakage cutoff as_of_date={as_of_d}...")
@@ -659,13 +698,15 @@ class DayStartForecaster:
             WHERE broker_id = '{self.target_broker}' AND window_name = 'day_start'
             GROUP BY trade_date;
         """).df()
-        actuals_map = dict(zip(actuals_df["trade_date"].astype(str).str.slice(0, 10), actuals_df["actual_w1_net_flow_tl"]))
+        actuals_map = dict(
+            zip(actuals_df["trade_date"].astype(str).str.slice(0, 10), actuals_df["actual_w1_net_flow_tl"])
+        )
 
         for f in backtest_results:
             d = f.forecast_date
             d_str = str(d)[:10]
             dow = d.weekday() + 1 if isinstance(d, date) else 1
-            is_mon = (dow == 1)
+            is_mon = dow == 1
             actual_flow = float(actuals_map.get(d_str, 0.0))
             pred_flow = float(f.predicted_net_flow_tl)
             error_flow = actual_flow - pred_flow
@@ -673,7 +714,8 @@ class DayStartForecaster:
             is_hit = bool((pred_flow > 0 and actual_flow > 0) or (pred_flow <= 0 and actual_flow <= 0))
             is_in_ci = bool(f.predicted_flow_lower_90 <= actual_flow <= f.predicted_flow_upper_90)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO gold_bofa_day_start_backtests (
                     trade_date, day_of_week, is_monday,
                     predicted_open_net_flow_tl, predicted_open_flow_lower_90, predicted_open_flow_upper_90,
@@ -684,31 +726,30 @@ class DayStartForecaster:
                     top_predicted_buy_sector, top_predicted_sell_sector,
                     model_name, model_version, calculated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, [
-                f.forecast_date,
-                dow,
-                is_mon,
-                pred_flow,
-                f.predicted_flow_lower_90,
-                f.predicted_flow_upper_90,
-                actual_flow,
-                error_flow,
-                f.predicted_direction,
-                actual_dir,
-                is_hit,
-                is_in_ci,
-                f.direction_confidence,
-                f.predicted_playbook,
-                f.top_predicted_buy_sector,
-                f.top_predicted_sell_sector,
-                f.model_name,
-                f.model_version,
-                now_turkey_naive(),
-            ])
+            """,
+                [
+                    f.forecast_date,
+                    dow,
+                    is_mon,
+                    pred_flow,
+                    f.predicted_flow_lower_90,
+                    f.predicted_flow_upper_90,
+                    actual_flow,
+                    error_flow,
+                    f.predicted_direction,
+                    actual_dir,
+                    is_hit,
+                    is_in_ci,
+                    f.direction_confidence,
+                    f.predicted_playbook,
+                    f.top_predicted_buy_sector,
+                    f.top_predicted_sell_sector,
+                    f.model_name,
+                    f.model_version,
+                    now_turkey_naive(),
+                ],
+            )
 
         saved_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
         logger.info(f"Successfully updated `gold_bofa_day_start_backtests`: {saved_count:,} total records.")
         return saved_count
-
-
-

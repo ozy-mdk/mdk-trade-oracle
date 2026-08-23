@@ -6,15 +6,8 @@ nb = nbf.v4.new_notebook()
 
 # Metadata
 nb.metadata = {
-    "kernelspec": {
-        "display_name": "Python 3.9 (mdk-trading-oracle)",
-        "language": "python",
-        "name": "python3"
-    },
-    "language_info": {
-        "name": "python",
-        "version": "3.9.5"
-    }
+    "kernelspec": {"display_name": "Python 3.9 (mdk-trading-oracle)", "language": "python", "name": "python3"},
+    "language_info": {"name": "python", "version": "3.9.5"},
 }
 
 cells = [
@@ -242,7 +235,6 @@ Continuous predictions are translated into discrete, tradeable decision playbook
 * **`SECTOR_ROTATION`**: Monday morning capital shifts between Banking and Transportation.
 * **`NEUTRAL_WAIT`**: Ambiguous flow — wait for Window 2 intraday confirmation.
 """),
-
     nbf.v4.new_code_cell("""import duckdb
 import polars as pl
 import pandas as pd
@@ -270,12 +262,10 @@ settings = get_settings()
 print(f"[OK] DuckDB Database: {settings.duckdb_path}")
 print(f"[OK] Data Directory: {settings.data_dir}")
 """),
-
     nbf.v4.new_markdown_cell("""## 2. Feature Extraction: Assembling the 7 Feature Clusters
 
 We extract features computed strictly at $T-1$ Close from our 6 Silver fact tables with **zero data leakage**.
 """),
-
     nbf.v4.new_code_cell("""db = DuckDBManager(read_only=True)
 extractor = DayStartFeatureExtractor(db, target_broker_id="MLB")
 df_pl = extractor.extract_features()
@@ -286,12 +276,10 @@ display(df.head(5)[["trade_date", "day_of_week", "is_monday", "feat_bofa_w4_net_
                    "feat_bofa_vs_top5_w4_flow_delta_tl", "feat_bofa_cost_basis_spread_20d_pct", 
                    "target_open_net_flow_tl", "target_open_direction"]])
 """),
-
     nbf.v4.new_markdown_cell("""## 3. Feature Importance & Correlation Analysis
 
 How do yesterday's closing signals, competitor imbalances, and cost basis spreads correlate with today's opening net flow?
 """),
-
     nbf.v4.new_code_cell("""# Calculate correlations with the target opening net flow
 feat_cols = [c for c in df.columns if c.startswith("feat_") or c in ["is_monday", "is_friday"]]
 corrs = df[feat_cols + ["target_open_net_flow_tl"]].corr()["target_open_net_flow_tl"].drop("target_open_net_flow_tl").sort_values()
@@ -309,13 +297,11 @@ fig_corr = px.bar(
 fig_corr.update_layout(template="plotly_dark", showlegend=False)
 fig_corr.show()
 """),
-
     nbf.v4.new_markdown_cell(r"""## 4. Multi-Model Arena & Auto-Champion Tournament (Walk-Forward Validation)
 
 We run an expanding-window **Walk-Forward Validation Tournament** across all 5 candidate models.
 Models are trained strictly on past trading sessions ($1 \dots t-1$) to forecast session $t$, guaranteeing **zero lookahead bias**.
 """),
-
     nbf.v4.new_code_cell("""X = df.drop(columns=["target_open_net_flow_tl", "target_open_direction"], errors="ignore")
 y = df["target_open_net_flow_tl"]
 
@@ -343,12 +329,10 @@ display(HTML("<h3>Out-of-Sample Walk-Forward Scoreboard</h3>"))
 display(scoreboard_df.style.highlight_max(subset=["hit_rate_pct", "picp_90_pct"], color="#1b4332")
                            .highlight_min(subset=["mae_million_tl", "rmse_million_tl"], color="#1b4332"))
 """),
-
     nbf.v4.new_markdown_cell("""## 5. Live Next-Day Forecast (Actionable Trading Signal for Tomorrow)
 
 Using the dynamically crowned champion model from the Tournament, we extract features strictly from the latest market close and generate the **live forecast for the upcoming morning opening auction**.
 """),
-
     nbf.v4.new_code_cell("""# Initialize Forecaster with the dynamically crowned champion
 forecaster = DayStartForecaster(db, model_type=champion_model.model_name)
 live_forecast = forecaster.forecast_next_day()
@@ -392,12 +376,10 @@ display(HTML(f\"\"\"
 </div>
 \"\"\"))
 """),
-
     nbf.v4.new_markdown_cell("""## 6. Historical Backtest Track Record: Predicted vs Actual Opening Net Flow & 90% Confidence Ribbon
 
 Visualizing historical out-of-sample and backtested performance of the crowned Champion model against actual opening net flows.
 """),
-
     nbf.v4.new_code_cell("""# Generate historical backtest track record using crowned champion
 backtest_forecasts = forecaster.backtest_all_history()
 
@@ -469,12 +451,10 @@ fig.update_layout(
 )
 fig.show()
 """),
-
     nbf.v4.new_markdown_cell("""## 7. Interactive Historical Session Inspector & Playbook Breakdown
 
 Select any historical date to inspect the model's opening conviction, competitor closing posture, and sector allocation forecast.
 """),
-
     nbf.v4.new_code_cell("""date_options = chart_df["trade_date"].tolist()
 
 date_dropdown = widgets.Dropdown(
@@ -530,7 +510,6 @@ display(date_dropdown, output)
 if date_dropdown.value:
     update_session({"new": date_dropdown.value})
 """),
-
     nbf.v4.new_markdown_cell("""## 8. Gold Tables & Production Performance Ledgers in DuckDB
 
 Verifying the persisted production tables in DuckDB:
@@ -538,7 +517,6 @@ Verifying the persisted production tables in DuckDB:
 2. `gold_bofa_day_start_performance`: Permanent historical performance tracking ledger recording prior forecasts matched against realized actual Window 1 market data.
 3. `gold_bofa_day_start_backtests`: Dedicated historical walk-forward backtest simulation ledger.
 """),
-
     nbf.v4.new_code_cell("""conn = db.get_connection()
 
 print("1. Live Active Upcoming Forecast (gold_bofa_day_start_forecasts) - Strictly T+1:")
@@ -578,12 +556,10 @@ gold_perf_df = conn.execute(\"\"\"
 \"\"\").df()
 display(gold_perf_df)
 """),
-
     nbf.v4.new_markdown_cell("""### Historical Backtest Performance Dashboard (`gold_bofa_day_start_backtests`)
 
 Calculating executive summary KPIs directly from the DuckDB backtest ledger:
 """),
-
     nbf.v4.new_code_cell("""# Summary KPIs from DuckDB
 backtest_kpis = conn.execute(\"\"\"
     SELECT 
@@ -618,7 +594,6 @@ kpi_html = f\"\"\"
 \"\"\"
 display(HTML(kpi_html))
 """),
-
     nbf.v4.new_code_cell("""print("2. Full Day-Start Backtest Ledger (gold_bofa_day_start_backtests):")
 gold_backtests_full_df = conn.execute(\"\"\"
     SELECT 
@@ -642,7 +617,6 @@ gold_backtests_full_df = conn.execute(\"\"\"
 # Display formatted full backtest table
 display(gold_backtests_full_df)
 """),
-
     nbf.v4.new_code_cell("""print("3. Backtest Performance by Session Type (Day of Week):")
 dow_perf_df = conn.execute(\"\"\"
     SELECT 
@@ -657,7 +631,7 @@ dow_perf_df = conn.execute(\"\"\"
     ORDER BY sessions DESC;
 \"\"\").df()
 display(dow_perf_df)
-""")
+"""),
 ]
 
 nb.cells.extend(cells)
@@ -666,6 +640,3 @@ with open("notebooks/03_bofa_day_start_modeling.ipynb", "w") as f:
     nbf.write(nb, f)
 
 print("[OK] Successfully generated notebooks/03_bofa_day_start_modeling.ipynb!")
-
-
-

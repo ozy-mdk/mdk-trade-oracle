@@ -111,12 +111,17 @@ def fetch_bist30_data(
             for _, row in df.iterrows()
         ]
 
-        conn.executemany("""
+        conn.executemany(
+            """
             INSERT OR REPLACE INTO bronze_bist_index_benchmarks (
                 trade_date, index_code, open_price, high_price, low_price, close_price, volume, daily_return_pct, price_range_pct
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """, records_to_insert)
-        console.print(f"[green]Synced {len(records_to_insert)} records into DuckDB table `bronze_bist_index_benchmarks`[/green]")
+        """,
+            records_to_insert,
+        )
+        console.print(
+            f"[green]Synced {len(records_to_insert)} records into DuckDB table `bronze_bist_index_benchmarks`[/green]"
+        )
 
     console.print(f"\n[bold green]Success! Downloaded {len(df)} trading days of data.[/bold green]")
     console.print("\n[bold]Data Preview (Most Recent Rows):[/bold]")
@@ -128,8 +133,12 @@ def fetch_bist30_data(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch BIST 30 historical benchmark data from Yahoo Finance.")
     parser.add_argument("--years", type=int, default=5, help="Number of historical years to fetch (default: 5)")
-    parser.add_argument("--ticker", type=str, default="XU030.IS", help="Yahoo Finance ticker symbol (default: XU030.IS)")
-    parser.add_argument("--save-db", action="store_true", help="Sync data into DuckDB table `bronze_bist_index_benchmarks`")
+    parser.add_argument(
+        "--ticker", type=str, default="XU030.IS", help="Yahoo Finance ticker symbol (default: XU030.IS)"
+    )
+    parser.add_argument(
+        "--save-db", action="store_true", help="Sync data into DuckDB table `bronze_bist_index_benchmarks`"
+    )
     args = parser.parse_args()
 
     fetch_bist30_data(years=args.years, ticker_symbol=args.ticker, save_db=args.save_db)

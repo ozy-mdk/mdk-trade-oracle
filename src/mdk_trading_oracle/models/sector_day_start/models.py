@@ -41,8 +41,12 @@ class BaseSectorDayStartModel(BaseForecaster):
         if sector_name and sector_name in self.sector_thresholds:
             return self.sector_thresholds[sector_name]
         return FlowThresholdProfile(
-            buy_p25_tl=2e6, buy_p50_tl=5e6, buy_p85_tl=15e6,
-            sell_p25_tl=2e6, sell_p50_tl=5e6, sell_p85_tl=15e6,
+            buy_p25_tl=2e6,
+            buy_p50_tl=5e6,
+            buy_p85_tl=15e6,
+            sell_p25_tl=2e6,
+            sell_p50_tl=5e6,
+            sell_p85_tl=15e6,
         )
 
     def _classify_direction(self, net_flow_tl: float, confidence: float = 0.5, sector: Optional[str] = None) -> str:
@@ -182,6 +186,7 @@ class BaseSectorDayStartModel(BaseForecaster):
 # 0. Baselines
 # ==========================================
 
+
 @ModelRegistry.register("sector_day_start_naive_persistence")
 class SectorDayStartNaivePersistenceModel(BaseSectorDayStartModel):
     """Baseline 0: Carries yesterday's closing Window 4 sector flow forward."""
@@ -270,6 +275,7 @@ class SectorDayStartRollingMeanModel(BaseSectorDayStartModel):
 # 1. Bayesian Probabilistic Forecaster
 # ==========================================
 
+
 @ModelRegistry.register("sector_day_start_bayesian_ridge")
 class SectorDayStartBayesianModel(BaseSectorDayStartModel):
     """Bayesian Ridge Probabilistic Forecaster for Sectors."""
@@ -319,6 +325,7 @@ class SectorDayStartBayesianModel(BaseSectorDayStartModel):
         upper_90 = pred_val + 1.645 * std_val
 
         from scipy.stats import norm
+
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))
 
@@ -345,6 +352,7 @@ class SectorDayStartBayesianModel(BaseSectorDayStartModel):
 # ==========================================
 # 2. PyMC GLM Model
 # ==========================================
+
 
 @ModelRegistry.register("sector_day_start_pymc")
 class SectorDayStartPyMCModel(BaseSectorDayStartModel):
@@ -437,6 +445,7 @@ class SectorDayStartPyMCModel(BaseSectorDayStartModel):
         upper_90 = pred_val + 1.645 * std_val
 
         from scipy.stats import norm
+
         prob_positive = 1.0 - norm.cdf(0, loc=pred_val, scale=std_val)
         confidence = float(max(prob_positive, 1.0 - prob_positive))
 
@@ -464,6 +473,7 @@ class SectorDayStartPyMCModel(BaseSectorDayStartModel):
 # 3. LightGBM Model
 # ==========================================
 
+
 @ModelRegistry.register("sector_day_start_lightgbm")
 class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
     """LightGBM Non-Linear Regressor for Sector Day-Start Flow."""
@@ -481,6 +491,7 @@ class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
         )
         try:
             import lightgbm as lgb
+
             self.model = lgb.LGBMRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -492,6 +503,7 @@ class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
             )
         except ImportError:
             from sklearn.ensemble import GradientBoostingRegressor
+
             self.model = GradientBoostingRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -552,6 +564,7 @@ class SectorDayStartLightGBMModel(BaseSectorDayStartModel):
 # 4. XGBoost Model
 # ==========================================
 
+
 @ModelRegistry.register("sector_day_start_xgboost")
 class SectorDayStartXGBoostModel(BaseSectorDayStartModel):
     """XGBoost Non-Linear Regressor for Sector Day-Start Flow."""
@@ -572,6 +585,7 @@ class SectorDayStartXGBoostModel(BaseSectorDayStartModel):
         )
         try:
             import xgboost as xgb
+
             self.model = xgb.XGBRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -583,6 +597,7 @@ class SectorDayStartXGBoostModel(BaseSectorDayStartModel):
             )
         except ImportError:
             from sklearn.ensemble import GradientBoostingRegressor
+
             self.model = GradientBoostingRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,

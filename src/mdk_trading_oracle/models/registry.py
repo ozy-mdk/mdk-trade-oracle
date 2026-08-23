@@ -10,7 +10,7 @@ logger = get_logger("mdk_oracle.models.registry")
 
 class ModelRegistry:
     """Registry pattern allowing dynamic registration, listing, and instantiation of models.
-    
+
     Supports scaling from Model 1 (Day-Start) to 10+ future forecasting models.
     """
 
@@ -19,12 +19,14 @@ class ModelRegistry:
     @classmethod
     def register(cls, model_id: str) -> Callable:
         """Decorator to register a forecaster model class with a unique model identifier."""
+
         def decorator(subclass: Type[BaseForecaster]) -> Type[BaseForecaster]:
             if model_id in cls._registry:
                 logger.warning(f"Model ID '{model_id}' is already registered. Overwriting with {subclass.__name__}.")
             cls._registry[model_id] = subclass
             logger.debug(f"Registered model '{model_id}' -> {subclass.__name__}")
             return subclass
+
         return decorator
 
     @classmethod

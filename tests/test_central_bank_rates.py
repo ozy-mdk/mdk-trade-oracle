@@ -139,7 +139,7 @@ def test_forward_fill_market_synchronization():
         assert len(ffilled_rows) == 5
         for r in ffilled_rows:
             assert r[1] == 45.0  # Carried forward previous rate
-            assert r[2] == 0.0   # No rate change
+            assert r[2] == 0.0  # No rate change
             assert r[3] is True  # is_forward_filled = TRUE
             assert r[4] == "forward_fill_market_sync"
 
@@ -181,21 +181,26 @@ def test_silver_macro_rates_transformation():
         d = base_date + timedelta(days=i)
         if i == 20:
             current_rate = 42.5  # Rate hike on day 20
-        records.append((
-            d.strftime("%Y-%m-%d"),
-            "1_week_repo",
-            current_rate,
-            2.5 if i == 20 else 0.0,
-            True if i == 20 else False,
-            False,
-            "test_feed",
-        ))
+        records.append(
+            (
+                d.strftime("%Y-%m-%d"),
+                "1_week_repo",
+                current_rate,
+                2.5 if i == 20 else 0.0,
+                True if i == 20 else False,
+                False,
+                "test_feed",
+            )
+        )
 
-    conn.executemany("""
+    conn.executemany(
+        """
         INSERT INTO bronze_central_bank_rates (
             rate_date, rate_type, interest_rate, rate_change, is_rate_change_day, is_forward_filled, raw_source
         ) VALUES (?, ?, ?, ?, ?, ?, ?);
-    """, records)
+    """,
+        records,
+    )
 
     transformer = SilverTransformer(db)
     res = transformer.transform_daily_macro_rates()
@@ -231,4 +236,3 @@ def test_silver_macro_rates_transformation():
     assert day_25[4] == 5  # 5 days since last rate change
     assert day_25[5] > 40.0  # Rolling 30d mean includes higher rates
     assert day_25[7] == 50.0  # +250 bps / 5 = 50.0
-

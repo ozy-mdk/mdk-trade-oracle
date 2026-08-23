@@ -59,20 +59,19 @@ def test_domain_types():
 def test_turkish_time_utilities():
     """Test Turkish Time (Europe/Istanbul / UTC+3) utilities and DuckDB timezone configuration."""
     from mdk_trading_oracle.core.time import now_turkey, now_turkey_naive, today_turkey
-    
+
     now_trt = now_turkey()
     assert now_trt.tzinfo is not None
     assert str(now_trt.tzinfo) == "Europe/Istanbul"
-    
+
     now_naive = now_turkey_naive()
     assert now_naive.tzinfo is None
-    
+
     today = today_turkey()
     assert today == now_trt.date()
-    
+
     # Test DuckDB timezone setting
     db = DuckDBManager(in_memory=True)
     conn = db.get_connection()
     tz_setting = conn.execute("SELECT current_setting('TimeZone');").fetchone()[0]
     assert tz_setting == "Europe/Istanbul"
-
