@@ -175,6 +175,11 @@ class MedallionPipeline:
         macro_rates_count = conn.execute("SELECT COUNT(*) FROM silver_daily_macro_rates;").fetchone()[0]
         benchmark_count = conn.execute("SELECT COUNT(*) FROM silver_daily_benchmark_index;").fetchone()[0]
         thresholds_count = conn.execute("SELECT COUNT(*) FROM silver_bofa_historical_flow_thresholds;").fetchone()[0]
+        fifo_daily_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_daily;").fetchone()[0]
+        fifo_entries_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_entries;").fetchone()[0]
+        fifo_lots_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lots;").fetchone()[0]
+        fifo_realizations_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_realizations;").fetchone()[0]
+        fifo_lifecycle_count = conn.execute("SELECT COUNT(*) FROM silver_broker_fifo_lot_lifecycle;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
@@ -182,7 +187,9 @@ class MedallionPipeline:
             f"Stock-Broker: {broker_summary_count:,} | Broker Overview: {broker_overview_count:,} | "
             f"Stock Summary: {stock_summary_count:,} | Sector: {sector_summary_count:,} | "
             f"Intraday Windows: {win_broker_count:,} | Macro Rates: {macro_rates_count:,} | "
-            f"Benchmark Days: {benchmark_count:,} | Threshold Profiles: {thresholds_count:,}"
+            f"Benchmark Days: {benchmark_count:,} | Threshold Profiles: {thresholds_count:,} | "
+            f"FIFO Daily: {fifo_daily_count:,} | Lot Entries: {fifo_entries_count:,} | "
+            f"Active Lots: {fifo_lots_count:,} | Realizations: {fifo_realizations_count:,}"
         )
         return {
             "layer": "silver",
@@ -197,10 +204,16 @@ class MedallionPipeline:
                 "silver_daily_macro_rates": macro_rates_count,
                 "silver_daily_benchmark_index": benchmark_count,
                 "silver_bofa_historical_flow_thresholds": thresholds_count,
+                "silver_broker_fifo_daily": fifo_daily_count,
+                "silver_broker_fifo_lot_entries": fifo_entries_count,
+                "silver_broker_fifo_lots": fifo_lots_count,
+                "silver_broker_fifo_lot_realizations": fifo_realizations_count,
+                "silver_broker_fifo_lot_lifecycle": fifo_lifecycle_count,
             },
             "details": silver_res,
             "status": "success",
         }
+
 
     def run_gold(
         self,

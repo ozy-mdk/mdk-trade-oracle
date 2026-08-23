@@ -27,11 +27,17 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
   - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
+  - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1`):
+    - `silver_broker_fifo_daily`: Historical point-in-time time-series logging daily matched flow, intraday PnL, residual flow, carry FIFO realized PnL, open stock inventory, average unit cost, and MTM valuation for every session $T$.
+    - `silver_broker_fifo_lot_entries`: Permanent immutable lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`).
+    - `silver_broker_fifo_lots`: Currently open FIFO lots as of the latest completed session.
+    - `silver_broker_fifo_lot_realizations`: Audited closure events logging partial/full lot exits and realized PnL.
+    - `silver_broker_fifo_lot_lifecycle`: Open-to-close lifecycle summary view.
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
@@ -117,6 +123,7 @@ To allow seamless portability across different team members' local machines:
 
 ## 6. Incremental & Multi-Month Data Ingestion
 - Current baseline dataset: March 2026 (945 CSV files, 21 trading days, 36.8M+ trades) + Central Bank 1-week repo rate history (1,157 records from 2022 to 2026).
+- **Sample vs. Production Scaling**: The local development workspace uses the March 2026 baseline sample dataset for rapid iteration. Production environments ingest multi-year and multi-month trading data; all lakehouse transformations, daily FIFO ledgers, and predictive models scale seamlessly to arbitrary history lengths.
 - The pipeline supports adding new daily and monthly raw data feeds under `00_raw_data/<year>/<month>/raw_csv/` and monthly Central Bank policy updates under `00_raw_data/central_bank_interest_rates/`.
 - **Idempotent Upserting**: Central Bank files are upserted (`INSERT OR REPLACE`) to preserve historical series while updating new rates.
 - **Continuous Forward-Fill Sync**: When market trading dates advance beyond the latest CBRT file, the pipeline forward-fills the latest known rate (`is_forward_filled = TRUE`) so daily models never have date gaps.
@@ -179,4 +186,3 @@ To allow seamless portability across different team members' local machines:
 - **Primary Institutional Target**: **Bank of America (BofA) [Clearing Code: `MLB`]** — algorithmic execution and high-impact institutional flow.
 - **Domestic Major Banks**: `IYM` (İş Yatırım), `YKR` (Yapı Kredi), `AKM` (Ak Yatırım), `GRM` (Garanti BBVA), `ZRY` (Ziraat), `DZY` (Deniz), `VKY` (Vakıf), `HLY` (Halk).
 - **Equities Universe**: 45 liquid BIST stocks (BIST 30 + liquid BIST 50).
-

@@ -102,6 +102,11 @@ flowchart TD
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
 - **`silver_daily_benchmark_index`**: Primary key `trade_date`. Rolling 5-day / 20-day returns, 20-day historical return volatility, Parkinson high-low spread, and trend relative to 20-day Simple Moving Average.
 - **`silver_bofa_historical_flow_thresholds`**: Primary key `(scope_type, scope_name, broker_id, window_name)`. Empirical flow percentiles ($P_{25}, P_{50}, P_{85}$) computed across historical buy actions ($\text{net\_flow} > 0$) and sell actions ($|\text{net\_flow}|$) for Macro (`ALL`) and each of the 26 tracked BIST sectors.
+- **`silver_broker_fifo_daily`**: Primary key `(trade_date, symbol, broker_id)`. Tracks daily matched flow, intraday PnL, residual flow, carry FIFO PnL, open position, closing cost/value/unrealized PnL, and cumulative realized PnL.
+- **`silver_broker_fifo_lot_entries`**: Primary key `lot_id`. Immutable initial lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`, `open_date`, `direction`).
+- **`silver_broker_fifo_lots`**: Primary key `lot_id`. Currently active open FIFO lots in queue with remaining balance.
+- **`silver_broker_fifo_lot_realizations`**: Primary key `realization_id`. Audited closure events with realized PnL and final status.
+- **`silver_broker_fifo_lot_lifecycle`**: Primary key `lot_id`. Consolidated lifecycle summary from open to close (`OPEN` / `CLOSED`).
 - **`silver_intraday_broker_window_summary`**: Primary key `(trade_date, symbol, broker_id, window_name)`. Aggregates executions across 5 canonical intraday windows in Turkish Time (TRT / UTC+3):
   - `Window 1: day_start (Opening 35m)` (09:55 – 10:30 TRT)
   - `Window 2: first_reaction (First Reaction)` (10:30 – 11:30 TRT)
@@ -110,6 +115,7 @@ flowchart TD
   - `Window 5: closing_session (Closing & Auction)` (16:00 – 18:15 TRT)
 - **`silver_intraday_sector_window_summary`**: Primary key `(trade_date, sector, broker_id, window_name)`. Intraday sector rotation and broker execution across the 5 windows.
 - **`silver_market_daily`**: Primary key `(trade_date, symbol)`. Backward-compatibility daily summary table.
+
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
@@ -194,7 +200,7 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 
 Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equities):
 
-| Layer | Table Name | Granularity / Primary Key | March 2026 Rows | Status |
+| Layer | Table Name | Granularity / Primary Key | March 2026 Baseline Rows | Status |
 | :--- | :--- | :--- | :---: | :---: |
 | **Bronze** | `bronze_raw_trades` | Tick execution (`trade_id`, `timestamp`) | 36,818,222 | [PASS] Verified |
 | **Bronze** | `bronze_central_bank_rates` | `(rate_date, rate_type)` | 1,157 | [PASS] Verified |
@@ -206,7 +212,13 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | **Silver** | `silver_daily_stock_summary` | `(trade_date, symbol)` | 945 | [PASS] Verified |
 | **Silver** | `silver_daily_sector_summary` | `(trade_date, sector, broker_id)` | 28,516 | [PASS] Verified |
 | **Silver** | `silver_daily_macro_rates` | `trade_date` | 1,157 | [PASS] Verified |
+| **Silver** | `silver_daily_benchmark_index` | `trade_date` | 1,248 | [PASS] Verified |
 | **Silver** | `silver_bofa_historical_flow_thresholds` | `(scope_type, scope_name, broker_id, window_name)` | 27 | [PASS] Verified |
+| **Silver** | `silver_broker_fifo_daily` | `(trade_date, symbol, broker_id)` | 48,058 | [PASS] Verified |
+| **Silver** | `silver_broker_fifo_lot_entries` | `lot_id` (Immutable entries) | 29,613 | [PASS] Verified |
+| **Silver** | `silver_broker_fifo_lots` | `lot_id` (Active open lots in queue) | 13,543 | [PASS] Verified |
+| **Silver** | `silver_broker_fifo_lot_realizations` | `realization_id` (Audited closures) | 33,610 | [PASS] Verified |
+| **Silver** | `silver_broker_fifo_lot_lifecycle` | `lot_id` (Consolidated open-to-close) | 29,613 | [PASS] Verified |
 | **Silver** | `silver_intraday_broker_window_summary` | `(trade_date, symbol, broker_id, window_name)` | 209,500 | [PASS] Verified |
 | **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 126,300 | [PASS] Verified |
 | **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | [PASS] Verified |
@@ -218,6 +230,8 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | **Gold** | `gold_bofa_day_start_backtests` | `trade_date` | 20 (Simulation Ledger) | [PASS] Verified |
 | **Gold** | `gold_bofa_sector_day_start_backtests` | `(trade_date, sector)` | 520 (Simulation Ledger) | [PASS] Verified |
 
+> *Note on Sample vs. Production Scaling*: The row counts above reflect the local baseline sample period (March 2026 / 21 trading days). Production instances ingest multi-year and multi-month trading data; all transformations, daily FIFO ledgers, and models scale seamlessly.
+
 ---
 
 ## 5. Interactive Research & Audit Notebooks
@@ -228,9 +242,11 @@ The pipeline is tightly integrated with interactive Jupyter notebooks located in
 | :--- | :--- | :--- |
 | [`00_data_discovery_and_catalog_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/00_data_discovery_and_catalog_analysis.ipynb) | Raw Data Discovery & Catalog Audit | Scan raw partitions, inspect entity distributions, and verify zero-loss data completeness. |
 | [`01_bronze_data_exploration.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/01_bronze_data_exploration.ipynb) | Microsecond Tick Microstructure | Microsecond trade timestamp analysis, VWAP price curves, broker execution feeds. |
-| [`02_silver_transformations_and_intraday_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02_silver_transformations_and_intraday_analysis.ipynb) | Silver Layer & 4-Window Intraday | Broker market shares, BofA VWAP spreads, CR5 concentration, and 4-window execution profiles. |
-| [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 7 Feature Clusters extraction, dynamic walk-forward arena tournament, live $T+1$ actionable signal card, and backtest calibration explorer. |
-| [`04_bofa_sector_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/04_bofa_sector_day_start_modeling.ipynb) | Model 2 Sector Allocation Forecaster | 5 Sector Feature Clusters across 26 sectors, dynamic champion crowning, live $T+1$ multi-sector allocation bar chart, and interactive historical sector dropdown explorer. |
+| [`02_silver_transformations_and_intraday_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02_silver_transformations_and_intraday_analysis.ipynb) | Silver Layer & Intraday Execution | Broker market shares, BofA VWAP spreads, CR5 concentration, and 5-window execution profiles. |
+| [`02b_broker_tertip_fifo_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02b_broker_tertip_fifo_analysis.ipynb) | Institutional Tertip FIFO & Inventory Ledger | Broker position cards (`LONG`/`SHORT`/`FLAT`), cost basis, intraday match vs carry FIFO PnL decomposition, and lot lifecycle audit tables. |
+| [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 9 Feature Clusters extraction, dynamic walk-forward arena tournament, live $T+1$ actionable signal card, and backtest calibration explorer. |
+| [`04_bofa_sector_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/04_bofa_sector_day_start_modeling.ipynb) | Model 2 Sector Allocation Forecaster | 6 Sector Feature Clusters across 26 sectors, dynamic champion crowning, live $T+1$ multi-sector allocation bar chart, and interactive historical sector dropdown explorer. |
+
 
 *Kernel requirement*: Always select **`Python 3.9 (mdk-trading-oracle)`**.
 

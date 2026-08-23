@@ -1,11 +1,16 @@
-"""Silver Layer Transformations: High-Performance Multi-Broker, Stock, Sector, and Intraday Aggregations."""
-
 from typing import Any
+
+import polars as pl
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.schema import initialize_silver_schema
+from mdk_trading_oracle.data.silver.tertip_engine import (
+    LotChanges,
+    PositionState,
+    execute_daily_flow_step,
+)
 
 logger = get_logger("mdk_oracle.data.silver.transformations")
 
@@ -802,6 +807,233 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_daily_benchmark_index`: {rows:,} rows.")
         return {"table": "silver_daily_benchmark_index", "rows": rows, "status": "success"}
 
+    def transform_broker_fifo_ledger(self) -> dict[str, Any]:
+        """Compute the full Tertip FIFO mechanism (INTRADAY_MATCHED_FIFO_V1) across all brokers and equities."""
+        conn = self.db.get_connection()
+        logger.info("Computing `silver_broker_fifo_*` tables (Tertip FIFO Mechanism)...")
+
+        # Fetch daily broker summaries with close prices
+        df = conn.execute("""
+            SELECT 
+                s.trade_date,
+                s.symbol,
+                s.symbol_name,
+                s.sector,
+                s.broker_id,
+                s.broker_name,
+                s.buy_volume,
+                s.buy_turnover_tl,
+                s.buy_vwap,
+                s.sell_volume,
+                s.sell_turnover_tl,
+                s.sell_vwap,
+                stk.close_price
+            FROM silver_daily_broker_summary s
+            LEFT JOIN silver_daily_stock_summary stk
+                ON s.trade_date = stk.trade_date AND s.symbol = stk.symbol
+            ORDER BY s.broker_id, s.symbol, s.trade_date ASC
+        """).pl()
+
+        changes = LotChanges()
+        states: dict[tuple[str, str], PositionState] = {}
+        daily_rows: list[dict[str, Any]] = []
+
+        for row in df.iter_rows(named=True):
+            key = (row["broker_id"], row["symbol"])
+            if key not in states:
+                states[key] = PositionState(row["broker_id"], row["symbol"])
+            st = states[key]
+
+            res = execute_daily_flow_step(
+                state=st,
+                day=row["trade_date"],
+                buy_volume=row["buy_volume"] or 0.0,
+                buy_turnover=row["buy_turnover_tl"] or 0.0,
+                sell_volume=row["sell_volume"] or 0.0,
+                sell_turnover=row["sell_turnover_tl"] or 0.0,
+                market_close_price=row["close_price"],
+                changes=changes,
+            )
+
+            daily_rows.append({
+                "trade_date": res.trade_date,
+                "symbol": res.symbol,
+                "symbol_name": row["symbol_name"],
+                "sector": row["sector"],
+                "broker_id": res.broker_id,
+                "broker_name": row["broker_name"],
+                "buy_volume": float(res.buy_quantity),
+                "buy_turnover_tl": float(res.buy_turnover),
+                "buy_vwap": float(res.buy_vwap) if res.buy_vwap is not None else None,
+                "sell_volume": float(res.sell_quantity),
+                "sell_turnover_tl": float(res.sell_turnover),
+                "sell_vwap": float(res.sell_vwap) if res.sell_vwap is not None else None,
+                "matched_volume": float(res.matched_quantity),
+                "matched_buy_value_tl": float(res.matched_buy_value),
+                "matched_sell_value_tl": float(res.matched_sell_value),
+                "intraday_realized_pnl_tl": float(res.intraday_realized_pnl),
+                "residual_volume": float(res.residual_quantity),
+                "residual_value_tl": float(res.residual_value),
+                "residual_flow_unit_cost": float(res.residual_unit_cost) if res.residual_unit_cost is not None else None,
+                "carry_fifo_realized_pnl_tl": float(res.carry_fifo_realized_pnl),
+                "daily_realized_pnl_tl": float(res.daily_realized_pnl),
+                "position_side": res.position_side,
+                "open_stock_quantity": float(res.open_stock_quantity),
+                "open_fifo_cost_tl": float(res.open_fifo_cost_tl),
+                "fifo_avg_cost": float(res.fifo_avg_cost) if res.fifo_avg_cost is not None else None,
+                "market_close_price": float(res.market_close_price) if res.market_close_price is not None else None,
+                "market_value_tl": float(res.market_value_tl),
+                "unrealized_pnl_tl": float(res.unrealized_pnl_tl),
+                "total_daily_pnl_tl": float(res.total_daily_pnl_tl),
+                "cumulative_realized_pnl_tl": float(res.cumulative_realized_pnl_tl),
+            })
+
+        # 1. Register and persist daily summary
+        pl_daily = pl.DataFrame(daily_rows)
+        conn.register("df_fifo_daily_temp", pl_daily)
+        conn.execute("CREATE OR REPLACE TABLE silver_broker_fifo_daily AS SELECT *, CURRENT_TIMESTAMP AS calculated_at FROM df_fifo_daily_temp;")
+        conn.unregister("df_fifo_daily_temp")
+
+        # 2. Register and persist immutable entries
+        entry_rows = [
+            {
+                "lot_id": e.lot_id,
+                "broker_id": e.broker_id,
+                "symbol": e.symbol,
+                "direction": e.direction,
+                "open_date": e.open_date,
+                "opened_quantity": float(e.opened_quantity),
+                "opened_value_tl": float(e.opened_value),
+                "opened_unit_cost": float(e.opened_unit_cost),
+            }
+            for e in changes.entries.values()
+        ]
+        pl_entries = pl.DataFrame(entry_rows) if entry_rows else pl.DataFrame({
+            "lot_id": [], "broker_id": [], "symbol": [], "direction": [],
+            "open_date": [], "opened_quantity": [], "opened_value_tl": [], "opened_unit_cost": []
+        })
+        conn.register("df_fifo_entries_temp", pl_entries)
+        conn.execute("CREATE OR REPLACE TABLE silver_broker_fifo_lot_entries AS SELECT *, CURRENT_TIMESTAMP AS created_at FROM df_fifo_entries_temp;")
+        conn.unregister("df_fifo_entries_temp")
+
+        # 3. Register and persist currently active lots
+        active_lot_rows = []
+        for st in states.values():
+            for lot in list(st.long_lots) + list(st.short_lots):
+                if lot.quantity > 0:
+                    active_lot_rows.append({
+                        "lot_id": lot.lot_id,
+                        "broker_id": lot.broker_id,
+                        "symbol": lot.symbol,
+                        "direction": lot.direction,
+                        "open_date": lot.open_date,
+                        "remaining_quantity": float(lot.quantity),
+                        "remaining_value_tl": float(lot.value),
+                        "unit_cost": float(lot.unit_cost),
+                    })
+        pl_active = pl.DataFrame(active_lot_rows) if active_lot_rows else pl.DataFrame({
+            "lot_id": [], "broker_id": [], "symbol": [], "direction": [],
+            "open_date": [], "remaining_quantity": [], "remaining_value_tl": [], "unit_cost": []
+        })
+        conn.register("df_fifo_active_temp", pl_active)
+        conn.execute("CREATE OR REPLACE TABLE silver_broker_fifo_lots AS SELECT *, CURRENT_TIMESTAMP AS last_updated_at FROM df_fifo_active_temp;")
+        conn.unregister("df_fifo_active_temp")
+
+        # 4. Register and persist audited realizations
+        realization_rows = [
+            {
+                "realization_id": r.realization_id,
+                "lot_id": r.lot_id,
+                "broker_id": r.broker_id,
+                "symbol": r.symbol,
+                "close_date": r.close_date,
+                "direction": r.direction,
+                "quantity_closed": float(r.quantity_closed),
+                "entry_value_closed_tl": float(r.entry_value_closed),
+                "closing_value_tl": float(r.closing_value),
+                "realized_pnl_tl": float(r.realized_pnl),
+                "remaining_quantity_after": float(r.remaining_quantity_after),
+                "is_final": r.is_final,
+            }
+            for r in changes.realizations
+        ]
+        pl_realizations = pl.DataFrame(realization_rows) if realization_rows else pl.DataFrame({
+            "realization_id": pl.Series([], dtype=pl.Utf8),
+            "lot_id": pl.Series([], dtype=pl.Utf8),
+            "broker_id": pl.Series([], dtype=pl.Utf8),
+            "symbol": pl.Series([], dtype=pl.Utf8),
+            "close_date": pl.Series([], dtype=pl.Date),
+            "direction": pl.Series([], dtype=pl.Utf8),
+            "quantity_closed": pl.Series([], dtype=pl.Float64),
+            "entry_value_closed_tl": pl.Series([], dtype=pl.Float64),
+            "closing_value_tl": pl.Series([], dtype=pl.Float64),
+            "realized_pnl_tl": pl.Series([], dtype=pl.Float64),
+            "remaining_quantity_after": pl.Series([], dtype=pl.Float64),
+            "is_final": pl.Series([], dtype=pl.Boolean),
+        })
+        conn.register("df_fifo_realizations_temp", pl_realizations)
+        conn.execute("CREATE OR REPLACE TABLE silver_broker_fifo_lot_realizations AS SELECT *, CURRENT_TIMESTAMP AS created_at FROM df_fifo_realizations_temp;")
+        conn.unregister("df_fifo_realizations_temp")
+
+        # 5. Build and persist lot lifecycle table
+        conn.execute("""
+            CREATE OR REPLACE TABLE silver_broker_fifo_lot_lifecycle AS
+            WITH real_agg AS (
+                SELECT 
+                    lot_id,
+                    MAX(close_date) AS closed_date,
+                    SUM(quantity_closed) AS total_quantity_closed,
+                    SUM(entry_value_closed_tl) AS total_entry_value_closed_tl,
+                    SUM(closing_value_tl) AS total_closing_value_tl,
+                    SUM(realized_pnl_tl) AS total_realized_pnl_tl,
+                    BOOL_OR(CAST(is_final AS BOOLEAN)) AS is_final_closed
+                FROM silver_broker_fifo_lot_realizations
+                GROUP BY lot_id
+            )
+
+            SELECT 
+                e.lot_id,
+                e.broker_id,
+                e.symbol,
+                e.direction,
+                e.open_date,
+                e.opened_quantity,
+                e.opened_value_tl,
+                e.opened_unit_cost,
+                CASE 
+                    WHEN COALESCE(r.is_final_closed, FALSE) THEN 'CLOSED'
+                    ELSE 'OPEN'
+                END AS status,
+                CASE 
+                    WHEN COALESCE(r.is_final_closed, FALSE) THEN r.closed_date
+                    ELSE NULL
+                END AS closed_date,
+                COALESCE(r.total_quantity_closed, 0.0) AS total_quantity_closed,
+                COALESCE(r.total_entry_value_closed_tl, 0.0) AS total_entry_value_closed_tl,
+                COALESCE(r.total_closing_value_tl, 0.0) AS total_closing_value_tl,
+                COALESCE(r.total_realized_pnl_tl, 0.0) AS total_realized_pnl_tl,
+                COALESCE(a.remaining_quantity, 0.0) AS remaining_quantity,
+                COALESCE(a.remaining_value_tl, 0.0) AS remaining_value_tl,
+                CURRENT_TIMESTAMP AS calculated_at
+            FROM silver_broker_fifo_lot_entries e
+            LEFT JOIN real_agg r ON e.lot_id = r.lot_id
+            LEFT JOIN silver_broker_fifo_lots a ON e.lot_id = a.lot_id
+            ORDER BY e.open_date ASC, e.broker_id ASC, e.symbol ASC;
+        """)
+
+        logger.info(
+            f"Successfully built Tertip FIFO tables: "
+            f"Daily Rows: {len(daily_rows):,} | Entries: {len(entry_rows):,} | "
+            f"Realizations: {len(realization_rows):,} | Active Open Lots: {len(active_lot_rows):,}"
+        )
+        return {
+            "silver_broker_fifo_daily": len(daily_rows),
+            "silver_broker_fifo_lot_entries": len(entry_rows),
+            "silver_broker_fifo_lots": len(active_lot_rows),
+            "silver_broker_fifo_lot_realizations": len(realization_rows),
+            "status": "success",
+        }
+
     def run_all(self) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
         initialize_silver_schema(self.db)
@@ -814,6 +1046,7 @@ class SilverTransformer:
         res_macro_rates = self.transform_daily_macro_rates()
         res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()
+        res_fifo = self.transform_broker_fifo_ledger()
 
         return {
             "silver_daily_broker_summary": res_broker,
@@ -825,5 +1058,7 @@ class SilverTransformer:
             "silver_daily_macro_rates": res_macro_rates,
             "silver_daily_benchmark_index": res_benchmark,
             "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
+            "silver_broker_fifo_daily": res_fifo,
             "status": "success",
         }
+

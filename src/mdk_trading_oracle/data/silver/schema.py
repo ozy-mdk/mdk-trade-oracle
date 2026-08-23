@@ -282,4 +282,115 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
-    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, and distribution tables.")
+    # 11. Silver Tertip Table: Daily Broker FIFO Matched Flow & Inventory Ledger
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_broker_fifo_daily (
+            trade_date DATE,
+            symbol VARCHAR,
+            symbol_name VARCHAR,
+            sector VARCHAR,
+            broker_id VARCHAR,
+            broker_name VARCHAR,
+            buy_volume DOUBLE,
+            buy_turnover_tl DOUBLE,
+            buy_vwap DOUBLE,
+            sell_volume DOUBLE,
+            sell_turnover_tl DOUBLE,
+            sell_vwap DOUBLE,
+            matched_volume DOUBLE,
+            matched_buy_value_tl DOUBLE,
+            matched_sell_value_tl DOUBLE,
+            intraday_realized_pnl_tl DOUBLE,
+            residual_volume DOUBLE,
+            residual_value_tl DOUBLE,
+            residual_flow_unit_cost DOUBLE,
+            carry_fifo_realized_pnl_tl DOUBLE,
+            daily_realized_pnl_tl DOUBLE,
+            position_side VARCHAR,
+            open_stock_quantity DOUBLE,
+            open_fifo_cost_tl DOUBLE,
+            fifo_avg_cost DOUBLE,
+            market_close_price DOUBLE,
+            market_value_tl DOUBLE,
+            unrealized_pnl_tl DOUBLE,
+            total_daily_pnl_tl DOUBLE,
+            cumulative_realized_pnl_tl DOUBLE,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (trade_date, symbol, broker_id)
+        );
+    """)
+
+    # 12. Silver Tertip Table: Immutable FIFO Lot Entries
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_broker_fifo_lot_entries (
+            lot_id VARCHAR PRIMARY KEY,
+            broker_id VARCHAR NOT NULL,
+            symbol VARCHAR NOT NULL,
+            direction VARCHAR NOT NULL,
+            open_date DATE NOT NULL,
+            opened_quantity DOUBLE NOT NULL,
+            opened_value_tl DOUBLE NOT NULL,
+            opened_unit_cost DOUBLE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 13. Silver Tertip Table: Currently Active Open Lots
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_broker_fifo_lots (
+            lot_id VARCHAR PRIMARY KEY,
+            broker_id VARCHAR NOT NULL,
+            symbol VARCHAR NOT NULL,
+            direction VARCHAR NOT NULL,
+            open_date DATE NOT NULL,
+            remaining_quantity DOUBLE NOT NULL,
+            remaining_value_tl DOUBLE NOT NULL,
+            unit_cost DOUBLE NOT NULL,
+            last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 14. Silver Tertip Table: Audited FIFO Lot Realizations
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_broker_fifo_lot_realizations (
+            realization_id VARCHAR PRIMARY KEY,
+            lot_id VARCHAR NOT NULL,
+            broker_id VARCHAR NOT NULL,
+            symbol VARCHAR NOT NULL,
+            close_date DATE NOT NULL,
+            direction VARCHAR NOT NULL,
+            quantity_closed DOUBLE NOT NULL,
+            entry_value_closed_tl DOUBLE NOT NULL,
+            closing_value_tl DOUBLE NOT NULL,
+            realized_pnl_tl DOUBLE NOT NULL,
+            remaining_quantity_after DOUBLE NOT NULL,
+            is_final BOOLEAN NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 15. Silver Tertip Table: Lot Lifecycle Summary
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_broker_fifo_lot_lifecycle (
+            lot_id VARCHAR PRIMARY KEY,
+            broker_id VARCHAR NOT NULL,
+            symbol VARCHAR NOT NULL,
+            direction VARCHAR NOT NULL,
+            open_date DATE NOT NULL,
+            opened_quantity DOUBLE NOT NULL,
+            opened_value_tl DOUBLE NOT NULL,
+            opened_unit_cost DOUBLE NOT NULL,
+            status VARCHAR NOT NULL,
+            closed_date DATE,
+            total_quantity_closed DOUBLE NOT NULL,
+            total_entry_value_closed_tl DOUBLE NOT NULL,
+            total_closing_value_tl DOUBLE NOT NULL,
+            total_realized_pnl_tl DOUBLE NOT NULL,
+            remaining_quantity DOUBLE NOT NULL,
+            remaining_value_tl DOUBLE NOT NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    logger.info("DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, tertip FIFO, and distribution tables.")
+

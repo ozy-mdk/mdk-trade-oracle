@@ -68,7 +68,7 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 ### A. Model 1: The 9 Macro Feature Clusters (`DayStartFeatureExtractor`)
 1. **Prior Closing Window Momentum**: Window 4 net flow & turnover (`feat_bofa_w4_net_flow_tl`, `feat_bofa_w4_turnover_tl`, `feat_w4_flow_acceleration_ratio`).
 2. **Multi-Day Inventory & Sector Saturation**: 5-day / 20-day rolling flows & Z-scores (`feat_bofa_cum_net_flow_5d_tl`, `feat_bofa_flow_zscore_20d`).
-3. **Institutional Cost Basis & Unrealized PnL**: Spread between Close and 20d Buy VWAP (`feat_bofa_cost_basis_spread_20d_pct`).
+3. **Institutional Cost Basis & Unrealized PnL**: Spread between Close and 20d Buy VWAP / FIFO average cost (`feat_bofa_cost_basis_spread_20d_pct`, enriched by `silver_broker_fifo_daily`).
 4. **Top-5 Competitor Posture & Flow Delta**: Flow deltas vs domestic major desks `IYM`, `YKR`, `AKM`, `GRM`, `ZRY` (`feat_top5_domestic_w4_net_flow_tl`, `feat_bofa_vs_top5_w4_flow_delta_tl`).
 5. **Institutional Hegemony & Market Control**: Turnover share and concentration (`feat_bofa_prev_day_market_share`, `feat_institutional_hegemony_share`, `feat_avg_cr5_concentration`).
 6. **Sector Cross-Sectional Stress & Breadth**: Flow across Banking, Transportation, Holding, Energy, Defense (`feat_bofa_banking_flow_prev_day`, `feat_bofa_transport_flow_prev_day`, `feat_bofa_holding_flow_prev_day`).
@@ -86,7 +86,20 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 
 ---
 
-## 5. Candidate Model Suite & Probabilistic Architecture
+## 5. Institutional FIFO Tertip Mechanism & Inventory Dynamics (`INTRADAY_MATCHED_FIFO_V1`)
+
+To model how institutional desks manage carry inventory across trading days:
+- **Intraday Match vs. Overnight Carry**: Day $T$ buy and sell executions are matched intraday at respective VWAPs ($min(\text{buy}, \text{sell})$) creating `intraday_realized_pnl_tl`.
+- **Residual Directional Queue**: The remaining daily net volume $(\text{buy} - \text{sell})$ enters or consumes the existing FIFO lot queue (`silver_broker_fifo_lots`).
+- **Point-in-Time Daily History**: `silver_broker_fifo_daily` stores the position state (`LONG`, `SHORT`, `FLAT`), open stock quantity, FIFO cost basis, and unrealized MTM PnL for every single date $T$.
+- **Downstream Alpha**: Knowing whether BofA or major competitor desks enter session $T+1$ with heavily saturated inventory or deep unrealized gains/losses provides powerful predictive signals for morning liquidation pressures, short squeezes, and defense accumulation.
+
+
+---
+
+---
+
+## 6. Candidate Model Suite & Probabilistic Architecture
 
 Every quantitative modeling objective benchmarks across 6 candidate paradigms:
 
@@ -115,7 +128,7 @@ flowchart LR
 
 ---
 
-## 6. Trailing Evaluation Horizon & Walk-Forward Validation
+## 7. Trailing Evaluation Horizon & Walk-Forward Validation
 
 To prevent lookahead bias in financial time series and scale efficiently from 1 month to 5+ years of data:
 
@@ -142,7 +155,7 @@ Step 20: Train on [Day 1 … 249] (249 days)  ──► Predict Day 250 ──�
 
 ---
 
-## 7. Actionable Decision Items & Dynamic Empirical Percentiles
+## 8. Actionable Decision Items & Dynamic Empirical Percentiles
 
 Continuous flow forecasts are translated into discrete, tradeable decisions calibrated dynamically from empirical historical distribution thresholds stored in `silver_bofa_historical_flow_thresholds`:
 
@@ -169,7 +182,7 @@ $$\text{Direction} = \begin{cases}
 
 ---
 
-## 8. Three-Table Architecture: Live T+1 Forecasts vs Performance Ledgers vs Simulation Backtests
+## 9. Three-Table Architecture: Live T+1 Forecasts vs Performance Ledgers vs Simulation Backtests
 
 A common flaw in quantitative modeling pipelines is confusing historical evaluation with live inference. In **MDK Trading Oracle**, this separation is mathematically and architecturally strict across three dedicated table types per model:
 
@@ -206,7 +219,7 @@ A common flaw in quantitative modeling pipelines is confusing historical evaluat
 
 ---
 
-## 9. Zero-Lookahead Point-In-Time Historical Backfill Engine
+## 10. Zero-Lookahead Point-In-Time Historical Backfill Engine
 
 When the pipeline was not run for specific historical sessions (e.g. missed runs), the system provides an automated point-in-time retrospective backfilling engine:
 
@@ -223,7 +236,7 @@ When the pipeline was not run for specific historical sessions (e.g. missed runs
 
 ---
 
-## 10. Interactive Research Notebook Standards & Clean Presentation
+## 11. Interactive Research Notebook Standards & Clean Presentation
 
 Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_bofa_sector_day_start_modeling.ipynb`) adheres to these presentation rules:
 
@@ -241,7 +254,7 @@ Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_b
 
 ---
 
-## 11. Column-Granular Feature Selection & Ablation System
+## 12. Column-Granular Feature Selection & Ablation System
 
 Predictive models support column-level granularity and cluster-level toggling via declarative configuration and runtime overrides:
 
@@ -255,3 +268,4 @@ Predictive models support column-level granularity and cluster-level toggling vi
 4. **CLI Runner Support**:
    - `.venv/bin/python scripts/run_pipeline.py --target gold --exclude-features feat_macro_rate_shock_decay`
    - `.venv/bin/python scripts/run_pipeline.py --target gold --disabled-clusters macro_rates,calendar_dynamics`
+
