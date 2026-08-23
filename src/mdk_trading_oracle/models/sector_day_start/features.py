@@ -72,6 +72,7 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         conn = self.db.get_connection()
         sector_filter_w4 = f"AND sector = '{sector}'" if sector else ""
         sector_filter_macro = f"AND sector = '{sector}'" if sector else ""
+        sector_filter_tertip = f"AND i.sector = '{sector}'" if sector else ""
 
         logger.info(f"Extracting Sector Day-Start Features for broker '{self.target_broker}' (Sector: {sector or 'ALL'}, lookback_months={self.lookback_months})...")
 
@@ -181,6 +182,44 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_benchmark_index
                 WHERE index_code = 'XU030'
             ),
+            -- 8. Sector Institutional FIFO Tertip & Overnight Inventory
+            prev_day_sector_tertip_inventory AS (
+                SELECT
+                    f.trade_date,
+                    i.sector,
+                    SUM(CASE 
+                        WHEN f.broker_id = '{self.target_broker}' 
+                        THEN CASE 
+                            WHEN f.position_side = 'LONG' THEN f.open_fifo_cost_tl 
+                            WHEN f.position_side = 'SHORT' THEN -f.open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS bofa_sector_net_inventory_tl,
+                    SUM(CASE WHEN f.broker_id = '{self.target_broker}' THEN f.open_fifo_cost_tl ELSE 0.0 END) AS bofa_sector_gross_inventory_tl,
+                    SUM(CASE WHEN f.broker_id = '{self.target_broker}' THEN f.unrealized_pnl_tl ELSE 0.0 END) AS bofa_sector_unrealized_pnl_tl,
+                    SUM(CASE 
+                        WHEN f.broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') 
+                        THEN CASE 
+                            WHEN f.position_side = 'LONG' THEN f.open_fifo_cost_tl 
+                            WHEN f.position_side = 'SHORT' THEN -f.open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS top5_sector_net_inventory_tl
+                FROM silver_broker_fifo_daily f
+                JOIN bronze_instruments i ON f.symbol = i.symbol
+                WHERE i.sector IS NOT NULL AND i.sector != '' {sector_filter_tertip}
+                GROUP BY f.trade_date, i.sector
+            ),
+            -- 9. Macro Total BofA Inventory for Wallet Share Calculation
+            prev_day_macro_tertip_total AS (
+                SELECT
+                    trade_date,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN open_fifo_cost_tl ELSE 0.0 END) AS bofa_macro_total_gross_inventory_tl
+                FROM silver_broker_fifo_daily
+                GROUP BY trade_date
+            ),
             -- Combine base features
             sector_feature_base AS (
                 SELECT 
@@ -216,7 +255,18 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_market_return_1d,
                     COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_market_range_pct,
                     COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
-                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d,
+                    -- Cluster 7: Sector Institutional FIFO Tertip & Inventory
+                    COALESCE(ti.bofa_sector_net_inventory_tl, 0.0) AS bofa_sector_net_inventory_tl,
+                    COALESCE(ti.bofa_sector_gross_inventory_tl, 0.0) / 
+                        NULLIF(COALESCE(mti.bofa_macro_total_gross_inventory_tl, 1.0), 0.0) AS bofa_sector_inventory_wallet_share,
+                    COALESCE(ti.bofa_sector_unrealized_pnl_tl, 0.0) AS bofa_sector_unrealized_pnl_tl,
+                    CASE 
+                        WHEN COALESCE(ti.bofa_sector_gross_inventory_tl, 0.0) > 0 
+                        THEN (COALESCE(ti.bofa_sector_unrealized_pnl_tl, 0.0) / ti.bofa_sector_gross_inventory_tl) * 100.0 
+                        ELSE 0.0 
+                    END AS bofa_sector_unrealized_pnl_return_pct,
+                    (COALESCE(ti.bofa_sector_net_inventory_tl, 0.0) - COALESCE(ti.top5_sector_net_inventory_tl, 0.0)) AS bofa_vs_top5_sector_inventory_delta_tl
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
@@ -224,6 +274,8 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
                 LEFT JOIN prev_day_sector_returns sr ON g.trade_date = sr.trade_date AND g.sector = sr.sector
                 LEFT JOIN prev_day_benchmark_index bi ON g.trade_date = bi.trade_date
+                LEFT JOIN prev_day_sector_tertip_inventory ti ON g.trade_date = ti.trade_date AND g.sector = ti.sector
+                LEFT JOIN prev_day_macro_tertip_total mti ON g.trade_date = mti.trade_date
             ),
             -- Multi-Day Rolling Aggregations per Sector (Unlagged)
             unlagged_sector_rolling AS (
@@ -278,7 +330,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(sector_cum_return_5d_pct - bist30_cum_return_5d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_rel_return_vs_bist30_5d,
                     LAG(bist30_market_return_1d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_bist30_market_return_1d,
                     LAG(bist30_market_range_pct, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_bist30_market_range_pct,
-                    LAG(bofa_sector_market_share * bist30_cum_return_5d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_beta_x_bist30_momentum
+                    LAG(bofa_sector_market_share * bist30_cum_return_5d, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_beta_x_bist30_momentum,
+                    LAG(bofa_sector_net_inventory_tl, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_net_inventory_tl,
+                    LAG(bofa_sector_inventory_wallet_share, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_inventory_wallet_share,
+                    LAG(bofa_sector_unrealized_pnl_tl, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_unrealized_pnl_tl,
+                    LAG(bofa_sector_unrealized_pnl_return_pct, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_unrealized_pnl_return_pct,
+                    LAG(bofa_vs_top5_sector_inventory_delta_tl, 1) OVER (PARTITION BY sector ORDER BY trade_date) AS feat_sector_bofa_vs_top5_sector_inventory_delta_tl
                 FROM unlagged_sector_rolling
             )
             SELECT 
@@ -311,6 +368,11 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_bist30_market_return_1d, 0.0) AS feat_bist30_market_return_1d,
                 COALESCE(r.feat_bist30_market_range_pct, 0.0) AS feat_bist30_market_range_pct,
                 COALESCE(r.feat_sector_beta_x_bist30_momentum, 0.0) AS feat_sector_beta_x_bist30_momentum,
+                COALESCE(r.feat_sector_bofa_net_inventory_tl, 0.0) AS feat_sector_bofa_net_inventory_tl,
+                COALESCE(r.feat_sector_bofa_inventory_wallet_share, 0.0) AS feat_sector_bofa_inventory_wallet_share,
+                COALESCE(r.feat_sector_bofa_unrealized_pnl_tl, 0.0) AS feat_sector_bofa_unrealized_pnl_tl,
+                COALESCE(r.feat_sector_bofa_unrealized_pnl_return_pct, 0.0) AS feat_sector_bofa_unrealized_pnl_return_pct,
+                COALESCE(r.feat_sector_bofa_vs_top5_sector_inventory_delta_tl, 0.0) AS feat_sector_bofa_vs_top5_sector_inventory_delta_tl,
                 -- Target Columns on Day T for Sector s
                 COALESCE(t.target_sector_open_net_flow_tl, 0.0) AS target_sector_open_net_flow_tl,
                 CASE WHEN COALESCE(t.target_sector_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_sector_open_direction
@@ -349,11 +411,14 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
         logger.info(f"Extracting Next-Day Sector Features for broker '{self.target_broker}' (Sector: {sector or (len(sectors) if sectors else 'ALL')}, as_of_date={as_of_date or 'LATEST'})...")
 
         sector_filter = ""
+        sector_filter_tertip = ""
         if sector:
             sector_filter = f"AND sector = '{sector}'"
+            sector_filter_tertip = f"AND i.sector = '{sector}'"
         elif sectors:
             formatted_sectors = "', '".join(sectors)
             sector_filter = f"AND sector IN ('{formatted_sectors}')"
+            sector_filter_tertip = f"AND i.sector IN ('{formatted_sectors}')"
 
         date_filter = f"WHERE trade_date <= '{as_of_date}'" if as_of_date is not None else ""
 
@@ -438,6 +503,44 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_benchmark_index
                 WHERE index_code = 'XU030'
             ),
+            -- 8. Sector Institutional FIFO Tertip & Overnight Inventory
+            prev_day_sector_tertip_inventory AS (
+                SELECT
+                    f.trade_date,
+                    i.sector,
+                    SUM(CASE 
+                        WHEN f.broker_id = '{self.target_broker}' 
+                        THEN CASE 
+                            WHEN f.position_side = 'LONG' THEN f.open_fifo_cost_tl 
+                            WHEN f.position_side = 'SHORT' THEN -f.open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS bofa_sector_net_inventory_tl,
+                    SUM(CASE WHEN f.broker_id = '{self.target_broker}' THEN f.open_fifo_cost_tl ELSE 0.0 END) AS bofa_sector_gross_inventory_tl,
+                    SUM(CASE WHEN f.broker_id = '{self.target_broker}' THEN f.unrealized_pnl_tl ELSE 0.0 END) AS bofa_sector_unrealized_pnl_tl,
+                    SUM(CASE 
+                        WHEN f.broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') 
+                        THEN CASE 
+                            WHEN f.position_side = 'LONG' THEN f.open_fifo_cost_tl 
+                            WHEN f.position_side = 'SHORT' THEN -f.open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS top5_sector_net_inventory_tl
+                FROM silver_broker_fifo_daily f
+                JOIN bronze_instruments i ON f.symbol = i.symbol
+                WHERE i.sector IS NOT NULL AND i.sector != '' {sector_filter_tertip}
+                GROUP BY f.trade_date, i.sector
+            ),
+            -- 9. Macro Total BofA Inventory for Wallet Share Calculation
+            prev_day_macro_tertip_total AS (
+                SELECT
+                    trade_date,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN open_fifo_cost_tl ELSE 0.0 END) AS bofa_macro_total_gross_inventory_tl
+                FROM silver_broker_fifo_daily
+                GROUP BY trade_date
+            ),
             sector_feature_base AS (
                 SELECT 
                     g.trade_date,
@@ -464,7 +567,18 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS bist30_market_return_1d,
                     COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_market_range_pct,
                     COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
-                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d
+                    COALESCE(sr.sector_avg_return_1d_pct, 0.0) - COALESCE(bi.bist30_prev_day_return_pct, 0.0) AS sector_rel_return_vs_bist30_1d,
+                    -- Cluster 7: Sector Institutional FIFO Tertip & Inventory
+                    COALESCE(ti.bofa_sector_net_inventory_tl, 0.0) AS bofa_sector_net_inventory_tl,
+                    COALESCE(ti.bofa_sector_gross_inventory_tl, 0.0) / 
+                        NULLIF(COALESCE(mti.bofa_macro_total_gross_inventory_tl, 1.0), 0.0) AS bofa_sector_inventory_wallet_share,
+                    COALESCE(ti.bofa_sector_unrealized_pnl_tl, 0.0) AS bofa_sector_unrealized_pnl_tl,
+                    CASE 
+                        WHEN COALESCE(ti.bofa_sector_gross_inventory_tl, 0.0) > 0 
+                        THEN (COALESCE(ti.bofa_sector_unrealized_pnl_tl, 0.0) / ti.bofa_sector_gross_inventory_tl) * 100.0 
+                        ELSE 0.0 
+                    END AS bofa_sector_unrealized_pnl_return_pct,
+                    (COALESCE(ti.bofa_sector_net_inventory_tl, 0.0) - COALESCE(ti.top5_sector_net_inventory_tl, 0.0)) AS bofa_vs_top5_sector_inventory_delta_tl
                 FROM date_sector_grid g
                 LEFT JOIN prev_day_sector_w4 w4 ON g.trade_date = w4.trade_date AND g.sector = w4.sector
                 LEFT JOIN prev_day_sector_daily sd ON g.trade_date = sd.trade_date AND g.sector = sd.sector
@@ -472,6 +586,8 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 LEFT JOIN prev_day_macro_rates mr ON g.trade_date = mr.trade_date
                 LEFT JOIN prev_day_sector_returns sr ON g.trade_date = sr.trade_date AND g.sector = sr.sector
                 LEFT JOIN prev_day_benchmark_index bi ON g.trade_date = bi.trade_date
+                LEFT JOIN prev_day_sector_tertip_inventory ti ON g.trade_date = ti.trade_date AND g.sector = ti.sector
+                LEFT JOIN prev_day_macro_tertip_total mti ON g.trade_date = mti.trade_date
             ),
             unlagged_sector_rolling AS (
                 SELECT 
@@ -522,7 +638,12 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.sector_cum_return_5d_pct - r.bist30_cum_return_5d, 0.0) AS feat_sector_rel_return_vs_bist30_5d,
                 COALESCE(r.bist30_market_return_1d, 0.0) AS feat_bist30_market_return_1d,
                 COALESCE(r.bist30_market_range_pct, 0.0) AS feat_bist30_market_range_pct,
-                COALESCE(r.bofa_sector_market_share * r.bist30_cum_return_5d, 0.0) AS feat_sector_beta_x_bist30_momentum
+                COALESCE(r.bofa_sector_market_share * r.bist30_cum_return_5d, 0.0) AS feat_sector_beta_x_bist30_momentum,
+                COALESCE(r.bofa_sector_net_inventory_tl, 0.0) AS feat_sector_bofa_net_inventory_tl,
+                COALESCE(r.bofa_sector_inventory_wallet_share, 0.0) AS feat_sector_bofa_inventory_wallet_share,
+                COALESCE(r.bofa_sector_unrealized_pnl_tl, 0.0) AS feat_sector_bofa_unrealized_pnl_tl,
+                COALESCE(r.bofa_sector_unrealized_pnl_return_pct, 0.0) AS feat_sector_bofa_unrealized_pnl_return_pct,
+                COALESCE(r.bofa_vs_top5_sector_inventory_delta_tl, 0.0) AS feat_sector_bofa_vs_top5_sector_inventory_delta_tl
             FROM unlagged_sector_rolling r
             JOIN latest_date_cte l ON r.trade_date = l.max_trade_date
             ORDER BY r.sector ASC;

@@ -15,20 +15,22 @@ def test_feature_selector_defaults():
     all_macro_feats = selector_macro.get_all_features()
     active_macro_feats = selector_macro.get_active_features()
 
-    assert len(all_macro_feats) == 39
-    assert len(active_macro_feats) == 39
+    assert len(all_macro_feats) == 45
+    assert len(active_macro_feats) == 45
     assert "feat_bofa_w4_net_flow_tl" in active_macro_feats
     assert "feat_macro_interest_rate" in active_macro_feats
     assert "feat_bist30_volatility_20d" in active_macro_feats
+    assert "feat_bofa_net_open_inventory_tl" in active_macro_feats
 
     selector_sector = FeatureSelector(model_name="sector_day_start")
     all_sector_feats = selector_sector.get_all_features()
     active_sector_feats = selector_sector.get_active_features()
 
-    assert len(all_sector_feats) == 27
-    assert len(active_sector_feats) == 27
+    assert len(all_sector_feats) == 32
+    assert len(active_sector_feats) == 32
     assert "feat_sector_bofa_w4_net_flow_tl" in active_sector_feats
     assert "feat_sector_beta_x_bist30_momentum" in active_sector_feats
+    assert "feat_sector_bofa_net_inventory_tl" in active_sector_feats
 
 
 def test_feature_selector_exclude_individual_features():
@@ -40,7 +42,7 @@ def test_feature_selector_exclude_individual_features():
     )
     active = selector.get_active_features()
 
-    assert len(active) == 39 - 2
+    assert len(active) == 45 - 2
     for ef in excluded:
         assert ef not in active
 
@@ -62,7 +64,7 @@ def test_feature_selector_disable_cluster():
     assert "calendar_dynamics" not in active_clusters
 
     # 4 macro rate features + 3 calendar features = 7 features removed
-    assert len(active) == 39 - 7
+    assert len(active) == 45 - 7
     assert "feat_macro_interest_rate" not in active
     assert "day_of_week" not in active
     assert "feat_bofa_w4_net_flow_tl" in active
@@ -146,7 +148,7 @@ def test_day_start_forecaster_feature_selection(tmp_path):
         disabled_clusters=["calendar_dynamics"],
     )
 
-    assert len(forecaster.feature_selector.active_features) == 39 - 1 - 1 - 3
+    assert len(forecaster.feature_selector.active_features) == 45 - 1 - 1 - 3
     assert "feat_macro_rate_shock_decay" not in forecaster.feature_selector.active_features
     assert "day_of_week" not in forecaster.feature_selector.active_features
 
@@ -166,8 +168,8 @@ def test_sector_day_start_forecaster_feature_selection():
     )
 
     assert "benchmark_relative_alpha" not in forecaster.feature_selector.get_active_clusters()
-    # 27 total - 5 benchmark relative alpha = 22 features
-    assert len(forecaster.feature_selector.active_features) == 22
+    # 32 total - 5 benchmark relative alpha = 27 features
+    assert len(forecaster.feature_selector.active_features) == 27
 
     res_list = forecaster.forecast_next_day(sector="Banking")
     assert len(res_list) == 1

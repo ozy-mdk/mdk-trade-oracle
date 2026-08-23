@@ -18,7 +18,7 @@ day_start:
   exclude_features: []
   include_features: []
 
-  # Complete catalog of all 33 available feature columns organized by cluster
+  # Complete catalog of all 45 available feature columns organized by cluster
   clusters:
     # Cluster 1: Closing Window Momentum (Window 4 net flow & acceleration)
     closing_momentum:
@@ -113,6 +113,18 @@ day_start:
         - feat_bist30_trend_vs_20d_sma
         - feat_bist30_volatility_20d
 
+    # Cluster 10: Institutional FIFO Tertip & Overnight Inventory
+    tertip_inventory:
+      enabled: true
+      description: "BofA net open stock inventory TL, unrealized PnL TL, unrealized return %, carry FIFO PnL, intraday PnL, and BofA vs Top-5 inventory delta"
+      features:
+        - feat_bofa_net_open_inventory_tl
+        - feat_bofa_unrealized_pnl_tl
+        - feat_bofa_unrealized_pnl_return_pct
+        - feat_bofa_carry_fifo_pnl_prev_day_tl
+        - feat_bofa_intraday_pnl_prev_day_tl
+        - feat_bofa_vs_top5_inventory_delta_tl
+
 
 # Model 2: Sector Day-Start Allocation Forecaster ('How Will BofA Allocate Across Sectors?')
 sector_day_start:
@@ -120,7 +132,7 @@ sector_day_start:
   exclude_features: []
   include_features: []
 
-  # Complete catalog of all 24 available feature columns organized by cluster
+  # Complete catalog of all 32 available feature columns organized by cluster
   clusters:
     # Cluster 1: Sector Prior Closing Window Momentum
     sector_closing_momentum:
@@ -184,3 +196,15 @@ sector_day_start:
         - feat_bist30_market_return_1d
         - feat_bist30_market_range_pct
         - feat_sector_beta_x_bist30_momentum
+
+    # Cluster 7: Sector Institutional FIFO Tertip & Inventory
+    sector_tertip_inventory:
+      enabled: true
+      description: "Sector BofA net open inventory TL, inventory wallet share, unrealized PnL TL, unrealized return %, and BofA vs Top-5 sector inventory delta"
+      features:
+        - feat_sector_bofa_net_inventory_tl
+        - feat_sector_bofa_inventory_wallet_share
+        - feat_sector_bofa_unrealized_pnl_tl
+        - feat_sector_bofa_unrealized_pnl_return_pct
+        - feat_sector_bofa_vs_top5_inventory_delta_tl
+

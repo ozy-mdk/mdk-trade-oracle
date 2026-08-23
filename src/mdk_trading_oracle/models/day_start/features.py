@@ -175,6 +175,35 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_benchmark_index
                 WHERE index_code = 'XU030'
             ),
+            -- 8. Prior Day Institutional FIFO Tertip & Overnight Inventory (T-1)
+            prev_day_tertip_inventory AS (
+                SELECT 
+                    trade_date,
+                    SUM(CASE 
+                        WHEN broker_id = '{self.target_broker}' 
+                        THEN CASE 
+                            WHEN position_side = 'LONG' THEN open_fifo_cost_tl 
+                            WHEN position_side = 'SHORT' THEN -open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS bofa_net_open_inventory_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN open_fifo_cost_tl ELSE 0.0 END) AS bofa_total_gross_inventory_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN unrealized_pnl_tl ELSE 0.0 END) AS bofa_unrealized_pnl_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN carry_fifo_realized_pnl_tl ELSE 0.0 END) AS bofa_carry_fifo_pnl_prev_day_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN intraday_realized_pnl_tl ELSE 0.0 END) AS bofa_intraday_pnl_prev_day_tl,
+                    SUM(CASE 
+                        WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') 
+                        THEN CASE 
+                            WHEN position_side = 'LONG' THEN open_fifo_cost_tl 
+                            WHEN position_side = 'SHORT' THEN -open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS top5_net_open_inventory_tl
+                FROM silver_broker_fifo_daily
+                GROUP BY trade_date
+            ),
             -- Combine Prior Day T-1 Features
             daily_feature_base AS (
                 SELECT 
@@ -226,7 +255,18 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_prev_day_range_pct,
                     COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
                     COALESCE(bi.bist30_trend_vs_20d_sma, 0.0) AS bist30_trend_vs_20d_sma,
-                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d
+                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d,
+                    -- Cluster 10: Institutional FIFO Tertip & Inventory
+                    COALESCE(ti.bofa_net_open_inventory_tl, 0.0) AS bofa_net_open_inventory_tl,
+                    COALESCE(ti.bofa_unrealized_pnl_tl, 0.0) AS bofa_unrealized_pnl_tl,
+                    CASE 
+                        WHEN COALESCE(ti.bofa_total_gross_inventory_tl, 0.0) > 0 
+                        THEN (COALESCE(ti.bofa_unrealized_pnl_tl, 0.0) / ti.bofa_total_gross_inventory_tl) * 100.0 
+                        ELSE 0.0 
+                    END AS bofa_unrealized_pnl_return_pct,
+                    COALESCE(ti.bofa_carry_fifo_pnl_prev_day_tl, 0.0) AS bofa_carry_fifo_pnl_prev_day_tl,
+                    COALESCE(ti.bofa_intraday_pnl_prev_day_tl, 0.0) AS bofa_intraday_pnl_prev_day_tl,
+                    (COALESCE(ti.bofa_net_open_inventory_tl, 0.0) - COALESCE(ti.top5_net_open_inventory_tl, 0.0)) AS bofa_vs_top5_inventory_delta_tl
                 FROM daily_dates d
                 LEFT JOIN prev_day_w4_flows w4 ON d.trade_date = w4.trade_date
                 LEFT JOIN prev_day_broker_overview bo ON d.trade_date = bo.trade_date
@@ -234,6 +274,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 LEFT JOIN prev_day_sector_flows sf ON d.trade_date = sf.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON d.trade_date = mr.trade_date
                 LEFT JOIN prev_day_benchmark_index bi ON d.trade_date = bi.trade_date
+                LEFT JOIN prev_day_tertip_inventory ti ON d.trade_date = ti.trade_date
             ),
             -- Intermediate Rolling Multi-Day Signals (Unlagged)
             unlagged_rolling AS (
@@ -300,7 +341,13 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     LAG(bist30_prev_day_range_pct, 1) OVER (ORDER BY trade_date) AS feat_bist30_prev_day_range_pct,
                     LAG(bist30_cum_return_5d, 1) OVER (ORDER BY trade_date) AS feat_bist30_cum_return_5d,
                     LAG(bist30_trend_vs_20d_sma, 1) OVER (ORDER BY trade_date) AS feat_bist30_trend_vs_20d_sma,
-                    LAG(bist30_volatility_20d, 1) OVER (ORDER BY trade_date) AS feat_bist30_volatility_20d
+                    LAG(bist30_volatility_20d, 1) OVER (ORDER BY trade_date) AS feat_bist30_volatility_20d,
+                    LAG(bofa_net_open_inventory_tl, 1) OVER (ORDER BY trade_date) AS feat_bofa_net_open_inventory_tl,
+                    LAG(bofa_unrealized_pnl_tl, 1) OVER (ORDER BY trade_date) AS feat_bofa_unrealized_pnl_tl,
+                    LAG(bofa_unrealized_pnl_return_pct, 1) OVER (ORDER BY trade_date) AS feat_bofa_unrealized_pnl_return_pct,
+                    LAG(bofa_carry_fifo_pnl_prev_day_tl, 1) OVER (ORDER BY trade_date) AS feat_bofa_carry_fifo_pnl_prev_day_tl,
+                    LAG(bofa_intraday_pnl_prev_day_tl, 1) OVER (ORDER BY trade_date) AS feat_bofa_intraday_pnl_prev_day_tl,
+                    LAG(bofa_vs_top5_inventory_delta_tl, 1) OVER (ORDER BY trade_date) AS feat_bofa_vs_top5_inventory_delta_tl
                 FROM unlagged_rolling
             )
             SELECT 
@@ -344,6 +391,12 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(r.feat_bist30_cum_return_5d, 0.0) AS feat_bist30_cum_return_5d,
                 COALESCE(r.feat_bist30_trend_vs_20d_sma, 0.0) AS feat_bist30_trend_vs_20d_sma,
                 COALESCE(r.feat_bist30_volatility_20d, 0.0) AS feat_bist30_volatility_20d,
+                COALESCE(r.feat_bofa_net_open_inventory_tl, 0.0) AS feat_bofa_net_open_inventory_tl,
+                COALESCE(r.feat_bofa_unrealized_pnl_tl, 0.0) AS feat_bofa_unrealized_pnl_tl,
+                COALESCE(r.feat_bofa_unrealized_pnl_return_pct, 0.0) AS feat_bofa_unrealized_pnl_return_pct,
+                COALESCE(r.feat_bofa_carry_fifo_pnl_prev_day_tl, 0.0) AS feat_bofa_carry_fifo_pnl_prev_day_tl,
+                COALESCE(r.feat_bofa_intraday_pnl_prev_day_tl, 0.0) AS feat_bofa_intraday_pnl_prev_day_tl,
+                COALESCE(r.feat_bofa_vs_top5_inventory_delta_tl, 0.0) AS feat_bofa_vs_top5_inventory_delta_tl,
                 -- Target Columns on Day T
                 COALESCE(t.target_open_net_flow_tl, 0.0) AS target_open_net_flow_tl,
                 CASE WHEN COALESCE(t.target_open_net_flow_tl, 0.0) > 0 THEN 'BUY' ELSE 'SELL' END AS target_open_direction
@@ -462,6 +515,35 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_benchmark_index
                 WHERE index_code = 'XU030'
             ),
+            -- 7. Prior Day Institutional FIFO Tertip & Overnight Inventory
+            prev_day_tertip_inventory AS (
+                SELECT 
+                    trade_date,
+                    SUM(CASE 
+                        WHEN broker_id = '{self.target_broker}' 
+                        THEN CASE 
+                            WHEN position_side = 'LONG' THEN open_fifo_cost_tl 
+                            WHEN position_side = 'SHORT' THEN -open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS bofa_net_open_inventory_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN open_fifo_cost_tl ELSE 0.0 END) AS bofa_total_gross_inventory_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN unrealized_pnl_tl ELSE 0.0 END) AS bofa_unrealized_pnl_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN carry_fifo_realized_pnl_tl ELSE 0.0 END) AS bofa_carry_fifo_pnl_prev_day_tl,
+                    SUM(CASE WHEN broker_id = '{self.target_broker}' THEN intraday_realized_pnl_tl ELSE 0.0 END) AS bofa_intraday_pnl_prev_day_tl,
+                    SUM(CASE 
+                        WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') 
+                        THEN CASE 
+                            WHEN position_side = 'LONG' THEN open_fifo_cost_tl 
+                            WHEN position_side = 'SHORT' THEN -open_fifo_cost_tl 
+                            ELSE 0.0 
+                        END 
+                        ELSE 0.0 
+                    END) AS top5_net_open_inventory_tl
+                FROM silver_broker_fifo_daily
+                GROUP BY trade_date
+            ),
             -- Combine base
             daily_feature_base AS (
                 SELECT 
@@ -502,7 +584,17 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(bi.bist30_prev_day_range_pct, 0.0) AS bist30_prev_day_range_pct,
                     COALESCE(bi.bist30_cum_return_5d, 0.0) AS bist30_cum_return_5d,
                     COALESCE(bi.bist30_trend_vs_20d_sma, 0.0) AS bist30_trend_vs_20d_sma,
-                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d
+                    COALESCE(bi.bist30_volatility_20d, 0.0) AS bist30_volatility_20d,
+                    COALESCE(ti.bofa_net_open_inventory_tl, 0.0) AS bofa_net_open_inventory_tl,
+                    COALESCE(ti.bofa_unrealized_pnl_tl, 0.0) AS bofa_unrealized_pnl_tl,
+                    CASE 
+                        WHEN COALESCE(ti.bofa_total_gross_inventory_tl, 0.0) > 0 
+                        THEN (COALESCE(ti.bofa_unrealized_pnl_tl, 0.0) / ti.bofa_total_gross_inventory_tl) * 100.0 
+                        ELSE 0.0 
+                    END AS bofa_unrealized_pnl_return_pct,
+                    COALESCE(ti.bofa_carry_fifo_pnl_prev_day_tl, 0.0) AS bofa_carry_fifo_pnl_prev_day_tl,
+                    COALESCE(ti.bofa_intraday_pnl_prev_day_tl, 0.0) AS bofa_intraday_pnl_prev_day_tl,
+                    (COALESCE(ti.bofa_net_open_inventory_tl, 0.0) - COALESCE(ti.top5_net_open_inventory_tl, 0.0)) AS bofa_vs_top5_inventory_delta_tl
                 FROM daily_dates d
                 LEFT JOIN prev_day_w4_flows w4 ON d.trade_date = w4.trade_date
                 LEFT JOIN prev_day_broker_overview bo ON d.trade_date = bo.trade_date
@@ -510,6 +602,7 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 LEFT JOIN prev_day_sector_flows sf ON d.trade_date = sf.trade_date
                 LEFT JOIN prev_day_macro_rates mr ON d.trade_date = mr.trade_date
                 LEFT JOIN prev_day_benchmark_index bi ON d.trade_date = bi.trade_date
+                LEFT JOIN prev_day_tertip_inventory ti ON d.trade_date = ti.trade_date
             ),
             -- Unlagged rolling aggregations evaluated up to the latest completed day
             rolling AS (
@@ -563,13 +656,19 @@ class DayStartFeatureExtractor(BaseFeatureExtractor):
                 COALESCE(macro_interest_rate, 45.0) AS feat_macro_interest_rate,
                 COALESCE(macro_rate_shock_decay, 0.0) AS feat_macro_rate_shock_decay,
                 COALESCE(macro_rate_spread_vs_30d_mean, 0.0) AS feat_macro_rate_spread_vs_30d_mean,
-                COALESCE(macro_daily_carry_cost_bps, 125.0) AS feat_macro_daily_carry_cost_bps,
+                COALESCE(macro_daily_carry_cost_bps, 125.0) AS macro_daily_carry_cost_bps,
                 COALESCE(bist30_prev_day_return_pct, 0.0) AS feat_bist30_prev_day_return_pct,
                 COALESCE(bist30_prev_day_intraday_return_pct, 0.0) AS feat_bist30_prev_day_intraday_return_pct,
                 COALESCE(bist30_prev_day_range_pct, 0.0) AS feat_bist30_prev_day_range_pct,
                 COALESCE(bist30_cum_return_5d, 0.0) AS feat_bist30_cum_return_5d,
                 COALESCE(bist30_trend_vs_20d_sma, 0.0) AS feat_bist30_trend_vs_20d_sma,
-                COALESCE(bist30_volatility_20d, 0.0) AS feat_bist30_volatility_20d
+                COALESCE(bist30_volatility_20d, 0.0) AS feat_bist30_volatility_20d,
+                COALESCE(bofa_net_open_inventory_tl, 0.0) AS feat_bofa_net_open_inventory_tl,
+                COALESCE(bofa_unrealized_pnl_tl, 0.0) AS feat_bofa_unrealized_pnl_tl,
+                COALESCE(bofa_unrealized_pnl_return_pct, 0.0) AS feat_bofa_unrealized_pnl_return_pct,
+                COALESCE(bofa_carry_fifo_pnl_prev_day_tl, 0.0) AS feat_bofa_carry_fifo_pnl_prev_day_tl,
+                COALESCE(bofa_intraday_pnl_prev_day_tl, 0.0) AS feat_bofa_intraday_pnl_prev_day_tl,
+                COALESCE(bofa_vs_top5_inventory_delta_tl, 0.0) AS feat_bofa_vs_top5_inventory_delta_tl
             FROM rolling
             ORDER BY trade_date DESC
             LIMIT 1;
