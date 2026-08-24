@@ -34,10 +34,13 @@ class MedallionPipeline:
     def _resolve_layers(self, target: Union[str, list[str]], resolve_dependencies: bool = True) -> list[str]:
         """Resolve requested target(s) into ordered execution layers."""
         if isinstance(target, str):
-            target_lower = target.lower()
-            if target_lower == "all":
-                return ["bronze", "silver", "gold"]
-            layers = [target_lower]
+            if "," in target:
+                layers = [t.strip().lower() for t in target.split(",") if t.strip()]
+            else:
+                target_lower = target.lower()
+                if target_lower == "all":
+                    return ["bronze", "silver", "gold"]
+                layers = [target_lower]
         else:
             layers = [t.lower() for t in target]
 
