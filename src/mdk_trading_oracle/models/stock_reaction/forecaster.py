@@ -23,6 +23,8 @@ from mdk_trading_oracle.models.stock_reaction.features import StockReactionFeatu
 from mdk_trading_oracle.models.stock_reaction.models import (
     BaseStockReactionModel,
     ReturnThresholdProfile,
+    StockReactionAlwaysLongModel,
+    StockReactionAlwaysShortModel,
     StockReactionBayesianModel,
     StockReactionForecastResult,
     StockReactionLightGBMModel,
@@ -47,7 +49,9 @@ WINDOW_MAP = {
 
 @ModelRegistry.register("stock_reaction_arena")
 class StockReactionModelArena:
-    """Tournament across all candidate models for a single (symbol, window) pair."""
+    """Tournament across active candidate models and benchmark hurdle baselines for a single (symbol, window) pair."""
+
+    HURDLE_PREFIXES = ("Baseline", "Hurdle")
 
     def __init__(
         self,
@@ -60,11 +64,15 @@ class StockReactionModelArena:
         self.window = window
         th = thresholds or ReturnThresholdProfile()
         self.candidates: Dict[str, BaseStockReactionModel] = {
-            "Baseline 0: Naive Persistence": StockReactionNaivePersistenceModel(symbol, window, th),
-            "Baseline 1: 5-Day Rolling Mean": StockReactionRollingMeanModel(symbol, window, th),
+            # Benchmark Hurdles (Audit checkpoints — not eligible for live champion deployment)
+            "Hurdle 0: Naive Persistence": StockReactionNaivePersistenceModel(symbol, window, th),
+            "Hurdle 1: 5-Day Rolling Mean": StockReactionRollingMeanModel(symbol, window, th),
+            "Hurdle 2: Always Long (+1)": StockReactionAlwaysLongModel(symbol, window, th),
+            "Hurdle 3: Always Short (-1)": StockReactionAlwaysShortModel(symbol, window, th),
+            # Active Microstructure Predictive Models (Eligible Champions)
+            "Bayesian Ridge Probabilistic": StockReactionBayesianModel(symbol, window, th),
             "LightGBM Non-Linear Ensemble": StockReactionLightGBMModel(symbol, window, th),
             "XGBoost Non-Linear Ensemble": StockReactionXGBoostModel(symbol, window, th),
-            "Bayesian Ridge Probabilistic": StockReactionBayesianModel(symbol, window, th),
         }
         if include_pymc:
             self.candidates["PyMC Bayesian GLM (MAP)"] = StockReactionPyMCModel(symbol, window, th, use_map=True)
@@ -85,6 +93,7 @@ class StockReactionModelArena:
                     min_train_samples=min_train_samples,
                     eval_window_days=eval_window_days,
                 )
+                is_hurdle = any(name.startswith(p) for p in self.HURDLE_PREFIXES)
                 scoreboard.append({
                     "Model": name,
                     "hit_rate_pct": metrics["hit_rate_pct"],
@@ -92,33 +101,49 @@ class StockReactionModelArena:
                     "mae_pct": metrics["mae_pct"],
                     "rmse_pct": metrics["rmse_pct"],
                     "sample_size": metrics["sample_size"],
+                    "is_active": not is_hurdle,
                     "_model_instance": model,
                 })
             except Exception as exc:
                 logger.warning(f"[{self.symbol}/{self.window}] Model '{name}' failed tournament: {exc}")
 
         if not scoreboard:
-            logger.warning(f"[{self.symbol}/{self.window}] All models failed — using Naive Persistence.")
-            fallback = StockReactionNaivePersistenceModel(self.symbol, self.window)
+            logger.warning(f"[{self.symbol}/{self.window}] All models failed — using Bayesian Ridge.")
+            fallback = StockReactionBayesianModel(self.symbol, self.window)
             fallback.fit(X, y)
             return pd.DataFrame(), fallback
 
-        df_scores = (
-            pd.DataFrame(scoreboard)
-            .sort_values(
-                by=["hit_rate_pct", "picp_90_pct", "rmse_pct"],
-                ascending=[False, False, True],
-            )
-            .reset_index(drop=True)
-        )
+        # Calculate hurdle majority benchmark
+        hurdle_hit_rates = [r["hit_rate_pct"] for r in scoreboard if not r["is_active"]]
+        majority_hit_rate = max(hurdle_hit_rates) if hurdle_hit_rates else 50.0
 
-        champion_row = df_scores.iloc[0]
+        for r in scoreboard:
+            r["directional_alpha"] = r["hit_rate_pct"] - majority_hit_rate
+
+        df_scores = pd.DataFrame(scoreboard)
+        active_scores = df_scores[df_scores["is_active"]]
+
+        if not active_scores.empty:
+            # Crown champion strictly among active models, prioritizing Directional Alpha & Hit Rate
+            sorted_active = active_scores.sort_values(
+                by=["directional_alpha", "hit_rate_pct", "picp_90_pct", "rmse_pct"],
+                ascending=[False, False, False, True],
+            ).reset_index(drop=True)
+            champion_row = sorted_active.iloc[0]
+        else:
+            champion_row = df_scores.sort_values(by=["hit_rate_pct"], ascending=False).iloc[0]
+
         champion: BaseStockReactionModel = champion_row["_model_instance"]
         champion.fit(X, y)  # Refit champion on full training set
+        beats_hurdle = bool(champion_row.get("directional_alpha", 0.0) >= 0.0)
+        setattr(champion, "_beats_hurdle", beats_hurdle)
+        setattr(champion, "_majority_hit_rate", majority_hit_rate)
+        setattr(champion, "_directional_alpha", float(champion_row.get("directional_alpha", 0.0)))
+
         logger.info(
             f"[{self.symbol}/{self.window}] Champion: '{champion_row['Model']}' "
-            f"(Hit: {champion_row['hit_rate_pct']:.1f}% | PICP90: {champion_row['picp_90_pct']:.1f}% "
-            f"| MAE: {champion_row['mae_pct']:.3f}% | n={champion_row['sample_size']})"
+            f"(Hit: {champion_row['hit_rate_pct']:.1f}% | Alpha vs Hurdle: {champion_row.get('directional_alpha', 0.0):+.1f}% "
+            f"| PICP90: {champion_row['picp_90_pct']:.1f}% | MAE: {champion_row['mae_pct']:.3f}% | n={champion_row['sample_size']})"
         )
         return df_scores, champion
 
@@ -303,9 +328,13 @@ class StockReactionForecaster:
         X_infer = df_inference.to_pandas()
         feat_cols = self.extractor.get_feature_columns()
         available_feats = [c for c in feat_cols if c in X_infer.columns]
-        X_infer[available_feats] = X_infer[available_feats].fillna(0.0)
-
         result = champion.predict(X_infer[["trade_date"] + available_feats])
+
+        # If champion active model could not beat the baseline hurdle on the trailing evaluation window,
+        # flag the execution playbook as NEUTRAL_WAIT to protect trader capital
+        if not getattr(champion, "_beats_hurdle", True):
+            result.predicted_playbook = "NEUTRAL_WAIT"
+            result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
 
         # Persist to forecasts table (replace all rows = always <= 30 rows)
         now_ts = now_turkey_naive()

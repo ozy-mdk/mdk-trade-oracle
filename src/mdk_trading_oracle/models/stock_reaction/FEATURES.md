@@ -37,6 +37,7 @@ All input features are strictly constructed from data available up to **$T_{\tex
 | `feat_bofa_w1_net_vol` | Flow (W1) | $\text{BuyVol}_{\text{MLB}} - \text{SellVol}_{\text{MLB}}$ | `0.0` | Net lot inventory delta accumulated by BofA in W1. |
 | `feat_bofa_w1_vol_share` | Ratio (W1) | $\frac{\text{Vol}_{\text{MLB}, \text{W1}}}{\text{Vol}_{\text{Market}, \text{W1}}}$ | `0.0` | BofA's share of total opening volume (pricing power). |
 | `feat_bofa_w1_direction_sign` | Flag (W1) | $\text{sign}(\text{Net Flow}_{\text{MLB}, \text{W1}})$ | `0.0` | Directional sign (+1.0 buy, -1.0 sell, 0.0 neutral). |
+| `feat_bofa_w1_direction_strength` | Tier (W1) | Empirical Quantiles $P_{25}, P_{50}, P_{85}$ | `0.0` | Quantile strength tier: $\pm 3.0$ (Strong), $\pm 2.0$ (Moderate), $\pm 1.0$ (Weak), $0.0$ (Neutral). |
 | `feat_bofa_w1_market_vwap` | Price (W1) | $\frac{\text{Turnover}_{\text{Market}, \text{W1}}}{\text{Vol}_{\text{Market}, \text{W1}}}$ | `0.0` | Market-wide VWAP during W1 opening session. |
 
 ---
@@ -111,7 +112,7 @@ All input features are strictly constructed from data available up to **$T_{\tex
 
 ---
 
-### Cluster 7: Macro Interest Rates & Carry Dynamics (4 Features)
+### Cluster 7: Macro Interest Rates & Carry Dynamics (5 Features)
 *Monetary policy regime, carry costs, and repo rate shock dynamics.*
 
 | Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
@@ -120,6 +121,7 @@ All input features are strictly constructed from data available up to **$T_{\tex
 | `feat_macro_rate_delta_t1` | Delta ($T-1$) | $\Delta r_{\text{TCMB}, T-1}$ | `0.0` | Rate change delta at latest MPC decision. |
 | `feat_macro_days_since_decision_t1` | Decay ($T-1$) | $T - T_{\text{decision}}$ | `10.0` | Calendar days elapsed since last rate hike/cut. |
 | `feat_macro_carry_t1` | Carry ($T-1$) | $\frac{r_{\text{TCMB}}}{360} \times 100$ | `0.125` | Daily funding carry cost percentage. |
+| `feat_macro_rate_shock_decay_t1` | Shock ($T-1$) | $\Delta r \times \exp(-\Delta t / 14)$ | `0.0` | Exponentially decaying monetary policy shock amplitude. |
 
 ---
 
@@ -129,8 +131,8 @@ All input features are strictly constructed from data available up to **$T_{\tex
 | Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
 | :--- | :--- | :--- | :--- | :--- |
 | `feat_day_of_week` | Calendar | $\text{DayOfWeek}(T)$ | `1` | Day of week (1=Sunday/Monday index). |
-| `feat_is_monday` | Binary | $\mathbb{I}\{\text{Monday}\}$ | `0` | Monday binary flag (weekend news digestion). |
-| `feat_is_friday` | Binary | $\mathbb{I}\{\text{Friday}\}$ | `0` | Friday binary flag (weekend position de-risking). |
+| `feat_is_monday` | Binary | $\mathbb{I}\{\text{Monday}\}$ | `0` | Monday binary flag (weekend news digestion & weekly allocation). |
+| `feat_is_friday` | Binary | $\mathbb{I}\{\text{Friday}\}$ | `0` | Friday binary flag (weekend position de-risking & 3-day carry de-leveraging). |
 | `feat_day_of_month` | Calendar | $\text{DayOfMonth}(T)$ | `15` | Day of month (month-end rebalancing). |
 
 ---
@@ -139,12 +141,41 @@ All input features are strictly constructed from data available up to **$T_{\tex
 
 | Cluster Index | Cluster Name | Feature Count | Primary Source Table |
 | :--- | :--- | :---: | :--- |
-| 1 | BofA W1 Execution Signal | 9 | `silver_intraday_broker_window_summary` |
+| 1 | BofA W1 Execution Signal | 10 | `silver_intraday_broker_window_summary`, `silver_bofa_historical_flow_thresholds` |
 | 2 | Multi-Broker W1 Alignment | 9 | `silver_intraday_broker_window_summary` |
 | 3 | T-1 Stock Momentum | 6 | `silver_daily_stock_summary` |
 | 4 | T-1 Institutional FIFO Inventory | 7 | `silver_broker_fifo_daily` |
 | 5 | T-1 Multi-Day Accumulation | 5 | `silver_daily_broker_summary` |
 | 6 | T-1 Sector Breadth & Spread | 3 | `silver_daily_stock_summary`, `silver_daily_sector_summary` |
-| 7 | Macro Interest Rates & Carry | 4 | `silver_daily_macro_rates` |
+| 7 | Macro Interest Rates & Carry | 5 | `silver_daily_macro_rates` |
 | 8 | Calendar & Temporal Seasonality | 4 | Inline Temporal Derivation |
-| **Total** | **8 Semantic Clusters** | **47 Features** | **DuckDB Silver Lakehouse** |
+| **Total (Full Catalog)** | **8 Semantic Clusters** | **49 Features** | **DuckDB Silver Lakehouse** |
+
+---
+
+## 5. Production Default: The 14-Feature Compact Microstructure Core
+
+To prevent overfitting on finite sample sizes while preserving complete representation across **all 8 microstructure dimensions**, production model training defaults to the **14-Feature Compact Microstructure Core**:
+
+| Dimension | Feature Column | Normalization / Scale | Microstructure Signal |
+| :--- | :--- | :--- | :--- |
+| **1. BofA Execution** | `feat_bofa_w1_direction_strength`<br>`feat_bofa_w1_vol_share` | Discrete Tier ($\pm 3.0, \pm 2.0, \pm 1.0, 0.0$)<br>Ratio ($[0.0, 1.0]$) | Quantile conviction level ($P_{25}, P_{50}, P_{85}$) & opening pricing power. |
+| **2. Multi-Broker Alignment** | `feat_w1_bofa_comp_alignment`<br>`feat_w1_bofa_tra_contra_signal` | Binary ($\pm 1.0$)<br>Binary ($\{0, 1\}$) | Institutional consensus vs battle; retail panic squeeze trigger. |
+| **3. Technical Posture** | `feat_stock_dist_sma20_t1`<br>`feat_stock_ret_t1_1d` | Percentage (%)<br>Percentage (%) | Mean reversion distance from 20d moving average & closing momentum. |
+| **4. FIFO Inventory** | `feat_bofa_t1_cost_spread_pct`<br>`feat_bofa_t1_unrealized_pnl_tl` | Percentage (%)<br>Standardized TL | Carrying margin (defending loss vs taking profit) & inventory scale. |
+| **5. Multi-Day Saturation** | `feat_bofa_flow_zscore_t1` | Z-Score ($[-3, +3]$) | 20-day institutional accumulation intensity. |
+| **6. Peer Alpha Spread** | `feat_peer_spread_t1` | Percentage (%) | Stock idiosyncratic alpha vs industry group. |
+| **7. Macro Carry & Shocks** | `feat_macro_carry_t1`<br>`feat_macro_rate_shock_decay_t1` | Percentage (%)<br>Basis Points (%) | Daily funding carry friction & acute monetary policy shock decay. |
+| **8. Calendar Seasonality** | `feat_is_monday`<br>`feat_is_friday` | Binary ($\{0, 1\}$)<br>Binary ($\{0, 1\}$) | Monday capital deployment & Friday weekend de-risking / 3-day carry trim. |
+| **Total (Core Set)** | **8 Microstructure Dimensions** | **14 Core Features** | **Scale-Invariant & Non-Collinear** |
+
+---
+
+## 6. Directional Alpha & Hurdle Benchmark Architecture
+
+In `StockReactionModelArena`:
+1. **Eligible Champions**: Strictly active predictive models (`Bayesian Ridge`, `LightGBM`, `XGBoost`, `PyMC`).
+2. **Benchmark Hurdles**: `Naive Persistence`, `5-Day Rolling Mean`, `Always Long (+1)`, and `Always Short (-1)` serve strictly as **audit hurdles**.
+3. **Directional Excess Alpha ($\text{Alpha}_{\text{dir}}$)**:
+   $$\text{Alpha}_{\text{dir}} = \text{HitRate}_{\text{model}} - \max\left(\text{HitRate}_{\text{AlwaysLong}}, \; \text{HitRate}_{\text{AlwaysShort}}\right)$$
+4. **Capital Protection Override**: If the champion active model achieves $\text{Alpha}_{\text{dir}} < 0$ on the trailing evaluation window, the signal is flagged with playbook **`NEUTRAL_WAIT`** with dampened confidence, preventing active trading on low-conviction market regimes.

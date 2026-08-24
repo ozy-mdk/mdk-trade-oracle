@@ -112,6 +112,23 @@ def _playbook(return_pct: float, thresholds: ReturnThresholdProfile,
 class BaseStockReactionModel(BaseForecaster):
     """Common evaluation logic for all stock reaction candidate models."""
 
+    CORE_FEATURES: List[str] = [
+        "feat_bofa_w1_direction_strength",
+        "feat_bofa_w1_vol_share",
+        "feat_w1_bofa_comp_alignment",
+        "feat_w1_bofa_tra_contra_signal",
+        "feat_stock_dist_sma20_t1",
+        "feat_stock_ret_t1_1d",
+        "feat_bofa_t1_cost_spread_pct",
+        "feat_bofa_t1_unrealized_pnl_tl",
+        "feat_bofa_flow_zscore_t1",
+        "feat_peer_spread_t1",
+        "feat_macro_carry_t1",
+        "feat_macro_rate_shock_decay_t1",
+        "feat_is_monday",
+        "feat_is_friday",
+    ]
+
     def __init__(
         self,
         model_name: str,
@@ -119,14 +136,25 @@ class BaseStockReactionModel(BaseForecaster):
         window: str,
         thresholds: Optional[ReturnThresholdProfile] = None,
         model_version: str = "1.0.0",
+        use_core_features: bool = True,
     ):
         super().__init__(model_name=model_name, model_version=model_version)
         self.symbol = symbol
         self.window = window
         self.thresholds = thresholds or ReturnThresholdProfile()
+        self.use_core_features = use_core_features
 
     def set_thresholds(self, thresholds: ReturnThresholdProfile) -> None:
         self.thresholds = thresholds
+
+    def _get_X(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Extract feature matrix, defaulting to the 12 core microstructure features if present."""
+        if self.use_core_features:
+            available_core = [c for c in self.CORE_FEATURES if c in df.columns]
+            if len(available_core) >= 8:
+                return df[available_core].fillna(0.0)
+        feat_cols = [c for c in df.columns if c.startswith("feat_")]
+        return df[feat_cols].fillna(0.0)
 
     def evaluate(self, X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
         """Evaluate against test data; returns MAE, RMSE, hit-rate, PICP."""
@@ -245,11 +273,11 @@ class BaseStockReactionModel(BaseForecaster):
         )
 
 
-# ─── Candidate Model 0: Naive Persistence ─────────────────────────────────────────────────────────
+# ─── Baseline Hurdles (Used for Benchmark Checkpoints) ──────────────────────────────────────────
 
 @ModelRegistry.register("stock_reaction_naive_persistence")
 class StockReactionNaivePersistenceModel(BaseStockReactionModel):
-    """Baseline: prior session's return in the same window as the forecast."""
+    """Hurdle Baseline 0: Prior session's return in the same window."""
 
     def __init__(self, symbol: str = "AKBNK", window: str = "w2",
                  thresholds: Optional[ReturnThresholdProfile] = None):
@@ -278,11 +306,9 @@ class StockReactionNaivePersistenceModel(BaseStockReactionModel):
         )
 
 
-# ─── Candidate Model 1: 5-Day Rolling Mean ────────────────────────────────────────────────────────
-
 @ModelRegistry.register("stock_reaction_rolling_mean")
 class StockReactionRollingMeanModel(BaseStockReactionModel):
-    """Baseline: 5-day rolling mean of historical window returns."""
+    """Hurdle Baseline 1: 5-day rolling mean of historical window returns."""
 
     def __init__(self, symbol: str = "AKBNK", window: str = "w2",
                  thresholds: Optional[ReturnThresholdProfile] = None):
@@ -313,7 +339,113 @@ class StockReactionRollingMeanModel(BaseStockReactionModel):
         )
 
 
-# ─── Candidate Model 2: LightGBM ─────────────────────────────────────────────────────────────────
+@ModelRegistry.register("stock_reaction_always_long")
+class StockReactionAlwaysLongModel(BaseStockReactionModel):
+    """Hurdle Baseline 2: Unconditional Long / Always Buy (+1)."""
+
+    def __init__(self, symbol: str = "AKBNK", window: str = "w2",
+                 thresholds: Optional[ReturnThresholdProfile] = None):
+        super().__init__("Hurdle 2: Always Long (+1)", symbol, window, thresholds)
+        self._mean_pos: float = 0.5
+        self._std: float = 0.5
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionAlwaysLongModel":
+        pos_y = y[y > 0]
+        self._mean_pos = float(pos_y.mean()) if len(pos_y) > 0 else 0.5
+        self._std = float(y.std()) if len(y) > 1 else 0.5
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> StockReactionForecastResult:
+        row = X.iloc[0].to_dict() if len(X) > 0 else {}
+        ci_half = 1.645 * max(self._std, 0.1)
+        forecast_date = row.get("trade_date") or date.today()
+        return self._build_result(
+            forecast_date=forecast_date,
+            predicted_return_pct=self._mean_pos,
+            predicted_return_lower_90=self._mean_pos - ci_half,
+            predicted_return_upper_90=self._mean_pos + ci_half,
+            row=row,
+        )
+
+
+@ModelRegistry.register("stock_reaction_always_short")
+class StockReactionAlwaysShortModel(BaseStockReactionModel):
+    """Hurdle Baseline 3: Unconditional Short / Always Sell (-1)."""
+
+    def __init__(self, symbol: str = "AKBNK", window: str = "w2",
+                 thresholds: Optional[ReturnThresholdProfile] = None):
+        super().__init__("Hurdle 3: Always Short (-1)", symbol, window, thresholds)
+        self._mean_neg: float = -0.5
+        self._std: float = 0.5
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionAlwaysShortModel":
+        neg_y = y[y < 0]
+        self._mean_neg = float(neg_y.mean()) if len(neg_y) > 0 else -0.5
+        self._std = float(y.std()) if len(y) > 1 else 0.5
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> StockReactionForecastResult:
+        row = X.iloc[0].to_dict() if len(X) > 0 else {}
+        ci_half = 1.645 * max(self._std, 0.1)
+        forecast_date = row.get("trade_date") or date.today()
+        return self._build_result(
+            forecast_date=forecast_date,
+            predicted_return_pct=self._mean_neg,
+            predicted_return_lower_90=self._mean_neg - ci_half,
+            predicted_return_upper_90=self._mean_neg + ci_half,
+            row=row,
+        )
+
+
+# ─── Candidate Model 1: Bayesian Ridge (Primary Active Probabilistic Model) ──────────────────────
+
+@ModelRegistry.register("stock_reaction_bayesian_ridge")
+class StockReactionBayesianModel(BaseStockReactionModel):
+    """Analytical Bayesian Ridge Regression with shrinkage priors and closed-form 90% credible intervals."""
+
+    def __init__(self, symbol: str = "AKBNK", window: str = "w2",
+                 thresholds: Optional[ReturnThresholdProfile] = None):
+        super().__init__("Bayesian Ridge Probabilistic", symbol, window, thresholds)
+        self._model = BayesianRidge(
+            alpha_1=1e-2,
+            alpha_2=1e-2,
+            lambda_1=1e-1,
+            lambda_2=1e-1,
+            compute_score=True,
+        )
+        self._scaler = StandardScaler()
+        self._feature_cols: List[str] = []
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionBayesianModel":
+        X_filled = self._get_X(X)
+        self._feature_cols = list(X_filled.columns)
+        X_scaled = self._scaler.fit_transform(X_filled)
+        self._model.fit(X_scaled, y)
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> StockReactionForecastResult:
+        X_filled = self._get_X(X)
+        for col in self._feature_cols:
+            if col not in X_filled.columns:
+                X_filled[col] = 0.0
+        X_scaled = self._scaler.transform(X_filled[self._feature_cols])
+        pred, pred_std = self._model.predict(X_scaled, return_std=True)
+        pred_val = float(pred[0])
+        ci_half = 1.645 * max(float(pred_std[0]), 0.05)
+        row = X.iloc[0].to_dict()
+        return self._build_result(
+            forecast_date=row.get("trade_date") or date.today(),
+            predicted_return_pct=pred_val,
+            predicted_return_lower_90=pred_val - ci_half,
+            predicted_return_upper_90=pred_val + ci_half,
+            row=row,
+        )
+
+
+# ─── Candidate Model 2: LightGBM (Active Non-Linear Ensemble) ────────────────────────────────────
 
 @ModelRegistry.register("stock_reaction_lightgbm")
 class StockReactionLightGBMModel(BaseStockReactionModel):
@@ -325,11 +457,6 @@ class StockReactionLightGBMModel(BaseStockReactionModel):
         self._model = None
         self._residual_std: float = 0.5
         self._feature_cols: List[str] = []
-
-    def _get_X(self, df: pd.DataFrame) -> pd.DataFrame:
-        feat_cols = [c for c in df.columns if c.startswith("feat_")]
-        X = df[feat_cols].copy()
-        return X.fillna(0.0)
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionLightGBMModel":
         try:
@@ -350,15 +477,15 @@ class StockReactionLightGBMModel(BaseStockReactionModel):
         params = {
             "objective": "regression",
             "metric": "rmse",
-            "n_estimators": 200,
-            "learning_rate": 0.05,
-            "max_depth": 4,
-            "num_leaves": 15,
-            "min_child_samples": 5,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
+            "n_estimators": 100,
+            "learning_rate": 0.03,
+            "max_depth": 3,
+            "num_leaves": 7,
+            "min_child_samples": 3,
+            "subsample": 0.85,
+            "colsample_bytree": 0.85,
             "reg_alpha": 0.1,
-            "reg_lambda": 1.0,
+            "reg_lambda": 2.0,
             "verbose": -1,
         }
         self._model = lgb.LGBMRegressor(**params)
@@ -386,7 +513,7 @@ class StockReactionLightGBMModel(BaseStockReactionModel):
         )
 
 
-# ─── Candidate Model 3: XGBoost ──────────────────────────────────────────────────────────────────
+# ─── Candidate Model 3: XGBoost (Active Non-Linear Ensemble) ─────────────────────────────────────
 
 @ModelRegistry.register("stock_reaction_xgboost")
 class StockReactionXGBoostModel(BaseStockReactionModel):
@@ -399,10 +526,6 @@ class StockReactionXGBoostModel(BaseStockReactionModel):
         self._residual_std: float = 0.5
         self._feature_cols: List[str] = []
 
-    def _get_X(self, df: pd.DataFrame) -> pd.DataFrame:
-        feat_cols = [c for c in df.columns if c.startswith("feat_")]
-        return df[feat_cols].fillna(0.0)
-
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionXGBoostModel":
         try:
             from xgboost import XGBRegressor
@@ -413,8 +536,8 @@ class StockReactionXGBoostModel(BaseStockReactionModel):
         X_filled = self._get_X(X)
         self._feature_cols = list(X_filled.columns)
         self._model = XGBRegressor(
-            n_estimators=200, learning_rate=0.05, max_depth=4,
-            subsample=0.8, colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=1.0,
+            n_estimators=100, learning_rate=0.03, max_depth=3,
+            subsample=0.85, colsample_bytree=0.85, reg_alpha=0.1, reg_lambda=2.0,
             verbosity=0, eval_metric="rmse",
         )
         self._model.fit(X_filled, y, verbose=False)
@@ -439,50 +562,6 @@ class StockReactionXGBoostModel(BaseStockReactionModel):
             predicted_return_pct=pred,
             predicted_return_lower_90=pred - ci_half,
             predicted_return_upper_90=pred + ci_half,
-            row=row,
-        )
-
-
-# ─── Candidate Model 4: Bayesian Ridge ───────────────────────────────────────────────────────────
-
-@ModelRegistry.register("stock_reaction_bayesian_ridge")
-class StockReactionBayesianModel(BaseStockReactionModel):
-    """Analytical Bayesian Ridge Regression with closed-form 90% credible intervals."""
-
-    def __init__(self, symbol: str = "AKBNK", window: str = "w2",
-                 thresholds: Optional[ReturnThresholdProfile] = None):
-        super().__init__("Bayesian Ridge Probabilistic", symbol, window, thresholds)
-        self._model = BayesianRidge()
-        self._scaler = StandardScaler()
-        self._feature_cols: List[str] = []
-
-    def _get_X(self, df: pd.DataFrame) -> pd.DataFrame:
-        feat_cols = [c for c in df.columns if c.startswith("feat_")]
-        return df[feat_cols].fillna(0.0)
-
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "StockReactionBayesianModel":
-        X_filled = self._get_X(X)
-        self._feature_cols = list(X_filled.columns)
-        X_scaled = self._scaler.fit_transform(X_filled)
-        self._model.fit(X_scaled, y)
-        self.is_fitted = True
-        return self
-
-    def predict(self, X: pd.DataFrame) -> StockReactionForecastResult:
-        X_filled = self._get_X(X)
-        for col in self._feature_cols:
-            if col not in X_filled.columns:
-                X_filled[col] = 0.0
-        X_scaled = self._scaler.transform(X_filled[self._feature_cols])
-        pred, pred_std = self._model.predict(X_scaled, return_std=True)
-        pred_val = float(pred[0])
-        ci_half = 1.645 * float(pred_std[0])
-        row = X.iloc[0].to_dict()
-        return self._build_result(
-            forecast_date=row.get("trade_date") or date.today(),
-            predicted_return_pct=pred_val,
-            predicted_return_lower_90=pred_val - ci_half,
-            predicted_return_upper_90=pred_val + ci_half,
             row=row,
         )
 

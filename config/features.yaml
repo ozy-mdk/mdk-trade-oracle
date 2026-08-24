@@ -229,6 +229,7 @@ stock_reaction:
         - feat_bofa_w1_net_vol
         - feat_bofa_w1_vol_share
         - feat_bofa_w1_direction_sign
+        - feat_bofa_w1_direction_strength
         - feat_bofa_w1_market_vwap
 
     # Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal
@@ -300,6 +301,7 @@ stock_reaction:
         - feat_macro_rate_delta_t1
         - feat_macro_days_since_decision_t1
         - feat_macro_carry_t1
+        - feat_macro_rate_shock_decay_t1
 
     # Cluster 8: Calendar & Temporal Seasonality
     calendar:

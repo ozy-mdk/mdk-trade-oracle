@@ -781,10 +781,34 @@ class SilverTransformer:
                   AND window_name = '{target_window}'
                   AND sector IS NOT NULL AND sector != ''
                 GROUP BY sector
+            ),
+            stock_flows AS (
+                SELECT 
+                    'STOCK' AS scope_type,
+                    symbol AS scope_name,
+                    '{target_broker_id}' AS broker_id,
+                    '{target_window}' AS window_name,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.25), 5e5) AS buy_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.50), 2e6) AS buy_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl > 0 THEN net_flow_tl ELSE NULL END, 0.85), 8e6) AS buy_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl > 0 THEN 1 ELSE NULL END) AS INTEGER) AS buy_count,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.25), 5e5) AS sell_p25_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.50), 2e6) AS sell_p50_tl,
+                    COALESCE(QUANTILE_CONT(CASE WHEN net_flow_tl < 0 THEN ABS(net_flow_tl) ELSE NULL END, 0.85), 8e6) AS sell_p85_tl,
+                    CAST(COUNT(CASE WHEN net_flow_tl < 0 THEN 1 ELSE NULL END) AS INTEGER) AS sell_count,
+                    CAST(COUNT(DISTINCT trade_date) AS INTEGER) AS total_sessions,
+                    CURRENT_TIMESTAMP AS calculated_at
+                FROM silver_intraday_broker_window_summary
+                WHERE broker_id = '{target_broker_id}' 
+                  AND window_name = '{target_window}'
+                  AND symbol IS NOT NULL AND symbol != ''
+                GROUP BY symbol
             )
             SELECT * FROM macro_flows
             UNION ALL
             SELECT * FROM sector_flows
+            UNION ALL
+            SELECT * FROM stock_flows
             ORDER BY scope_type ASC, scope_name ASC;
         """
         conn.execute(query)

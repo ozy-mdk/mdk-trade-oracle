@@ -99,37 +99,61 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         query = f"""
             WITH
 
+            flow_thresholds AS (
+                SELECT
+                    COALESCE(MAX(buy_p25_tl), 5e5) AS buy_p25_tl,
+                    COALESCE(MAX(buy_p50_tl), 2e6) AS buy_p50_tl,
+                    COALESCE(MAX(buy_p85_tl), 8e6) AS buy_p85_tl,
+                    COALESCE(MAX(sell_p25_tl), 5e5) AS sell_p25_tl,
+                    COALESCE(MAX(sell_p50_tl), 2e6) AS sell_p50_tl,
+                    COALESCE(MAX(sell_p85_tl), 8e6) AS sell_p85_tl
+                FROM silver_bofa_historical_flow_thresholds
+                WHERE broker_id = 'MLB'
+                  AND window_name = 'day_start'
+                  AND ((scope_type = 'STOCK' AND scope_name = '{self.symbol}') OR scope_type = 'MACRO')
+            ),
+
             -- ── CLUSTER 1: BofA W1 Execution Signal ────────────────────────────────────────────
             w1_bofa AS (
                 SELECT
-                    trade_date,
-                    symbol,
-                    buy_volume                                              AS feat_bofa_w1_buy_vol,
-                    sell_volume                                             AS feat_bofa_w1_sell_vol,
-                    buy_turnover_tl                                         AS feat_bofa_w1_buy_tl,
-                    sell_turnover_tl                                        AS feat_bofa_w1_sell_tl,
-                    COALESCE(buy_turnover_tl, 0) - COALESCE(sell_turnover_tl, 0)
+                    b.trade_date,
+                    b.symbol,
+                    b.buy_volume                                              AS feat_bofa_w1_buy_vol,
+                    b.sell_volume                                             AS feat_bofa_w1_sell_vol,
+                    b.buy_turnover_tl                                         AS feat_bofa_w1_buy_tl,
+                    b.sell_turnover_tl                                        AS feat_bofa_w1_sell_tl,
+                    COALESCE(b.buy_turnover_tl, 0) - COALESCE(b.sell_turnover_tl, 0)
                                                                             AS feat_bofa_w1_net_flow_tl,
-                    COALESCE(buy_volume, 0) - COALESCE(sell_volume, 0)     AS feat_bofa_w1_net_vol,
+                    COALESCE(b.buy_volume, 0) - COALESCE(b.sell_volume, 0)     AS feat_bofa_w1_net_vol,
                     CASE
-                        WHEN total_volume > 0
-                        THEN (COALESCE(buy_volume,0) + COALESCE(sell_volume,0)) / total_volume
+                        WHEN b.total_volume > 0
+                        THEN (COALESCE(b.buy_volume,0) + COALESCE(b.sell_volume,0)) / b.total_volume
                         ELSE 0
                     END                                                     AS feat_bofa_w1_vol_share,
                     CASE
-                        WHEN COALESCE(buy_turnover_tl,0) > COALESCE(sell_turnover_tl,0) THEN 1.0
-                        WHEN COALESCE(buy_turnover_tl,0) < COALESCE(sell_turnover_tl,0) THEN -1.0
+                        WHEN COALESCE(b.buy_turnover_tl,0) > COALESCE(b.sell_turnover_tl,0) THEN 1.0
+                        WHEN COALESCE(b.buy_turnover_tl,0) < COALESCE(b.sell_turnover_tl,0) THEN -1.0
                         ELSE 0.0
                     END                                                     AS feat_bofa_w1_direction_sign,
                     CASE
-                        WHEN total_volume > 0
-                        THEN (buy_turnover_tl + sell_turnover_tl) / total_volume
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) >= th.buy_p85_tl THEN 3.0
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) >= th.buy_p50_tl THEN 2.0
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) >= th.buy_p25_tl THEN 1.0
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) <= -th.sell_p85_tl THEN -3.0
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) <= -th.sell_p50_tl THEN -2.0
+                        WHEN (COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0)) <= -th.sell_p25_tl THEN -1.0
+                        ELSE 0.0
+                    END                                                     AS feat_bofa_w1_direction_strength,
+                    CASE
+                        WHEN b.total_volume > 0
+                        THEN (b.buy_turnover_tl + b.sell_turnover_tl) / b.total_volume
                         ELSE NULL
                     END                                                     AS feat_bofa_w1_market_vwap
-                FROM silver_intraday_broker_window_summary
-                WHERE window_name = 'day_start'
-                  AND broker_id = 'MLB'
-                  AND symbol = '{self.symbol}'
+                FROM silver_intraday_broker_window_summary b
+                CROSS JOIN flow_thresholds th
+                WHERE b.window_name = 'day_start'
+                  AND b.broker_id = 'MLB'
+                  AND b.symbol = '{self.symbol}'
                   {date_filter}
                   {end_filter}
             ),
@@ -333,7 +357,8 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                     rate_change                                              AS feat_macro_rate_delta,
                     days_since_last_rate_change                               AS feat_macro_days_since_decision,
                     daily_carry_cost_bps / 10000.0                           AS feat_macro_daily_carry_pct,
-                    rate_spread_vs_30d_mean                                  AS feat_macro_rate_spread_30d
+                    rate_spread_vs_30d_mean                                  AS feat_macro_rate_spread_30d,
+                    COALESCE(rate_change_decay_bps, 0.0) / 100.0             AS feat_macro_rate_shock_decay
                 FROM silver_daily_macro_rates
             ),
 
@@ -400,6 +425,7 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 w1_bofa.feat_bofa_w1_net_vol,
                 w1_bofa.feat_bofa_w1_vol_share,
                 w1_bofa.feat_bofa_w1_direction_sign,
+                w1_bofa.feat_bofa_w1_direction_strength,
                 w1_bofa.feat_bofa_w1_market_vwap,
 
                 -- Cluster 2: Competitor W1 Alignment
@@ -486,6 +512,8 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                                                                             AS feat_macro_days_since_decision_t1,
                 LAG(mc.feat_macro_daily_carry_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_macro_carry_t1,
+                LAG(mc.feat_macro_rate_shock_decay, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_macro_rate_shock_decay_t1,
 
                 -- Cluster 8: Calendar (same-day — always available at session start)
                 DAYOFWEEK(w1_bofa.trade_date)                               AS feat_day_of_week,
@@ -526,13 +554,46 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         )
         return df
 
-    def get_feature_columns(self) -> List[str]:
-        """Return list of all engineered feature column names (excludes trade_date, symbol, target_*)."""
+    CORE_MICROSTRUCTURE_FEATURES: List[str] = [
+        # Cluster 1: BofA W1 Execution Signal (Quantile Strength Tier & Market Dominance)
+        "feat_bofa_w1_direction_strength",
+        "feat_bofa_w1_vol_share",
+        # Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal
+        "feat_w1_bofa_comp_alignment",
+        "feat_w1_bofa_tra_contra_signal",
+        # Cluster 3: T-1 Stock Momentum & Technical Posture
+        "feat_stock_dist_sma20_t1",
+        "feat_stock_ret_t1_1d",
+        # Cluster 4: T-1 Institutional FIFO Tertip & Inventory Posture
+        "feat_bofa_t1_cost_spread_pct",
+        "feat_bofa_t1_unrealized_pnl_tl",
+        # Cluster 5: T-1 Multi-Day Accumulation & Broker Flow Deltas
+        "feat_bofa_flow_zscore_t1",
+        # Cluster 6: T-1 Sector Breadth & Peer Relative Return Spread
+        "feat_peer_spread_t1",
+        # Cluster 7: Macro Interest Rates, Carry & Policy Shock Dynamics
+        "feat_macro_carry_t1",
+        "feat_macro_rate_shock_decay_t1",
+        # Cluster 8: Calendar & Temporal Seasonality (Monday Allocation & Friday De-risking)
+        "feat_is_monday",
+        "feat_is_friday",
+    ]
+
+    def get_feature_columns(self, core_only: bool = False) -> List[str]:
+        """Return list of engineered feature column names.
+
+        Args:
+            core_only: If True, returns only the 14 distilled, scale-invariant microstructure features.
+                       If False, returns all 49 raw feature columns.
+        """
+        if core_only:
+            return list(self.CORE_MICROSTRUCTURE_FEATURES)
         return [
             # Cluster 1: BofA W1
             "feat_bofa_w1_buy_vol", "feat_bofa_w1_sell_vol", "feat_bofa_w1_buy_tl",
             "feat_bofa_w1_sell_tl", "feat_bofa_w1_net_flow_tl", "feat_bofa_w1_net_vol",
-            "feat_bofa_w1_vol_share", "feat_bofa_w1_direction_sign", "feat_bofa_w1_market_vwap",
+            "feat_bofa_w1_vol_share", "feat_bofa_w1_direction_sign", "feat_bofa_w1_direction_strength",
+            "feat_bofa_w1_market_vwap",
             # Cluster 2: Multi-broker W1 alignment
             "feat_comp_w1_net_flow_tl", "feat_iym_w1_net_flow_tl", "feat_ykr_w1_net_flow_tl",
             "feat_akm_w1_net_flow_tl", "feat_grm_w1_net_flow_tl", "feat_zry_w1_net_flow_tl",
@@ -549,9 +610,9 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             "feat_comp_accum_5d_t1_tl", "feat_bofa_comp_delta_t1_tl",
             # Cluster 6: Sector breadth
             "feat_sector_ret_t1", "feat_sector_bofa_flow_t1", "feat_peer_spread_t1",
-            # Cluster 7: Macro carry
+            # Cluster 7: Macro carry & shock dynamics
             "feat_macro_repo_rate_t1", "feat_macro_rate_delta_t1",
-            "feat_macro_days_since_decision_t1", "feat_macro_carry_t1",
+            "feat_macro_days_since_decision_t1", "feat_macro_carry_t1", "feat_macro_rate_shock_decay_t1",
             # Cluster 8: Calendar
             "feat_day_of_week", "feat_is_monday", "feat_is_friday", "feat_day_of_month",
         ]
