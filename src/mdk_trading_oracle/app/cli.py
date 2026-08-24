@@ -337,24 +337,106 @@ def build_silver():
 
 
 @app.command()
-def build_gold():
-    """Build Gold layer institutional flow indicators and rolling signal metrics."""
+def build_gold(
+    symbols: Optional[str] = typer.Option(
+        None,
+        "--symbols",
+        help="Comma-separated BIST tickers for Model 3 (e.g. 'AKBNK,GARAN'). Default: all BIST30.",
+    ),
+    windows: Optional[str] = typer.Option(
+        None,
+        "--windows",
+        help="Comma-separated windows for Model 3 (e.g. 'w2,w5'). Default: w2,w3,w5.",
+    ),
+    run_backtest: bool = typer.Option(
+        False,
+        "--run-backtest",
+        help="Also run full historical walk-forward backtests for Model 3.",
+    ),
+):
+    """Build Gold layer institutional flow indicators, Day-Start, Sector, and Stock Reaction predictive models."""
     start_time = datetime.now()
-    console.print("[bold cyan]🚀 Building Gold Lakehouse Layer...[/bold cyan]")
+    console.print("[bold cyan]🚀 Building Gold Lakehouse Layer (Models 1, 2, 3)...[/bold cyan]")
 
     db = DuckDBManager()
     engineer = GoldFeatureEngineer(db)
-    engineer.run_all()
+    symbols_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    windows_list = [w.strip() for w in windows.split(",") if w.strip()] if windows else None
+
+    engineer.run_all(
+        stock_reaction_symbols=symbols_list,
+        stock_reaction_windows=windows_list,
+        stock_reaction_backtest=run_backtest,
+    )
 
     conn = db.get_connection()
     signal_rows = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
+    macro_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
+    sector_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
+    try:
+        w2_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_forecasts;").fetchone()[0]
+        w3_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_forecasts;").fetchone()[0]
+        w5_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_forecasts;").fetchone()[0]
+        sr_fc = w2_fc + w3_fc + w5_fc
+    except Exception:
+        sr_fc = 0
 
     elapsed = (datetime.now() - start_time).total_seconds()
     console.print(
         Panel.fit(
-            f"[bold green]✨ Gold Layer Feature Engineering Complete in {elapsed:.1f}s[/bold green]\n\n"
-            f"• [bold]gold_institutional_daily_signals[/bold]: [cyan]{signal_rows:,}[/cyan] rows",
+            f"[bold green]✨ Gold Layer Feature Engineering & Inference Complete in {elapsed:.1f}s[/bold green]\n\n"
+            f"• [bold]gold_institutional_daily_signals[/bold]: [cyan]{signal_rows:,}[/cyan] rows\n"
+            f"• [bold]Model 1 (Day-Start Macro Live)[/bold]: [cyan]{macro_fc:,}[/cyan] forecasts\n"
+            f"• [bold]Model 2 (Sector Allocation Live)[/bold]: [cyan]{sector_fc:,}[/cyan] forecasts\n"
+            f"• [bold]Model 3 (Stock Intraday Reaction Live)[/bold]: [cyan]{sr_fc:,}[/cyan] forecasts across W2/W3/W5",
             title="Gold Summary",
+            border_style="green",
+        )
+    )
+
+
+@app.command("build-stock-reaction-gold")
+def build_stock_reaction_gold(
+    symbols: Optional[str] = typer.Option(
+        None,
+        "--symbols",
+        help="Comma-separated BIST tickers (e.g. 'AKBNK,GARAN'). Default: all BIST30.",
+    ),
+    windows: Optional[str] = typer.Option(
+        None,
+        "--windows",
+        help="Comma-separated windows (e.g. 'w2,w5'). Default: w2,w3,w5.",
+    ),
+    run_backtest: bool = typer.Option(
+        False,
+        "--run-backtest",
+        help="Also run full historical walk-forward backtests (slow).",
+    ),
+):
+    """Execute specifically Model 3: BIST30 Stock Intraday Reaction Forecaster."""
+    start_time = datetime.now()
+    console.print("[bold cyan]🚀 Running Model 3: BIST30 Stock Intraday Reaction Forecaster...[/bold cyan]")
+
+    db = DuckDBManager()
+    engineer = GoldFeatureEngineer(db)
+    symbols_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    windows_list = [w.strip() for w in windows.split(",") if w.strip()] if windows else None
+
+    res = engineer.run_stock_reaction_forecasting(
+        symbols=symbols_list,
+        windows=windows_list,
+        run_backtest=run_backtest,
+    )
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ Model 3 Execution Complete in {elapsed:.1f}s[/bold green]\n\n"
+            f"• Symbols Evaluated: [cyan]{res['symbols_run']}[/cyan]\n"
+            f"• Windows Evaluated: [cyan]{res['windows_run']}[/cyan]\n"
+            f"• Total Forecaster Runs: [cyan]{res['total_runs']}[/cyan]\n"
+            f"• Successful: [green]{res['success_count']}[/green] | Errors: [red]{res['error_count']}[/red]",
+            title="Stock Reaction Summary",
             border_style="green",
         )
     )

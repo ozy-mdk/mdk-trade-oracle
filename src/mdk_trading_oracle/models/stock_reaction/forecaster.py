@@ -8,9 +8,8 @@ For each (symbol, window) pair:
   3. backtest_all_history()         -> walk-forward OOS   -> gold_bofa_stock_reaction_<w>_backtests
 """
 
-import traceback
-from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import date
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -22,6 +21,7 @@ from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.stock_reaction.features import StockReactionFeatureExtractor
 from mdk_trading_oracle.models.stock_reaction.models import (
+    BaseStockReactionModel,
     ReturnThresholdProfile,
     StockReactionBayesianModel,
     StockReactionForecastResult,
@@ -30,7 +30,6 @@ from mdk_trading_oracle.models.stock_reaction.models import (
     StockReactionPyMCModel,
     StockReactionRollingMeanModel,
     StockReactionXGBoostModel,
-    BaseStockReactionModel,
 )
 
 logger = get_logger("mdk_oracle.models.stock_reaction.forecaster")

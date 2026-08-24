@@ -208,3 +208,106 @@ sector_day_start:
         - feat_sector_bofa_unrealized_pnl_return_pct
         - feat_sector_bofa_vs_top5_inventory_delta_tl
 
+# ==============================================================================
+# Model 3: BIST30 Stock Intraday Reaction Forecaster
+# ==============================================================================
+stock_reaction:
+  exclude_features: []
+  include_features: []
+
+  clusters:
+    # Cluster 1: BofA W1 Execution Signal
+    bofa_w1_execution:
+      enabled: true
+      description: "BofA Window 1 buy/sell volume, turnover TL, net flow TL, volume market share, and direction sign"
+      features:
+        - feat_bofa_w1_buy_vol
+        - feat_bofa_w1_sell_vol
+        - feat_bofa_w1_buy_tl
+        - feat_bofa_w1_sell_tl
+        - feat_bofa_w1_net_flow_tl
+        - feat_bofa_w1_net_vol
+        - feat_bofa_w1_vol_share
+        - feat_bofa_w1_direction_sign
+        - feat_bofa_w1_market_vwap
+
+    # Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal
+    multi_broker_w1_alignment:
+      enabled: true
+      description: "Top-5 domestic bank + TRA W1 net flows, institutional alignment, and TRA retail contra-signal"
+      features:
+        - feat_comp_w1_net_flow_tl
+        - feat_iym_w1_net_flow_tl
+        - feat_ykr_w1_net_flow_tl
+        - feat_akm_w1_net_flow_tl
+        - feat_grm_w1_net_flow_tl
+        - feat_zry_w1_net_flow_tl
+        - feat_tra_w1_net_flow_tl
+        - feat_w1_bofa_comp_alignment
+        - feat_w1_bofa_tra_contra_signal
+
+    # Cluster 3: T-1 Stock Momentum & Technical Posture
+    stock_momentum:
+      enabled: true
+      description: "T-1 stock return (1d/5d/20d), distance to 20-day SMA, 20d volatility, and intraday range %"
+      features:
+        - feat_stock_ret_t1_1d
+        - feat_stock_ret_t1_5d
+        - feat_stock_ret_t1_20d
+        - feat_stock_dist_sma20_t1
+        - feat_stock_vol_20d_t1
+        - feat_stock_intraday_range_t1
+
+    # Cluster 4: T-1 Institutional FIFO Tertip & Inventory Posture
+    fifo_inventory:
+      enabled: true
+      description: "T-1 BofA, TRA, and Domestic Top-5 open inventory quantity, cost basis spread %, and unrealized PnL TL"
+      features:
+        - feat_bofa_t1_open_qty
+        - feat_bofa_t1_cost_spread_pct
+        - feat_bofa_t1_unrealized_pnl_tl
+        - feat_tra_t1_open_qty
+        - feat_tra_t1_cost_spread_pct
+        - feat_dom5_t1_open_qty
+        - feat_dom5_t1_unrealized_pnl_tl
+
+    # Cluster 5: T-1 Multi-Day Accumulation & Broker Flow Deltas
+    multi_day_accumulation:
+      enabled: true
+      description: "T-1 5d/20d rolling BofA accumulation, 20d flow Z-score, Top-5 5d accumulation, and BofA vs Competitor flow delta"
+      features:
+        - feat_bofa_accum_5d_t1_tl
+        - feat_bofa_accum_20d_t1_tl
+        - feat_bofa_flow_zscore_t1
+        - feat_comp_accum_5d_t1_tl
+        - feat_bofa_comp_delta_t1_tl
+
+    # Cluster 6: T-1 Sector Breadth & Peer Relative Return Spread
+    sector_breadth:
+      enabled: true
+      description: "T-1 sector return 1d, sector BofA net flow TL, and peer spread (stock return minus sector return)"
+      features:
+        - feat_sector_ret_t1
+        - feat_sector_bofa_flow_t1
+        - feat_peer_spread_t1
+
+    # Cluster 7: Macro Interest Rates & Carry Dynamics
+    macro_carry:
+      enabled: true
+      description: "T-1 TCMB 1-Week Repo rate, rate delta, days since decision, and daily carry cost %"
+      features:
+        - feat_macro_repo_rate_t1
+        - feat_macro_rate_delta_t1
+        - feat_macro_days_since_decision_t1
+        - feat_macro_carry_t1
+
+    # Cluster 8: Calendar & Temporal Seasonality
+    calendar:
+      enabled: true
+      description: "Day of week, Monday/Friday binary flags, and day of month"
+      features:
+        - feat_day_of_week
+        - feat_is_monday
+        - feat_is_friday
+        - feat_day_of_month
+

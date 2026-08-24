@@ -8,7 +8,7 @@ Features are computed using ONLY data available at T_feature_cutoff = W1 end (10
 Zero lookahead guarantee: no W2/W3/W4/W5 data from the same trade_date is used as a feature.
 """
 
-from datetime import date, timedelta
+from datetime import date
 from typing import List, Optional
 
 import polars as pl
@@ -93,8 +93,8 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         comp_brokers_str = ", ".join(f"'{b}'" for b in self.competitor_brokers)
         tracked_brokers_str = ", ".join(f"'{b}'" for b in self.tracked_brokers)
 
-        date_filter = f"AND w1_bofa.trade_date >= '{start_date}'" if start_date else ""
-        end_filter = f"AND w1_bofa.trade_date <= '{end_date}'" if end_date else ""
+        date_filter = f"AND trade_date >= '{start_date}'" if start_date else ""
+        end_filter = f"AND trade_date <= '{end_date}'" if end_date else ""
 
         query = f"""
             WITH
@@ -290,19 +290,38 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             ),
 
             -- ── CLUSTER 6: Sector Breadth & Peer Spread ───────────────────────────────────────────
+            sector_agg AS (
+                SELECT
+                    trade_date,
+                    sector,
+                    AVG(adj_daily_return_pct) AS sector_daily_return_pct,
+                    COUNT(DISTINCT symbol) AS sector_stock_count
+                FROM silver_daily_stock_summary
+                GROUP BY trade_date, sector
+            ),
+            sector_bofa AS (
+                SELECT
+                    trade_date,
+                    sector,
+                    SUM(COALESCE(net_flow_tl, 0)) AS sector_bofa_net_flow_tl
+                FROM silver_daily_sector_summary
+                WHERE broker_id = 'MLB'
+                GROUP BY trade_date, sector
+            ),
             sector_breadth AS (
                 SELECT
                     stk.trade_date,
                     stk.symbol,
                     stk.sector,
-                    sect.daily_return_pct                                   AS feat_sector_ret_1d,
-                    sect.bofa_sector_net_flow_tl                            AS feat_sector_bofa_flow_tl,
-                    -- Peer spread: stock return minus sector return
-                    stk.adj_daily_return_pct - sect.daily_return_pct        AS feat_peer_spread_1d,
-                    sect.stock_count                                         AS feat_sector_stock_count
+                    sa.sector_daily_return_pct                               AS feat_sector_ret_1d,
+                    COALESCE(sb.sector_bofa_net_flow_tl, 0)                  AS feat_sector_bofa_flow_tl,
+                    stk.adj_daily_return_pct - sa.sector_daily_return_pct    AS feat_peer_spread_1d,
+                    sa.sector_stock_count                                    AS feat_sector_stock_count
                 FROM silver_daily_stock_summary stk
-                LEFT JOIN silver_daily_sector_summary sect
-                    ON stk.trade_date = sect.trade_date AND stk.sector = sect.sector
+                LEFT JOIN sector_agg sa
+                    ON stk.trade_date = sa.trade_date AND stk.sector = sa.sector
+                LEFT JOIN sector_bofa sb
+                    ON stk.trade_date = sb.trade_date AND stk.sector = sb.sector
                 WHERE stk.symbol = '{self.symbol}'
             ),
 
@@ -310,10 +329,10 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             macro AS (
                 SELECT
                     trade_date,
-                    weekly_repo_rate_pct                                    AS feat_macro_repo_rate,
-                    rate_change_delta                                        AS feat_macro_rate_delta,
-                    days_since_last_decision                                 AS feat_macro_days_since_decision,
-                    daily_carry_cost_pct                                     AS feat_macro_daily_carry_pct,
+                    interest_rate                                            AS feat_macro_repo_rate,
+                    rate_change                                              AS feat_macro_rate_delta,
+                    days_since_last_rate_change                               AS feat_macro_days_since_decision,
+                    daily_carry_cost_bps / 10000.0                           AS feat_macro_daily_carry_pct,
                     rate_spread_vs_30d_mean                                  AS feat_macro_rate_spread_30d
                 FROM silver_daily_macro_rates
             ),

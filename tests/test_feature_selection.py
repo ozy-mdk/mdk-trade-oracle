@@ -32,6 +32,16 @@ def test_feature_selector_defaults():
     assert "feat_sector_beta_x_bist30_momentum" in active_sector_feats
     assert "feat_sector_bofa_net_inventory_tl" in active_sector_feats
 
+    selector_stock = FeatureSelector(model_name="stock_reaction")
+    all_stock_feats = selector_stock.get_all_features()
+    active_stock_feats = selector_stock.get_active_features()
+
+    assert len(all_stock_feats) == 47
+    assert len(active_stock_feats) == 47
+    assert "feat_bofa_w1_net_flow_tl" in active_stock_feats
+    assert "feat_w1_bofa_tra_contra_signal" in active_stock_feats
+    assert "feat_bofa_t1_open_qty" in active_stock_feats
+
 
 def test_feature_selector_exclude_individual_features():
     """Verify that individual features can be excluded while keeping the rest of the cluster active."""

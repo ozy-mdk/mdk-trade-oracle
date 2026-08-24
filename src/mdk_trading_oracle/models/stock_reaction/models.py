@@ -6,7 +6,7 @@ Target variable: execution-aware return% = (window_vwap - w1_ref_price) / w1_ref
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
 from mdk_trading_oracle.core.logger import get_logger
-from mdk_trading_oracle.models.base import BaseForecaster, ForecastResult, OpeningPlaybook
+from mdk_trading_oracle.models.base import BaseForecaster, OpeningPlaybook
 from mdk_trading_oracle.models.registry import ModelRegistry
 
 logger = get_logger("mdk_oracle.models.stock_reaction.models")
@@ -362,8 +362,7 @@ class StockReactionLightGBMModel(BaseStockReactionModel):
             "verbose": -1,
         }
         self._model = lgb.LGBMRegressor(**params)
-        self._model.fit(X_filled, y, callbacks=[lgb.early_stopping(20, verbose=False),
-                                                lgb.log_evaluation(-1)])
+        self._model.fit(X_filled, y)
         preds = self._model.predict(X_filled)
         self._residual_std = float(np.std(y.values - preds)) if len(preds) > 1 else 0.5
         self.is_fitted = True

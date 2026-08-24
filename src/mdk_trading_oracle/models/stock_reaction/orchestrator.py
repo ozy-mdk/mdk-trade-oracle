@@ -19,7 +19,6 @@ Usage:
   orchestrator.run_symbol_window("AKBNK", "w2")
 """
 
-from datetime import date
 from typing import Any, Dict, List, Optional
 
 from mdk_trading_oracle.core.config import get_settings

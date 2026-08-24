@@ -181,7 +181,7 @@ def main():
     elif args.symbols_file:
         sf_path = Path(args.symbols_file)
         if sf_path.exists():
-            symbols_list = [l.strip().upper() for l in sf_path.read_text().splitlines() if l.strip()]
+            symbols_list = [line.strip().upper() for line in sf_path.read_text().splitlines() if line.strip()]
         else:
             logger.warning(f"--symbols-file path not found: {args.symbols_file}")
 
