@@ -237,6 +237,10 @@ class MedallionPipeline:
         enabled_clusters: Optional[List[str]] = None,
         include_features: Optional[List[str]] = None,
         exclude_features: Optional[List[str]] = None,
+        # Model 3 symbol/window selection
+        stock_reaction_symbols: Optional[List[str]] = None,
+        stock_reaction_windows: Optional[List[str]] = None,
+        stock_reaction_backtest: bool = False,
     ) -> dict[str, Any]:
         """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
@@ -252,25 +256,33 @@ class MedallionPipeline:
             enabled_clusters=enabled_clusters,
             include_features=include_features,
             exclude_features=exclude_features,
+            stock_reaction_symbols=stock_reaction_symbols,
+            stock_reaction_windows=stock_reaction_windows,
+            stock_reaction_backtest=stock_reaction_backtest,
         )
 
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
-        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[
-            0
-        ]
+        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
         perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_performance;").fetchone()[0]
         sector_perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
         backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
-        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[
-            0
-        ]
+        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
+        # Model 3 aggregated counts (sum across 3 windows)
+        try:
+            sr_w2_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_forecasts;").fetchone()[0]
+            sr_w3_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_forecasts;").fetchone()[0]
+            sr_w5_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_forecasts;").fetchone()[0]
+            sr_forecasts_count = sr_w2_fc + sr_w3_fc + sr_w5_fc
+        except Exception:
+            sr_forecasts_count = 0
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
             f"Macro Live: {forecasts_count:,} | Sector Live: {sector_forecasts_count:,} | "
+            f"StockRxn Live: {sr_forecasts_count:,} | "
             f"Macro Perf Ledger: {perf_count:,} | Sector Perf Ledger: {sector_perf_count:,} | "
             f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,}"
         )
@@ -281,6 +293,7 @@ class MedallionPipeline:
                 "gold_institutional_daily_signals": signals_count,
                 "gold_bofa_day_start_forecasts": forecasts_count,
                 "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
+                "gold_bofa_stock_reaction_forecasts (w2+w3+w5)": sr_forecasts_count,
                 "gold_bofa_day_start_performance": perf_count,
                 "gold_bofa_sector_day_start_performance": sector_perf_count,
                 "gold_bofa_day_start_backtests": backtests_count,
@@ -309,6 +322,10 @@ class MedallionPipeline:
         enabled_clusters: Optional[List[str]] = None,
         include_features: Optional[List[str]] = None,
         exclude_features: Optional[List[str]] = None,
+        # Model 3 symbol/window selection
+        stock_reaction_symbols: Optional[List[str]] = None,
+        stock_reaction_windows: Optional[List[str]] = None,
+        stock_reaction_backtest: bool = False,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -347,6 +364,9 @@ class MedallionPipeline:
                     enabled_clusters=enabled_clusters,
                     include_features=include_features,
                     exclude_features=exclude_features,
+                    stock_reaction_symbols=stock_reaction_symbols,
+                    stock_reaction_windows=stock_reaction_windows,
+                    stock_reaction_backtest=stock_reaction_backtest,
                 )
 
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()

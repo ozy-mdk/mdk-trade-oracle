@@ -184,6 +184,42 @@ class GoldFeatureEngineer:
             "status": "success",
         }
 
+    def run_stock_reaction_forecasting(
+        self,
+        symbols: Optional[List[str]] = None,
+        windows: Optional[List[str]] = None,
+        run_backtest: bool = False,
+    ) -> dict[str, Any]:
+        """Execute Model 3 (Stock Intraday Reaction Forecaster) across BIST30 stocks x W2/W3/W5.
+
+        Args:
+            symbols: Explicit symbol list override (None = use config/default fallback to all BIST30).
+            windows: Explicit window list override (None = ['w2', 'w3', 'w5']).
+            run_backtest: Also run full walk-forward backtests (slow — typically run once on setup).
+        """
+        # Lazy import to avoid circular imports and optional heavy dependency loading
+        from mdk_trading_oracle.models.stock_reaction.orchestrator import StockReactionOrchestrator
+
+        logger.info(
+            "Executing Gold Layer Model 3: Stock Intraday Reaction Forecaster "
+            f"(symbols={'ALL' if not symbols else symbols}, windows={windows or 'ALL'})..."
+        )
+        orchestrator = StockReactionOrchestrator(
+            db=self.db,
+            symbols=symbols,
+            windows=windows,
+        )
+        result = orchestrator.run_all_windows(run_backtest=run_backtest)
+        return {
+            "model": "stock_reaction_forecaster",
+            "symbols_run": result["symbols_run"],
+            "windows_run": result["windows_run"],
+            "total_runs": result["total_runs"],
+            "success_count": result["success_count"],
+            "error_count": result["error_count"],
+            "status": "success" if result["error_count"] == 0 else "partial",
+        }
+
     def run_all(
         self,
         backfill_dates: Optional[List[Union[str, date]]] = None,
@@ -194,6 +230,10 @@ class GoldFeatureEngineer:
         enabled_clusters: Optional[List[str]] = None,
         include_features: Optional[List[str]] = None,
         exclude_features: Optional[List[str]] = None,
+        # Model 3 specific
+        stock_reaction_symbols: Optional[List[str]] = None,
+        stock_reaction_windows: Optional[List[str]] = None,
+        stock_reaction_backtest: bool = False,
     ) -> dict[str, Any]:
         """Execute all Gold layer feature tables, institutional signals, predictive models, and ledgers."""
         initialize_gold_schema(self.db)
@@ -218,9 +258,16 @@ class GoldFeatureEngineer:
             include_features=include_features,
             exclude_features=exclude_features,
         )
+        # Model 3: Stock Intraday Reaction (BIST30 or configured symbol subset)
+        stock_reaction_res = self.run_stock_reaction_forecasting(
+            symbols=stock_reaction_symbols,
+            windows=stock_reaction_windows,
+            run_backtest=stock_reaction_backtest,
+        )
         return {
             "institutional_signals": sig_res,
             "day_start_macro_forecaster": day_start_res,
             "sector_day_start_forecaster": sector_day_start_res,
+            "stock_reaction_forecaster": stock_reaction_res,
             "status": "success",
         }

@@ -44,6 +44,33 @@ models:
     model_type: "auto"
     include_pymc_arena: false        # Fast mode across 26 sectors
 
+  # Model 3: BIST30 Stock Intraday Reaction Forecaster
+  stock_reaction:
+    lookback_months: 12              # Trailing 12 months per stock
+    eval_window_days: 10             # Evaluate on trailing 10 days (more granular per stock)
+    min_burn_in_days: 5
+    model_type: "auto"
+    include_pymc_arena: false        # Fast mode across 30 stocks x 3 windows
+
+    # Symbol filtering — default null = all BIST30 stocks from bronze_instruments
+    # Set to a list for a permanently restricted universe, e.g.: ["AKBNK", "GARAN"]
+    # Override at runtime with: --symbols AKBNK,GARAN  or  --symbols-file config/watchlist.txt
+    symbols: null
+
+    # Reaction windows to forecast — can disable individual windows if not needed
+    windows: ["first_reaction", "midday_followup", "closing_session"]
+
+    # Broker universe for FIFO Tertip inventory tracking
+    # MLB = BofA (primary), IYM/YKR/AKM/GRM/ZRY = Top-5 domestic, TRA = Tera (retail contra)
+    fifo_brokers:
+      - MLB   # Bank of America (primary institutional target)
+      - IYM   # Is Yatirim (largest domestic aggregator)
+      - YKR   # Yapi Kredi (active institutional + prop desk)
+      - AKM   # Ak Yatirim (high-volume domestic)
+      - GRM   # Garanti BBVA (institutional liquidity provider)
+      - ZRY   # Ziraat (public/state institution flow)
+      - TRA   # Tera Yatirim (retail aggregator — contra-side signal)
+
 # Historical Performance Ledger & Point-in-Time Backfill Configuration
 backfill:
   default_lookback_months: 2         # Default window when running --backfill-missing (2 months)

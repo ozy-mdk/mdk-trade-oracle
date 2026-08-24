@@ -16,6 +16,12 @@ Examples:
 
   # 5. Full Force Rebuild:
   .venv/bin/python scripts/run_pipeline.py --target all --force
+
+  # 6. Model 3: Focused session — forecast only AKBNK + GARAN (W2 and W5):
+  .venv/bin/python scripts/run_pipeline.py --target gold --symbols AKBNK,GARAN --windows w2,w5
+
+  # 7. Model 3: Load symbol list from file (one ticker per line):
+  .venv/bin/python scripts/run_pipeline.py --target gold --symbols-file watchlist.txt
 """
 
 import argparse
@@ -132,6 +138,30 @@ def main():
         default=None,
         help="Comma-separated list of semantic feature clusters to exclusively enable",
     )
+    # ── Model 3: Stock Intraday Reaction symbol/window filtering ───────────────────────────────
+    parser.add_argument(
+        "--symbols",
+        type=str,
+        default=None,
+        help="Comma-separated BIST tickers to run Model 3 for (e.g. 'AKBNK,GARAN'). Default: all BIST30.",
+    )
+    parser.add_argument(
+        "--symbols-file",
+        type=str,
+        default=None,
+        help="Path to a file with one ticker per line for Model 3 symbol filtering.",
+    )
+    parser.add_argument(
+        "--windows",
+        type=str,
+        default=None,
+        help="Comma-separated windows to run Model 3 for (e.g. 'w2,w5'). Default: w2,w3,w5.",
+    )
+    parser.add_argument(
+        "--run-stock-backtest",
+        action="store_true",
+        help="Also run full walk-forward backtests for Model 3 (slow — typically run once on setup).",
+    )
 
     args = parser.parse_args()
 
@@ -144,13 +174,27 @@ def main():
     disabled_clusters_list = [c.strip() for c in args.disabled_clusters.split(",")] if args.disabled_clusters else None
     enabled_clusters_list = [c.strip() for c in args.enabled_clusters.split(",")] if args.enabled_clusters else None
 
+    # Resolve Model 3 symbol list
+    symbols_list = None
+    if args.symbols:
+        symbols_list = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+    elif args.symbols_file:
+        sf_path = Path(args.symbols_file)
+        if sf_path.exists():
+            symbols_list = [l.strip().upper() for l in sf_path.read_text().splitlines() if l.strip()]
+        else:
+            logger.warning(f"--symbols-file path not found: {args.symbols_file}")
+
+    windows_list = [w.strip() for w in args.windows.split(",")] if args.windows else None
+
     logger.info(
         f"Triggering Medallion Lakehouse Pipeline ("
         f"Target: {args.target}, Date: {args.date}, Month: {args.month}, File: {args.file}, "
         f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, "
         f"Backfill: {backfill_dates_list or args.backfill_missing} "
         f"[Lookback: {args.backfill_lookback_months or args.backfill_lookback_days or 'default 2 months'}], "
-        f"Excluded Features: {exclude_features_list}, Disabled Clusters: {disabled_clusters_list})..."
+        f"Excluded Features: {exclude_features_list}, Disabled Clusters: {disabled_clusters_list}, "
+        f"Symbols: {symbols_list or 'ALL'}, Windows: {windows_list or 'ALL'})..."
     )
     pipeline.run(
         target=args.target,
@@ -170,6 +214,9 @@ def main():
         enabled_clusters=enabled_clusters_list,
         include_features=include_features_list,
         exclude_features=exclude_features_list,
+        stock_reaction_symbols=symbols_list,
+        stock_reaction_windows=windows_list,
+        stock_reaction_backtest=args.run_stock_backtest,
     )
 
 

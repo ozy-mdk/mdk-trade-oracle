@@ -419,6 +419,29 @@ def initialize_silver_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 17. Silver Stock Reaction Thresholds: Per-Stock Per-Window Return Percentile Distribution
+    # Used by Model 3 (Stock Intraday Reaction Forecaster) for dynamic direction classification.
+    # Analogous to silver_bofa_historical_flow_thresholds but calibrated on stock price returns (%).
+    # Covers Windows W2 (first_reaction), W3 (midday_followup), W5 (closing_session).
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS silver_stock_reaction_thresholds (
+            symbol VARCHAR NOT NULL,
+            window_name VARCHAR NOT NULL,      -- 'first_reaction', 'midday_followup', 'closing_session'
+            up_p25_pct DOUBLE NOT NULL,        -- 25th percentile of positive-return sessions
+            up_p50_pct DOUBLE NOT NULL,        -- 50th percentile (median) of positive-return sessions
+            up_p85_pct DOUBLE NOT NULL,        -- 85th percentile (STRONG_RALLY threshold)
+            down_p25_pct DOUBLE NOT NULL,      -- 25th percentile of |return| for negative-return sessions
+            down_p50_pct DOUBLE NOT NULL,      -- 50th percentile
+            down_p85_pct DOUBLE NOT NULL,      -- 85th percentile (STRONG_DECLINE threshold)
+            up_session_count INTEGER NOT NULL,
+            down_session_count INTEGER NOT NULL,
+            total_sessions INTEGER NOT NULL,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (symbol, window_name)
+        );
+    """)
+
     logger.info(
-        "DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, tertip FIFO, and corporate action adjustment tables."
+        "DuckDB Silver schemas initialized for all core aggregation, macro, benchmark, tertip FIFO, "
+        "corporate action adjustment, and stock reaction threshold tables."
     )
