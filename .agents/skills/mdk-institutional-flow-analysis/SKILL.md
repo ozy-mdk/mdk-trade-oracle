@@ -55,17 +55,25 @@ In strict adherence to quantitative and mathematical rigor, targets are defined 
 | `target_sector_open_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{s, T, \text{W1}} = \sum_{i \in \text{Trades}_{s, T, \text{W1}, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Training Target**: Net executed capital in TL by BofA in Sector $s$ in Window 1. |
 | `target_sector_open_direction` | Categorical (`str`) | $$\text{Direction}_{s, T} = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_{s, T, \text{W1}} \le 0 \end{cases}$$ | Derived sector directional binary outcome (`BUY` vs `SELL`). |
 
+### Model 3: BIST30 Stock Intraday Reaction Forecaster (`StockReactionForecaster`)
+| Target Variable | Data Type | Mathematical Formulation | Role & Description |
+| :--- | :--- | :--- | :--- |
+| `target_w2_return_pct` | Continuous (`float64`) | $$y_{i, \text{W2}} = \frac{\text{VWAP}_{i, \text{W2}} - P_{i, \text{W1\_ref}}}{P_{i, \text{W1\_ref}}} \times 100$$ | **Primary Training Target (W2)**: Execution-aware return % from W1 ref price to Window 2 (10:30–11:30 TRT) VWAP. |
+| `target_w3_return_pct` | Continuous (`float64`) | $$y_{i, \text{W3}} = \frac{\text{VWAP}_{i, \text{W3}} - P_{i, \text{W1\_ref}}}{P_{i, \text{W1\_ref}}} \times 100$$ | **Primary Training Target (W3)**: Execution-aware return % from W1 ref price to Window 3 (11:30–14:30 TRT) VWAP. |
+| `target_w5_return_pct` | Continuous (`float64`) | $$y_{i, \text{W5}} = \frac{\text{VWAP}_{i, \text{W5}} - P_{i, \text{W1\_ref}}}{P_{i, \text{W1\_ref}}} \times 100$$ | **Primary Training Target (W5)**: Execution-aware return % from W1 ref price to Window 5 (16:00–18:15 TRT) VWAP. |
+
 ### Business & Technical Mechanism: Unified Probabilistic Derivation
-1. **Primary Regression Target**: The model fits $y = \text{target\_(sector\_)open\_net\_flow\_tl}$, outputting mean flow $\hat{\mu}$ and posterior uncertainty $\hat{\sigma}$.
-2. **Harmonized Direction & Sizing (No Contradictions)**: Directional conviction ($P(\text{BUY}) = 1 - \Phi(0; \hat{\mu}, \hat{\sigma})$) and 90% credible ranges ($\hat{\mu} \pm 1.645\hat{\sigma}$) are derived directly from the exact same posterior distribution.
+1. **Primary Regression Target**: The model fits continuous targets, outputting predicted value $\hat{\mu}$ and posterior uncertainty $\hat{\sigma}$.
+2. **Harmonized Direction & Sizing (No Contradictions)**: Directional conviction and 90% credible ranges ($\hat{\mu} \pm 1.645\hat{\sigma}$) are derived directly from the exact same posterior distribution.
 
 ---
 
 ## 4. Quantitative Feature Clusters (Zero Data Leakage)
 
-All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or prior completed intraday windows. Full mathematical formulations, microstructure hypotheses, and default definitions are maintained in model-level documentation:
+All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or completed intraday Window 1 (10:30 TRT). Full mathematical formulations, microstructure hypotheses, and default definitions are maintained in model-level documentation:
 - **Macro Day-Start Specification**: [`src/mdk_trading_oracle/models/day_start/FEATURES.md`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/src/mdk_trading_oracle/models/day_start/FEATURES.md)
 - **Sector Day-Start Specification**: [`src/mdk_trading_oracle/models/sector_day_start/FEATURES.md`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/src/mdk_trading_oracle/models/sector_day_start/FEATURES.md)
+- **Stock Reaction Specification**: [`src/mdk_trading_oracle/models/stock_reaction/FEATURES.md`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/src/mdk_trading_oracle/models/stock_reaction/FEATURES.md)
 
 ### A. Model 1: The 10 Macro Feature Clusters (45 Features — `DayStartFeatureExtractor`)
 1. **Prior Closing Window Momentum**: Window 4 net flow & turnover (`feat_bofa_w4_net_flow_tl`, `feat_bofa_w4_turnover_tl`, `feat_w4_flow_acceleration_ratio`).
@@ -87,6 +95,16 @@ All features must be computed **strictly from $T-1$ Close data** (18:10 TRT) or 
 5. **Macro Context, Rates & Seasonality**: Prevailing Central Bank policy rate, rate shock decay bps, rate spread vs 30-day mean, sector rate $\times$ flow interaction, and calendar flags (`feat_macro_interest_rate`, `feat_macro_rate_shock_decay`, `feat_macro_rate_spread_vs_30d_mean`, `feat_sector_rate_x_flow_interaction`, `day_of_week`, `is_monday`, `is_friday`).
 6. **Sector Relative Alpha & Benchmark Interaction**: Sector excess return over BIST 30 index (1-day alpha, 5-day alpha), broad market return/volatility, and sector beta-momentum interaction (`feat_sector_rel_return_vs_bist30_1d`, `feat_sector_rel_return_vs_bist30_5d`, `feat_bist30_market_return_1d`, `feat_bist30_market_range_pct`, `feat_sector_beta_x_bist30_momentum`).
 7. **Sector Institutional FIFO Tertip & Inventory**: Sector net carried inventory value ($TL$), sector inventory share of total BofA wallet, sector unrealized PnL ($TL$), sector unrealized return %, and BofA vs Top-5 domestic sector inventory delta (`feat_sector_bofa_net_inventory_tl`, `feat_sector_bofa_inventory_wallet_share`, `feat_sector_bofa_unrealized_pnl_tl`, `feat_sector_bofa_unrealized_pnl_return_pct`, `feat_sector_bofa_vs_top5_inventory_delta_tl`).
+
+### C. Model 3: The 8 Stock Reaction Feature Clusters (47 Features — `StockReactionFeatureExtractor`)
+1. **BofA W1 Execution Signal (9 features)**: Buy/sell volume, turnover TL, net flow TL, net lot volume, volume share %, direction sign, and market W1 VWAP (`feat_bofa_w1_buy_vol`, `feat_bofa_w1_sell_vol`, `feat_bofa_w1_buy_tl`, `feat_bofa_w1_sell_tl`, `feat_bofa_w1_net_flow_tl`, `feat_bofa_w1_net_vol`, `feat_bofa_w1_vol_share`, `feat_bofa_w1_direction_sign`, `feat_bofa_w1_market_vwap`).
+2. **Multi-Broker W1 Alignment & Retail Contra-Signal (9 features)**: Domestic Top-5 (`IYM`, `YKR`, `AKM`, `GRM`, `ZRY`) + `TRA` W1 net flows, institutional alignment sign, and TRA retail panic contra-signal (`feat_comp_w1_net_flow_tl`, `feat_iym_w1_net_flow_tl`, `feat_ykr_w1_net_flow_tl`, `feat_akm_w1_net_flow_tl`, `feat_grm_w1_net_flow_tl`, `feat_zry_w1_net_flow_tl`, `feat_tra_w1_net_flow_tl`, `feat_w1_bofa_comp_alignment`, `feat_w1_bofa_tra_contra_signal`).
+3. **T-1 Stock Momentum & Technical Posture (6 features)**: 1d/5d/20d returns, distance to 20d SMA, 20d volatility, and intraday range % (`feat_stock_ret_t1_1d`, `feat_stock_ret_t1_5d`, `feat_stock_ret_t1_20d`, `feat_stock_dist_sma20_t1`, `feat_stock_vol_20d_t1`, `feat_stock_intraday_range_t1`).
+4. **T-1 Institutional FIFO Inventory Posture (7 features)**: BofA, TRA, and Domestic Top-5 carried inventory quantity, cost basis spread %, and unrealized PnL TL (`feat_bofa_t1_open_qty`, `feat_bofa_t1_cost_spread_pct`, `feat_bofa_t1_unrealized_pnl_tl`, `feat_tra_t1_open_qty`, `feat_tra_t1_cost_spread_pct`, `feat_dom5_t1_open_qty`, `feat_dom5_t1_unrealized_pnl_tl`).
+5. **T-1 Multi-Day Accumulation & Broker Deltas (5 features)**: 5d/20d rolling accumulation, 20d flow Z-score, Top-5 5d flow, and BofA vs Competitor flow delta (`feat_bofa_accum_5d_t1_tl`, `feat_bofa_accum_20d_t1_tl`, `feat_bofa_flow_zscore_t1`, `feat_comp_accum_5d_t1_tl`, `feat_bofa_comp_delta_t1_tl`).
+6. **T-1 Sector Breadth & Peer Relative Spread (3 features)**: Sector return 1d, sector BofA flow TL, and peer alpha spread (`feat_sector_ret_t1`, `feat_sector_bofa_flow_t1`, `feat_peer_spread_t1`).
+7. **Macro Interest Rates & Carry Dynamics (4 features)**: TCMB policy repo rate, rate change delta, days elapsed since MPC decision, and daily carry cost % (`feat_macro_repo_rate_t1`, `feat_macro_rate_delta_t1`, `feat_macro_days_since_decision_t1`, `feat_macro_carry_t1`).
+8. **Calendar & Temporal Seasonality (4 features)**: Day of week, Monday, Friday, and day of month (`feat_day_of_week`, `feat_is_monday`, `feat_is_friday`, `feat_day_of_month`).
 
 ---
 

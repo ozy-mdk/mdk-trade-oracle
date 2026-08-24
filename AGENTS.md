@@ -35,7 +35,8 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
   - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
-  - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1`):
+  - Empirical stock return percentile profiles (`silver_stock_reaction_thresholds` across BIST30 equities x W2/W3/W5) computing $P_{25}, P_{50}, P_{85}$ for rally and decline phases.
+  - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1` across 7 institutions: `MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`):
     - `silver_broker_fifo_daily`: Historical point-in-time time-series logging daily matched flow, intraday PnL, residual flow, carry FIFO realized PnL, open stock inventory, average unit cost, and MTM valuation for every session $T$.
     - `silver_broker_fifo_lot_entries`: Permanent immutable lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`).
     - `silver_broker_fifo_lots`: Currently open FIFO lots as of the latest completed session.
@@ -53,6 +54,7 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Extensible quantitative predictive models designed to host **10+ Gold models**:
     - **Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)**: Forecasts exchange-wide BofA opening net flow ($TL$), directional conviction, 90% credible intervals, and macro execution playbooks.
     - **Model 2: Sector Day-Start Forecaster (`SectorDayStartForecaster`)**: Forecasts BofA's capital allocation and sector rotation across all 26 tracked BIST sectors at the open.
+    - **Model 3: Stock Intraday Reaction Forecaster (`StockReactionForecaster`)**: Forecasts execution-aware intraday stock return percentages for individual BIST30 equities across reaction windows `W2` (first reaction), `W3` (midday followup), and `W5` (closing session).
 
 ---
 

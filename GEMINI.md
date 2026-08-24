@@ -33,9 +33,9 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Precision corporate action adjustment periods (`silver_corporate_action_adjustment_periods`) providing continuous `quantity_factor` and `canonical_symbol` mappings with zero monetary distortion ($\text{Turnover TL} = \text{Conserved}$).
   - Adjusted prices and returns enriched directly in `silver_daily_stock_summary` (`adj_close_price`, `adj_daily_return_pct`, `adj_market_vwap`, `adj_total_volume`, `adj_bofa_total_vwap`).
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
-  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
-  - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
-  - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1`):
+  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day  - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
+  - Empirical stock return percentile profiles (`silver_stock_reaction_thresholds` across BIST30 equities x W2/W3/W5) computing $P_{25}, P_{50}, P_{85}$ for rally and decline phases.
+  - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1` across 7 institutions: `MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`):
     - `silver_broker_fifo_daily`: Historical point-in-time time-series logging daily matched flow, intraday PnL, residual flow, carry FIFO realized PnL, open stock inventory, average unit cost, and MTM valuation for every session $T$.
     - `silver_broker_fifo_lot_entries`: Permanent immutable lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`).
     - `silver_broker_fifo_lots`: Currently open FIFO lots as of the latest completed session.
@@ -44,6 +44,7 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
+
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
   - Three distinct Gold table categories per predictive model:
     1. **Live Upcoming Forecasts (`gold_bofa_*_forecasts`)**: Strictly holds only active live predictions for upcoming session $T+1$.
@@ -52,6 +53,7 @@ A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3
   - Extensible quantitative predictive models designed to host **10+ Gold models**:
     - **Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)**: Forecasts exchange-wide BofA opening net flow ($TL$), directional conviction, 90% credible intervals, and macro execution playbooks.
     - **Model 2: Sector Day-Start Forecaster (`SectorDayStartForecaster`)**: Forecasts BofA's capital allocation and sector rotation across all 26 tracked BIST sectors at the open.
+    - **Model 3: Stock Intraday Reaction Forecaster (`StockReactionForecaster`)**: Forecasts execution-aware intraday stock return percentages for individual BIST30 equities across reaction windows `W2` (first reaction), `W3` (midday followup), and `W5` (closing session).
 
 ---
 

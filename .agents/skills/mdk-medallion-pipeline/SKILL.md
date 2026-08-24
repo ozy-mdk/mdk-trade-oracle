@@ -104,7 +104,8 @@ flowchart TD
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
 - **`silver_daily_benchmark_index`**: Primary key `trade_date`. Rolling 5-day / 20-day returns, 20-day historical return volatility, Parkinson high-low spread, and trend relative to 20-day Simple Moving Average.
 - **`silver_bofa_historical_flow_thresholds`**: Primary key `(scope_type, scope_name, broker_id, window_name)`. Empirical flow percentiles ($P_{25}, P_{50}, P_{85}$) computed across historical buy actions ($\text{net\_flow} > 0$) and sell actions ($|\text{net\_flow}|$) for Macro (`ALL`) and each of the 26 tracked BIST sectors.
-- **`silver_broker_fifo_daily`**: Primary key `(trade_date, symbol, broker_id)`. Tracks daily matched flow, intraday PnL, residual flow, carry FIFO PnL, open position, closing cost/value/unrealized PnL, and cumulative realized PnL.
+- **`silver_stock_reaction_thresholds`**: Primary key `(symbol, window_name)`. Empirical return percentage percentiles ($P_{25}, P_{50}, P_{85}$) computed per stock for rally phases ($\text{return} > 0$) and decline phases ($|\text{return}|$) across `W2`, `W3`, and `W5`.
+- **`silver_broker_fifo_daily`**: Primary key `(trade_date, symbol, broker_id)`. Tracks daily matched flow, intraday PnL, residual flow, carry FIFO PnL, open position, closing cost/value/unrealized PnL, and cumulative realized PnL across 7 tracked institutions (`MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`).
 - **`silver_broker_fifo_lot_entries`**: Primary key `lot_id`. Immutable initial lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`, `open_date`, `direction`).
 - **`silver_broker_fifo_lots`**: Primary key `lot_id`. Currently active open FIFO lots in queue with remaining balance.
 - **`silver_broker_fifo_lot_realizations`**: Primary key `realization_id`. Audited closure events with realized PnL and final status.
@@ -123,10 +124,13 @@ flowchart TD
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
 - **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Strictly holds active live predictions for upcoming session $T+1$.
 - **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Strictly holds active live sector allocations for upcoming session $T+1$ across 26 sectors.
+- **`gold_bofa_stock_reaction_{w2,w3,w5}_forecasts`**: Primary key `(forecast_date, symbol)`. Strictly holds active live stock return predictions for session $T$ across `first_reaction` (W2), `midday_followup` (W3), and `closing_session` (W5) for BIST30 equities.
 - **`gold_bofa_day_start_performance`**: Primary key `trade_date`. Permanent audited performance tracking ledger logging past forecasts matched against actual realized Window 1 market data from Silver.
 - **`gold_bofa_sector_day_start_performance`**: Primary key `(trade_date, sector)`. Permanent audited sector performance tracking ledger.
+- **`gold_bofa_stock_reaction_{w2,w3,w5}_performance`**: Primary key `(trade_date, symbol)`. Permanent audited stock return performance tracking ledgers.
 - **`gold_bofa_day_start_backtests`**: Primary key `trade_date`. Historical out-of-sample simulation backtest ledger with actuals, errors, and hit flags.
 - **`gold_bofa_sector_day_start_backtests`**: Primary key `(trade_date, sector)`. Historical sector simulation backtest ledger across all 26 sectors.
+- **`gold_bofa_stock_reaction_{w2,w3,w5}_backtests`**: Primary key `(trade_date, symbol)`. Historical walk-forward stock simulation backtest ledgers.
 
 ---
 

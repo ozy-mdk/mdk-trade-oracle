@@ -48,6 +48,7 @@ flowchart TD
    - `silver_daily_macro_rates`: 1,157 daily macroeconomic policy rate records with rate deltas, decision flags, days since last MPC hike/cut, rate spreads vs 30-day mean, and daily carry cost bps.
    - `silver_daily_benchmark_index`: 1,248 daily official BIST 30 benchmark metrics with rolling 5d/20d returns, 20d volatility, and 20d SMA spreads.
    - `silver_bofa_historical_flow_thresholds`: 27 empirical flow percentile profiles (1 Macro ALL + 26 BIST sectors) computing continuous $P_{25}, P_{50}, P_{85}$ quantiles across historical buy and sell actions.
+   - `silver_stock_reaction_thresholds`: Empirical return percentage percentiles ($P_{25}, P_{50}, P_{85}$) computed per stock for rally and decline phases across reaction windows `W2`, `W3`, `W5`.
    - `silver_broker_fifo_daily`: 48,058 daily records tracking intraday matching, residual flow, carry FIFO realized PnL, open stock quantities, and MTM valuations across key desks (`MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`).
    - `silver_broker_fifo_lot_entries`: 29,613 immutable FIFO lot entry records.
    - `silver_broker_fifo_lots`: 13,543 currently active open FIFO lots.
@@ -61,8 +62,9 @@ flowchart TD
    - `gold_institutional_daily_signals`: Rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
    - `gold_bofa_day_start_forecasts`: **Model 1: Macro Day-Start Forecaster** — active live predictions strictly for upcoming session $T+1$ (exchange-wide opening flow, 90% credible intervals, dynamic empirical percentile conviction `STRONG_BUY` through `STRONG_SELL`, and institutional execution playbooks).
    - `gold_bofa_sector_day_start_forecasts`: **Model 2: Sector Day-Start Forecaster** — active live sector opening allocation predictions strictly for upcoming session $T+1$ across 26 tracked BIST sectors.
-   - `gold_bofa_day_start_performance` & `gold_bofa_sector_day_start_performance`: **Permanent Audited Performance Ledgers** — historical records reconciling past predictions against actual realized Window 1 market data (MAE, RMSE, direction hit %, and 90% coverage).
-   - `gold_bofa_day_start_backtests` & `gold_bofa_sector_day_start_backtests`: Dedicated historical walk-forward simulation ledgers for calibration and tournament benchmarking.
+   - `gold_bofa_stock_reaction_{w2,w3,w5}_forecasts`: **Model 3: Stock Intraday Reaction Forecaster** — active live execution-aware stock return predictions for session $T$ across reaction windows `W2` (first reaction), `W3` (midday followup), and `W5` (closing session) for BIST30 equities.
+   - `gold_bofa_day_start_performance`, `gold_bofa_sector_day_start_performance` & `gold_bofa_stock_reaction_*_performance`: **Permanent Audited Performance Ledgers** — historical records reconciling past predictions against actual realized market data (MAE, RMSE, direction hit %, and 90% coverage).
+   - `gold_bofa_day_start_backtests`, `gold_bofa_sector_day_start_backtests` & `gold_bofa_stock_reaction_*_backtests`: Dedicated historical walk-forward simulation ledgers for calibration and tournament benchmarking.
 
 ---
 
