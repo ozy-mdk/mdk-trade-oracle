@@ -22,11 +22,12 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ## 3. System Architecture (Medallion Lakehouse)
 A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
 
-- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_instruments`, `bronze_brokers`)**:
+- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_bist30_membership`, `bronze_bist30_changes`, `bronze_bist30_stock_periods`, `bronze_instruments`, `bronze_brokers`)**:
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
   - Historical corporate actions (stock splits, rights issues, ticker symbol changes).
+  - BIST 30 index membership snapshots, quarterly rebalancing changes, and continuous stock periods.
   - Dimension reference tables for all tracked equities and brokerages.
 - **Silver Layer (`silver_corporate_action_adjustment_periods`, `silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
@@ -166,6 +167,10 @@ To allow seamless portability across different team members' local machines:
 - **Corporate Actions Ingestion & Share Adjustment Periods**:
   ```bash
   .venv/bin/mdk-oracle load-corporate-actions
+  ```
+- **BIST 30 Membership Ingestion & Dynamic Constituent Tracking**:
+  ```bash
+  .venv/bin/mdk-oracle load-bist30
   ```
 - **Daily Gold Layer Execution & Live Inference ($T+1$)**:
   ```bash

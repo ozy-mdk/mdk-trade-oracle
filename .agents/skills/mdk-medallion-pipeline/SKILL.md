@@ -34,6 +34,7 @@ flowchart TD
         B_INST["bronze_instruments<br/>(45 liquid BIST equities)"]
         B_CBRT["bronze_central_bank_rates<br/>(TCMB 1-Week Repo & Policy Rates)"]
         B_BENCH["bronze_bist_index_benchmarks<br/>(Official BIST 30 OHLCV Benchmarks)"]
+        B_BIST30["bronze_bist30_membership<br/>(BIST 30 Snapshots, Changes & Periods)"]
     end
 
     subgraph Silver["Silver Layer (Aggregated Microstructure & Macro)"]

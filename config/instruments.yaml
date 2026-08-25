@@ -47,7 +47,7 @@ instruments:
 - symbol: TRALT
   name: Darphane Altın Sertifikası (Gram Altın)
   sector: Commodity ETF
-  index: BIST_GOLD
+  index: BIST30
   lot_multiplier: 1.0
 - symbol: GARAN
   name: Türkiye Garanti Bankası A.Ş.
@@ -87,7 +87,7 @@ instruments:
 - symbol: HALKB
   name: Türkiye Halk Bankası A.Ş.
   sector: Banking
-  index: BIST30
+  index: BIST50
   lot_multiplier: 1.0
 - symbol: TCELL
   name: Turkcell İletişim Hizmetleri A.Ş.
@@ -97,7 +97,7 @@ instruments:
 - symbol: DSTKF
   name: Destek Finans Faktoring A.Ş.
   sector: Financial Services
-  index: BIST100
+  index: BIST30
   lot_multiplier: 1.0
 - symbol: EKGYO
   name: Emlak Konut Gayrimenkul Yatırım Ortaklığı
@@ -107,7 +107,7 @@ instruments:
 - symbol: MGROS
   name: Migros Ticaret A.Ş.
   sector: Retail
-  index: BIST50
+  index: BIST30
   lot_multiplier: 1.0
 - symbol: KRDMD
   name: Kardemir Karabük Demir Çelik D
@@ -137,7 +137,7 @@ instruments:
 - symbol: GUBRF
   name: Gübre Fabrikaları T.A.Ş.
   sector: Chemicals
-  index: BIST50
+  index: BIST30
   lot_multiplier: 1.0
 - symbol: TTKOM
   name: Türk Telekomünikasyon A.Ş.
@@ -217,7 +217,7 @@ instruments:
 - symbol: ARCLK
   name: Arçelik A.Ş.
   sector: Consumer Durables
-  index: BIST30
+  index: BIST50
   lot_multiplier: 1.0
 - symbol: VESTL
   name: Vestel Elektronik Sanayi ve Ticaret A.Ş.

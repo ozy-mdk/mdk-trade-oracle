@@ -92,30 +92,26 @@ class StockReactionOrchestrator:
             logger.info(f"Symbol list from config/default.yaml: {resolved}")
             return resolved
 
-        # Priority 4: all BIST30 from bronze_instruments
+        # Priority 4: Dynamic BIST 30 symbols from Bronze layer (bronze_bist30_membership / bronze_instruments)
         try:
-            conn = self.db.get_connection()
-            rows = conn.execute("""
-                SELECT DISTINCT symbol
-                FROM bronze_instruments
-                WHERE is_active = TRUE
-                ORDER BY symbol;
-            """).fetchall()
-            if rows:
-                resolved = [r[0] for r in rows]
-                logger.info(f"Symbol list from bronze_instruments: {len(resolved)} stocks (default BIST30)")
+            from mdk_trading_oracle.data.bronze.ingestor import BronzeIngestor
+
+            ingestor = BronzeIngestor(self.db)
+            resolved = ingestor.get_bist30_symbols(active_only=True)
+            if resolved:
+                logger.info(f"Symbol list resolved from Bronze layer: {len(resolved)} stocks (active BIST30)")
                 return resolved
         except Exception as exc:
-            logger.warning(f"Could not load symbols from bronze_instruments: {exc}")
+            logger.warning(f"Could not load symbols from Bronze layer: {exc}")
 
-        # Hardcoded BIST30 fallback (in case DB is not yet populated)
+        # Hardcoded BIST30 fallback (30 latest active constituents)
         fallback = [
-            "AKBNK", "ARCLK", "ASELS", "BIMAS", "DOHOL",
-            "EKGYO", "EREGL", "FROTO", "GARAN", "GUBRF",
-            "HALKB", "KCHOL", "KONTR", "KOZAA", "KOZAL",
-            "KRDMD", "MGROS", "ODAS", "OYAKC", "PETKM",
-            "PGSUS", "SAHOL", "SASA", "SISE", "TAVHL",
-            "TCELL", "THYAO", "TOASO", "TTKOM", "VAKBN",
+            "AEFES", "AKBNK", "ASELS", "ASTOR", "BIMAS",
+            "DSTKF", "EKGYO", "ENKAI", "EREGL", "FROTO",
+            "GARAN", "GUBRF", "ISCTR", "KCHOL", "KRDMD",
+            "MGROS", "PETKM", "PGSUS", "SAHOL", "SASA",
+            "SISE", "TAVHL", "TCELL", "THYAO", "TOASO",
+            "TRALT", "TTKOM", "TUPRS", "VAKBN", "YKBNK",
         ]
         logger.info(f"Symbol list from hardcoded BIST30 fallback: {len(fallback)} stocks")
         return fallback

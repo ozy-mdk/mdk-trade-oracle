@@ -1080,3 +1080,328 @@ class BronzeIngestor:
             "source_path": str(resolved_path),
             "status": "success",
         }
+
+    def ingest_bist30_membership(
+        self,
+        file_path: Optional[Union[str, Path]] = None,
+        force: bool = False,
+        sync_instruments: bool = True,
+    ) -> Dict[str, Any]:
+        """Ingest BIST 30 constituent membership snapshots and historical rebalancing changes.
+
+        Discovers Excel (.xlsx/.xls) or CSV files in raw_data_dir/bist_30_list_with_changes/
+        and populates:
+          - `bronze_bist30_membership` (quarterly/event snapshot constituents)
+          - `bronze_bist30_changes` (rebalancing events: entered/exited stocks)
+          - `bronze_bist30_stock_periods` (continuous membership spans per stock)
+
+        Args:
+            file_path: Optional explicit file path. If None, auto-discovers in raw_data_dir.
+            force: If True, clears existing tables before ingesting.
+            sync_instruments: If True, updates `bronze_instruments.index_name` to match active BIST30.
+        """
+        initialize_bronze_schema(self.db)
+        conn = self.db.get_connection()
+
+        resolved_path: Optional[Path] = None
+        if file_path:
+            p = Path(file_path).resolve()
+            if p.exists():
+                resolved_path = p
+        else:
+            search_dir = self.settings.raw_data_dir / "bist_30_list_with_changes"
+            if search_dir.exists():
+                candidates = sorted(
+                    list(search_dir.glob("*.xlsx"))
+                    + list(search_dir.glob("*.xls"))
+                    + list(search_dir.glob("*.csv")),
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True,
+                )
+                if candidates:
+                    resolved_path = candidates[0]
+
+        if not resolved_path or not resolved_path.exists():
+            logger.warning(
+                f"No BIST 30 membership file found in {self.settings.raw_data_dir / 'bist_30_list_with_changes'} "
+                f"or provided path ({file_path})."
+            )
+            return {
+                "membership_rows": 0,
+                "changes_rows": 0,
+                "periods_rows": 0,
+                "status": "skipped_no_file",
+            }
+
+        logger.info(f"Ingesting BIST 30 membership dataset from: {resolved_path}")
+
+        if force:
+            logger.info("Force reloading BIST 30 membership tables...")
+            conn.execute("DELETE FROM bronze_bist30_membership;")
+            conn.execute("DELETE FROM bronze_bist30_changes;")
+            conn.execute("DELETE FROM bronze_bist30_stock_periods;")
+
+        membership_count = 0
+        changes_count = 0
+        periods_count = 0
+        active_symbols: List[str] = []
+
+        if resolved_path.suffix.lower() in [".xlsx", ".xls"]:
+            xl = pd.ExcelFile(resolved_path)
+
+            # 1. Parse 'Üyelik Dönemleri'
+            if "Üyelik Dönemleri" in xl.sheet_names:
+                df_uyelik = xl.parse("Üyelik Dönemleri", header=3)
+                # Filter out empty rows
+                df_uyelik = df_uyelik.dropna(subset=["Hisse", "Başlangıç"])
+                max_start_date = pd.to_datetime(df_uyelik["Başlangıç"]).max()
+
+                for _, row in df_uyelik.iterrows():
+                    start_dt = pd.to_datetime(row["Başlangıç"]).date()
+                    end_val = row.get("Bitiş")
+                    end_dt = pd.to_datetime(end_val).date() if pd.notna(end_val) else None
+                    symbol = str(row["Hisse"]).strip().upper()
+                    if not symbol:
+                        continue
+
+                    # Active if end_dt is None or equal to max period
+                    is_active = (end_dt is None) or (pd.to_datetime(row["Başlangıç"]) == max_start_date)
+                    if is_active and symbol not in active_symbols:
+                        active_symbols.append(symbol)
+
+                    source_type = str(row.get("Kaynak Türü", "")).strip() if pd.notna(row.get("Kaynak Türü")) else None
+                    confidence = str(row.get("Güven", "")).strip() if pd.notna(row.get("Güven")) else None
+                    source_url = str(row.get("Kaynak URL / Not", "")).strip() if pd.notna(row.get("Kaynak URL / Not")) else None
+
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO bronze_bist30_membership (
+                            start_date, end_date, symbol, is_active, source_type, confidence, source_url, raw_source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                        [
+                            start_dt,
+                            end_dt,
+                            symbol,
+                            is_active,
+                            source_type,
+                            confidence,
+                            source_url,
+                            resolved_path.name,
+                        ],
+                    )
+                    membership_count += 1
+
+            # 2. Parse 'Değişimler'
+            if "Değişimler" in xl.sheet_names:
+                df_degisim = xl.parse("Değişimler", header=3)
+                df_degisim = df_degisim.dropna(subset=["Efektif Tarih"])
+                for _, row in df_degisim.iterrows():
+                    eff_dt = pd.to_datetime(row["Efektif Tarih"]).date()
+                    end_val = row.get("Dönem Bitişi")
+                    end_dt = pd.to_datetime(end_val).date() if pd.notna(end_val) else None
+                    in_sym = str(row.get("Giren Hisseler", "")).strip() if pd.notna(row.get("Giren Hisseler")) else None
+                    in_cnt = int(row.get("Giren Adet", 0)) if pd.notna(row.get("Giren Adet")) else 0
+                    out_sym = str(row.get("Çıkan Hisseler", "")).strip() if pd.notna(row.get("Çıkan Hisseler")) else None
+                    out_cnt = int(row.get("Çıkan Adet", 0)) if pd.notna(row.get("Çıkan Adet")) else 0
+                    desc = str(row.get("Açıklama", "")).strip() if pd.notna(row.get("Açıklama")) else None
+
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO bronze_bist30_changes (
+                            effective_date, end_date, in_symbols, in_count, out_symbols, out_count, description, raw_source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                        [
+                            eff_dt,
+                            end_dt,
+                            in_sym,
+                            in_cnt,
+                            out_sym,
+                            out_cnt,
+                            desc,
+                            resolved_path.name,
+                        ],
+                    )
+                    changes_count += 1
+
+            # 3. Parse 'Hisse Dönemleri'
+            if "Hisse Dönemleri" in xl.sheet_names:
+                df_hisse = xl.parse("Hisse Dönemleri", header=3)
+                df_hisse = df_hisse.dropna(subset=["Hisse", "Başlangıç"])
+                for _, row in df_hisse.iterrows():
+                    symbol = str(row["Hisse"]).strip().upper()
+                    start_dt = pd.to_datetime(row["Başlangıç"]).date()
+                    end_val = row.get("Bitiş")
+                    end_dt = pd.to_datetime(end_val).date() if pd.notna(end_val) else None
+                    status = str(row.get("Durum", "Aktif")).strip()
+                    is_active = status.lower() == "aktif" or end_dt is None
+
+                    cal_days_val = row.get("Takvim Günü")
+                    cal_days = int(cal_days_val) if (pd.notna(cal_days_val) and isinstance(cal_days_val, (int, float))) else None
+                    period_no = int(row.get("Üyelik Dönemi No", 1)) if pd.notna(row.get("Üyelik Dönemi No")) else 1
+
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO bronze_bist30_stock_periods (
+                            symbol, start_date, end_date, status, is_active, calendar_days, membership_period_no, raw_source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                        [
+                            symbol,
+                            start_dt,
+                            end_dt,
+                            status,
+                            is_active,
+                            cal_days,
+                            period_no,
+                            resolved_path.name,
+                        ],
+                    )
+                    periods_count += 1
+        else:
+            # Simple CSV fallback format
+            df_csv = pd.read_csv(resolved_path)
+            for _, row in df_csv.iterrows():
+                sym = str(row.get("symbol") or row.get("Hisse")).strip().upper()
+                start_dt = pd.to_datetime(row.get("start_date") or row.get("Başlangıç", "2022-01-01")).date()
+                end_val = row.get("end_date") or row.get("Bitiş")
+                end_dt = pd.to_datetime(end_val).date() if pd.notna(end_val) else None
+                is_active = end_dt is None or str(row.get("status", "")).lower() == "aktif"
+                if is_active and sym not in active_symbols:
+                    active_symbols.append(sym)
+
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO bronze_bist30_membership (
+                        start_date, end_date, symbol, is_active, raw_source
+                    ) VALUES (?, ?, ?, ?, ?);
+                """,
+                    [start_dt, end_dt, sym, is_active, resolved_path.name],
+                )
+                membership_count += 1
+
+        # Synchronize bronze_instruments index tags
+        if sync_instruments:
+            self._sync_instruments_with_bist30_membership(active_symbols)
+
+        logger.info(
+            f"Successfully ingested BIST 30 membership: {membership_count} membership records, "
+            f"{changes_count} change events, {periods_count} stock periods. "
+            f"Active BIST 30 constituents: {len(active_symbols)}."
+        )
+
+        return {
+            "membership_rows": membership_count,
+            "changes_rows": changes_count,
+            "periods_rows": periods_count,
+            "active_symbols_count": len(active_symbols),
+            "source_path": str(resolved_path),
+            "status": "success",
+        }
+
+    def _sync_instruments_with_bist30_membership(self, active_symbols: Optional[List[str]] = None) -> None:
+        """Sync bronze_instruments.index_name based on active BIST 30 membership."""
+        conn = self.db.get_connection()
+        if not active_symbols:
+            active_rows = conn.execute("""
+                SELECT DISTINCT symbol
+                FROM bronze_bist30_membership
+                WHERE is_active = TRUE
+                ORDER BY symbol;
+            """).fetchall()
+            active_symbols = [r[0] for r in active_rows]
+
+        if not active_symbols:
+            return
+
+        for sym in active_symbols:
+            exists = conn.execute("SELECT COUNT(*) FROM bronze_instruments WHERE symbol = ?;", [sym]).fetchone()[0]
+            if exists:
+                conn.execute("UPDATE bronze_instruments SET index_name = 'BIST30' WHERE symbol = ?;", [sym])
+            else:
+                # Insert newly discovered instrument
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO bronze_instruments (symbol, name, sector, index_name, lot_multiplier)
+                    VALUES (?, ?, ?, 'BIST30', 1.0);
+                """,
+                    [sym, sym, "Diversified"],
+                )
+
+        logger.debug(f"Synced {len(active_symbols)} active BIST 30 instruments in `bronze_instruments`.")
+
+    def get_bist30_symbols(
+        self,
+        as_of_date: Optional[Union[date, str]] = None,
+        active_only: bool = True,
+    ) -> List[str]:
+        """Query dynamic BIST 30 constituent symbols from Bronze layer.
+
+        Args:
+            as_of_date: If specified, returns point-in-time constituents effective on that date.
+            active_only: If True and as_of_date is None, returns currently active 30 constituents.
+
+        Returns:
+            Sorted list of BIST 30 ticker symbols.
+        """
+        # Verified default 30 fallback
+        fallback_30 = [
+            "AEFES", "AKBNK", "ASELS", "ASTOR", "BIMAS",
+            "DSTKF", "EKGYO", "ENKAI", "EREGL", "FROTO",
+            "GARAN", "GUBRF", "ISCTR", "KCHOL", "KRDMD",
+            "MGROS", "PETKM", "PGSUS", "SAHOL", "SASA",
+            "SISE", "TAVHL", "TCELL", "THYAO", "TOASO",
+            "TRALT", "TTKOM", "TUPRS", "VAKBN", "YKBNK",
+        ]
+
+        try:
+            conn = self.db.get_connection()
+            if as_of_date:
+                d = pd.to_datetime(as_of_date).date()
+                rows = conn.execute(
+                    """
+                    SELECT DISTINCT symbol
+                    FROM bronze_bist30_membership
+                    WHERE start_date <= ? AND (end_date IS NULL OR end_date >= ?)
+                    ORDER BY symbol;
+                """,
+                    [d, d],
+                ).fetchall()
+                if rows:
+                    return [r[0] for r in rows]
+
+            if active_only:
+                rows = conn.execute("""
+                    SELECT DISTINCT symbol
+                    FROM bronze_bist30_membership
+                    WHERE is_active = TRUE
+                    ORDER BY symbol;
+                """).fetchall()
+                if rows:
+                    return [r[0] for r in rows]
+
+                # Fallback to latest start date snapshot
+                rows = conn.execute("""
+                    SELECT DISTINCT symbol
+                    FROM bronze_bist30_membership
+                    WHERE start_date = (SELECT MAX(start_date) FROM bronze_bist30_membership)
+                    ORDER BY symbol;
+                """).fetchall()
+                if rows:
+                    return [r[0] for r in rows]
+
+                # Fallback to bronze_instruments index_name = 'BIST30'
+                rows = conn.execute("""
+                    SELECT DISTINCT symbol
+                    FROM bronze_instruments
+                    WHERE index_name = 'BIST30'
+                    ORDER BY symbol;
+                """).fetchall()
+                if rows:
+                    return [r[0] for r in rows]
+
+        except Exception as exc:
+            logger.debug(f"Could not load BIST 30 symbols from DuckDB: {exc}")
+
+        return fallback_30

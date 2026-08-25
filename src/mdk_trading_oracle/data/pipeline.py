@@ -131,6 +131,9 @@ class MedallionPipeline:
         # Ingest corporate action events (splits, bonus issues, ticker changes, rights notes)
         actions_res = self.bronze_ingestor.ingest_corporate_actions(force=force)
 
+        # Ingest BIST 30 membership snapshots, historical changes, and stock periods
+        bist30_res = self.bronze_ingestor.ingest_bist30_membership(force=force)
+
         conn = self.db.get_connection()
         trades_count = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
         brokers_count = conn.execute("SELECT COUNT(*) FROM bronze_brokers;").fetchone()[0]
@@ -139,12 +142,13 @@ class MedallionPipeline:
         cbrt_rates_count = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
         benchmarks_count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
         actions_count = conn.execute("SELECT COUNT(*) FROM bronze_corporate_actions;").fetchone()[0]
+        bist30_count = conn.execute("SELECT COUNT(*) FROM bronze_bist30_membership;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Bronze Layer completed in {elapsed:.2f}s | "
             f"Raw Trades: {trades_count:,} | CBRT Rates: {cbrt_rates_count:,} | Benchmarks: {benchmarks_count:,} | "
-            f"Corporate Actions: {actions_count:,} | Ingested Files Logged: {log_count:,}"
+            f"Corporate Actions: {actions_count:,} | BIST30 Membership: {bist30_count:,} | Ingested Files Logged: {log_count:,}"
         )
         return {
             "layer": "bronze",
@@ -154,6 +158,7 @@ class MedallionPipeline:
                 "bronze_central_bank_rates": cbrt_rates_count,
                 "bronze_bist_index_benchmarks": benchmarks_count,
                 "bronze_corporate_actions": actions_count,
+                "bronze_bist30_membership": bist30_count,
                 "bronze_ingestion_log": log_count,
                 "bronze_brokers": brokers_count,
                 "bronze_instruments": instruments_count,
@@ -163,6 +168,7 @@ class MedallionPipeline:
                 "central_bank_rates": cbrt_res,
                 "benchmarks": bench_res,
                 "corporate_actions": actions_res,
+                "bist30_membership": bist30_res,
             },
             "status": "success",
         }

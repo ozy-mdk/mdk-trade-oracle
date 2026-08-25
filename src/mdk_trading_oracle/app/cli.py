@@ -163,10 +163,14 @@ def load_bronze(
     console.print("[bold yellow]📈 Ingesting BIST 30 benchmark data and synchronizing market dates...[/bold yellow]")
     ingestor.ingest_bist30_benchmarks(sync_market_dates=True)
 
+    console.print("[bold yellow]📋 Ingesting BIST 30 membership list and rebalancing changes...[/bold yellow]")
+    ingestor.ingest_bist30_membership()
+
     conn = db.get_connection()
     total_trades = conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0]
     total_cbrt = conn.execute("SELECT COUNT(*) FROM bronze_central_bank_rates;").fetchone()[0]
     total_bench = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+    total_bist30 = conn.execute("SELECT COUNT(*) FROM bronze_bist30_membership;").fetchone()[0]
     total_files = conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0]
 
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -176,6 +180,7 @@ def load_bronze(
             f"• [bold]bronze_raw_trades[/bold]: [cyan]{total_trades:,}[/cyan] rows\n"
             f"• [bold]bronze_central_bank_rates[/bold]: [cyan]{total_cbrt:,}[/cyan] rows\n"
             f"• [bold]bronze_bist_index_benchmarks[/bold]: [cyan]{total_bench:,}[/cyan] rows\n"
+            f"• [bold]bronze_bist30_membership[/bold]: [cyan]{total_bist30:,}[/cyan] rows\n"
             f"• [bold]bronze_ingestion_log[/bold]: [cyan]{total_files:,}[/cyan] files logged",
             title="Bronze Summary",
             border_style="green",
@@ -256,6 +261,48 @@ def load_corporate_actions(
             f"• [bold]Date Range[/bold]: [cyan]{action_range[0]}[/cyan] to [cyan]{action_range[1]}[/cyan]\n"
             f"• [bold]Source File[/bold]: [cyan]{res.get('source_path', '')}[/cyan]",
             title="Corporate Actions Summary",
+            border_style="green",
+        )
+    )
+
+
+@app.command()
+def load_bist30(
+    file_path: Optional[Path] = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="Optional path to BIST30_uyelik_ve_degisim_tarihi.xlsx",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force re-ingestion of BIST 30 membership list and changes",
+    ),
+):
+    """Ingest BIST 30 index membership snapshots, quarterly rebalancing changes, and continuous stock periods."""
+    start_time = datetime.now()
+    console.print("[bold cyan]📋 Ingesting BIST 30 Membership List & Historical Changes...[/bold cyan]")
+
+    db = DuckDBManager()
+    ingestor = BronzeIngestor(db)
+    res = ingestor.ingest_bist30_membership(file_path=file_path, force=force)
+
+    conn = db.get_connection()
+    total_mem = conn.execute("SELECT COUNT(*) FROM bronze_bist30_membership;").fetchone()[0]
+    total_changes = conn.execute("SELECT COUNT(*) FROM bronze_bist30_changes;").fetchone()[0]
+    total_periods = conn.execute("SELECT COUNT(*) FROM bronze_bist30_stock_periods;").fetchone()[0]
+    active_count = conn.execute("SELECT COUNT(DISTINCT symbol) FROM bronze_bist30_membership WHERE is_active = TRUE;").fetchone()[0]
+
+    elapsed = (datetime.now() - start_time).total_seconds()
+    console.print(
+        Panel.fit(
+            f"[bold green]✨ BIST 30 Membership Dataset Ingested in {elapsed:.1f}s[/bold green]\n\n"
+            f"• [bold]bronze_bist30_membership[/bold]: [cyan]{total_mem:,}[/cyan] rows (Active: [green]{active_count}[/green])\n"
+            f"• [bold]bronze_bist30_changes[/bold]: [cyan]{total_changes:,}[/cyan] rebalancing events\n"
+            f"• [bold]bronze_bist30_stock_periods[/bold]: [cyan]{total_periods:,}[/cyan] continuous periods\n"
+            f"• [bold]Source File[/bold]: [cyan]{res.get('source_path', '')}[/cyan]",
+            title="BIST 30 Membership Summary",
             border_style="green",
         )
     )

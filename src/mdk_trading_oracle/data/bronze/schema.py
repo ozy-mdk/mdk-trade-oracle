@@ -110,6 +110,53 @@ def initialize_bronze_schema(db: DuckDBManager) -> None:
         );
     """)
 
+    # 8. Bronze BIST 30 Index Membership Snapshots
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_bist30_membership (
+            start_date DATE NOT NULL,
+            end_date DATE,
+            symbol VARCHAR NOT NULL,
+            is_active BOOLEAN DEFAULT FALSE,
+            source_type VARCHAR,
+            confidence VARCHAR,
+            source_url VARCHAR,
+            raw_source VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (start_date, symbol)
+        );
+    """)
+
+    # 9. Bronze BIST 30 Periodic Rebalancing Changes
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_bist30_changes (
+            effective_date DATE PRIMARY KEY,
+            end_date DATE,
+            in_symbols VARCHAR,
+            in_count INTEGER DEFAULT 0,
+            out_symbols VARCHAR,
+            out_count INTEGER DEFAULT 0,
+            description VARCHAR,
+            raw_source VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # 10. Bronze BIST 30 Stock Membership Periods (Aggregated Spans)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_bist30_stock_periods (
+            symbol VARCHAR NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE,
+            status VARCHAR DEFAULT 'Aktif',
+            is_active BOOLEAN DEFAULT FALSE,
+            calendar_days INTEGER,
+            membership_period_no INTEGER DEFAULT 1,
+            raw_source VARCHAR,
+            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (symbol, start_date)
+        );
+    """)
+
     # Sync reference data from YAML configs
     sync_reference_data(db)
     logger.info("DuckDB Bronze schemas initialized.")
