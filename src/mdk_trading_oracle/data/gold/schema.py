@@ -238,14 +238,26 @@ def initialize_gold_schema(db: DuckDBManager) -> None:
                 is_direction_hit BOOLEAN,
                 is_inside_90_ci BOOLEAN,
                 -- Metadata
+                bofa_w1_direction VARCHAR,
                 bofa_w1_net_flow_tl DOUBLE,
                 bofa_w1_volume_share DOUBLE,
                 model_name VARCHAR,
                 model_version VARCHAR,
                 forecast_generated_at TIMESTAMP,
                 realized_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (trade_date, symbol)
             );
+        """)
+
+        # Safe schema migration for pre-existing tables
+        conn.execute(f"""
+            ALTER TABLE gold_bofa_stock_reaction_{_window}_performance
+            ADD COLUMN IF NOT EXISTS bofa_w1_direction VARCHAR;
+        """)
+        conn.execute(f"""
+            ALTER TABLE gold_bofa_stock_reaction_{_window}_performance
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
         """)
 
         # 14/15/16. Simulation Backtests — full historical walk-forward OOS simulation ledger
