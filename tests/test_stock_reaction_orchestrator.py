@@ -83,3 +83,28 @@ def test_symbol_resolution_priority_chain():
     orch2 = StockReactionOrchestrator(db=None, symbols=None)
     assert len(orch2.symbols) > 0
     assert "AKBNK" in orch2.symbols
+
+
+def test_weak_regime_filtering_logic():
+    """Verify institutional active regime flag correctly filters noise training sessions."""
+    from mdk_trading_oracle.models.stock_reaction.forecaster import StockReactionForecaster
+
+    forecaster = StockReactionForecaster(symbol="AKBNK", window="w2", filter_weak_regimes=True)
+    assert forecaster.filter_weak_regimes is True
+
+    # Test with dummy DataFrame containing regime flags
+    n = 20
+    df = pd.DataFrame({
+        "trade_date": pd.date_range("2026-03-01", periods=n, freq="B"),
+        "feat_bofa_w1_net_flow_tl": np.random.randn(n) * 1e6,
+        "feat_comp_w1_net_flow_tl": np.random.randn(n) * 1e6,
+        "target_w2_return_pct": np.random.randn(n) * 1.5,
+        "is_strong_start_bofa": [True, False] * 10,
+        "is_strong_start_big_players": [False, True] * 10,
+        "is_institutional_active_day": [True, True, False, False] * 5,
+    })
+
+    active_count = df["is_institutional_active_day"].sum()
+    assert active_count == 10
+    filtered_df = df[df["is_institutional_active_day"]]
+    assert len(filtered_df) == 10

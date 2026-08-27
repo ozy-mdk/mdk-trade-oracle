@@ -10,11 +10,11 @@ from mdk_trading_oracle.models.stock_reaction.features import (
 
 
 def test_stock_reaction_feature_columns_count():
-    """Assert exactly 49 feature columns across 8 semantic microstructure clusters."""
+    """Assert exactly 50 feature columns across 8 semantic microstructure clusters."""
     extractor = StockReactionFeatureExtractor(symbol="AKBNK")
     feat_cols = extractor.get_feature_columns()
 
-    assert len(feat_cols) == 49, f"Expected 49 features, got {len(feat_cols)}: {feat_cols}"
+    assert len(feat_cols) == 50, f"Expected 50 features, got {len(feat_cols)}: {feat_cols}"
     assert len(StockReactionFeatureExtractor.CLUSTER_NAMES) == 8
 
     # Cluster 1: BofA W1 Execution Signal
@@ -27,6 +27,7 @@ def test_stock_reaction_feature_columns_count():
 
     # Cluster 2: Multi-broker W1 alignment
     assert "feat_comp_w1_net_flow_tl" in feat_cols
+    assert "feat_comp_w1_direction_strength" in feat_cols
     assert "feat_iym_w1_net_flow_tl" in feat_cols
     assert "feat_tra_w1_net_flow_tl" in feat_cols
     assert "feat_w1_bofa_comp_alignment" in feat_cols
@@ -87,10 +88,11 @@ def test_stock_reaction_feature_selector():
     all_feats = selector.get_all_features()
     active_feats = selector.get_active_features()
 
-    assert len(all_feats) == 49
-    assert len(active_feats) == 49
+    assert len(all_feats) == 50
+    assert len(active_feats) == 50
     assert "feat_bofa_w1_net_flow_tl" in active_feats
     assert "feat_bofa_w1_direction_strength" in active_feats
+    assert "feat_comp_w1_direction_strength" in active_feats
     assert "feat_w1_bofa_tra_contra_signal" in active_feats
     assert "feat_bofa_t1_open_qty" in active_feats
 

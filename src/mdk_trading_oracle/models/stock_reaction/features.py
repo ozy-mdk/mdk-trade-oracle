@@ -161,27 +161,37 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             -- ── CLUSTER 2: Multi-Broker W1 Alignment ────────────────────────────────────────────
             w1_competitors AS (
                 SELECT
-                    trade_date,
-                    symbol,
-                    SUM(CASE WHEN broker_id IN ({comp_brokers_str}) THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    b.trade_date,
+                    b.symbol,
+                    SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_comp_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'IYM' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    SUM(CASE WHEN b.broker_id = 'IYM' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_iym_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'YKR' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    SUM(CASE WHEN b.broker_id = 'YKR' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_ykr_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'AKM' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    SUM(CASE WHEN b.broker_id = 'AKM' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_akm_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'GRM' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    SUM(CASE WHEN b.broker_id = 'GRM' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_grm_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'ZRY' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
+                    SUM(CASE WHEN b.broker_id = 'ZRY' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
                                                                             AS feat_zry_w1_net_flow_tl,
-                    SUM(CASE WHEN broker_id = 'TRA' THEN COALESCE(buy_turnover_tl,0) - COALESCE(sell_turnover_tl,0) ELSE 0 END)
-                                                                            AS feat_tra_w1_net_flow_tl
-                FROM silver_intraday_broker_window_summary
-                WHERE window_name = 'day_start'
-                  AND broker_id IN ({tracked_brokers_str})
-                  AND symbol = '{self.symbol}'
-                GROUP BY trade_date, symbol
+                    SUM(CASE WHEN b.broker_id = 'TRA' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
+                                                                            AS feat_tra_w1_net_flow_tl,
+                    CASE
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) >= MAX(th.buy_p85_tl) THEN 3.0
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) >= MAX(th.buy_p50_tl) THEN 2.0
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) >= MAX(th.buy_p25_tl) THEN 1.0
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) <= -MAX(th.sell_p85_tl) THEN -3.0
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) <= -MAX(th.sell_p50_tl) THEN -2.0
+                        WHEN SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END) <= -MAX(th.sell_p25_tl) THEN -1.0
+                        ELSE 0.0
+                    END                                                     AS feat_comp_w1_direction_strength
+                FROM silver_intraday_broker_window_summary b
+                CROSS JOIN flow_thresholds th
+                WHERE b.window_name = 'day_start'
+                  AND b.broker_id IN ({tracked_brokers_str})
+                  AND b.symbol = '{self.symbol}'
+                GROUP BY b.trade_date, b.symbol
             ),
 
             -- ── CLUSTER 3: T-1 Stock Momentum ────────────────────────────────────────────────────
@@ -190,18 +200,15 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                     stk.trade_date,
                     stk.symbol,
                     stk.adj_daily_return_pct                                AS feat_stock_ret_1d,
-                    -- 5-day rolling return (from T-5 close to T-1 close)
                     stk.adj_daily_return_pct
                         + LAG(stk.adj_daily_return_pct, 1) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
                         + LAG(stk.adj_daily_return_pct, 2) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
                         + LAG(stk.adj_daily_return_pct, 3) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
                         + LAG(stk.adj_daily_return_pct, 4) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
                                                                             AS feat_stock_ret_5d,
-                    -- 20-day rolling return
                     stk.adj_close_price / NULLIF(
                         LAG(stk.adj_close_price, 20) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date), 0
                     ) * 100 - 100                                           AS feat_stock_ret_20d,
-                    -- Distance from 20-day SMA (mean reversion signal)
                     stk.adj_close_price / NULLIF(
                         AVG(stk.adj_close_price) OVER (
                             PARTITION BY stk.symbol
@@ -209,13 +216,11 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                             ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                         ), 0
                     ) * 100 - 100                                           AS feat_stock_dist_sma20_pct,
-                    -- Daily volatility proxy (20-day rolling stdev of returns)
                     STDDEV_POP(stk.adj_daily_return_pct) OVER (
                         PARTITION BY stk.symbol
                         ORDER BY stk.trade_date
                         ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     )                                                       AS feat_stock_vol_20d,
-                    -- Open-to-T1-close return (gap measure)
                     CASE
                         WHEN stk.open_price > 0
                         THEN (stk.adj_close_price - stk.open_price) / stk.open_price * 100
@@ -236,7 +241,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                     COALESCE(f.unrealized_pnl_tl, 0)                        AS feat_fifo_unrealized_pnl_tl,
                     COALESCE(f.market_close_price, 0)                       AS feat_fifo_close_price,
                     COALESCE(f.cumulative_realized_pnl_tl, 0)               AS feat_fifo_cum_realized_pnl_tl,
-                    -- Cost basis spread: how far close is from average buy cost (%)
                     CASE
                         WHEN f.fifo_avg_cost > 0
                         THEN (f.market_close_price - f.fifo_avg_cost) / f.fifo_avg_cost * 100
@@ -247,22 +251,20 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                   AND f.broker_id IN ({tracked_brokers_str})
             ),
 
-            -- FIFO pivot: one row per (trade_date, symbol) with per-broker columns
             fifo_pivot AS (
                 SELECT
                     trade_date,
                     symbol,
-                    SUM(CASE WHEN broker_id = 'MLB' THEN feat_fifo_open_qty ELSE 0 END)
+                    MAX(CASE WHEN broker_id = 'MLB' THEN feat_fifo_open_qty ELSE 0 END)
                                                                             AS feat_bofa_t1_open_qty,
-                    SUM(CASE WHEN broker_id = 'MLB' THEN feat_fifo_cost_basis_spread_pct ELSE 0 END)
+                    MAX(CASE WHEN broker_id = 'MLB' THEN feat_fifo_cost_basis_spread_pct ELSE 0 END)
                                                                             AS feat_bofa_t1_cost_spread_pct,
-                    SUM(CASE WHEN broker_id = 'MLB' THEN feat_fifo_unrealized_pnl_tl ELSE 0 END)
+                    MAX(CASE WHEN broker_id = 'MLB' THEN feat_fifo_unrealized_pnl_tl ELSE 0 END)
                                                                             AS feat_bofa_t1_unrealized_pnl_tl,
-                    SUM(CASE WHEN broker_id = 'TRA' THEN feat_fifo_open_qty ELSE 0 END)
+                    MAX(CASE WHEN broker_id = 'TRA' THEN feat_fifo_open_qty ELSE 0 END)
                                                                             AS feat_tra_t1_open_qty,
-                    SUM(CASE WHEN broker_id = 'TRA' THEN feat_fifo_cost_basis_spread_pct ELSE 0 END)
+                    MAX(CASE WHEN broker_id = 'TRA' THEN feat_fifo_cost_basis_spread_pct ELSE 0 END)
                                                                             AS feat_tra_t1_cost_spread_pct,
-                    -- Aggregate domestic big-5 open inventory
                     SUM(CASE WHEN broker_id IN ('IYM','YKR','AKM','GRM','ZRY') THEN feat_fifo_open_qty ELSE 0 END)
                                                                             AS feat_dom5_t1_open_qty,
                     SUM(CASE WHEN broker_id IN ('IYM','YKR','AKM','GRM','ZRY') THEN feat_fifo_unrealized_pnl_tl ELSE 0 END)
@@ -272,45 +274,52 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             ),
 
             -- ── CLUSTER 5: Multi-Day Accumulation ────────────────────────────────────────────────
-            daily_broker_stock AS (
-                SELECT
-                    dbs.trade_date,
-                    dbs.symbol,
-                    SUM(CASE WHEN dbs.broker_id = 'MLB' THEN COALESCE(dbs.buy_turnover_tl,0) - COALESCE(dbs.sell_turnover_tl,0) ELSE 0 END)
-                                                                            AS bofa_daily_net_flow_tl,
-                    SUM(CASE WHEN dbs.broker_id IN ({comp_brokers_str}) THEN COALESCE(dbs.buy_turnover_tl,0) - COALESCE(dbs.sell_turnover_tl,0) ELSE 0 END)
-                                                                            AS comp_daily_net_flow_tl
-                FROM silver_daily_broker_summary dbs
-                WHERE dbs.symbol = '{self.symbol}'
-                GROUP BY dbs.trade_date, dbs.symbol
-            ),
             accumulation AS (
                 SELECT
                     trade_date,
                     symbol,
-                    SUM(bofa_daily_net_flow_tl) OVER (
+                    SUM(bofa_w1_net_flow_tl) OVER (
                         PARTITION BY symbol ORDER BY trade_date
                         ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
                     )                                                       AS feat_bofa_accum_5d_tl,
-                    SUM(bofa_daily_net_flow_tl) OVER (
+                    SUM(bofa_w1_net_flow_tl) OVER (
                         PARTITION BY symbol ORDER BY trade_date
                         ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     )                                                       AS feat_bofa_accum_20d_tl,
-                    -- Z-score of today's flow vs 20-day mean and stdev
-                    (bofa_daily_net_flow_tl - AVG(bofa_daily_net_flow_tl) OVER (
-                        PARTITION BY symbol ORDER BY trade_date
-                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-                    )) / NULLIF(STDDEV_POP(bofa_daily_net_flow_tl) OVER (
-                        PARTITION BY symbol ORDER BY trade_date
-                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-                    ), 0)                                                   AS feat_bofa_flow_zscore_20d,
-                    SUM(comp_daily_net_flow_tl) OVER (
+                    CASE
+                        WHEN STDDEV_POP(bofa_w1_net_flow_tl) OVER (
+                            PARTITION BY symbol ORDER BY trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        ) > 0
+                        THEN (
+                            bofa_w1_net_flow_tl - AVG(bofa_w1_net_flow_tl) OVER (
+                                PARTITION BY symbol ORDER BY trade_date
+                                ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                            )
+                        ) / STDDEV_POP(bofa_w1_net_flow_tl) OVER (
+                            PARTITION BY symbol ORDER BY trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        )
+                        ELSE 0
+                    END                                                     AS feat_bofa_flow_zscore_20d,
+                    SUM(comp_w1_net_flow_tl) OVER (
                         PARTITION BY symbol ORDER BY trade_date
                         ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
                     )                                                       AS feat_comp_accum_5d_tl,
-                    -- Divergence: BofA buying while competitors selling (or vice versa)
-                    bofa_daily_net_flow_tl - comp_daily_net_flow_tl        AS feat_bofa_comp_flow_delta_tl
-                FROM daily_broker_stock
+                    bofa_w1_net_flow_tl - comp_w1_net_flow_tl              AS feat_bofa_comp_flow_delta_tl
+                FROM (
+                    SELECT
+                        b.trade_date,
+                        b.symbol,
+                        SUM(CASE WHEN b.broker_id = 'MLB' THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
+                            AS bofa_w1_net_flow_tl,
+                        SUM(CASE WHEN b.broker_id IN ({comp_brokers_str}) THEN COALESCE(b.buy_turnover_tl,0) - COALESCE(b.sell_turnover_tl,0) ELSE 0 END)
+                            AS comp_w1_net_flow_tl
+                    FROM silver_intraday_broker_window_summary b
+                    WHERE b.window_name = 'day_start'
+                      AND b.symbol = '{self.symbol}'
+                    GROUP BY b.trade_date, b.symbol
+                ) sub
             ),
 
             -- ── CLUSTER 6: Sector Breadth & Peer Spread ───────────────────────────────────────────
@@ -336,7 +345,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 SELECT
                     stk.trade_date,
                     stk.symbol,
-                    stk.sector,
                     sa.sector_daily_return_pct                               AS feat_sector_ret_1d,
                     COALESCE(sb.sector_bofa_net_flow_tl, 0)                  AS feat_sector_bofa_flow_tl,
                     stk.adj_daily_return_pct - sa.sector_daily_return_pct    AS feat_peer_spread_1d,
@@ -362,18 +370,11 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 FROM silver_daily_macro_rates
             ),
 
-            -- ── CLUSTER 8: Calendar ───────────────────────────────────────────────────────────────
-            -- (derived inline from trade_date in final assembly)
-
-            -- ── TARGET VARIABLES: W2/W3/W5 Return% ───────────────────────────────────────────────
-            -- These are the SAME-DAY window returns.
-            -- Zero-lookahead: they become the target y during training.
-            -- During live inference, these columns are NULL for the upcoming forecast date.
+            -- ── TARGET VARIABLES ───────────────────────────────────────────────────────────────
             window_returns AS (
                 SELECT
                     trade_date,
                     symbol,
-                    -- W1 reference price: BofA buy VWAP, fallback market W1 VWAP, fallback open price
                     COALESCE(
                         NULLIF(MAX(CASE WHEN broker_id='MLB' AND buy_volume > 0
                             THEN buy_turnover_tl / buy_volume ELSE NULL END), 0),
@@ -410,13 +411,10 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             )
 
             -- ── FINAL ASSEMBLY ────────────────────────────────────────────────────────────────────
-            -- Join all clusters. T-1 lag is applied to all inventory/momentum clusters.
-            -- W1 execution clusters (same-day) are zero-lag — available at 10:30 TRT.
             SELECT
                 w1_bofa.trade_date,
                 w1_bofa.symbol,
 
-                -- Cluster 1: BofA W1
                 w1_bofa.feat_bofa_w1_buy_vol,
                 w1_bofa.feat_bofa_w1_sell_vol,
                 w1_bofa.feat_bofa_w1_buy_tl,
@@ -428,15 +426,14 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 w1_bofa.feat_bofa_w1_direction_strength,
                 w1_bofa.feat_bofa_w1_market_vwap,
 
-                -- Cluster 2: Competitor W1 Alignment
                 w1_comp.feat_comp_w1_net_flow_tl,
+                w1_comp.feat_comp_w1_direction_strength,
                 w1_comp.feat_iym_w1_net_flow_tl,
                 w1_comp.feat_ykr_w1_net_flow_tl,
                 w1_comp.feat_akm_w1_net_flow_tl,
                 w1_comp.feat_grm_w1_net_flow_tl,
                 w1_comp.feat_zry_w1_net_flow_tl,
                 w1_comp.feat_tra_w1_net_flow_tl,
-                -- Alignment: BofA vs competitors (positive = aligned, negative = divergence)
                 CASE
                     WHEN w1_bofa.feat_bofa_w1_net_flow_tl * COALESCE(w1_comp.feat_comp_w1_net_flow_tl, 0) > 0
                     THEN 1.0
@@ -444,7 +441,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                     THEN -1.0
                     ELSE 0.0
                 END                                                         AS feat_w1_bofa_comp_alignment,
-                -- TRA contra-sign: if TRA selling while BofA buying = retail panic exit (bullish)
                 CASE
                     WHEN w1_bofa.feat_bofa_w1_net_flow_tl > 0 AND COALESCE(w1_comp.feat_tra_w1_net_flow_tl, 0) < 0
                     THEN 1.0
@@ -453,7 +449,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                     ELSE 0.0
                 END                                                         AS feat_w1_bofa_tra_contra_signal,
 
-                -- Cluster 3: T-1 Stock Momentum (lagged by 1 day — T-1 values)
                 LAG(sm.feat_stock_ret_1d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_ret_t1_1d,
                 LAG(sm.feat_stock_ret_5d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
@@ -467,7 +462,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(sm.feat_stock_intraday_range_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_intraday_range_t1,
 
-                -- Cluster 4: T-1 FIFO Inventory (lagged — yesterday's end-of-day open positions)
                 LAG(fp.feat_bofa_t1_open_qty, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_bofa_t1_open_qty,
                 LAG(fp.feat_bofa_t1_cost_spread_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
@@ -483,7 +477,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(fp.feat_dom5_t1_unrealized_pnl_tl, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_dom5_t1_unrealized_pnl_tl,
 
-                -- Cluster 5: Multi-Day Accumulation (T-1 rolling window — already lagged in accumulation CTE)
                 LAG(acc.feat_bofa_accum_5d_tl, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_bofa_accum_5d_t1_tl,
                 LAG(acc.feat_bofa_accum_20d_tl, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
@@ -495,7 +488,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(acc.feat_bofa_comp_flow_delta_tl, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_bofa_comp_delta_t1_tl,
 
-                -- Cluster 6: Sector Breadth (T-1 — yesterday's sector-level data)
                 LAG(sb.feat_sector_ret_1d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_sector_ret_t1,
                 LAG(sb.feat_sector_bofa_flow_tl, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
@@ -503,7 +495,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(sb.feat_peer_spread_1d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_peer_spread_t1,
 
-                -- Cluster 7: Macro Context (T-1 — yesterday's settled macro rates)
                 LAG(mc.feat_macro_repo_rate, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_macro_repo_rate_t1,
                 LAG(mc.feat_macro_rate_delta, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
@@ -515,7 +506,6 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(mc.feat_macro_rate_shock_decay, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_macro_rate_shock_decay_t1,
 
-                -- Cluster 8: Calendar (same-day — always available at session start)
                 DAYOFWEEK(w1_bofa.trade_date)                               AS feat_day_of_week,
                 CASE WHEN DAYOFWEEK(w1_bofa.trade_date) = 2 THEN 1 ELSE 0 END
                                                                             AS feat_is_monday,
@@ -523,7 +513,20 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                                                                             AS feat_is_friday,
                 DAYOFMONTH(w1_bofa.trade_date)                              AS feat_day_of_month,
 
-                -- Target variables (NULL for the live inference date — filled in by reconcile)
+                CASE
+                    WHEN ABS(COALESCE(w1_bofa.feat_bofa_w1_direction_strength, 0)) >= 2.0
+                    THEN TRUE ELSE FALSE
+                END                                                         AS is_strong_start_bofa,
+                CASE
+                    WHEN ABS(COALESCE(w1_comp.feat_comp_w1_direction_strength, 0)) >= 2.0
+                    THEN TRUE ELSE FALSE
+                END                                                         AS is_strong_start_big_players,
+                CASE
+                    WHEN (ABS(COALESCE(w1_bofa.feat_bofa_w1_direction_strength, 0)) >= 2.0
+                          OR ABS(COALESCE(w1_comp.feat_comp_w1_direction_strength, 0)) >= 2.0)
+                    THEN TRUE ELSE FALSE
+                END                                                         AS is_institutional_active_day,
+
                 tgt.target_w2_return_pct,
                 tgt.target_w3_return_pct,
                 tgt.target_w5_return_pct
@@ -559,6 +562,7 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         "feat_bofa_w1_direction_strength",
         "feat_bofa_w1_vol_share",
         # Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal
+        "feat_comp_w1_direction_strength",
         "feat_w1_bofa_comp_alignment",
         "feat_w1_bofa_tra_contra_signal",
         # Cluster 3: T-1 Stock Momentum & Technical Posture
@@ -583,8 +587,8 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         """Return list of engineered feature column names.
 
         Args:
-            core_only: If True, returns only the 14 distilled, scale-invariant microstructure features.
-                       If False, returns all 49 raw feature columns.
+            core_only: If True, returns only distilled, scale-invariant microstructure features.
+                       If False, returns all raw feature columns.
         """
         if core_only:
             return list(self.CORE_MICROSTRUCTURE_FEATURES)
@@ -595,7 +599,8 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             "feat_bofa_w1_vol_share", "feat_bofa_w1_direction_sign", "feat_bofa_w1_direction_strength",
             "feat_bofa_w1_market_vwap",
             # Cluster 2: Multi-broker W1 alignment
-            "feat_comp_w1_net_flow_tl", "feat_iym_w1_net_flow_tl", "feat_ykr_w1_net_flow_tl",
+            "feat_comp_w1_net_flow_tl", "feat_comp_w1_direction_strength",
+            "feat_iym_w1_net_flow_tl", "feat_ykr_w1_net_flow_tl",
             "feat_akm_w1_net_flow_tl", "feat_grm_w1_net_flow_tl", "feat_zry_w1_net_flow_tl",
             "feat_tra_w1_net_flow_tl", "feat_w1_bofa_comp_alignment", "feat_w1_bofa_tra_contra_signal",
             # Cluster 3: T-1 stock momentum

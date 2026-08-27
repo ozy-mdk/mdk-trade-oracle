@@ -51,6 +51,7 @@ models:
     min_burn_in_days: 5
     model_type: "auto"
     include_pymc_arena: false        # Fast mode across 30 stocks x 3 windows
+    filter_weak_regimes: true        # Eliminate low-conviction noise sessions from training data
 
     # Symbol filtering — default null = all BIST30 stocks from bronze_instruments
     # Set to a list for a permanently restricted universe, e.g.: ["AKBNK", "GARAN"]

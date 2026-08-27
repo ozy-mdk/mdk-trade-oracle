@@ -54,12 +54,14 @@ class StockReactionOrchestrator:
         lookback_months: Optional[int] = None,
         model_type: str = "auto",
         include_pymc: bool = False,
+        filter_weak_regimes: Optional[bool] = None,
     ):
         self.db = db or DuckDBManager()
         self.settings = get_settings()
         self.lookback_months = lookback_months
         self.model_type = model_type
         self.include_pymc = include_pymc
+        self.filter_weak_regimes = filter_weak_regimes
 
         # Resolve symbol universe (priority chain)
         self.symbols = self._resolve_symbols(symbols)
@@ -130,6 +132,7 @@ class StockReactionOrchestrator:
             lookback_months=self.lookback_months,
             model_type=self.model_type,
             include_pymc=self.include_pymc,
+            filter_weak_regimes=self.filter_weak_regimes,
         )
         result: Dict[str, Any] = {
             "symbol": symbol,

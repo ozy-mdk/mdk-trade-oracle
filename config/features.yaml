@@ -235,9 +235,10 @@ stock_reaction:
     # Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal
     multi_broker_w1_alignment:
       enabled: true
-      description: "Top-5 domestic bank + TRA W1 net flows, institutional alignment, and TRA retail contra-signal"
+      description: "Top-5 domestic bank + TRA W1 net flows, big players quantile strength, institutional alignment, and TRA retail contra-signal"
       features:
         - feat_comp_w1_net_flow_tl
+        - feat_comp_w1_direction_strength
         - feat_iym_w1_net_flow_tl
         - feat_ykr_w1_net_flow_tl
         - feat_akm_w1_net_flow_tl

@@ -42,12 +42,13 @@ All input features are strictly constructed from data available up to **$T_{\tex
 
 ---
 
-### Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal (9 Features)
+### Cluster 2: Multi-Broker W1 Alignment & Retail Contra-Signal (10 Features)
 *Interaction between BofA, the Top-5 domestic market makers, and retail aggressive aggregator (TRA).*
 
 | Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
 | :--- | :--- | :--- | :--- | :--- |
 | `feat_comp_w1_net_flow_tl` | Flow (W1) | $\sum_{b \in \text{Domestic5, TRA}} \text{Net Flow}_{b, i, \text{W1}}$ | `0.0` | Aggregate competitor net flow in stock $i$ in W1. |
+| `feat_comp_w1_direction_strength` | Tier (W1) | Empirical Quantiles $P_{25}, P_{50}, P_{85}$ on Aggregate Flow | `0.0` | Big players collective strength: $\pm 3.0$ (Strong), $\pm 2.0$ (Moderate), $\pm 1.0$ (Weak), $0.0$ (Neutral). |
 | `feat_iym_w1_net_flow_tl` | Flow (W1) | $\text{Net Flow}_{\text{IYM}, i, \text{W1}}$ | `0.0` | İş Yatırım opening net flow. |
 | `feat_ykr_w1_net_flow_tl` | Flow (W1) | $\text{Net Flow}_{\text{YKR}, i, \text{W1}}$ | `0.0` | Yapı Kredi opening net flow. |
 | `feat_akm_w1_net_flow_tl` | Flow (W1) | $\text{Net Flow}_{\text{AKM}, i, \text{W1}}$ | `0.0` | Ak Yatırım opening net flow. |
@@ -142,36 +143,52 @@ All input features are strictly constructed from data available up to **$T_{\tex
 | Cluster Index | Cluster Name | Feature Count | Primary Source Table |
 | :--- | :--- | :---: | :--- |
 | 1 | BofA W1 Execution Signal | 10 | `silver_intraday_broker_window_summary`, `silver_bofa_historical_flow_thresholds` |
-| 2 | Multi-Broker W1 Alignment | 9 | `silver_intraday_broker_window_summary` |
+| 2 | Multi-Broker W1 Alignment | 10 | `silver_intraday_broker_window_summary`, `silver_bofa_historical_flow_thresholds` |
 | 3 | T-1 Stock Momentum | 6 | `silver_daily_stock_summary` |
 | 4 | T-1 Institutional FIFO Inventory | 7 | `silver_broker_fifo_daily` |
 | 5 | T-1 Multi-Day Accumulation | 5 | `silver_daily_broker_summary` |
 | 6 | T-1 Sector Breadth & Spread | 3 | `silver_daily_stock_summary`, `silver_daily_sector_summary` |
 | 7 | Macro Interest Rates & Carry | 5 | `silver_daily_macro_rates` |
 | 8 | Calendar & Temporal Seasonality | 4 | Inline Temporal Derivation |
-| **Total (Full Catalog)** | **8 Semantic Clusters** | **49 Features** | **DuckDB Silver Lakehouse** |
+| **Total (Full Catalog)** | **8 Semantic Clusters** | **50 Features** | **DuckDB Silver Lakehouse** |
 
 ---
 
-## 5. Production Default: The 14-Feature Compact Microstructure Core
+## 5. Institutional Day-Start Regime Conviction Flags & Noise Elimination
 
-To prevent overfitting on finite sample sizes while preserving complete representation across **all 8 microstructure dimensions**, production model training defaults to the **14-Feature Compact Microstructure Core**:
+To eliminate low-conviction market noise days from training sets, Model 3 extracts three Boolean regime conviction flags during Window 1:
+
+| Regime Flag | Type | Mathematical Definition | Role |
+| :--- | :--- | :--- | :--- |
+| `is_strong_start_bofa` | `bool` | $|\text{feat\_bofa\_w1\_direction\_strength}| \ge 2.0 \iff |\text{NetFlow}_{\text{MLB}}| \ge P_{50}$ | True when BofA enters with Moderate or Strong directional conviction. |
+| `is_strong_start_big_players` | `bool` | $|\text{feat\_comp\_w1\_direction\_strength}| \ge 2.0 \iff |\text{NetFlow}_{\text{Comp}}| \ge P_{50}$ | True when the Big 5 domestic banks + Tera enter with Moderate or Strong collective conviction. |
+| `is_institutional_active_day` | `bool` | `is_strong_start_bofa OR is_strong_start_big_players` | Unified active regime filter (at least 1 institutional force active). |
+
+### Noise Elimination Policy:
+1. **Training Data**: When `filter_weak_regimes: true` is enabled in `config/default.yaml`, the forecaster trains strictly on sessions where `is_institutional_active_day == TRUE`, eliminating variance dilution from ~30% of noise days.
+2. **Live Execution Guardrail**: When an upcoming session is not active (`is_institutional_active_day == FALSE`), the playbook is automatically locked to `NEUTRAL_WAIT` with dampened confidence to protect the trader against forcing low-conviction trades.
+
+---
+
+## 6. Production Default: The 15-Feature Compact Microstructure Core
+
+To prevent overfitting on finite sample sizes while preserving complete representation across **all 8 microstructure dimensions**, production model training defaults to the **15-Feature Compact Microstructure Core**:
 
 | Dimension | Feature Column | Normalization / Scale | Microstructure Signal |
 | :--- | :--- | :--- | :--- |
 | **1. BofA Execution** | `feat_bofa_w1_direction_strength`<br>`feat_bofa_w1_vol_share` | Discrete Tier ($\pm 3.0, \pm 2.0, \pm 1.0, 0.0$)<br>Ratio ($[0.0, 1.0]$) | Quantile conviction level ($P_{25}, P_{50}, P_{85}$) & opening pricing power. |
-| **2. Multi-Broker Alignment** | `feat_w1_bofa_comp_alignment`<br>`feat_w1_bofa_tra_contra_signal` | Binary ($\pm 1.0$)<br>Binary ($\{0, 1\}$) | Institutional consensus vs battle; retail panic squeeze trigger. |
+| **2. Multi-Broker Alignment** | `feat_comp_w1_direction_strength`<br>`feat_w1_bofa_comp_alignment`<br>`feat_w1_bofa_tra_contra_signal` | Discrete Tier ($\pm 3.0, \pm 2.0, \pm 1.0, 0.0$)<br>Binary ($\pm 1.0$)<br>Binary ($\{0, 1\}$) | Big players collective conviction; institutional consensus vs battle; retail panic squeeze trigger. |
 | **3. Technical Posture** | `feat_stock_dist_sma20_t1`<br>`feat_stock_ret_t1_1d` | Percentage (%)<br>Percentage (%) | Mean reversion distance from 20d moving average & closing momentum. |
 | **4. FIFO Inventory** | `feat_bofa_t1_cost_spread_pct`<br>`feat_bofa_t1_unrealized_pnl_tl` | Percentage (%)<br>Standardized TL | Carrying margin (defending loss vs taking profit) & inventory scale. |
 | **5. Multi-Day Saturation** | `feat_bofa_flow_zscore_t1` | Z-Score ($[-3, +3]$) | 20-day institutional accumulation intensity. |
 | **6. Peer Alpha Spread** | `feat_peer_spread_t1` | Percentage (%) | Stock idiosyncratic alpha vs industry group. |
 | **7. Macro Carry & Shocks** | `feat_macro_carry_t1`<br>`feat_macro_rate_shock_decay_t1` | Percentage (%)<br>Basis Points (%) | Daily funding carry friction & acute monetary policy shock decay. |
 | **8. Calendar Seasonality** | `feat_is_monday`<br>`feat_is_friday` | Binary ($\{0, 1\}$)<br>Binary ($\{0, 1\}$) | Monday capital deployment & Friday weekend de-risking / 3-day carry trim. |
-| **Total (Core Set)** | **8 Microstructure Dimensions** | **14 Core Features** | **Scale-Invariant & Non-Collinear** |
+| **Total (Core Set)** | **8 Microstructure Dimensions** | **15 Core Features** | **Scale-Invariant & Non-Collinear** |
 
 ---
 
-## 6. Directional Alpha & Hurdle Benchmark Architecture
+## 7. Directional Alpha & Hurdle Benchmark Architecture
 
 In `StockReactionModelArena`:
 1. **Eligible Champions**: Strictly active predictive models (`Bayesian Ridge`, `LightGBM`, `XGBoost`, `PyMC`).

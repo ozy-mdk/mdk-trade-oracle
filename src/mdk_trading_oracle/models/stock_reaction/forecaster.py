@@ -166,6 +166,7 @@ class StockReactionForecaster:
         lookback_months: Optional[int] = None,
         model_type: str = "auto",
         include_pymc: bool = False,
+        filter_weak_regimes: Optional[bool] = None,
     ):
         self.symbol = symbol.upper()
         self.window = window
@@ -176,6 +177,9 @@ class StockReactionForecaster:
         self.lookback_months = lookback_months or cfg.get("lookback_months", 12)
         self.model_type = model_type or cfg.get("model_type", "auto")
         self.include_pymc = include_pymc or cfg.get("include_pymc_arena", False)
+        self.filter_weak_regimes = (
+            filter_weak_regimes if filter_weak_regimes is not None else cfg.get("filter_weak_regimes", True)
+        )
         self.extractor = StockReactionFeatureExtractor(
             symbol=self.symbol,
             db=self.db,
@@ -217,19 +221,42 @@ class StockReactionForecaster:
         self,
         as_of_date: Optional[date] = None,
         lookback_months: Optional[int] = None,
+        filter_weak_regimes: Optional[bool] = None,
     ) -> Tuple[pd.DataFrame, pd.Series]:
-        """Fetch feature matrix and target series for training, strictly ending at as_of_date."""
+        """Fetch feature matrix and target series for training, strictly ending at as_of_date.
+
+        If filter_weak_regimes is True, eliminates noise sessions where neither BofA nor
+        the domestic Big Players took a decisive day-start positioning (|strength| < 2.0).
+        """
         lb = lookback_months or self.lookback_months
         end_date = as_of_date
         start_date = (end_date - relativedelta(months=lb)) if end_date else None
+        should_filter = self.filter_weak_regimes if filter_weak_regimes is None else filter_weak_regimes
 
         df = self.extractor.extract_features(start_date=start_date, end_date=end_date)
         target_col = self.extractor.get_target_column(self.window)
         feat_cols = self.extractor.get_feature_columns()
 
-        # Drop rows with missing target or all-null features
+        # Drop rows with missing target
         df_pd = df.to_pandas()
         df_clean = df_pd.dropna(subset=[target_col]).copy()
+
+        # Filter weak/noise sessions if enabled
+        if should_filter and "is_institutional_active_day" in df_clean.columns:
+            active_mask = df_clean["is_institutional_active_day"].astype(bool)
+            if active_mask.sum() >= 5:
+                kept_count = active_mask.sum()
+                dropped_count = len(df_clean) - kept_count
+                df_clean = df_clean[active_mask].copy()
+                logger.debug(
+                    f"[{self.symbol}/{self._table_key}] Filtered weak regimes: "
+                    f"kept {kept_count} active sessions, dropped {dropped_count} noise sessions."
+                )
+            else:
+                logger.warning(
+                    f"[{self.symbol}/{self._table_key}] Insufficient active sessions ({active_mask.sum()}) "
+                    f"for filtering — using full {len(df_clean)} sessions."
+                )
 
         # Fill feature NaNs with 0.0 (coalesce)
         for col in feat_cols:
@@ -330,9 +357,22 @@ class StockReactionForecaster:
         available_feats = [c for c in feat_cols if c in X_infer.columns]
         result = champion.predict(X_infer[["trade_date"] + available_feats])
 
-        # If champion active model could not beat the baseline hurdle on the trailing evaluation window,
+        # Check day-start institutional conviction
+        is_today_active = True
+        if "is_institutional_active_day" in X_infer.columns:
+            is_today_active = bool(X_infer["is_institutional_active_day"].iloc[0])
+
+        # If day-start positioning is weak (neither BofA nor Big Players pushed size),
+        # or if champion active model could not beat the baseline hurdle on the trailing evaluation window,
         # flag the execution playbook as NEUTRAL_WAIT to protect trader capital
-        if not getattr(champion, "_beats_hurdle", True):
+        if not is_today_active:
+            result.predicted_playbook = "NEUTRAL_WAIT"
+            result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
+            logger.info(
+                f"[{self.symbol}/{self._table_key}] Day-start institutional flow is weak — "
+                f"assigned NEUTRAL_WAIT playbook."
+            )
+        elif not getattr(champion, "_beats_hurdle", True):
             result.predicted_playbook = "NEUTRAL_WAIT"
             result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
 
@@ -360,76 +400,76 @@ class StockReactionForecaster:
             );
         """)
         logger.info(
-            f"[{self.symbol}/{self._table_key}] Forecast persisted: "
-            f"{result.predicted_direction} | {result.predicted_return_pct:+.3f}% "
-            f"[{result.predicted_return_lower_90:+.3f}%, {result.predicted_return_upper_90:+.3f}%] "
-            f"| Playbook: {result.predicted_playbook}"
+            f"[{self.symbol}/{self._table_key}] Forecast saved: {result.predicted_direction} "
+            f"({result.predicted_return_pct:+.2f}%) | Playbook: {result.predicted_playbook} | Model: {result.model_name}"
         )
         return result
 
     def reconcile_performance_ledger(self) -> int:
-        """Reconcile past forecasts against realized actual window returns.
+        """Reconcile past forecasts with actual market data and update the performance table.
 
-        Fetches all forecast records that have no actual yet,
-        looks up the realized window VWAP from Silver,
-        and upserts error metrics into the performance table.
-
-        Returns: number of rows reconciled.
+        Returns: number of reconciled rows.
         """
         conn = self.db.get_connection()
-        reconciled = 0
+        now_ts = now_turkey_naive()
 
-        # Find unreconciled dates (no actual_return_pct yet)
+        # Find forecasts that have not yet been reconciled
         unreconciled = conn.execute(f"""
-            SELECT trade_date, symbol, predicted_return_pct, predicted_return_lower_90,
-                   predicted_return_upper_90, predicted_direction, direction_confidence,
-                   predicted_playbook, bofa_w1_net_flow_tl, bofa_w1_volume_share,
-                   model_name, model_version, forecast_generated_at
-            FROM gold_bofa_stock_reaction_{self._table_key}_performance
-            WHERE symbol = '{self.symbol}'
-              AND actual_return_pct IS NULL
-            ORDER BY trade_date;
+            SELECT forecast_date, symbol, predicted_return_pct,
+                   predicted_return_lower_90, predicted_return_upper_90,
+                   predicted_direction, direction_confidence, predicted_playbook,
+                   bofa_w1_direction, bofa_w1_net_flow_tl, bofa_w1_volume_share,
+                   model_name, model_version
+            FROM gold_bofa_stock_reaction_{self._table_key}_forecasts
+            WHERE symbol = '{self.symbol}';
         """).fetchall()
 
+        if not unreconciled:
+            return 0
+
+        # Upsert unreconciled rows into performance table
         for row in unreconciled:
+            f_date = row[0]
+            conn.execute(f"""
+                INSERT OR IGNORE INTO gold_bofa_stock_reaction_{self._table_key}_performance
+                (trade_date, symbol, window_name,
+                 predicted_return_pct, predicted_return_lower_90, predicted_return_upper_90,
+                 predicted_direction, direction_confidence, predicted_playbook,
+                 bofa_w1_direction, bofa_w1_net_flow_tl, bofa_w1_volume_share,
+                 model_name, model_version, created_at)
+                VALUES (
+                    '{f_date}', '{row[1]}', '{self._window_name}',
+                    {row[2]}, {row[3]}, {row[4]},
+                    '{row[5]}', {row[6]}, '{row[7]}',
+                    '{row[8]}', {row[9]}, {row[10]},
+                    '{row[11]}', '{row[12]}', '{now_ts}'
+                );
+            """)
+
+        # Fetch actual returns from Silver layer for rows with NULL actual_return_pct
+        pending = conn.execute(f"""
+            SELECT trade_date, symbol, predicted_return_pct,
+                   predicted_return_lower_90, predicted_return_upper_90
+            FROM gold_bofa_stock_reaction_{self._table_key}_performance
+            WHERE symbol = '{self.symbol}' AND actual_return_pct IS NULL;
+        """).fetchall()
+
+        reconciled = 0
+        target_col = self.extractor.get_target_column(self.window)
+
+        for row in pending:
             trade_date = row[0]
             try:
-                # Compute actual return for this window from Silver
-                actual_row = conn.execute(f"""
-                    WITH w1_ref AS (
-                        SELECT trade_date, symbol,
-                            COALESCE(
-                                NULLIF(SUM(CASE WHEN broker_id='MLB' AND buy_volume>0
-                                    THEN buy_turnover_tl/buy_volume ELSE NULL END), 0),
-                                NULLIF(SUM(buy_turnover_tl+sell_turnover_tl)/NULLIF(SUM(buy_volume+sell_volume),0),0)
-                            ) AS ref_price
-                        FROM silver_intraday_broker_window_summary
-                        WHERE window_name = 'day_start' AND symbol = '{self.symbol}'
-                          AND trade_date = '{trade_date}'
-                        GROUP BY trade_date, symbol
-                    ),
-                    wx AS (
-                        SELECT trade_date, symbol,
-                            CASE WHEN SUM(buy_volume+sell_volume)>0
-                                THEN SUM(buy_turnover_tl+sell_turnover_tl)/SUM(buy_volume+sell_volume)
-                                ELSE NULL END AS window_vwap
-                        FROM silver_intraday_broker_window_summary
-                        WHERE window_name = '{self._window_name}' AND symbol = '{self.symbol}'
-                          AND trade_date = '{trade_date}'
-                        GROUP BY trade_date, symbol
-                    )
-                    SELECT
-                        CASE WHEN r.ref_price > 0 AND w.window_vwap IS NOT NULL
-                            THEN (w.window_vwap - r.ref_price) / r.ref_price * 100
-                            ELSE NULL END AS actual_return_pct
-                    FROM w1_ref r
-                    LEFT JOIN wx w ON r.trade_date = w.trade_date;
-                """).fetchone()
-
-                if actual_row is None or actual_row[0] is None:
+                # Query actual return from Silver
+                df_act = self.extractor.extract_features(start_date=trade_date, end_date=trade_date)
+                if df_act.is_empty() or target_col not in df_act.columns:
                     continue
 
-                actual_return = float(actual_row[0])
+                act_series = df_act[target_col].drop_nulls()
+                if len(act_series) == 0:
+                    continue
+
+                actual_return = float(act_series[0])
                 pred_return = float(row[2])
                 error = pred_return - actual_return
                 abs_error = abs(error)
@@ -461,7 +501,7 @@ class StockReactionForecaster:
         """Walk-forward OOS simulation across all available history.
 
         For each date T in the historical window (expanding window):
-          - Train on all data strictly before T
+          - Train on all data strictly before T (filtering weak regimes if enabled)
           - Predict T's window return
           - Compare against realized actual
           - Persist to backtests table
@@ -469,7 +509,8 @@ class StockReactionForecaster:
         Returns: number of backtest rows written.
         """
         conn = self.db.get_connection()
-        X_all, y_all = self._prepare_training_data(lookback_months=lookback_months)
+        # Fetch full un-filtered historical matrix so all test dates are evaluated
+        X_all, y_all = self._prepare_training_data(lookback_months=lookback_months, filter_weak_regimes=False)
 
         if len(X_all) < 10:
             logger.warning(f"[{self.symbol}/{self._table_key}] Insufficient history for backtest — skipping.")
@@ -479,15 +520,37 @@ class StockReactionForecaster:
         min_burn_in = cfg.get("min_burn_in_days", 5)
         thresholds = self._load_thresholds()
 
+        # Extract features matrix to check active regime flags
+        df_raw = self.extractor.extract_features()
+        df_raw_pd = df_raw.to_pandas()
+        active_map = {}
+        if "is_institutional_active_day" in df_raw_pd.columns:
+            active_map = dict(zip(df_raw_pd["trade_date"].astype(str), df_raw_pd["is_institutional_active_day"]))
+
         backtest_rows = []
         feat_cols = [c for c in X_all.columns if c.startswith("feat_")]
 
         for i in range(min_burn_in, len(X_all)):
-            X_train = X_all.iloc[:i]
-            y_train = y_all.iloc[:i]
+            X_train_full = X_all.iloc[:i]
+            y_train_full = y_all.iloc[:i]
             X_test = X_all.iloc[i:i+1]
             y_true = float(y_all.iloc[i])
-            trade_date = X_test.iloc[0].get("trade_date") or X_all.index[i]
+            trade_date_val = X_test.iloc[0].get("trade_date") or X_all.index[i]
+            trade_date_str = str(trade_date_val)
+
+            # Apply weak regime filtering to training data slice
+            if self.filter_weak_regimes and active_map:
+                train_dates = X_train_full["trade_date"].astype(str)
+                is_active_train = train_dates.map(lambda d: active_map.get(d, True))
+                if is_active_train.sum() >= min_burn_in:
+                    X_train = X_train_full[is_active_train]
+                    y_train = y_train_full.loc[X_train.index]
+                else:
+                    X_train = X_train_full
+                    y_train = y_train_full
+            else:
+                X_train = X_train_full
+                y_train = y_train_full
 
             try:
                 arena = StockReactionModelArena(
@@ -496,6 +559,14 @@ class StockReactionForecaster:
                 )
                 _, champion = arena.run_tournament(X_train, y_train, min_train_samples=min_burn_in)
                 result = champion.predict(X_test[["trade_date"] + feat_cols] if "trade_date" in X_test.columns else X_test)
+
+                is_test_day_active = active_map.get(trade_date_str, True)
+                if not is_test_day_active:
+                    result.predicted_playbook = "NEUTRAL_WAIT"
+                    result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
+                elif not getattr(champion, "_beats_hurdle", True):
+                    result.predicted_playbook = "NEUTRAL_WAIT"
+                    result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
 
                 pred = result.predicted_return_pct
                 low90 = result.predicted_return_lower_90
@@ -506,7 +577,7 @@ class StockReactionForecaster:
                 actual_dir = "RALLY" if y_true > 0 else ("DECLINE" if y_true < 0 else "NEUTRAL")
 
                 backtest_rows.append({
-                    "trade_date": str(trade_date),
+                    "trade_date": trade_date_str,
                     "symbol": self.symbol,
                     "window_name": self._window_name,
                     "predicted_return_pct": round(pred, 4),
