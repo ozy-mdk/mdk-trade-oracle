@@ -22,9 +22,9 @@ All input features are strictly constructed from data available up to **$T_{\tex
 
 ---
 
-## 3. The 8 Quantitative Feature Clusters (47 Features)
+## 3. The 8 Quantitative Feature Clusters (58 Features)
 
-### Cluster 1: BofA W1 Execution Signal (9 Features)
+### Cluster 1: BofA W1 Execution Signal (10 Features)
 *Same-day opening auction and initial 35-minute execution footprint (09:55 – 10:30 TRT).*
 
 | Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
@@ -60,17 +60,25 @@ All input features are strictly constructed from data available up to **$T_{\tex
 
 ---
 
-### Cluster 3: T-1 Stock Momentum & Technical Posture (6 Features)
-*Pre-existing stock trend, mean reversion distance, and historical volatility.*
+### Cluster 3: T-1 Stock Momentum & Technical Posture (14 Features)
+*Pre-existing multi-timeframe stock momentum, weekly range posture, moving average spreads, realized volatility, and benchmark alpha.*
 
 | Feature Name | Type / Lag | Mathematical / SQL Formulation | Default / Coalesce | Microstructure & Behavioral Rationale |
 | :--- | :--- | :--- | :--- | :--- |
 | `feat_stock_ret_t1_1d` | Return ($T-1$) | $\text{Return}_{i, T-1}$ | `0.0` | Prior day adjusted close return %. |
-| `feat_stock_ret_t1_5d` | Return ($T-1$) | $\sum_{k=1}^5 \text{Return}_{i, T-k}$ | `0.0` | Rolling 5-day cumulative return %. |
-| `feat_stock_ret_t1_20d` | Return ($T-1$) | $\frac{P_{T-1}}{P_{T-21}} \times 100 - 100$ | `0.0` | Rolling 20-day cumulative return %. |
-| `feat_stock_dist_sma20_t1` | Technical ($T-1$) | $\frac{P_{T-1}}{\text{SMA20}(P)} \times 100 - 100$ | `0.0` | % distance from 20-day simple moving average. |
-| `feat_stock_vol_20d_t1` | Volatility ($T-1$) | $\sigma_{20d}(\text{Return}_i)$ | `0.0` | 20-day annualized return standard deviation. |
+| `feat_stock_ret_t1_3d` | Return ($T-1$) | $\left(\frac{P_{T-1}}{P_{T-4}} - 1\right) \times 100$ | `0.0` | 3-day short-term compounded return %. |
+| `feat_stock_ret_t1_5d` | Return ($T-1$) | $\left(\frac{P_{T-1}}{P_{T-6}} - 1\right) \times 100$ | `0.0` | 5-day true weekly compounded return %. |
+| `feat_stock_ret_t1_20d` | Return ($T-1$) | $\left(\frac{P_{T-1}}{P_{T-21}} - 1\right) \times 100$ | `0.0` | Rolling 20-day monthly compounded return %. |
+| `feat_stock_dist_sma5_t1` | Technical ($T-1$) | $\left(\frac{P_{T-1}}{\text{SMA}_5(P)} - 1\right) \times 100$ | `0.0` | % distance from 5-day simple moving average. |
+| `feat_stock_dist_sma20_t1` | Technical ($T-1$) | $\left(\frac{P_{T-1}}{\text{SMA}_{20}(P)} - 1\right) \times 100$ | `0.0` | % distance from 20-day simple moving average. |
+| `feat_stock_sma5_vs_sma20_spread_t1` | Technical ($T-1$) | $\left(\frac{\text{SMA}_5(P)}{\text{SMA}_{20}(P)} - 1\right) \times 100$ | `0.0` | Trend acceleration spread between fast (5d) and slow (20d) SMA. |
+| `feat_stock_pos_in_5d_range_t1` | Channel ($T-1$) | $\frac{P_{T-1} - \min_{5d}(P_{\text{low}})}{\max_{5d}(P_{\text{high}}) - \min_{5d}(P_{\text{low}})}$ | `0.5` | Position in 5-day High-Low channel [0, 1] (breakout $>0.85$, breakdown $<0.15$). |
+| `feat_stock_close_loc_t1` | Geometry ($T-1$) | $\frac{P_{\text{close}} - P_{\text{low}}}{P_{\text{high}} - P_{\text{low}}}$ | `0.5` | Close location within T-1 candle [0, 1] (conviction close near high vs rejection). |
 | `feat_stock_intraday_range_t1` | Technical ($T-1$) | $\frac{P_{\text{Close}} - P_{\text{Open}}}{P_{\text{Open}}} \times 100$ | `0.0` | Prior day intraday candle body %. |
+| `feat_stock_vol_20d_t1` | Volatility ($T-1$) | $\sigma_{20d}(\text{Return}_i)$ | `0.0` | 20-day historical daily return standard deviation. |
+| `feat_stock_vol_ratio_5d_20d_t1` | Volatility ($T-1$) | $\frac{\sigma_{5d}(\text{Return}_i)}{\sigma_{20d}(\text{Return}_i)}$ | `1.0` | Short vs medium-term volatility compression/expansion ratio. |
+| `feat_stock_rvol_5d_t1` | Volume ($T-1$) | $\frac{\text{AvgVolume}_{5d}}{\text{AvgVolume}_{20d}}$ | `1.0` | 5-day Relative Volume vs 20-day baseline (institutional liquidity surge). |
+| `feat_stock_rel_bist30_ret_5d_t1` | Alpha ($T-1$) | $\text{Ret}_{i, 5d} - \text{Ret}_{\text{XU030}, 5d}$ | `0.0` | 5-day excess return alpha over BIST 30 benchmark index. |
 
 ---
 
@@ -144,13 +152,13 @@ All input features are strictly constructed from data available up to **$T_{\tex
 | :--- | :--- | :---: | :--- |
 | 1 | BofA W1 Execution Signal | 10 | `silver_intraday_broker_window_summary`, `silver_bofa_historical_flow_thresholds` |
 | 2 | Multi-Broker W1 Alignment | 10 | `silver_intraday_broker_window_summary`, `silver_bofa_historical_flow_thresholds` |
-| 3 | T-1 Stock Momentum | 6 | `silver_daily_stock_summary` |
+| 3 | T-1 Stock Momentum & Technical Posture | 14 | `silver_daily_stock_summary`, `silver_daily_benchmark_index` |
 | 4 | T-1 Institutional FIFO Inventory | 7 | `silver_broker_fifo_daily` |
-| 5 | T-1 Multi-Day Accumulation | 5 | `silver_daily_broker_summary` |
+| 5 | T-1 Multi-Day Accumulation | 5 | `silver_intraday_broker_window_summary` |
 | 6 | T-1 Sector Breadth & Spread | 3 | `silver_daily_stock_summary`, `silver_daily_sector_summary` |
 | 7 | Macro Interest Rates & Carry | 5 | `silver_daily_macro_rates` |
 | 8 | Calendar & Temporal Seasonality | 4 | Inline Temporal Derivation |
-| **Total (Full Catalog)** | **8 Semantic Clusters** | **50 Features** | **DuckDB Silver Lakehouse** |
+| **Total (Full Catalog)** | **8 Semantic Clusters** | **58 Features** | **DuckDB Silver Lakehouse** |
 
 ---
 

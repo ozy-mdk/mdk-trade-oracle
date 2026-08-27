@@ -36,8 +36,8 @@ def test_feature_selector_defaults():
     all_stock_feats = selector_stock.get_all_features()
     active_stock_feats = selector_stock.get_active_features()
 
-    assert len(all_stock_feats) == 50
-    assert len(active_stock_feats) == 50
+    assert len(all_stock_feats) == 58
+    assert len(active_stock_feats) == 58
     assert "feat_bofa_w1_net_flow_tl" in active_stock_feats
     assert "feat_comp_w1_direction_strength" in active_stock_feats
     assert "feat_w1_bofa_tra_contra_signal" in active_stock_feats

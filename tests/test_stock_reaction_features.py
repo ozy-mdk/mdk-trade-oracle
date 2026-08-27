@@ -10,11 +10,11 @@ from mdk_trading_oracle.models.stock_reaction.features import (
 
 
 def test_stock_reaction_feature_columns_count():
-    """Assert exactly 50 feature columns across 8 semantic microstructure clusters."""
+    """Assert exactly 58 feature columns across 8 semantic microstructure clusters."""
     extractor = StockReactionFeatureExtractor(symbol="AKBNK")
     feat_cols = extractor.get_feature_columns()
 
-    assert len(feat_cols) == 50, f"Expected 50 features, got {len(feat_cols)}: {feat_cols}"
+    assert len(feat_cols) == 58, f"Expected 58 features, got {len(feat_cols)}: {feat_cols}"
     assert len(StockReactionFeatureExtractor.CLUSTER_NAMES) == 8
 
     # Cluster 1: BofA W1 Execution Signal
@@ -33,11 +33,21 @@ def test_stock_reaction_feature_columns_count():
     assert "feat_w1_bofa_comp_alignment" in feat_cols
     assert "feat_w1_bofa_tra_contra_signal" in feat_cols
 
-    # Cluster 3: T-1 stock momentum
+    # Cluster 3: T-1 stock momentum & technical posture (14 features)
     assert "feat_stock_ret_t1_1d" in feat_cols
+    assert "feat_stock_ret_t1_3d" in feat_cols
     assert "feat_stock_ret_t1_5d" in feat_cols
+    assert "feat_stock_ret_t1_20d" in feat_cols
+    assert "feat_stock_dist_sma5_t1" in feat_cols
     assert "feat_stock_dist_sma20_t1" in feat_cols
+    assert "feat_stock_sma5_vs_sma20_spread_t1" in feat_cols
+    assert "feat_stock_pos_in_5d_range_t1" in feat_cols
+    assert "feat_stock_close_loc_t1" in feat_cols
+    assert "feat_stock_intraday_range_t1" in feat_cols
     assert "feat_stock_vol_20d_t1" in feat_cols
+    assert "feat_stock_vol_ratio_5d_20d_t1" in feat_cols
+    assert "feat_stock_rvol_5d_t1" in feat_cols
+    assert "feat_stock_rel_bist30_ret_5d_t1" in feat_cols
 
     # Cluster 4: FIFO inventory
     assert "feat_bofa_t1_open_qty" in feat_cols
@@ -88,13 +98,16 @@ def test_stock_reaction_feature_selector():
     all_feats = selector.get_all_features()
     active_feats = selector.get_active_features()
 
-    assert len(all_feats) == 50
-    assert len(active_feats) == 50
+    assert len(all_feats) == 58
+    assert len(active_feats) == 58
     assert "feat_bofa_w1_net_flow_tl" in active_feats
     assert "feat_bofa_w1_direction_strength" in active_feats
     assert "feat_comp_w1_direction_strength" in active_feats
     assert "feat_w1_bofa_tra_contra_signal" in active_feats
     assert "feat_bofa_t1_open_qty" in active_feats
+    assert "feat_stock_ret_t1_5d" in active_feats
+    assert "feat_stock_pos_in_5d_range_t1" in active_feats
+    assert "feat_stock_vol_ratio_5d_20d_t1" in active_feats
 
 
 def test_stock_reaction_tracked_brokers_universe():

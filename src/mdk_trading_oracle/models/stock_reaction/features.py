@@ -194,39 +194,138 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 GROUP BY b.trade_date, b.symbol
             ),
 
-            -- ── CLUSTER 3: T-1 Stock Momentum ────────────────────────────────────────────────────
+            -- ── CLUSTER 3: T-1 Stock Momentum & Technical Posture ────────────────────────────────
             stock_momentum AS (
                 SELECT
                     stk.trade_date,
                     stk.symbol,
                     stk.adj_daily_return_pct                                AS feat_stock_ret_1d,
-                    stk.adj_daily_return_pct
-                        + LAG(stk.adj_daily_return_pct, 1) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
-                        + LAG(stk.adj_daily_return_pct, 2) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
-                        + LAG(stk.adj_daily_return_pct, 3) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
-                        + LAG(stk.adj_daily_return_pct, 4) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date)
-                                                                            AS feat_stock_ret_5d,
-                    stk.adj_close_price / NULLIF(
+                    (stk.adj_close_price / NULLIF(
+                        LAG(stk.adj_close_price, 3) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date), 0
+                    ) - 1.0) * 100                                          AS feat_stock_ret_3d,
+                    (stk.adj_close_price / NULLIF(
+                        LAG(stk.adj_close_price, 5) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date), 0
+                    ) - 1.0) * 100                                          AS feat_stock_ret_5d,
+                    (stk.adj_close_price / NULLIF(
                         LAG(stk.adj_close_price, 20) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date), 0
-                    ) * 100 - 100                                           AS feat_stock_ret_20d,
-                    stk.adj_close_price / NULLIF(
+                    ) - 1.0) * 100                                          AS feat_stock_ret_20d,
+                    (stk.adj_close_price / NULLIF(
+                        AVG(stk.adj_close_price) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                        ), 0
+                    ) - 1.0) * 100                                          AS feat_stock_dist_sma5_pct,
+                    (stk.adj_close_price / NULLIF(
                         AVG(stk.adj_close_price) OVER (
                             PARTITION BY stk.symbol
                             ORDER BY stk.trade_date
                             ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                         ), 0
-                    ) * 100 - 100                                           AS feat_stock_dist_sma20_pct,
+                    ) - 1.0) * 100                                          AS feat_stock_dist_sma20_pct,
+                    (
+                        AVG(stk.adj_close_price) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                        ) / NULLIF(
+                            AVG(stk.adj_close_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                            ), 0
+                        ) - 1.0
+                    ) * 100                                                 AS feat_stock_sma5_vs_sma20_spread_pct,
+                    CASE
+                        WHEN (
+                            MAX(stk.adj_high_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                            ) - MIN(stk.adj_low_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                            )
+                        ) > 0
+                        THEN (
+                            stk.adj_close_price - MIN(stk.adj_low_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                            )
+                        ) / (
+                            MAX(stk.adj_high_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                            ) - MIN(stk.adj_low_price) OVER (
+                                PARTITION BY stk.symbol
+                                ORDER BY stk.trade_date
+                                ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                            )
+                        )
+                        ELSE 0.5
+                    END                                                     AS feat_stock_pos_in_5d_range,
+                    CASE
+                        WHEN (stk.adj_high_price - stk.adj_low_price) > 0
+                        THEN (stk.adj_close_price - stk.adj_low_price) / (stk.adj_high_price - stk.adj_low_price)
+                        ELSE 0.5
+                    END                                                     AS feat_stock_close_loc,
+                    CASE
+                        WHEN stk.adj_open_price > 0
+                        THEN (stk.adj_close_price - stk.adj_open_price) / stk.adj_open_price * 100
+                        WHEN stk.open_price > 0
+                        THEN (stk.adj_close_price - stk.open_price) / stk.open_price * 100
+                        ELSE 0.0
+                    END                                                     AS feat_stock_intraday_range_pct,
                     STDDEV_POP(stk.adj_daily_return_pct) OVER (
                         PARTITION BY stk.symbol
                         ORDER BY stk.trade_date
                         ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     )                                                       AS feat_stock_vol_20d,
                     CASE
-                        WHEN stk.open_price > 0
-                        THEN (stk.adj_close_price - stk.open_price) / stk.open_price * 100
-                        ELSE NULL
-                    END                                                     AS feat_stock_intraday_range_pct
+                        WHEN STDDEV_POP(stk.adj_daily_return_pct) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        ) > 0
+                        THEN STDDEV_POP(stk.adj_daily_return_pct) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                        ) / STDDEV_POP(stk.adj_daily_return_pct) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        )
+                        ELSE 1.0
+                    END                                                     AS feat_stock_vol_ratio_5d_20d,
+                    CASE
+                        WHEN AVG(stk.adj_total_volume) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        ) > 0
+                        THEN AVG(stk.adj_total_volume) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+                        ) / AVG(stk.adj_total_volume) OVER (
+                            PARTITION BY stk.symbol
+                            ORDER BY stk.trade_date
+                            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                        )
+                        ELSE 1.0
+                    END                                                     AS feat_stock_rvol_5d,
+                    (
+                        (stk.adj_close_price / NULLIF(
+                            LAG(stk.adj_close_price, 5) OVER (PARTITION BY stk.symbol ORDER BY stk.trade_date), 0
+                        ) - 1.0) * 100
+                    ) - COALESCE(bm.rolling_5d_return_pct, 0.0)             AS feat_stock_rel_bist30_ret_5d
                 FROM silver_daily_stock_summary stk
+                LEFT JOIN silver_daily_benchmark_index bm
+                    ON stk.trade_date = bm.trade_date
                 WHERE stk.symbol = '{self.symbol}'
             ),
 
@@ -451,16 +550,32 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
 
                 LAG(sm.feat_stock_ret_1d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_ret_t1_1d,
+                LAG(sm.feat_stock_ret_3d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_ret_t1_3d,
                 LAG(sm.feat_stock_ret_5d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_ret_t1_5d,
                 LAG(sm.feat_stock_ret_20d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_ret_t1_20d,
+                LAG(sm.feat_stock_dist_sma5_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_dist_sma5_t1,
                 LAG(sm.feat_stock_dist_sma20_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_dist_sma20_t1,
-                LAG(sm.feat_stock_vol_20d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
-                                                                            AS feat_stock_vol_20d_t1,
+                LAG(sm.feat_stock_sma5_vs_sma20_spread_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_sma5_vs_sma20_spread_t1,
+                LAG(sm.feat_stock_pos_in_5d_range, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_pos_in_5d_range_t1,
+                LAG(sm.feat_stock_close_loc, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_close_loc_t1,
                 LAG(sm.feat_stock_intraday_range_pct, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_stock_intraday_range_t1,
+                LAG(sm.feat_stock_vol_20d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_vol_20d_t1,
+                LAG(sm.feat_stock_vol_ratio_5d_20d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_vol_ratio_5d_20d_t1,
+                LAG(sm.feat_stock_rvol_5d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_rvol_5d_t1,
+                LAG(sm.feat_stock_rel_bist30_ret_5d, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
+                                                                            AS feat_stock_rel_bist30_ret_5d_t1,
 
                 LAG(fp.feat_bofa_t1_open_qty, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_bofa_t1_open_qty,
@@ -566,8 +681,11 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
         "feat_w1_bofa_comp_alignment",
         "feat_w1_bofa_tra_contra_signal",
         # Cluster 3: T-1 Stock Momentum & Technical Posture
-        "feat_stock_dist_sma20_t1",
         "feat_stock_ret_t1_1d",
+        "feat_stock_ret_t1_5d",
+        "feat_stock_dist_sma20_t1",
+        "feat_stock_pos_in_5d_range_t1",
+        "feat_stock_vol_ratio_5d_20d_t1",
         # Cluster 4: T-1 Institutional FIFO Tertip & Inventory Posture
         "feat_bofa_t1_cost_spread_pct",
         "feat_bofa_t1_unrealized_pnl_tl",
@@ -604,8 +722,11 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
             "feat_akm_w1_net_flow_tl", "feat_grm_w1_net_flow_tl", "feat_zry_w1_net_flow_tl",
             "feat_tra_w1_net_flow_tl", "feat_w1_bofa_comp_alignment", "feat_w1_bofa_tra_contra_signal",
             # Cluster 3: T-1 stock momentum
-            "feat_stock_ret_t1_1d", "feat_stock_ret_t1_5d", "feat_stock_ret_t1_20d",
-            "feat_stock_dist_sma20_t1", "feat_stock_vol_20d_t1", "feat_stock_intraday_range_t1",
+            "feat_stock_ret_t1_1d", "feat_stock_ret_t1_3d", "feat_stock_ret_t1_5d", "feat_stock_ret_t1_20d",
+            "feat_stock_dist_sma5_t1", "feat_stock_dist_sma20_t1", "feat_stock_sma5_vs_sma20_spread_t1",
+            "feat_stock_pos_in_5d_range_t1", "feat_stock_close_loc_t1", "feat_stock_intraday_range_t1",
+            "feat_stock_vol_20d_t1", "feat_stock_vol_ratio_5d_20d_t1", "feat_stock_rvol_5d_t1",
+            "feat_stock_rel_bist30_ret_5d_t1",
             # Cluster 4: FIFO inventory
             "feat_bofa_t1_open_qty", "feat_bofa_t1_cost_spread_pct", "feat_bofa_t1_unrealized_pnl_tl",
             "feat_tra_t1_open_qty", "feat_tra_t1_cost_spread_pct",
