@@ -189,6 +189,10 @@ class GoldFeatureEngineer:
         symbols: Optional[List[str]] = None,
         windows: Optional[List[str]] = None,
         run_backtest: bool = False,
+        backfill_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+        backfill_lookback_months: Optional[int] = None,
+        backfill_lookback_days: Optional[int] = None,
     ) -> dict[str, Any]:
         """Execute Model 3 (Stock Intraday Reaction Forecaster) across BIST30 stocks x W2/W3/W5.
 
@@ -196,6 +200,10 @@ class GoldFeatureEngineer:
             symbols: Explicit symbol list override (None = use config/default fallback to all BIST30).
             windows: Explicit window list override (None = ['w2', 'w3', 'w5']).
             run_backtest: Also run full walk-forward backtests (slow — typically run once on setup).
+            backfill_dates: Specific dates to point-in-time backfill into performance ledgers.
+            all_missing: If True, backfill all missing historical sessions within lookback window.
+            backfill_lookback_months: Number of trailing months to look back for missing sessions.
+            backfill_lookback_days: Number of trailing days to look back for missing sessions.
         """
         # Lazy import to avoid circular imports and optional heavy dependency loading
         from mdk_trading_oracle.models.stock_reaction.orchestrator import StockReactionOrchestrator
@@ -209,6 +217,19 @@ class GoldFeatureEngineer:
             symbols=symbols,
             windows=windows,
         )
+
+        backfill_count = 0
+        if backfill_dates or all_missing:
+            backfill_res = orchestrator.backfill_historical_performance(
+                target_dates=backfill_dates,
+                symbols=symbols,
+                windows=windows,
+                all_missing=all_missing,
+                lookback_months=backfill_lookback_months,
+                lookback_days=backfill_lookback_days,
+            )
+            backfill_count = backfill_res.get("total_backfilled", 0)
+
         result = orchestrator.run_all_windows(run_backtest=run_backtest)
         return {
             "model": "stock_reaction_forecaster",
@@ -217,6 +238,7 @@ class GoldFeatureEngineer:
             "total_runs": result["total_runs"],
             "success_count": result["success_count"],
             "error_count": result["error_count"],
+            "backfill_rows": backfill_count,
             "status": "success" if result["error_count"] == 0 else "partial",
         }
 
@@ -263,6 +285,10 @@ class GoldFeatureEngineer:
             symbols=stock_reaction_symbols,
             windows=stock_reaction_windows,
             run_backtest=stock_reaction_backtest,
+            backfill_dates=backfill_dates,
+            all_missing=all_missing,
+            backfill_lookback_months=backfill_lookback_months,
+            backfill_lookback_days=backfill_lookback_days,
         )
         return {
             "institutional_signals": sig_res,

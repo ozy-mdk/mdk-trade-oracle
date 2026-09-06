@@ -8,8 +8,8 @@ For each (symbol, window) pair:
   3. backtest_all_history()         -> walk-forward OOS   -> gold_bofa_stock_reaction_<w>_backtests
 """
 
-from datetime import date
-from typing import Dict, Optional, Tuple
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -308,43 +308,60 @@ class StockReactionForecaster:
     def forecast_next_window(
         self,
         forecast_date: Optional[date] = None,
+        as_of_date: Optional[date] = None,
+        replace_active: bool = True,
     ) -> Optional[StockReactionForecastResult]:
-        """Generate live T+1 forecast for the upcoming session.
+        """Generate live T+1 forecast for the upcoming session or point-in-time retrospective forecast.
 
-        Uses all data up to and including yesterday (T-1) as training data.
+        Uses all data up to and including as_of_date (or T-1) as training data.
         The W1 (day_start) features for forecast_date are used as inference input.
         """
         conn = self.db.get_connection()
 
-        # Determine latest settled date
-        latest_date = conn.execute("""
-            SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary
-            WHERE window_name = 'day_start' AND broker_id = 'MLB';
-        """).fetchone()[0]
+        # Determine latest settled date if not supplied
+        if as_of_date is not None:
+            training_as_of = as_of_date
+            target_date = forecast_date or as_of_date
+        else:
+            latest_date = conn.execute("""
+                SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary
+                WHERE window_name = 'day_start' AND broker_id = 'MLB';
+            """).fetchone()[0]
 
-        if latest_date is None:
-            logger.warning(f"[{self.symbol}] No settled W1 data found — cannot forecast.")
-            return None
+            if latest_date is None:
+                logger.warning(f"[{self.symbol}] No settled W1 data found — cannot forecast.")
+                return None
 
-        if isinstance(latest_date, str):
-            latest_date = date.fromisoformat(latest_date)
+            if isinstance(latest_date, str):
+                latest_date = date.fromisoformat(latest_date)
 
-        target_date = forecast_date or latest_date
+            target_date = forecast_date or latest_date
+            if forecast_date is not None:
+                # Retrospective mode: strictly cut off before forecast_date
+                prior_dates = [
+                    r[0]
+                    for r in conn.execute(
+                        f"SELECT DISTINCT trade_date FROM silver_intraday_broker_window_summary WHERE window_name = 'day_start' AND broker_id = 'MLB' AND trade_date < '{forecast_date}' ORDER BY trade_date DESC LIMIT 1;"
+                    ).fetchall()
+                ]
+                training_as_of = prior_dates[0] if prior_dates else latest_date
+            else:
+                training_as_of = latest_date
 
         logger.info(
             f"[{self.symbol}/{self._table_key}] Forecasting for {target_date} "
-            f"(W1 data settled through {latest_date})..."
+            f"(Training data strictly as of {training_as_of})..."
         )
 
-        # Training data: all historical rows with target available
-        X_train, y_train = self._prepare_training_data(as_of_date=latest_date)
+        # Training data: all historical rows with target available strictly up to training_as_of
+        X_train, y_train = self._prepare_training_data(as_of_date=training_as_of)
         if len(X_train) < 5:
             logger.warning(f"[{self.symbol}] Insufficient training data ({len(X_train)} rows) — skipping.")
             return None
 
         champion = self._run_arena(X_train, y_train)
 
-        # Inference data: today's W1 features (target cols will be NULL)
+        # Inference data: target_date's W1 features
         df_inference = self.extractor.extract_features(
             start_date=target_date, end_date=target_date
         )
@@ -376,34 +393,175 @@ class StockReactionForecaster:
             result.predicted_playbook = "NEUTRAL_WAIT"
             result.direction_confidence = round(min(result.direction_confidence * 0.5, 0.35), 4)
 
-        # Persist to forecasts table (replace all rows = always <= 30 rows)
-        now_ts = now_turkey_naive()
-        conn.execute(f"""
-            DELETE FROM gold_bofa_stock_reaction_{self._table_key}_forecasts
-            WHERE symbol = '{self.symbol}';
-        """)
-        conn.execute(f"""
-            INSERT INTO gold_bofa_stock_reaction_{self._table_key}_forecasts
-            (forecast_date, symbol, window_name,
-             predicted_return_pct, predicted_return_lower_90, predicted_return_upper_90,
-             predicted_direction, direction_confidence, predicted_playbook,
-             bofa_w1_direction, bofa_w1_net_flow_tl, bofa_w1_volume_share,
-             model_name, model_version, generated_at)
-            VALUES (
-                '{result.forecast_date}', '{result.symbol}', '{result.window_name}',
-                {result.predicted_return_pct}, {result.predicted_return_lower_90},
-                {result.predicted_return_upper_90}, '{result.predicted_direction}',
-                {result.direction_confidence}, '{result.predicted_playbook}',
-                '{result.bofa_w1_direction}', {result.bofa_w1_net_flow_tl},
-                {result.bofa_w1_volume_share}, '{result.model_name}', '{result.model_version}',
-                '{now_ts}'
-            );
-        """)
-        logger.info(
-            f"[{self.symbol}/{self._table_key}] Forecast saved: {result.predicted_direction} "
-            f"({result.predicted_return_pct:+.2f}%) | Playbook: {result.predicted_playbook} | Model: {result.model_name}"
-        )
+        # Persist to forecasts table if replace_active is True (live T+1 prediction)
+        if replace_active:
+            now_ts = now_turkey_naive()
+            conn.execute(f"""
+                DELETE FROM gold_bofa_stock_reaction_{self._table_key}_forecasts
+                WHERE symbol = '{self.symbol}';
+            """)
+            conn.execute(f"""
+                INSERT INTO gold_bofa_stock_reaction_{self._table_key}_forecasts
+                (forecast_date, symbol, window_name,
+                 predicted_return_pct, predicted_return_lower_90, predicted_return_upper_90,
+                 predicted_direction, direction_confidence, predicted_playbook,
+                 bofa_w1_direction, bofa_w1_net_flow_tl, bofa_w1_volume_share,
+                 model_name, model_version, generated_at)
+                VALUES (
+                    '{result.forecast_date}', '{result.symbol}', '{result.window_name}',
+                    {result.predicted_return_pct}, {result.predicted_return_lower_90},
+                    {result.predicted_return_upper_90}, '{result.predicted_direction}',
+                    {result.direction_confidence}, '{result.predicted_playbook}',
+                    '{result.bofa_w1_direction}', {result.bofa_w1_net_flow_tl},
+                    {result.bofa_w1_volume_share}, '{result.model_name}', '{result.model_version}',
+                    '{now_ts}'
+                );
+            """)
+            logger.info(
+                f"[{self.symbol}/{self._table_key}] Forecast saved: {result.predicted_direction} "
+                f"({result.predicted_return_pct:+.2f}%) | Playbook: {result.predicted_playbook} | Model: {result.model_name}"
+            )
         return result
+
+    def backfill_historical_performance(
+        self,
+        target_dates: Optional[List[Union[str, date]]] = None,
+        all_missing: bool = False,
+        lookback_months: Optional[int] = None,
+        lookback_days: Optional[int] = None,
+    ) -> int:
+        """Perform zero-lookahead point-in-time forecasting for past missed trading days and record into `gold_bofa_stock_reaction_<w>_performance`.
+
+        Args:
+            target_dates: Specific list of past trading dates (e.g. ['2026-03-10', '2026-03-18']) to backfill.
+            all_missing: If True and target_dates is None, auto-discovers dates in Silver within the configured lookback
+                         window that are currently missing from the performance ledger.
+            lookback_months: Number of trailing months to look back for missing dates (default: from config, usually 2 months).
+            lookback_days: Optional number of trailing days to look back (overrides lookback_months if provided).
+        """
+        conn = self.db.get_connection()
+        all_silver_dates = [
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT trade_date FROM silver_intraday_broker_window_summary WHERE window_name = 'day_start' AND broker_id = 'MLB' ORDER BY trade_date ASC;"
+            ).fetchall()
+        ]
+        if not all_silver_dates:
+            logger.warning(f"[{self.symbol}/{self._table_key}] No Silver trade dates found.")
+            return 0
+
+        dates_to_backfill: List[date] = []
+        if target_dates:
+            for d in target_dates:
+                if isinstance(d, str):
+                    d_obj = datetime.strptime(d[:10], "%Y-%m-%d").date()
+                else:
+                    d_obj = d
+                dates_to_backfill.append(d_obj)
+        elif all_missing:
+            backfill_cfg = self.settings.get_backfill_config()
+            eff_months = (
+                lookback_months if lookback_months is not None else backfill_cfg.get("default_lookback_months", 2)
+            )
+            eff_days = lookback_days if lookback_days is not None else backfill_cfg.get("default_lookback_days", None)
+
+            existing_tables = [r[0] for r in conn.execute("SHOW TABLES;").fetchall()]
+            perf_table = f"gold_bofa_stock_reaction_{self._table_key}_performance"
+            existing_perf_dates = set()
+            if perf_table in existing_tables:
+                existing_perf_dates = set(
+                    r[0]
+                    for r in conn.execute(
+                        f"SELECT DISTINCT trade_date FROM {perf_table} WHERE symbol = '{self.symbol}';"
+                    ).fetchall()
+                )
+
+            latest_date = max(all_silver_dates)
+            if eff_days is not None:
+                cutoff_date = latest_date - timedelta(days=eff_days)
+            else:
+                cutoff_date = latest_date - relativedelta(months=eff_months)
+
+            candidate_dates = [d for d in all_silver_dates if d >= cutoff_date]
+            dates_to_backfill = [d for d in candidate_dates if d not in existing_perf_dates]
+            logger.info(
+                f"[{self.symbol}/{self._table_key}] Auto-discovering missing dates within trailing window "
+                f"(>= {cutoff_date}, lookback_months={eff_months}, lookback_days={eff_days}): "
+                f"{len(dates_to_backfill)} missing of {len(candidate_dates)} eligible sessions."
+            )
+
+        if not dates_to_backfill:
+            logger.debug(f"[{self.symbol}/{self._table_key}] No dates to backfill.")
+            return 0
+
+        logger.info(
+            f"[{self.symbol}/{self._table_key}] Starting zero-lookahead point-in-time backfill for "
+            f"{len(dates_to_backfill)} date(s)..."
+        )
+
+        target_col = self.extractor.get_target_column(self.window)
+        backfilled_count = 0
+        now_ts = now_turkey_naive()
+
+        for target_d in dates_to_backfill:
+            prior_dates = [d for d in all_silver_dates if d < target_d]
+            if not prior_dates:
+                logger.warning(f"[{self.symbol}/{self._table_key}] Skipping {target_d}: No prior historical session available.")
+                continue
+            as_of_d = max(prior_dates)
+            res = self.forecast_next_window(forecast_date=target_d, as_of_date=as_of_d, replace_active=False)
+            if not res:
+                continue
+
+            # Query actual return from Silver for target_d
+            df_act = self.extractor.extract_features(start_date=target_d, end_date=target_d)
+            actual_return = None
+            actual_dir = None
+            error = None
+            abs_error = None
+            dir_hit = None
+            inside_ci = None
+
+            if not df_act.is_empty() and target_col in df_act.columns:
+                act_series = df_act[target_col].drop_nulls()
+                if len(act_series) > 0:
+                    actual_return = float(act_series[0])
+                    error = res.predicted_return_pct - actual_return
+                    abs_error = abs(error)
+                    dir_hit = (res.predicted_return_pct > 0) == (actual_return > 0)
+                    inside_ci = res.predicted_return_lower_90 <= actual_return <= res.predicted_return_upper_90
+                    actual_dir = "RALLY" if actual_return > 0 else ("DECLINE" if actual_return < 0 else "NEUTRAL")
+
+            # Upsert into performance ledger
+            conn.execute(f"""
+                INSERT OR REPLACE INTO gold_bofa_stock_reaction_{self._table_key}_performance
+                (trade_date, symbol, window_name,
+                 predicted_return_pct, predicted_return_lower_90, predicted_return_upper_90,
+                 predicted_direction, direction_confidence, predicted_playbook,
+                 bofa_w1_direction, bofa_w1_net_flow_tl, bofa_w1_volume_share,
+                 model_name, model_version, created_at,
+                 actual_return_pct, actual_direction, error_return_pct, absolute_error_pct,
+                 is_direction_hit, is_inside_90_ci, realized_at)
+                VALUES (
+                    '{res.forecast_date}', '{res.symbol}', '{self._window_name}',
+                    {res.predicted_return_pct}, {res.predicted_return_lower_90}, {res.predicted_return_upper_90},
+                    '{res.predicted_direction}', {res.direction_confidence}, '{res.predicted_playbook}',
+                    '{res.bofa_w1_direction}', {res.bofa_w1_net_flow_tl}, {res.bofa_w1_volume_share},
+                    '{res.model_name}', '{res.model_version}', '{now_ts}',
+                    {'NULL' if actual_return is None else actual_return},
+                    {'NULL' if actual_dir is None else f"'{actual_dir}'"},
+                    {'NULL' if error is None else error},
+                    {'NULL' if abs_error is None else abs_error},
+                    {'NULL' if dir_hit is None else str(dir_hit).upper()},
+                    {'NULL' if inside_ci is None else str(inside_ci).upper()},
+                    {'NULL' if actual_return is None else f"'{now_ts}'"}
+                );
+            """)
+            backfilled_count += 1
+
+        if backfilled_count > 0:
+            logger.info(f"[{self.symbol}/{self._table_key}] Backfilled {backfilled_count} performance ledger rows.")
+        return backfilled_count
 
     def reconcile_performance_ledger(self) -> int:
         """Reconcile past forecasts with actual market data and update the performance table.

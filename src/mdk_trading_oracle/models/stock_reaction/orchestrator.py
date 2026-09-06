@@ -19,7 +19,8 @@ Usage:
   orchestrator.run_symbol_window("AKBNK", "w2")
 """
 
-from typing import Any, Dict, List, Optional
+from datetime import date
+from typing import Any, Dict, List, Optional, Union
 
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
@@ -217,6 +218,64 @@ class StockReactionOrchestrator:
     ) -> Dict[str, Any]:
         """Convenience method to run full walk-forward backtests for all (symbol, window) pairs."""
         return self.run_all_windows(run_backtest=True, symbols=symbols, windows=windows)
+
+    def backfill_historical_performance(
+        self,
+        target_dates: Optional[List[Union[str, date]]] = None,
+        symbols: Optional[List[str]] = None,
+        windows: Optional[List[str]] = None,
+        all_missing: bool = False,
+        lookback_months: Optional[int] = None,
+        lookback_days: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Run zero-lookahead point-in-time backfill across symbols and windows, populating gold performance tables."""
+        target_symbols = [s.upper() for s in symbols] if symbols else self.symbols
+        target_windows = windows or self.windows
+        target_windows = [WINDOW_MAP.get(w, (w, w))[0] for w in target_windows]
+
+        total_backfilled = 0
+        per_symbol_results: Dict[str, Dict[str, int]] = {}
+
+        logger.info(
+            f"Starting Stock Reaction point-in-time backfill across {len(target_symbols)} symbols "
+            f"× {len(target_windows)} windows (target_dates={target_dates}, all_missing={all_missing}, "
+            f"lookback_days={lookback_days}, lookback_months={lookback_months})..."
+        )
+
+        for symbol in target_symbols:
+            per_symbol_results[symbol] = {}
+            for window in target_windows:
+                forecaster = StockReactionForecaster(
+                    symbol=symbol,
+                    window=window,
+                    db=self.db,
+                    lookback_months=self.lookback_months,
+                    model_type=self.model_type,
+                    include_pymc=self.include_pymc,
+                    filter_weak_regimes=self.filter_weak_regimes,
+                )
+                try:
+                    count = forecaster.backfill_historical_performance(
+                        target_dates=target_dates,
+                        all_missing=all_missing,
+                        lookback_months=lookback_months,
+                        lookback_days=lookback_days,
+                    )
+                    per_symbol_results[symbol][window] = count
+                    total_backfilled += count
+                except Exception as exc:
+                    logger.error(f"[{symbol}/{window}] Backfill error: {exc}")
+                    per_symbol_results[symbol][window] = 0
+
+        logger.info(
+            f"Stock Reaction point-in-time backfill complete: {total_backfilled} total rows backfilled."
+        )
+        return {
+            "total_backfilled": total_backfilled,
+            "symbols_count": len(target_symbols),
+            "windows_count": len(target_windows),
+            "results": per_symbol_results,
+        }
 
     def get_latest_forecasts(self, window: str = "w2") -> Any:
         """Fetch the current live forecast snapshot from the Gold forecasts table."""

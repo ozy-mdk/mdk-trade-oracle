@@ -286,14 +286,33 @@ class MedallionPipeline:
             sr_forecasts_count = sr_w2_fc + sr_w3_fc + sr_w5_fc
         except Exception:
             sr_forecasts_count = 0
+
+        try:
+            sr_w2_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_performance;").fetchone()[0]
+            sr_w3_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_performance;").fetchone()[0]
+            sr_w5_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_performance;").fetchone()[0]
+            sr_perf_count = sr_w2_p + sr_w3_p + sr_w5_p
+        except Exception:
+            sr_perf_count = 0
+
+        try:
+            sr_w2_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_backtests;").fetchone()[0]
+            sr_w3_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_backtests;").fetchone()[0]
+            sr_w5_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_backtests;").fetchone()[0]
+            sr_backtests_count = sr_w2_bt + sr_w3_bt + sr_w5_bt
+        except Exception:
+            sr_backtests_count = 0
+
         elapsed = (datetime.now() - start_time).total_seconds()
 
         logger.info(
             f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
             f"Macro Live: {forecasts_count:,} | Sector Live: {sector_forecasts_count:,} | "
             f"StockRxn Live: {sr_forecasts_count:,} | "
-            f"Macro Perf Ledger: {perf_count:,} | Sector Perf Ledger: {sector_perf_count:,} | "
-            f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,}"
+            f"Macro Perf: {perf_count:,} | Sector Perf: {sector_perf_count:,} | "
+            f"StockRxn Perf: {sr_perf_count:,} | "
+            f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,} | "
+            f"StockRxn Backtests: {sr_backtests_count:,}"
         )
         return {
             "layer": "gold",
@@ -305,8 +324,10 @@ class MedallionPipeline:
                 "gold_bofa_stock_reaction_forecasts (w2+w3+w5)": sr_forecasts_count,
                 "gold_bofa_day_start_performance": perf_count,
                 "gold_bofa_sector_day_start_performance": sector_perf_count,
+                "gold_bofa_stock_reaction_performance (w2+w3+w5)": sr_perf_count,
                 "gold_bofa_day_start_backtests": backtests_count,
                 "gold_bofa_sector_day_start_backtests": sector_backtests_count,
+                "gold_bofa_stock_reaction_backtests (w2+w3+w5)": sr_backtests_count,
             },
             "details": gold_res,
             "status": "success",
