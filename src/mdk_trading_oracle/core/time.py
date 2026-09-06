@@ -44,3 +44,9 @@ def format_turkey_timestamp(dt: datetime, fmt: str = "%Y-%m-%d %H:%M:%S") -> str
     if dt.tzinfo is not None:
         dt = dt.astimezone(TURKEY_TZ)
     return dt.strftime(fmt)
+
+
+def now_turkey_iso() -> str:
+    """Return the current datetime in Turkish Time formatted as an ISO string."""
+    return now_turkey().isoformat()
+
