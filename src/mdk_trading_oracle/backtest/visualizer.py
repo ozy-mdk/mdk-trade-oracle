@@ -564,9 +564,31 @@ class BacktestVisualizer:
         grouped = df.groupby([symbol_col, window_col])[is_hit_col].agg(["count", "sum"]).reset_index()
         grouped["hit_rate_pct"] = (grouped["sum"] / grouped["count"]) * 100.0
 
-        pivot_df = grouped.pivot(index=symbol_col, columns=window_col, values="hit_rate_pct")
-        # Ensure window order
-        col_order = [c for c in ["w2", "w3", "w5", "W2", "W3", "W5"] if c in pivot_df.columns]
+        # Map window names to clean display labels
+        window_display_names = {
+            "first_reaction": "W2: First Reaction (10:30-11:30)",
+            "midday_followup": "W3: Midday (11:30-14:30)",
+            "closing_session": "W5: Closing (16:00-18:15)",
+            "w2": "W2: First Reaction (10:30-11:30)",
+            "w3": "W3: Midday (11:30-14:30)",
+            "w5": "W5: Closing (16:00-18:15)",
+            "W2": "W2: First Reaction (10:30-11:30)",
+            "W3": "W3: Midday (11:30-14:30)",
+            "W5": "W5: Closing (16:00-18:15)",
+        }
+        grouped["_win_disp"] = grouped[window_col].map(lambda x: window_display_names.get(x, str(x)))
+
+        pivot_df = grouped.pivot(index=symbol_col, columns="_win_disp", values="hit_rate_pct")
+
+        # Chronological column ordering
+        desired_order = [
+            "W2: First Reaction (10:30-11:30)",
+            "W3: Midday (11:30-14:30)",
+            "W5: Closing (16:00-18:15)",
+        ]
+        col_order = [c for c in desired_order if c in pivot_df.columns] + [
+            c for c in pivot_df.columns if c not in desired_order
+        ]
         if col_order:
             pivot_df = pivot_df[col_order]
 

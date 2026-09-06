@@ -143,6 +143,8 @@ class BacktestLoader:
 
                 query += " ORDER BY trade_date ASC, symbol ASC"
                 w_df = conn.execute(query).df()
+                if not w_df.empty:
+                    w_df["window_code"] = w.upper()
                 frames.append(w_df)
             except Exception as e:
                 logger.warning(f"Could not load table `{table_name}`: {e}")
