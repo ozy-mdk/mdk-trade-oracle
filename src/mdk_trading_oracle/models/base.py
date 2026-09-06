@@ -119,6 +119,7 @@ class ForecastResult:
     model_version: str
     features_used: Dict[str, Any] = field(default_factory=dict)
     sector_forecasts: List[Dict[str, Any]] = field(default_factory=list)
+    explanation: Optional[Dict[str, Any]] = None
     generated_at: datetime = field(default_factory=now_turkey_naive)
 
 

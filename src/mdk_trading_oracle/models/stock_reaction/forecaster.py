@@ -18,6 +18,14 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
+from mdk_trading_oracle.explainability import (
+    FeatureAuditReport,
+    FeatureAuditor,
+    GlobalExplanation,
+    LocalExplanation,
+    ModelExplainer,
+)
+from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.stock_reaction.features import StockReactionFeatureExtractor
 from mdk_trading_oracle.models.stock_reaction.models import (
@@ -371,8 +379,27 @@ class StockReactionForecaster:
 
         X_infer = df_inference.to_pandas()
         feat_cols = self.extractor.get_feature_columns()
-        available_feats = [c for c in feat_cols if c in X_infer.columns]
         result = champion.predict(X_infer[["trade_date"] + available_feats])
+
+        # Compute local microstructure explainability for this stock reaction forecast
+        try:
+            selector = FeatureSelector(model_name="stock_reaction")
+            explainer = ModelExplainer(
+                model=champion,
+                feature_names=available_feats,
+                cluster_map=selector.get_feature_cluster_map(),
+                background_data=X_train,
+                model_name=f"{champion.model_name}_{self.symbol}_{self.window}",
+                unit="%",
+            )
+            local_exp = explainer.explain_instance(
+                X_infer[available_feats],
+                target_broker_or_symbol=self.symbol,
+                target_date=result.forecast_date,
+            )
+            result.explanation = local_exp.to_dict()
+        except Exception as e:
+            logger.debug(f"[{self.symbol}] Could not compute explainability: {e}")
 
         # Check day-start institutional conviction
         is_today_active = True

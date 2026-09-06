@@ -83,6 +83,7 @@ class StockReactionForecastResult:
     model_name: str
     model_version: str
     features_used: Dict[str, Any] = field(default_factory=dict)
+    explanation: Optional[Dict[str, Any]] = None
 
 
 def _playbook(return_pct: float, thresholds: ReturnThresholdProfile,

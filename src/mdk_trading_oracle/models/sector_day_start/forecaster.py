@@ -11,6 +11,13 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
+from mdk_trading_oracle.explainability import (
+    FeatureAuditReport,
+    FeatureAuditor,
+    GlobalExplanation,
+    LocalExplanation,
+    ModelExplainer,
+)
 from mdk_trading_oracle.models.base import FlowThresholdProfile, ForecastResult
 from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
@@ -320,6 +327,26 @@ class SectorDayStartForecaster:
 
             res = model.predict(sec_next_row)
             res.top_predicted_buy_sector = sec
+
+            # Compute local microstructure explainability for this sector
+            try:
+                explainer = ModelExplainer(
+                    model=model,
+                    feature_names=self.feature_selector.active_features,
+                    cluster_map=self.feature_selector.get_feature_cluster_map(),
+                    background_data=X_hist,
+                    model_name=self.champion_name or "SectorChampion",
+                    unit="TL",
+                )
+                local_exp = explainer.explain_instance(
+                    sec_next_row,
+                    target_broker_or_symbol=sec,
+                    target_date=res.forecast_date,
+                )
+                res.explanation = local_exp.to_dict()
+            except Exception as e:
+                logger.debug(f"Could not compute explainability for sector '{sec}': {e}")
+
             live_forecasts.append(res)
 
         logger.info(
@@ -327,6 +354,74 @@ class SectorDayStartForecaster:
             f"for {live_forecasts[0].forecast_date if live_forecasts else 'N/A'} (Champion: '{self.champion_name}')."
         )
         return live_forecasts
+
+    def explain_sector_forecast(
+        self,
+        sector: str,
+        as_of_date: Optional[Union[str, date]] = None,
+    ) -> Optional[LocalExplanation]:
+        """Compute local feature attribution for a specific sector prediction."""
+        if isinstance(as_of_date, str):
+            as_of_date = datetime.strptime(as_of_date[:10], "%Y-%m-%d").date()
+
+        self._ensure_champion_selected([sector], as_of_date=as_of_date)
+        df_next_pl = self.feature_extractor.extract_next_day_features(sectors=[sector], as_of_date=as_of_date)
+        if df_next_pl.height == 0:
+            return None
+
+        df_next_filtered_pl = self.feature_selector.filter_dataframe(df_next_pl)
+        df_next_pd = df_next_filtered_pl.to_pandas()
+        sec_next_row = df_next_pd[df_next_pd["sector"] == sector]
+        if sec_next_row.empty:
+            return None
+
+        df_hist_pl = self.feature_extractor.extract_features(sector=sector, end_date=as_of_date)
+        df_hist_filtered_pl = self.feature_selector.filter_dataframe(df_hist_pl)
+        df_hist_pd = df_hist_filtered_pl.to_pandas()
+        X_hist = df_hist_pd.drop(
+            columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore"
+        )
+        y_hist = df_hist_pd["target_sector_open_net_flow_tl"]
+
+        model = self._create_sector_model()
+        model.fit(X_hist, y_hist)
+
+        explainer = ModelExplainer(
+            model=model,
+            feature_names=self.feature_selector.active_features,
+            cluster_map=self.feature_selector.get_feature_cluster_map(),
+            background_data=X_hist,
+            model_name=self.champion_name or "SectorChampion",
+            unit="TL",
+        )
+        target_date = sec_next_row["target_date"].iloc[0] if "target_date" in sec_next_row.columns else as_of_date
+        return explainer.explain_instance(sec_next_row, target_broker_or_symbol=sector, target_date=target_date)
+
+    def audit_features(
+        self,
+        sector: Optional[str] = None,
+        as_of_date: Optional[Union[str, date]] = None,
+        collinearity_threshold: float = 0.85,
+    ) -> FeatureAuditReport:
+        """Run feature audit with out-of-sample permutation drop testing for sector models."""
+        target_sec = sector or "Banking"
+        df_hist_pl = self.feature_extractor.extract_features(sector=target_sec, end_date=as_of_date)
+        df_hist_filtered_pl = self.feature_selector.filter_dataframe(df_hist_pl)
+        df_hist_pd = df_hist_filtered_pl.to_pandas()
+        X = df_hist_pd.drop(
+            columns=["target_sector_open_net_flow_tl", "target_sector_open_direction"], errors="ignore"
+        )
+        y = df_hist_pd["target_sector_open_net_flow_tl"]
+
+        model = self._create_sector_model()
+        model.fit(X, y)
+
+        auditor = FeatureAuditor(
+            feature_names=self.feature_selector.active_features,
+            cluster_map=self.feature_selector.get_feature_cluster_map(),
+            collinearity_threshold=collinearity_threshold,
+        )
+        return auditor.audit(model, X, y, model_name=f"sector_{target_sec.lower()}")
 
     def run_ablation_study(self, sectors: Optional[List[str]] = None) -> pd.DataFrame:
         """Run an automated Leave-One-Cluster-Out (LOCO) ablation tournament across sector feature clusters.

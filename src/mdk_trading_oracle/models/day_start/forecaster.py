@@ -20,6 +20,13 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartRollingMeanModel,
     DayStartXGBoostModel,
 )
+from mdk_trading_oracle.explainability import (
+    FeatureAuditReport,
+    FeatureAuditor,
+    GlobalExplanation,
+    LocalExplanation,
+    ModelExplainer,
+)
 from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
 
@@ -116,6 +123,7 @@ class DayStartForecaster:
         enabled_clusters: Optional[List[str]] = None,
         include_features: Optional[List[str]] = None,
         exclude_features: Optional[List[str]] = None,
+        include_pymc: bool = False,
     ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
@@ -126,6 +134,7 @@ class DayStartForecaster:
         self.eval_window_days = eval_window_days if eval_window_days is not None else cfg.get("eval_window_days", 20)
         self.min_burn_in_days = min_burn_in_days if min_burn_in_days is not None else cfg.get("min_burn_in_days", 5)
         self.model_type = model_type or cfg.get("model_type", "auto")
+        self.include_pymc = include_pymc
 
         self.feature_selector = feature_selector or FeatureSelector(
             model_name="day_start",
@@ -139,7 +148,7 @@ class DayStartForecaster:
             self.db, target_broker_id=self.target_broker, lookback_months=self.lookback_months
         )
         self.threshold_profile = self._load_threshold_profile()
-        self.arena = DayStartModelArena(thresholds=self.threshold_profile)
+        self.arena = DayStartModelArena(thresholds=self.threshold_profile, include_pymc=self.include_pymc)
         self.champion_name: Optional[str] = None
 
         if self.model_type == "lightgbm":
@@ -242,6 +251,18 @@ class DayStartForecaster:
         df_next_pd = df_next_filtered_pl.to_pandas()
         res = self.model.predict(df_next_pd)
 
+        # Compute local microstructure explainability
+        try:
+            explainer = self.get_explainer(as_of_date=as_of_date)
+            local_exp = explainer.explain_instance(
+                df_next_pd,
+                target_broker_or_symbol=self.target_broker_id,
+                target_date=res.forecast_date,
+            )
+            res.explanation = local_exp.to_dict()
+        except Exception as e:
+            logger.debug(f"Could not compute local explainability for forecast: {e}")
+
         logger.info(
             f"🎯 Generated Forecast for {res.forecast_date}: "
             f"Predicted Flow = {res.predicted_net_flow_tl / 1e6:+.2f}M TL, "
@@ -249,6 +270,59 @@ class DayStartForecaster:
             f"Playbook = {res.predicted_playbook} (Champion: '{self.champion_name}')."
         )
         return res
+
+    def get_explainer(self, as_of_date: Optional[Union[str, date]] = None) -> ModelExplainer:
+        """Instantiate and return a ModelExplainer for the fitted champion model."""
+        X, _ = self._ensure_champion_fitted(as_of_date=as_of_date)
+        return ModelExplainer(
+            model=self.model,
+            feature_names=self.feature_selector.active_features,
+            cluster_map=self.feature_selector.get_feature_cluster_map(),
+            background_data=X,
+            model_name=self.champion_name or "DayStartForecaster",
+            unit="TL",
+        )
+
+    def explain_forecast(self, as_of_date: Optional[Union[str, date]] = None) -> LocalExplanation:
+        """Compute live or point-in-time local feature attribution for upcoming day-start prediction."""
+        if isinstance(as_of_date, str):
+            as_of_date = datetime.strptime(as_of_date[:10], "%Y-%m-%d").date()
+
+        self._ensure_champion_fitted(as_of_date=as_of_date)
+        df_next_pl = self.feature_extractor.extract_next_day_features(as_of_date=as_of_date)
+        if df_next_pl.height == 0:
+            raise ValueError("Failed to extract next-day feature vector.")
+
+        df_next_filtered_pl = self.feature_selector.filter_dataframe(df_next_pl)
+        df_next_pd = df_next_filtered_pl.to_pandas()
+        target_date = df_next_pd["target_date"].iloc[0] if "target_date" in df_next_pd.columns else as_of_date
+
+        explainer = self.get_explainer(as_of_date=as_of_date)
+        return explainer.explain_instance(
+            df_next_pd,
+            target_broker_or_symbol=self.target_broker_id,
+            target_date=target_date,
+        )
+
+    def explain_global(self, as_of_date: Optional[Union[str, date]] = None) -> GlobalExplanation:
+        """Compute cross-session global feature importances and semantic cluster rankings."""
+        X, _ = self._ensure_champion_fitted(as_of_date=as_of_date)
+        explainer = self.get_explainer(as_of_date=as_of_date)
+        return explainer.explain_global(X)
+
+    def audit_features(
+        self,
+        as_of_date: Optional[Union[str, date]] = None,
+        collinearity_threshold: float = 0.85,
+    ) -> FeatureAuditReport:
+        """Run comprehensive feature audit with out-of-sample permutation drop testing and collinearity screening."""
+        X, y = self._ensure_champion_fitted(as_of_date=as_of_date)
+        auditor = FeatureAuditor(
+            feature_names=self.feature_selector.active_features,
+            cluster_map=self.feature_selector.get_feature_cluster_map(),
+            collinearity_threshold=collinearity_threshold,
+        )
+        return auditor.audit(self.model, X, y, model_name="day_start")
 
     def run_ablation_study(self, include_pymc: bool = False) -> pd.DataFrame:
         """Run an automated Leave-One-Cluster-Out (LOCO) ablation tournament across all semantic feature clusters.

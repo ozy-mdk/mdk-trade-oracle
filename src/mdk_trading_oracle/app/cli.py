@@ -553,5 +553,137 @@ def pipeline_run(
     )
 
 
+@app.command("audit-features")
+def audit_features(
+    model: str = typer.Option(
+        "day_start",
+        "--model",
+        "-m",
+        help="Target model to audit: 'day_start' or 'sector_day_start'",
+    ),
+    sector: Optional[str] = typer.Option(
+        None,
+        "--sector",
+        "-s",
+        help="Optional specific sector for sector_day_start",
+    ),
+    collinearity: float = typer.Option(
+        0.85,
+        "--collinearity",
+        "-c",
+        help="Pairwise correlation threshold to flag redundancy (|r| >= threshold)",
+    ),
+):
+    """Run out-of-sample permutation drop testing and collinearity screening for feature pruning."""
+    console.print(f"[bold cyan]Running Feature Selection & Redundancy Audit for '{model}'...[/bold cyan]")
+
+    db = DuckDBManager(read_only=True)
+
+    if model == "day_start":
+        from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
+
+        forecaster = DayStartForecaster(db=db)
+        report = forecaster.audit_features(collinearity_threshold=collinearity)
+    elif model == "sector_day_start":
+        from mdk_trading_oracle.models.sector_day_start.forecaster import SectorDayStartForecaster
+
+        forecaster = SectorDayStartForecaster(db=db)
+        report = forecaster.audit_features(sector=sector, collinearity_threshold=collinearity)
+    else:
+        console.print(f"[bold red]Unsupported model: {model}[/bold red]")
+        raise typer.Exit(code=1)
+
+    console.print(
+        Panel(
+            f"[bold green]Feature Audit Complete[/bold green] | Model: [cyan]{report.model_name}[/cyan] | "
+            f"Evaluated Sessions: {report.evaluated_sessions} | Features: {report.total_features}",
+            border_style="green",
+        )
+    )
+
+    # Top Drivers Table
+    if report.top_drivers:
+        table_top = Table(title="Top 10 Out-of-Sample Alpha Drivers", title_style="bold green")
+        table_top.add_column("Rank", style="dim")
+        table_top.add_column("Feature", style="bold cyan")
+        table_top.add_column("Cluster", style="magenta")
+        table_top.add_column("Permutation Score Drop", justify="right", style="green")
+
+        for idx, d in enumerate(report.top_drivers, 1):
+            table_top.add_row(str(idx), d["feature_name"], d["cluster_name"], f"{d['permutation_score_drop']:+.4f}")
+        console.print(table_top)
+
+    # Collinear Pairs
+    if report.collinear_pairs:
+        table_corr = Table(title="Collinear Feature Pairs (|r| >= threshold)", title_style="bold yellow")
+        table_corr.add_column("Feature A", style="cyan")
+        table_corr.add_column("Feature B", style="red")
+        table_corr.add_column("Correlation |r|", justify="right", style="bold yellow")
+        table_corr.add_column("Cluster A", style="dim")
+        table_corr.add_column("Cluster B", style="dim")
+
+        for p in report.collinear_pairs:
+            table_corr.add_row(
+                p["feature_a"], p["feature_b"], f"{p['correlation']:.4f}", p["cluster_a"], p["cluster_b"]
+            )
+        console.print(table_corr)
+
+    # Prune Candidates Table
+    if report.prune_candidates:
+        table_prune = Table(title="Recommended Features to Exclude (Zero Alpha / Redundant)", title_style="bold red")
+        table_prune.add_column("Feature", style="bold red")
+        table_prune.add_column("Cluster", style="dim")
+        table_prune.add_column("Permutation Drop", justify="right")
+        table_prune.add_column("Reason", style="yellow")
+
+        for c in report.prune_candidates:
+            table_prune.add_row(
+                c["feature_name"], c["cluster_name"], f"{c['permutation_score_drop']:+.4f}", c["reason"]
+            )
+        console.print(table_prune)
+
+    if report.recommended_features_yaml:
+        console.print("\n[bold cyan]Recommended YAML Snippet for config/features.yaml:[/bold cyan]")
+        console.print(Panel(report.recommended_features_yaml, border_style="cyan"))
+
+
+@app.command("explain")
+def explain_forecast(
+    model: str = typer.Option(
+        "day_start",
+        "--model",
+        "-m",
+        help="Target model: 'day_start' or 'sector_day_start'",
+    ),
+    sector: Optional[str] = typer.Option(
+        None,
+        "--sector",
+        "-s",
+        help="Target sector for sector_day_start",
+    ),
+):
+    """Explain upcoming live T+1 forecast via SHAP waterfall attribution."""
+    db = DuckDBManager(read_only=True)
+
+    if model == "day_start":
+        from mdk_trading_oracle.explainability import format_markdown_card
+        from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
+
+        forecaster = DayStartForecaster(db=db)
+        exp = forecaster.explain_forecast()
+        console.print(format_markdown_card(exp))
+    elif model == "sector_day_start":
+        from mdk_trading_oracle.explainability import format_markdown_card
+        from mdk_trading_oracle.models.sector_day_start.forecaster import SectorDayStartForecaster
+
+        sec = sector or "Banking"
+        forecaster = SectorDayStartForecaster(db=db)
+        exp = forecaster.explain_sector_forecast(sector=sec)
+        if exp:
+            console.print(format_markdown_card(exp))
+        else:
+            console.print(f"[red]Could not generate explanation for sector '{sec}'[/red]")
+
+
 if __name__ == "__main__":
     app()
