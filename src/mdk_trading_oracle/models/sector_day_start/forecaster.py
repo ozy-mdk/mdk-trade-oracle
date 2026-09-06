@@ -12,9 +12,8 @@ from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.explainability import (
-    FeatureAuditReport,
     FeatureAuditor,
-    GlobalExplanation,
+    FeatureAuditReport,
     LocalExplanation,
     ModelExplainer,
 )

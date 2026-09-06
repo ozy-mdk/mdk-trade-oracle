@@ -1,6 +1,6 @@
 """Feature Auditor: Out-of-sample permutation testing and collinearity screening for data-driven feature pruning."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -95,6 +95,7 @@ class FeatureAuditor:
         for feat in self.feature_names:
             perm_drop = perm_results.get(feat, 0.0)
             cluster = self.cluster_map.get(feat, "other")
+            mean_shap = float(shap_importances.get(feat, 0.0))
 
             # Check if this feature is a redundant collinear partner
             is_redundant_collinear = any(
@@ -113,6 +114,7 @@ class FeatureAuditor:
                         "feature_name": feat,
                         "cluster_name": cluster,
                         "permutation_score_drop": float(perm_drop),
+                        "mean_abs_shap": mean_shap,
                         "reason": reason,
                     }
                 )
@@ -122,6 +124,7 @@ class FeatureAuditor:
                         "feature_name": feat,
                         "cluster_name": cluster,
                         "permutation_score_drop": float(perm_drop),
+                        "mean_abs_shap": mean_shap,
                     }
                 )
 

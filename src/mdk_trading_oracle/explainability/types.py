@@ -55,6 +55,11 @@ class LocalExplanation:
     top_positive_drivers: List[FeatureAttribution] = field(default_factory=list)
     top_negative_drivers: List[FeatureAttribution] = field(default_factory=list)
 
+    @property
+    def prediction(self) -> float:
+        """Alias for predicted_value for convenience."""
+        return self.predicted_value
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert local explanation to a serializable dictionary for logging and persistence."""
         return {

@@ -10,6 +10,13 @@ from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
+from mdk_trading_oracle.explainability import (
+    FeatureAuditor,
+    FeatureAuditReport,
+    GlobalExplanation,
+    LocalExplanation,
+    ModelExplainer,
+)
 from mdk_trading_oracle.models.base import BaseForecaster, FlowThresholdProfile, ForecastResult
 from mdk_trading_oracle.models.day_start.features import DayStartFeatureExtractor
 from mdk_trading_oracle.models.day_start.models import (
@@ -19,13 +26,6 @@ from mdk_trading_oracle.models.day_start.models import (
     DayStartPyMCModel,
     DayStartRollingMeanModel,
     DayStartXGBoostModel,
-)
-from mdk_trading_oracle.explainability import (
-    FeatureAuditReport,
-    FeatureAuditor,
-    GlobalExplanation,
-    LocalExplanation,
-    ModelExplainer,
 )
 from mdk_trading_oracle.models.features_config import FeatureSelector
 from mdk_trading_oracle.models.registry import ModelRegistry
@@ -127,6 +127,7 @@ class DayStartForecaster:
     ):
         self.db = db or DuckDBManager()
         self.target_broker = "MLB"
+        self.target_broker_id = "MLB"
         self.settings = get_settings()
         cfg = self.settings.get_model_config("day_start")
 
@@ -254,9 +255,10 @@ class DayStartForecaster:
         # Compute local microstructure explainability
         try:
             explainer = self.get_explainer(as_of_date=as_of_date)
+            target_broker = getattr(self, "target_broker_id", getattr(self, "target_broker", "MLB"))
             local_exp = explainer.explain_instance(
                 df_next_pd,
-                target_broker_or_symbol=self.target_broker_id,
+                target_broker_or_symbol=target_broker,
                 target_date=res.forecast_date,
             )
             res.explanation = local_exp.to_dict()
@@ -298,9 +300,10 @@ class DayStartForecaster:
         target_date = df_next_pd["target_date"].iloc[0] if "target_date" in df_next_pd.columns else as_of_date
 
         explainer = self.get_explainer(as_of_date=as_of_date)
+        target_broker = getattr(self, "target_broker_id", getattr(self, "target_broker", "MLB"))
         return explainer.explain_instance(
             df_next_pd,
-            target_broker_or_symbol=self.target_broker_id,
+            target_broker_or_symbol=target_broker,
             target_date=target_date,
         )
 

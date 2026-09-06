@@ -1,6 +1,4 @@
-"""Visualizer: Interactive Plotly waterfall charts, cluster donut charts, and markdown cards for model explainability."""
-
-from typing import Optional
+from typing import Optional, Union
 
 import plotly.graph_objects as go
 
@@ -118,24 +116,37 @@ def plot_waterfall(
 
 
 def plot_cluster_donut(
-    global_exp: GlobalExplanation,
+    explanation: Union[GlobalExplanation, LocalExplanation],
     title: Optional[str] = None,
 ) -> go.Figure:
     """Generate an interactive Plotly donut chart showing % alpha share by semantic microstructure cluster.
 
     Args:
-        global_exp: GlobalExplanation instance from ModelExplainer.
+        explanation: GlobalExplanation or LocalExplanation instance.
         title: Optional custom plot title.
 
     Returns:
         Plotly go.Figure donut chart.
     """
-    df = global_exp.cluster_importance_df
-    if df.empty:
+    if isinstance(explanation, LocalExplanation):
+        clusters = explanation.cluster_attributions
+        if not clusters:
+            return go.Figure()
+        labels = [c.cluster_name for c in clusters]
+        values = [c.percentage_share for c in clusters]
+        default_title = f"{explanation.model_name} ({explanation.target_broker_or_symbol}) — Forecast Cluster Impact Share"
+    elif hasattr(explanation, "cluster_importance_df"):
+        df = explanation.cluster_importance_df
+        if df.empty:
+            return go.Figure()
+        labels = df["cluster_name"].tolist()
+        values = df["relative_importance_pct"].tolist()
+        default_title = f"{explanation.model_name} — Microstructure Cluster Alpha Share"
+    else:
         return go.Figure()
 
-    labels = df["cluster_name"].tolist()
-    values = df["relative_importance_pct"].tolist()
+    if not labels or not values or sum(values) == 0:
+        return go.Figure()
 
     colors = [
         "#3b82f6",  # Blue
@@ -164,7 +175,7 @@ def plot_cluster_donut(
         ]
     )
 
-    plot_title = title or f"{global_exp.model_name} — Microstructure Cluster Alpha Share"
+    plot_title = title or default_title
 
     fig.update_layout(
         title={

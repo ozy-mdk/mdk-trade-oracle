@@ -19,10 +19,6 @@ from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.explainability import (
-    FeatureAuditReport,
-    FeatureAuditor,
-    GlobalExplanation,
-    LocalExplanation,
     ModelExplainer,
 )
 from mdk_trading_oracle.models.features_config import FeatureSelector
@@ -379,6 +375,7 @@ class StockReactionForecaster:
 
         X_infer = df_inference.to_pandas()
         feat_cols = self.extractor.get_feature_columns()
+        available_feats = [c for c in feat_cols if c in X_infer.columns]
         result = champion.predict(X_infer[["trade_date"] + available_feats])
 
         # Compute local microstructure explainability for this stock reaction forecast
