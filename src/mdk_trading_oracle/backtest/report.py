@@ -30,15 +30,14 @@ class BacktestReportGenerator:
                 {
                     "Model": s.model_name,
                     "Target Scope": s.target_name,
-                    "Unit": scale_str,
                     "Total Sessions": s.total_samples,
                     "Hit Rate (%)": round(s.directional.hit_rate_pct, 1),
                     "PICP 90% (%)": round(s.probabilistic.picp_90_pct, 1),
-                    f"MAE ({scale_str})": round(mae_disp, 2),
-                    f"RMSE ({scale_str})": round(rmse_disp, 2),
-                    "Pearson r": round(s.regression.pearson_r, 2),
-                    "R²": round(s.regression.r2, 2),
-                    "Profit Factor": round(s.trading.profit_factor, 2),
+                    "MAE": f"{mae_disp:.2f} {scale_str}",
+                    "RMSE": f"{rmse_disp:.2f} {scale_str}",
+                    "Pearson r": f"{s.regression.pearson_r:+.2f}",
+                    "R²": f"{s.regression.r2:.2f}",
+                    "Profit Factor": f"{s.trading.profit_factor:.2f}x",
                 }
             )
 
