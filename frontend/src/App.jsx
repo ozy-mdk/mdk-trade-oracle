@@ -5,7 +5,8 @@ import BrokerMetricCards from './components/BrokerMetricCards';
 import CandleChart from './components/CandleChart';
 import CandleDataTable from './components/CandleDataTable';
 import TertipDashboard from './components/TertipDashboard';
-import { CandlestickChart, Layers } from 'lucide-react';
+import EventStudyDashboard from './components/EventStudyDashboard';
+import { CandlestickChart, Layers, TrendingUp } from 'lucide-react';
 
 const GRAPHQL_ENDPOINT = 'http://127.0.0.1:8000/graphql';
 
@@ -203,6 +204,31 @@ export default function App() {
           <Layers size={20} style={{ color: activeTab === 'tertip' ? 'var(--accent-purple)' : '' }} />
           <span>2. Kurum Tertip &amp; FIFO Takibi (2022 - 2026 Defteri)</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('eventStudy')}
+          className="glass-card"
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '14px 20px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: '600',
+            color: activeTab === 'eventStudy' ? '#fff' : 'var(--text-secondary)',
+            borderColor: activeTab === 'eventStudy' ? 'var(--bull-green)' : 'var(--border-subtle)',
+            background: activeTab === 'eventStudy' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+            boxShadow: activeTab === 'eventStudy' ? '0 0 25px -5px rgba(16, 185, 129, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <TrendingUp size={20} style={{ color: activeTab === 'eventStudy' ? 'var(--bull-green)' : '' }} />
+          <span>3. Hisse Hareket &amp; İleri Getiri Analizi (Event Study)</span>
+        </button>
       </div>
 
       {error && (
@@ -260,6 +286,14 @@ export default function App() {
           brokers={brokers}
           instruments={instruments}
           dates={dates}
+          fetchGraphQL={fetchGraphQL}
+        />
+      )}
+
+      {/* Tab 3: Event Study & Forward Return Dashboard */}
+      {activeTab === 'eventStudy' && (
+        <EventStudyDashboard
+          instruments={instruments}
           fetchGraphQL={fetchGraphQL}
         />
       )}

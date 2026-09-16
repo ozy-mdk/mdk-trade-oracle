@@ -1,6 +1,7 @@
 """Database resolvers for GraphQL queries."""
 
 import logging
+import statistics
 from typing import List, Optional
 
 import duckdb
@@ -11,6 +12,10 @@ from mdk_trading_oracle.api.types import (
     BrokerSummary,
     CandleWithBroker,
     DailyFifoRecord,
+    EventStudyOccurrence,
+    EventStudyResult,
+    ForwardHorizonStat,
+    ForwardReturnPoint,
     Instrument,
     TertipExecutiveSummary,
     TertipLot,
@@ -571,4 +576,200 @@ def get_tertip_summary(
         unrealized_pnl_tl=0.0,
         total_daily_pnl_tl=0.0,
         total_open_lots_count=0,
+    )
+
+
+def get_event_study(
+    symbol: str,
+    condition_type: str = "DAILY_RETURN",
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
+    forward_days: int = 5,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100,
+) -> EventStudyResult:
+    """Analyze historical stock movements and compute forward subsequent returns."""
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
+    conn = duckdb.connect(duckdb_path, read_only=True)
+
+    clamped_forward_days = max(1, min(int(forward_days), 30))
+    limit_val = max(1, min(int(limit), 500))
+
+    lead_cols = []
+    for k in range(1, clamped_forward_days + 1):
+        lead_cols.append(f"LEAD(trade_date, {k}) OVER w as lead_date_{k}")
+        lead_cols.append(f"LEAD(adj_close_price, {k}) OVER w as lead_price_{k}")
+    leads_sql = ", ".join(lead_cols)
+
+    cond_clauses = ["symbol = ?"]
+    params: list = [symbol]
+
+    cond_upper = condition_type.upper()
+    if cond_upper == "DAILY_RETURN":
+        if min_value is not None:
+            cond_clauses.append("adj_daily_return_pct >= ?")
+            params.append(float(min_value) / 100.0)
+        if max_value is not None:
+            cond_clauses.append("adj_daily_return_pct <= ?")
+            params.append(float(max_value) / 100.0)
+    elif cond_upper == "BOFA_NET_FLOW":
+        if min_value is not None:
+            cond_clauses.append("bofa_net_flow_tl >= ?")
+            params.append(float(min_value))
+        if max_value is not None:
+            cond_clauses.append("bofa_net_flow_tl <= ?")
+            params.append(float(max_value))
+    elif cond_upper == "PRICE_RANGE":
+        if min_value is not None:
+            cond_clauses.append("price_range_pct >= ?")
+            params.append(float(min_value) / 100.0)
+        if max_value is not None:
+            cond_clauses.append("price_range_pct <= ?")
+            params.append(float(max_value) / 100.0)
+    elif cond_upper == "VOLUME_SURGE":
+        if min_value is not None:
+            cond_clauses.append("total_turnover_tl >= ?")
+            params.append(float(min_value))
+        if max_value is not None:
+            cond_clauses.append("total_turnover_tl <= ?")
+            params.append(float(max_value))
+
+    if start_date:
+        cond_clauses.append("trade_date >= ?")
+        params.append(start_date)
+    if end_date:
+        cond_clauses.append("trade_date <= ?")
+        params.append(end_date)
+
+    where_sql = " AND ".join(cond_clauses)
+
+    query = f"""
+        WITH base AS (
+            SELECT 
+                trade_date,
+                symbol,
+                adj_close_price,
+                adj_daily_return_pct,
+                bofa_net_flow_tl,
+                price_range_pct,
+                total_turnover_tl,
+                {leads_sql}
+            FROM silver_daily_stock_summary
+            WHERE symbol = ?
+            WINDOW w AS (ORDER BY trade_date ASC)
+        )
+        SELECT * FROM base
+        WHERE {where_sql}
+        ORDER BY trade_date DESC
+        LIMIT {limit_val};
+    """
+
+    try:
+        full_params = [symbol] + params
+        df = conn.execute(query, full_params).fetchdf()
+
+        count_query = f"""
+            WITH base AS (
+                SELECT 
+                    trade_date,
+                    symbol,
+                    adj_close_price,
+                    adj_daily_return_pct,
+                    bofa_net_flow_tl,
+                    price_range_pct,
+                    total_turnover_tl
+                FROM silver_daily_stock_summary
+                WHERE symbol = ?
+            )
+            SELECT count(*) FROM base WHERE {where_sql};
+        """
+        total_occurrences = conn.execute(count_query, full_params).fetchone()[0]
+    finally:
+        conn.close()
+
+    occurrences: list[EventStudyOccurrence] = []
+    horizon_returns: dict[int, list[float]] = {k: [] for k in range(1, clamped_forward_days + 1)}
+
+    for _, row in df.iterrows():
+        p0 = float(row["adj_close_price"]) if row["adj_close_price"] is not None else 0.0
+
+        if cond_upper == "DAILY_RETURN":
+            movement_val = round(float(row["adj_daily_return_pct"] or 0) * 100.0, 2)
+        elif cond_upper == "BOFA_NET_FLOW":
+            movement_val = round(float(row["bofa_net_flow_tl"] or 0), 2)
+        elif cond_upper == "PRICE_RANGE":
+            movement_val = round(float(row["price_range_pct"] or 0) * 100.0, 2)
+        elif cond_upper == "VOLUME_SURGE":
+            movement_val = round(float(row["total_turnover_tl"] or 0), 2)
+        else:
+            movement_val = round(float(row["adj_daily_return_pct"] or 0) * 100.0, 2)
+
+        fwd_points: list[ForwardReturnPoint] = []
+        for k in range(1, clamped_forward_days + 1):
+            pk = row[f"lead_price_{k}"]
+            dk = row[f"lead_date_{k}"]
+            ret_pct: Optional[float] = None
+            if pk is not None and not (isinstance(pk, float) and (pk != pk)) and p0 > 0:
+                ret_pct = round(((float(pk) - p0) / p0) * 100.0, 2)
+                horizon_returns[k].append(ret_pct)
+
+            fwd_points.append(
+                ForwardReturnPoint(
+                    day_offset=k,
+                    date=str(dk)[:10] if dk is not None and dk == dk else None,
+                    close_price=float(pk) if (pk is not None and pk == pk) else None,
+                    return_pct=ret_pct,
+                )
+            )
+
+        occurrences.append(
+            EventStudyOccurrence(
+                event_date=str(row["trade_date"])[:10],
+                close_price=p0,
+                movement_value=movement_val,
+                bofa_net_flow_tl=float(row["bofa_net_flow_tl"] or 0),
+                total_turnover_tl=float(row["total_turnover_tl"] or 0),
+                forward_returns=fwd_points,
+            )
+        )
+
+    horizon_stats: list[ForwardHorizonStat] = []
+    for k in range(1, clamped_forward_days + 1):
+        rets = horizon_returns[k]
+        if rets:
+            avg_ret = round(sum(rets) / len(rets), 2)
+            win_rate = round((sum(1 for r in rets if r > 0) / len(rets)) * 100.0, 1)
+            med_ret = round(statistics.median(rets), 2)
+            max_g = round(max(rets), 2)
+            max_l = round(min(rets), 2)
+        else:
+            avg_ret = 0.0
+            win_rate = 0.0
+            med_ret = 0.0
+            max_g = 0.0
+            max_l = 0.0
+
+        horizon_stats.append(
+            ForwardHorizonStat(
+                day_offset=k,
+                avg_return_pct=avg_ret,
+                win_rate_pct=win_rate,
+                median_return_pct=med_ret,
+                max_gain_pct=max_g,
+                max_loss_pct=max_l,
+                sample_count=len(rets),
+            )
+        )
+
+    return EventStudyResult(
+        symbol=symbol,
+        condition_type=cond_upper,
+        min_value=min_value,
+        max_value=max_value,
+        forward_days=clamped_forward_days,
+        total_occurrences=int(total_occurrences),
+        horizon_stats=horizon_stats,
+        occurrences=occurrences,
     )

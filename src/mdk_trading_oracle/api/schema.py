@@ -10,6 +10,7 @@ from mdk_trading_oracle.api.resolvers import (
     get_brokers,
     get_candles,
     get_daily_fifo,
+    get_event_study,
     get_instruments,
     get_tertip_lots,
     get_tertip_summary,
@@ -19,6 +20,7 @@ from mdk_trading_oracle.api.types import (
     BrokerSummary,
     CandleWithBroker,
     DailyFifoRecord,
+    EventStudyResult,
     Instrument,
     TertipExecutiveSummary,
     TertipLot,
@@ -96,6 +98,29 @@ class Query:
         date: Optional[str] = None,
     ) -> TertipExecutiveSummary:
         return get_tertip_summary(broker_id=broker_id, date=date)
+
+    @strawberry.field(description="Event study: Analyze historical stock movements and forward reaction returns.")
+    def event_study(
+        self,
+        symbol: str,
+        condition_type: str = "DAILY_RETURN",
+        min_value: Optional[float] = None,
+        max_value: Optional[float] = None,
+        forward_days: int = 5,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+    ) -> EventStudyResult:
+        return get_event_study(
+            symbol=symbol,
+            condition_type=condition_type,
+            min_value=min_value,
+            max_value=max_value,
+            forward_days=forward_days,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
 
 
 schema = strawberry.Schema(query=Query)

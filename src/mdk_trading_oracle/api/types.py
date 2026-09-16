@@ -123,3 +123,45 @@ class TertipExecutiveSummary:
     unrealized_pnl_tl: float
     total_daily_pnl_tl: float
     total_open_lots_count: int
+
+
+@strawberry.type
+class ForwardReturnPoint:
+    day_offset: int
+    date: Optional[str]
+    close_price: Optional[float]
+    return_pct: Optional[float]
+
+
+@strawberry.type
+class ForwardHorizonStat:
+    day_offset: int
+    avg_return_pct: float
+    win_rate_pct: float
+    median_return_pct: float
+    max_gain_pct: float
+    max_loss_pct: float
+    sample_count: int
+
+
+@strawberry.type
+class EventStudyOccurrence:
+    event_date: str
+    close_price: float
+    movement_value: float
+    bofa_net_flow_tl: float
+    total_turnover_tl: float
+    forward_returns: list[ForwardReturnPoint]
+
+
+@strawberry.type
+class EventStudyResult:
+    symbol: str
+    condition_type: str
+    min_value: Optional[float]
+    max_value: Optional[float]
+    forward_days: int
+    total_occurrences: int
+    horizon_stats: list[ForwardHorizonStat]
+    occurrences: list[EventStudyOccurrence]
+
