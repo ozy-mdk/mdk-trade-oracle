@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     default_market: str = Field(default="BIST", alias="DEFAULT_MARKET")
     primary_institution: str = Field(default="MLB", alias="PRIMARY_INSTITUTION")
 
+    # PostgreSQL Target Database
+    pg_host: str = Field(default="127.0.0.1", alias="PG_HOST")
+    pg_port: int = Field(default=5432, alias="PG_PORT")
+    pg_database: str = Field(default="mdk_oracle", alias="PG_DATABASE")
+    pg_user: str = Field(default="ozkanyildirim", alias="PG_USER")
+    pg_password: str = Field(default="", alias="PG_PASSWORD")
+    pg_url: Optional[str] = Field(default=None, alias="DATABASE_URL")
+
     # Project Directories (Inside repository)
     project_root: Path = PROJECT_ROOT
     config_dir: Path = PROJECT_ROOT / "config"
