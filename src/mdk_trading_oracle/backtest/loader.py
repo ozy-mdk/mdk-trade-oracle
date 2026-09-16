@@ -54,6 +54,13 @@ class BacktestLoader:
 
         conn = self.db.get_connection()
         df = conn.execute(query).df()
+        if df.empty and not use_performance_ledger:
+            logger.info("Macro backtests table is empty; falling back to performance ledger...")
+            return self.load_day_start(
+                use_performance_ledger=True,
+                start_date=start_date,
+                end_date=end_date,
+            )
         logger.info(f"Loaded {len(df)} records from `{table_name}`.")
         return df
 
@@ -97,6 +104,14 @@ class BacktestLoader:
 
         conn = self.db.get_connection()
         df = conn.execute(query).df()
+        if df.empty and not use_performance_ledger:
+            logger.info("Sector backtests table is empty; falling back to performance ledger...")
+            return self.load_sector_day_start(
+                sectors=sectors,
+                use_performance_ledger=True,
+                start_date=start_date,
+                end_date=end_date,
+            )
         logger.info(f"Loaded {len(df)} records from `{table_name}`.")
         return df
 
@@ -145,11 +160,22 @@ class BacktestLoader:
                 w_df = conn.execute(query).df()
                 if not w_df.empty:
                     w_df["window_code"] = w.upper()
-                frames.append(w_df)
+                    frames.append(w_df)
             except Exception as e:
                 logger.warning(f"Could not load table `{table_name}`: {e}")
 
         if not frames:
+            if not use_performance_ledger:
+                logger.info(
+                    "Stock reaction backtests tables are empty; falling back to performance ledgers..."
+                )
+                return self.load_stock_reaction(
+                    windows=windows,
+                    symbols=symbols,
+                    use_performance_ledger=True,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
             return pd.DataFrame()
 
         df = pd.concat(frames, ignore_index=True)
