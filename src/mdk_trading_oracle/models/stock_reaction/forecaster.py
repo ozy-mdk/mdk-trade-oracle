@@ -233,7 +233,10 @@ class StockReactionForecaster:
         the domestic Big Players took a decisive day-start positioning (|strength| < 2.0).
         """
         lb = lookback_months or self.lookback_months
-        end_date = as_of_date
+        if as_of_date is not None:
+            end_date = as_of_date if isinstance(as_of_date, date) else date.fromisoformat(str(as_of_date)[:10])
+        else:
+            end_date = None
         start_date = (end_date - relativedelta(months=lb)) if end_date else None
         should_filter = self.filter_weak_regimes if filter_weak_regimes is None else filter_weak_regimes
 

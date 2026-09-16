@@ -468,51 +468,37 @@ class SilverTransformer:
 
         query = f"""
             CREATE OR REPLACE TABLE silver_intraday_broker_window_summary AS
-            WITH windowed_trades AS (
+            WITH buys AS (
                 SELECT 
                     CAST(timestamp AS DATE) AS trade_date,
                     symbol,
-                    price,
-                    volume,
-                    price * volume AS turnover_tl,
-                    buyer_broker_id,
-                    seller_broker_id,
+                    buyer_broker_id AS broker_id,
                     {case_name} AS window_name,
                     {case_order} AS window_order,
-                    {case_start} AS window_start_time
-                FROM bronze_raw_trades
-            ),
-            buys AS (
-                SELECT 
-                    trade_date,
-                    symbol,
-                    buyer_broker_id AS broker_id,
-                    window_name,
-                    window_order,
-                    window_start_time,
+                    {case_start} AS window_start_time,
                     SUM(volume) AS buy_volume,
-                    SUM(turnover_tl) AS buy_turnover_tl,
-                    SUM(turnover_tl) / NULLIF(SUM(volume), 0.0) AS buy_vwap,
+                    SUM(price * volume) AS buy_turnover_tl,
+                    SUM(price * volume) / NULLIF(SUM(volume), 0.0) AS buy_vwap,
                     COUNT(*) AS buy_trades
-                FROM windowed_trades
+                FROM bronze_raw_trades
                 WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != ''
-                GROUP BY trade_date, symbol, buyer_broker_id, window_name, window_order, window_start_time
+                GROUP BY 1, 2, 3, 4, 5, 6
             ),
             sells AS (
                 SELECT 
-                    trade_date,
+                    CAST(timestamp AS DATE) AS trade_date,
                     symbol,
                     seller_broker_id AS broker_id,
-                    window_name,
-                    window_order,
-                    window_start_time,
+                    {case_name} AS window_name,
+                    {case_order} AS window_order,
+                    {case_start} AS window_start_time,
                     SUM(volume) AS sell_volume,
-                    SUM(turnover_tl) AS sell_turnover_tl,
-                    SUM(turnover_tl) / NULLIF(SUM(volume), 0.0) AS sell_vwap,
+                    SUM(price * volume) AS sell_turnover_tl,
+                    SUM(price * volume) / NULLIF(SUM(volume), 0.0) AS sell_vwap,
                     COUNT(*) AS sell_trades
-                FROM windowed_trades
+                FROM bronze_raw_trades
                 WHERE seller_broker_id IS NOT NULL AND seller_broker_id != ''
-                GROUP BY trade_date, symbol, seller_broker_id, window_name, window_order, window_start_time
+                GROUP BY 1, 2, 3, 4, 5, 6
             ),
             combined AS (
                 SELECT 

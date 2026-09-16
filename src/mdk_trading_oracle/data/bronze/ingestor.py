@@ -77,10 +77,12 @@ class BronzeIngestor:
         discovered: List[Dict[str, Any]] = []
         for ext in ["*.csv", "*.parquet", "*.txt"]:
             for f in base_dir.rglob(ext):
-                # Ignore hidden files, temporary files, mysql dump directories, central bank rates, benchmarks, and corporate actions
+                # Ignore hidden files, temporary files, manifests, mysql dump directories, central bank rates, benchmarks, and corporate actions
                 path_str = f.as_posix()
                 if (
                     f.name.startswith(".")
+                    or f.name.startswith("manifest")
+                    or f.name.startswith("batch_manifest")
                     or "/mysql/" in path_str
                     or "/central_bank_interest_rates/" in path_str
                     or "/benchmarks/" in path_str
@@ -213,8 +215,9 @@ class BronzeIngestor:
             )
 
         # 2. Process Parquet files
-        for meta in parquet_metas:
+        for idx, meta in enumerate(parquet_metas, start=1):
             p = meta["file_path"]
+            logger.info(f"Ingesting Parquet file {idx}/{len(parquet_metas)}: {meta['file_name']}...")
             query = f"""
                 INSERT INTO bronze_raw_trades (
                     trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
@@ -231,6 +234,11 @@ class BronzeIngestor:
                 FROM read_parquet('{p}');
             """
             conn.execute(query)
+            try:
+                parquet_rows = conn.execute(f"SELECT count(*) FROM read_parquet('{p}');").fetchone()[0]
+            except Exception:
+                parquet_rows = 0
+
             conn.execute(
                 """
                 INSERT OR REPLACE INTO bronze_ingestion_log (
@@ -244,7 +252,7 @@ class BronzeIngestor:
                     meta["file_mtime_epoch"],
                     meta["trade_date"],
                     meta["year_month"],
-                    0,
+                    parquet_rows,
                     meta["file_name"],
                 ],
             )

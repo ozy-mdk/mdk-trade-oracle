@@ -56,7 +56,7 @@ class DuckDBManager:
                 tmp_dir.mkdir(parents=True, exist_ok=True)
                 self._conn.execute("PRAGMA preserve_insertion_order=false;")
                 self._conn.execute(f"PRAGMA temp_directory='{tmp_dir.as_posix()}';")
-                self._conn.execute("PRAGMA max_temp_directory_size='30GiB';")
+                self._conn.execute("PRAGMA max_temp_directory_size='100GiB';")
 
         return self._conn
 
