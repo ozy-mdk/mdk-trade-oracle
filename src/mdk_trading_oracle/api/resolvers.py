@@ -584,6 +584,7 @@ def get_event_study(
     condition_type: str = "DAILY_RETURN",
     min_value: Optional[float] = None,
     max_value: Optional[float] = None,
+    direction: Optional[str] = None,
     forward_days: int = 5,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -607,20 +608,54 @@ def get_event_study(
     params: list = [symbol]
 
     cond_upper = condition_type.upper()
+    dir_upper = (direction or "").upper()
+
     if cond_upper == "DAILY_RETURN":
-        if min_value is not None:
-            cond_clauses.append("adj_daily_return_pct >= ?")
-            params.append(float(min_value) / 100.0)
-        if max_value is not None:
-            cond_clauses.append("adj_daily_return_pct <= ?")
-            params.append(float(max_value) / 100.0)
+        if dir_upper == "DOWN":
+            val = min_value if min_value is not None else max_value
+            if val is not None:
+                cond_clauses.append("adj_daily_return_pct <= ?")
+                params.append(-abs(float(val)) / 100.0)
+        elif dir_upper == "UP":
+            val = min_value if min_value is not None else max_value
+            if val is not None:
+                cond_clauses.append("adj_daily_return_pct >= ?")
+                params.append(abs(float(val)) / 100.0)
+        else:
+            # Smart negative check: if user entered -9% in min_value without max_value,
+            # they intend a drop <= -9% (not >= -9%)
+            if min_value is not None and min_value < 0 and max_value is None:
+                cond_clauses.append("adj_daily_return_pct <= ?")
+                params.append(float(min_value) / 100.0)
+            else:
+                if min_value is not None:
+                    cond_clauses.append("adj_daily_return_pct >= ?")
+                    params.append(float(min_value) / 100.0)
+                if max_value is not None:
+                    cond_clauses.append("adj_daily_return_pct <= ?")
+                    params.append(float(max_value) / 100.0)
     elif cond_upper == "BOFA_NET_FLOW":
-        if min_value is not None:
-            cond_clauses.append("bofa_net_flow_tl >= ?")
-            params.append(float(min_value))
-        if max_value is not None:
-            cond_clauses.append("bofa_net_flow_tl <= ?")
-            params.append(float(max_value))
+        if dir_upper == "DOWN":
+            val = min_value if min_value is not None else max_value
+            if val is not None:
+                cond_clauses.append("bofa_net_flow_tl <= ?")
+                params.append(-abs(float(val)))
+        elif dir_upper == "UP":
+            val = min_value if min_value is not None else max_value
+            if val is not None:
+                cond_clauses.append("bofa_net_flow_tl >= ?")
+                params.append(abs(float(val)))
+        else:
+            if min_value is not None and min_value < 0 and max_value is None:
+                cond_clauses.append("bofa_net_flow_tl <= ?")
+                params.append(float(min_value))
+            else:
+                if min_value is not None:
+                    cond_clauses.append("bofa_net_flow_tl >= ?")
+                    params.append(float(min_value))
+                if max_value is not None:
+                    cond_clauses.append("bofa_net_flow_tl <= ?")
+                    params.append(float(max_value))
     elif cond_upper == "PRICE_RANGE":
         if min_value is not None:
             cond_clauses.append("price_range_pct >= ?")
@@ -650,11 +685,13 @@ def get_event_study(
             SELECT 
                 trade_date,
                 symbol,
+                adj_open_price,
                 adj_close_price,
                 adj_daily_return_pct,
                 bofa_net_flow_tl,
                 price_range_pct,
                 total_turnover_tl,
+                LAG(adj_close_price, 1) OVER w as prev_close_price,
                 {leads_sql}
             FROM silver_daily_stock_summary
             WHERE symbol = ?
@@ -690,13 +727,23 @@ def get_event_study(
         conn.close()
 
     occurrences: list[EventStudyOccurrence] = []
-    horizon_returns: dict[int, list[float]] = {k: [] for k in range(1, clamped_forward_days + 1)}
+    horizon_daily_returns: dict[int, list[float]] = {k: [] for k in range(1, clamped_forward_days + 1)}
+    horizon_cumul_returns: dict[int, list[float]] = {k: [] for k in range(1, clamped_forward_days + 1)}
 
     for _, row in df.iterrows():
         p0 = float(row["adj_close_price"]) if row["adj_close_price"] is not None else 0.0
+        p_prev = float(row["prev_close_price"]) if row["prev_close_price"] is not None else None
+        p_open = float(row["adj_open_price"]) if row["adj_open_price"] is not None else None
+
+        p_change_tl = round(p0 - p_prev, 2) if (p_prev is not None and p0 is not None) else None
+        p_change_pct = (
+            round(((p0 - p_prev) / p_prev) * 100.0, 2)
+            if (p_prev is not None and p_prev > 0)
+            else round(float(row["adj_daily_return_pct"] or 0) * 100.0, 2)
+        )
 
         if cond_upper == "DAILY_RETURN":
-            movement_val = round(float(row["adj_daily_return_pct"] or 0) * 100.0, 2)
+            movement_val = p_change_pct
         elif cond_upper == "BOFA_NET_FLOW":
             movement_val = round(float(row["bofa_net_flow_tl"] or 0), 2)
         elif cond_upper == "PRICE_RANGE":
@@ -704,30 +751,50 @@ def get_event_study(
         elif cond_upper == "VOLUME_SURGE":
             movement_val = round(float(row["total_turnover_tl"] or 0), 2)
         else:
-            movement_val = round(float(row["adj_daily_return_pct"] or 0) * 100.0, 2)
+            movement_val = p_change_pct
 
         fwd_points: list[ForwardReturnPoint] = []
         for k in range(1, clamped_forward_days + 1):
             pk = row[f"lead_price_{k}"]
             dk = row[f"lead_date_{k}"]
-            ret_pct: Optional[float] = None
-            if pk is not None and not (isinstance(pk, float) and (pk != pk)) and p0 > 0:
-                ret_pct = round(((float(pk) - p0) / p0) * 100.0, 2)
-                horizon_returns[k].append(ret_pct)
+
+            # Previous day price: for T+1 it is P_T (p0), for T+k it is P_{T+k-1}
+            p_prev_day = p0 if k == 1 else row[f"lead_price_{k - 1}"]
+
+            daily_ret: Optional[float] = None
+            cumul_ret: Optional[float] = None
+
+            is_pk_valid = pk is not None and not (isinstance(pk, float) and (pk != pk))
+            is_prev_valid = p_prev_day is not None and not (isinstance(p_prev_day, float) and (p_prev_day != p_prev_day))
+
+            if is_pk_valid and is_prev_valid and float(p_prev_day) > 0:
+                daily_ret = round(((float(pk) - float(p_prev_day)) / float(p_prev_day)) * 100.0, 2)
+                horizon_daily_returns[k].append(daily_ret)
+
+            if is_pk_valid and p0 > 0:
+                cumul_ret = round(((float(pk) - p0) / p0) * 100.0, 2)
+                horizon_cumul_returns[k].append(cumul_ret)
 
             fwd_points.append(
                 ForwardReturnPoint(
                     day_offset=k,
                     date=str(dk)[:10] if dk is not None and dk == dk else None,
-                    close_price=float(pk) if (pk is not None and pk == pk) else None,
-                    return_pct=ret_pct,
+                    prev_close_price=round(float(p_prev_day), 2) if is_prev_valid else None,
+                    close_price=round(float(pk), 2) if is_pk_valid else None,
+                    return_pct=daily_ret,
+                    daily_return_pct=daily_ret,
+                    cumulative_return_pct=cumul_ret,
                 )
             )
 
         occurrences.append(
             EventStudyOccurrence(
                 event_date=str(row["trade_date"])[:10],
+                prev_close_price=round(p_prev, 2) if p_prev is not None else None,
+                open_price=round(p_open, 2) if p_open is not None else None,
                 close_price=p0,
+                price_change_tl=p_change_tl,
+                price_change_pct=p_change_pct,
                 movement_value=movement_val,
                 bofa_net_flow_tl=float(row["bofa_net_flow_tl"] or 0),
                 total_turnover_tl=float(row["total_turnover_tl"] or 0),
@@ -737,29 +804,40 @@ def get_event_study(
 
     horizon_stats: list[ForwardHorizonStat] = []
     for k in range(1, clamped_forward_days + 1):
-        rets = horizon_returns[k]
-        if rets:
-            avg_ret = round(sum(rets) / len(rets), 2)
-            win_rate = round((sum(1 for r in rets if r > 0) / len(rets)) * 100.0, 1)
-            med_ret = round(statistics.median(rets), 2)
-            max_g = round(max(rets), 2)
-            max_l = round(min(rets), 2)
+        d_rets = horizon_daily_returns[k]
+        c_rets = horizon_cumul_returns[k]
+
+        if d_rets:
+            avg_d = round(sum(d_rets) / len(d_rets), 2)
+            win_d = round((sum(1 for r in d_rets if r > 0) / len(d_rets)) * 100.0, 1)
+            med_d = round(statistics.median(d_rets), 2)
+            max_g = round(max(d_rets), 2)
+            max_l = round(min(d_rets), 2)
         else:
-            avg_ret = 0.0
-            win_rate = 0.0
-            med_ret = 0.0
+            avg_d = 0.0
+            win_d = 0.0
+            med_d = 0.0
             max_g = 0.0
             max_l = 0.0
+
+        if c_rets:
+            avg_c = round(sum(c_rets) / len(c_rets), 2)
+            win_c = round((sum(1 for r in c_rets if r > 0) / len(c_rets)) * 100.0, 1)
+        else:
+            avg_c = 0.0
+            win_c = 0.0
 
         horizon_stats.append(
             ForwardHorizonStat(
                 day_offset=k,
-                avg_return_pct=avg_ret,
-                win_rate_pct=win_rate,
-                median_return_pct=med_ret,
+                avg_return_pct=avg_d,
+                win_rate_pct=win_d,
+                median_return_pct=med_d,
                 max_gain_pct=max_g,
                 max_loss_pct=max_l,
-                sample_count=len(rets),
+                cumul_avg_return_pct=avg_c,
+                cumul_win_rate_pct=win_c,
+                sample_count=len(d_rets),
             )
         )
 
@@ -768,6 +846,7 @@ def get_event_study(
         condition_type=cond_upper,
         min_value=min_value,
         max_value=max_value,
+        direction=dir_upper or None,
         forward_days=clamped_forward_days,
         total_occurrences=int(total_occurrences),
         horizon_stats=horizon_stats,

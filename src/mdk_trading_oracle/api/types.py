@@ -129,25 +129,34 @@ class TertipExecutiveSummary:
 class ForwardReturnPoint:
     day_offset: int
     date: Optional[str]
+    prev_close_price: Optional[float]
     close_price: Optional[float]
-    return_pct: Optional[float]
+    return_pct: Optional[float]  # Independent daily return: (P_{T+k} - P_{T+k-1}) / P_{T+k-1} * 100
+    daily_return_pct: Optional[float]
+    cumulative_return_pct: Optional[float]  # Cumulative return from T: (P_{T+k} - P_T) / P_T * 100
 
 
 @strawberry.type
 class ForwardHorizonStat:
     day_offset: int
-    avg_return_pct: float
-    win_rate_pct: float
-    median_return_pct: float
+    avg_return_pct: float  # Independent daily average return at T+k
+    win_rate_pct: float  # % of days with positive daily return
+    median_return_pct: float  # Median daily return
     max_gain_pct: float
     max_loss_pct: float
+    cumul_avg_return_pct: Optional[float]  # Cumulative average return from T
+    cumul_win_rate_pct: Optional[float]
     sample_count: int
 
 
 @strawberry.type
 class EventStudyOccurrence:
     event_date: str
+    prev_close_price: Optional[float]
+    open_price: Optional[float]
     close_price: float
+    price_change_tl: Optional[float]
+    price_change_pct: Optional[float]
     movement_value: float
     bofa_net_flow_tl: float
     total_turnover_tl: float
@@ -160,6 +169,7 @@ class EventStudyResult:
     condition_type: str
     min_value: Optional[float]
     max_value: Optional[float]
+    direction: Optional[str]
     forward_days: int
     total_occurrences: int
     horizon_stats: list[ForwardHorizonStat]

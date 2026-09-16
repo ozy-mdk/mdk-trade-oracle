@@ -85,3 +85,40 @@ def test_graphql_event_study_query():
     assert event_data["totalOccurrences"] > 0
     assert len(event_data["horizonStats"]) == 3
     assert len(event_data["occurrences"]) <= 5
+
+
+def test_get_event_study_akbnk_negative_drop():
+    """Test Event Study calculation for AKBNK with <= -9.0% drop."""
+    result = get_event_study(
+        symbol="AKBNK",
+        condition_type="DAILY_RETURN",
+        min_value=-9.0,
+        direction="DOWN",
+        forward_days=3,
+        limit=10,
+    )
+    assert result.symbol == "AKBNK"
+    assert result.total_occurrences == 6  # Exact 6 occurrences in AKBNK with <= -9% drop
+    assert len(result.occurrences) == 6
+
+    # Verify 2026-05-21 drop event details
+    may_event = next(o for o in result.occurrences if o.event_date == "2026-05-21")
+    assert may_event.prev_close_price == 69.10
+    assert may_event.open_price == 69.10
+    assert may_event.close_price == 62.20
+    assert may_event.price_change_pct == -9.99
+
+    # Check forward returns for 2026-05-21
+    # T+1: 62.20 -> 63.60 (+2.25% daily)
+    t1 = may_event.forward_returns[0]
+    assert t1.prev_close_price == 62.20
+    assert t1.close_price == 63.60
+    assert t1.daily_return_pct == 2.25
+
+    # T+2: 63.60 -> 65.40 (+2.83% independent daily return relative to T+1!)
+    t2 = may_event.forward_returns[1]
+    assert t2.prev_close_price == 63.60
+    assert t2.close_price == 65.40
+    assert t2.daily_return_pct == 2.83
+    assert t2.cumulative_return_pct == 5.14
+

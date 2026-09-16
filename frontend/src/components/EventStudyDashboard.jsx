@@ -10,10 +10,11 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   Target,
   Clock,
   ArrowRight,
+  Layers,
+  Repeat,
 } from 'lucide-react';
 
 function formatTL(num) {
@@ -28,83 +29,137 @@ function formatTL(num) {
   }
 }
 
+function formatPrice(num) {
+  if (num === null || num === undefined || isNaN(num)) return '—';
+  return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺';
+}
+
 export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
   // Filter state
-  const [selectedSymbol, setSelectedSymbol] = useState('THYAO');
+  const [selectedSymbol, setSelectedSymbol] = useState('AKBNK');
   const [conditionType, setConditionType] = useState('DAILY_RETURN');
-  const [minValue, setMinValue] = useState('3.0');
-  const [maxValue, setMaxValue] = useState('');
+  const [directionMode, setDirectionMode] = useState('DOWN'); // 'DOWN', 'UP', 'RANGE'
+  const [singleValue, setSingleValue] = useState('-9.0'); // e.g. -9.0 for 9% drop
+  const [minValue, setMinValue] = useState('-10.0');
+  const [maxValue, setMaxValue] = useState('-8.0');
   const [forwardDays, setForwardDays] = useState(5);
   const [startDate, setStartDate] = useState('2022-01-01');
   const [endDate, setEndDate] = useState('2026-09-14');
   const [limit, setLimit] = useState(100);
+
+  // Return calculation mode: 'DAILY' (independent daily returns) vs 'CUMULATIVE' (from T close)
+  const [returnMetricMode, setReturnMetricMode] = useState('DAILY');
 
   // Data state
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Table search & sort
+  // Table search & hover
   const [tableSearch, setTableSearch] = useState('');
   const [hoveredDay, setHoveredDay] = useState(null);
 
-  // Condition type label & placeholder helpers
+  // Synchronize threshold inputs when directionMode or conditionType changes
+  const handleDirectionChange = (mode) => {
+    setDirectionMode(mode);
+    if (conditionType === 'DAILY_RETURN') {
+      if (mode === 'DOWN') {
+        setSingleValue('-9.0');
+      } else if (mode === 'UP') {
+        setSingleValue('3.0');
+      } else {
+        setMinValue('-10.0');
+        setMaxValue('-8.0');
+      }
+    } else if (conditionType === 'BOFA_NET_FLOW') {
+      if (mode === 'DOWN') {
+        setSingleValue('-100000000');
+      } else if (mode === 'UP') {
+        setSingleValue('100000000');
+      } else {
+        setMinValue('50000000');
+        setMaxValue('200000000');
+      }
+    }
+  };
+
+  // Condition type label & preset helpers
   const conditionMeta = useMemo(() => {
     switch (conditionType) {
       case 'DAILY_RETURN':
         return {
           label: 'Günlük Getiri (%)',
           unit: '%',
-          placeholderMin: 'Örn: 3.0',
-          placeholderMax: 'Örn: 10.0',
-          presets: [
-            { label: '+3.0% ve Üzeri', min: '3.0', max: '' },
-            { label: '+5.0% ve Üzeri (Ralli)', min: '5.0', max: '' },
-            { label: '-3.0% ve Altı (Düşüş)', min: '', max: '-3.0' },
-            { label: '-5.0% ve Altı (Panik)', min: '', max: '-5.0' },
-            { label: '+2.0% ile +4.0% Arası', min: '2.0', max: '4.0' },
-          ],
+          placeholderSingle: directionMode === 'DOWN' ? 'Örn: -9.0 veya 9.0' : 'Örn: 3.0',
+          presets:
+            directionMode === 'DOWN'
+              ? [
+                  { label: '-3.0% ve Altı (Düşüş)', val: '-3.0' },
+                  { label: '-5.0% ve Altı (Sert Düşüş)', val: '-5.0' },
+                  { label: '-7.0% ve Altı (Derin Düşüş)', val: '-7.0' },
+                  { label: '-9.0% ve Altı (Taban / Tabana Yakın)', val: '-9.0' },
+                ]
+              : directionMode === 'UP'
+              ? [
+                  { label: '+3.0% ve Üzeri', val: '3.0' },
+                  { label: '+5.0% ve Üzeri (Ralli)', val: '5.0' },
+                  { label: '+7.0% ve Üzeri (Güçlü Alış)', val: '7.0' },
+                  { label: '+9.0% ve Üzeri (Tavan)', val: '9.0' },
+                ]
+              : [
+                  { label: '-10% ile -8% Arası', min: '-10.0', max: '-8.0' },
+                  { label: '+2% ile +4% Arası', min: '2.0', max: '4.0' },
+                  { label: '+4% ile +7% Arası', min: '4.0', max: '7.0' },
+                ],
         };
       case 'BOFA_NET_FLOW':
         return {
           label: 'BofA (MLB) Net Akışı (TL)',
           unit: '₺',
-          placeholderMin: 'Örn: 100000000',
-          placeholderMax: 'İsteğe bağlı',
-          presets: [
-            { label: 'BofA +100M ₺ Üzeri', min: '100000000', max: '' },
-            { label: 'BofA +250M ₺ Üzeri', min: '250000000', max: '' },
-            { label: 'BofA -100M ₺ Altı', min: '', max: '-100000000' },
-            { label: 'BofA -250M ₺ Altı', min: '', max: '-250000000' },
-          ],
+          placeholderSingle: directionMode === 'DOWN' ? 'Örn: -100000000' : 'Örn: 100000000',
+          presets:
+            directionMode === 'DOWN'
+              ? [
+                  { label: 'BofA -50M ₺ Altı Satış', val: '-50000000' },
+                  { label: 'BofA -100M ₺ Altı Güçlü Çıkış', val: '-100000000' },
+                  { label: 'BofA -250M ₺ Altı Agresif Çıkış', val: '-250000000' },
+                ]
+              : directionMode === 'UP'
+              ? [
+                  { label: 'BofA +50M ₺ Üzeri Giriş', val: '50000000' },
+                  { label: 'BofA +100M ₺ Üzeri Güçlü Giriş', val: '100000000' },
+                  { label: 'BofA +250M ₺ Üzeri Agresif Alış', val: '250000000' },
+                ]
+              : [
+                  { label: '50M ile 150M ₺ Arası', min: '50000000', max: '150000000' },
+                  { label: '150M ile 300M ₺ Arası', min: '150000000', max: '300000000' },
+                ],
         };
       case 'PRICE_RANGE':
         return {
           label: 'Gün İçi Dalgalanma Marjı (%)',
           unit: '%',
-          placeholderMin: 'Örn: 4.0',
-          placeholderMax: 'İsteğe bağlı',
+          placeholderSingle: 'Örn: 4.0',
           presets: [
-            { label: '%4.0 ve Üzeri Dalgalanma', min: '4.0', max: '' },
-            { label: '%6.0 ve Üzeri Dalgalanma', min: '6.0', max: '' },
-            { label: '%8.0 ve Üzeri Aşırı Oynaklık', min: '8.0', max: '' },
+            { label: '%4.0 ve Üzeri Dalgalanma', val: '4.0' },
+            { label: '%6.0 ve Üzeri Dalgalanma', val: '6.0' },
+            { label: '%8.0 ve Üzeri Aşırı Oynaklık', val: '8.0' },
           ],
         };
       case 'VOLUME_SURGE':
         return {
           label: 'Toplam İşlem Hacmi (TL)',
           unit: '₺',
-          placeholderMin: 'Örn: 5000000000',
-          placeholderMax: 'İsteğe bağlı',
+          placeholderSingle: 'Örn: 5000000000',
           presets: [
-            { label: '5 Milyar ₺ Üzeri Hacim', min: '5000000000', max: '' },
-            { label: '10 Milyar ₺ Üzeri Dev Hacim', min: '10000000000', max: '' },
+            { label: '5 Milyar ₺ Üzeri Hacim', val: '5000000000' },
+            { label: '10 Milyar ₺ Üzeri Dev Hacim', val: '10000000000' },
           ],
         };
       default:
         return { label: 'Koşul', unit: '', presets: [] };
     }
-  }, [conditionType]);
+  }, [conditionType, directionMode]);
 
   // Load Event Study data from GraphQL
   const loadEventStudy = useCallback(async () => {
@@ -112,8 +167,28 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
     setLoading(true);
     setError(null);
 
-    const minValNum = minValue !== '' ? parseFloat(minValue) : null;
-    const maxValNum = maxValue !== '' ? parseFloat(maxValue) : null;
+    let finalMin = null;
+    let finalMax = null;
+    let finalDir = directionMode;
+
+    if (directionMode === 'DOWN') {
+      const num = parseFloat(singleValue);
+      if (!isNaN(num)) {
+        // Automatically ensure negative threshold for drop
+        finalMin = -Math.abs(num);
+        finalMax = null;
+      }
+    } else if (directionMode === 'UP') {
+      const num = parseFloat(singleValue);
+      if (!isNaN(num)) {
+        finalMin = Math.abs(num);
+        finalMax = null;
+      }
+    } else {
+      finalMin = minValue !== '' && !isNaN(parseFloat(minValue)) ? parseFloat(minValue) : null;
+      finalMax = maxValue !== '' && !isNaN(parseFloat(maxValue)) ? parseFloat(maxValue) : null;
+      finalDir = null;
+    }
 
     try {
       const query = `
@@ -122,6 +197,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           $conditionType: String!
           $minValue: Float
           $maxValue: Float
+          $direction: String
           $forwardDays: Int!
           $startDate: String
           $endDate: String
@@ -132,6 +208,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             conditionType: $conditionType
             minValue: $minValue
             maxValue: $maxValue
+            direction: $direction
             forwardDays: $forwardDays
             startDate: $startDate
             endDate: $endDate
@@ -141,6 +218,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             conditionType
             minValue
             maxValue
+            direction
             forwardDays
             totalOccurrences
             horizonStats {
@@ -150,19 +228,28 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               medianReturnPct
               maxGainPct
               maxLossPct
+              cumulAvgReturnPct
+              cumulWinRatePct
               sampleCount
             }
             occurrences {
               eventDate
+              prevClosePrice
+              openPrice
               closePrice
+              priceChangeTl
+              priceChangePct
               movementValue
               bofaNetFlowTl
               totalTurnoverTl
               forwardReturns {
                 dayOffset
                 date
+                prevClosePrice
                 closePrice
                 returnPct
+                dailyReturnPct
+                cumulativeReturnPct
               }
             }
           }
@@ -172,8 +259,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
       const result = await fetchGraphQL(query, {
         symbol: selectedSymbol,
         conditionType,
-        minValue: minValNum,
-        maxValue: maxValNum,
+        minValue: finalMin,
+        maxValue: finalMax,
+        direction: finalDir,
         forwardDays: parseInt(forwardDays, 10),
         startDate: startDate || null,
         endDate: endDate || null,
@@ -187,14 +275,26 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedSymbol, conditionType, minValue, maxValue, forwardDays, startDate, endDate, limit, fetchGraphQL]);
+  }, [
+    selectedSymbol,
+    conditionType,
+    directionMode,
+    singleValue,
+    minValue,
+    maxValue,
+    forwardDays,
+    startDate,
+    endDate,
+    limit,
+    fetchGraphQL,
+  ]);
 
-  // Initial fetch on mount & symbol change
+  // Initial fetch on mount & whenever symbol/threshold changes
   useEffect(() => {
     loadEventStudy();
   }, [loadEventStudy]);
 
-  // Target horizon stat (at Day N)
+  // Target horizon stat (at Day N) based on selected return metric mode
   const targetStat = useMemo(() => {
     if (!data || !data.horizonStats || data.horizonStats.length === 0) return null;
     return data.horizonStats[data.horizonStats.length - 1];
@@ -214,31 +314,21 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
 
     const stats = data.horizonStats;
     const n = stats.length;
+    const isDailyMode = returnMetricMode === 'DAILY';
 
-    // Collect all returns to determine min/max Y
+    // Collect values based on active metric mode
     let minY = 0;
     let maxY = 0;
 
     stats.forEach((s) => {
-      if (s.avgReturnPct < minY) minY = s.avgReturnPct;
-      if (s.avgReturnPct > maxY) maxY = s.avgReturnPct;
+      const val = isDailyMode ? s.avgReturnPct : (s.cumulAvgReturnPct || s.avgReturnPct);
+      if (val < minY) minY = val;
+      if (val > maxY) maxY = val;
       if (s.maxGainPct > maxY) maxY = s.maxGainPct;
       if (s.maxLossPct < minY) minY = s.maxLossPct;
     });
 
-    // Also factor sample trajectories
-    const sampleOccs = (data.occurrences || []).slice(0, 30);
-    sampleOccs.forEach((o) => {
-      o.forwardReturns.forEach((fr) => {
-        if (fr.returnPct !== null && fr.returnPct !== undefined) {
-          if (fr.returnPct < minY) minY = fr.returnPct;
-          if (fr.returnPct > maxY) maxY = fr.returnPct;
-        }
-      });
-    });
-
-    // Add 10% breathing room padding
-    const padding = Math.max(Math.abs(minY), Math.abs(maxY)) * 0.15 || 2.0;
+    const padding = Math.max(Math.abs(minY), Math.abs(maxY)) * 0.2 || 2.0;
     const domainMin = Math.min(-1.0, minY - padding);
     const domainMax = Math.max(1.0, maxY + padding);
     const domainSpan = domainMax - domainMin;
@@ -253,37 +343,43 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
     const scaleY = (val) => margin.top + innerHeight - ((val - domainMin) / domainSpan) * innerHeight;
     const zeroY = scaleY(0);
 
-    // Average trajectory points: start at T+0 (0.00%)
+    // Build trajectory points
     const avgPoints = [{ day: 0, val: 0.0, x: scaleX(0), y: scaleY(0) }];
     stats.forEach((s) => {
+      const activeVal = isDailyMode ? s.avgReturnPct : (s.cumulAvgReturnPct || s.avgReturnPct);
+      const activeWin = isDailyMode ? s.winRatePct : (s.cumulWinRatePct || s.winRatePct);
       avgPoints.push({
         day: s.dayOffset,
-        val: s.avgReturnPct,
-        winRate: s.winRatePct,
+        val: activeVal,
+        dailyVal: s.avgReturnPct,
+        cumulVal: s.cumulAvgReturnPct,
+        winRate: activeWin,
         median: s.medianReturnPct,
         sampleCount: s.sampleCount,
         maxGain: s.maxGainPct,
         maxLoss: s.maxLossPct,
         x: scaleX(s.dayOffset),
-        y: scaleY(s.avgReturnPct),
+        y: scaleY(activeVal),
       });
     });
 
-    // Build SVG path
-    const avgPathD = avgPoints.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const avgPathD = avgPoints
+      .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .join(' ');
 
     // Sample individual paths
+    const sampleOccs = (data.occurrences || []).slice(0, 30);
     const samplePaths = sampleOccs.map((o) => {
       const pts = [{ x: scaleX(0), y: scaleY(0) }];
       o.forwardReturns.forEach((fr) => {
-        if (fr.returnPct !== null && fr.returnPct !== undefined) {
-          pts.push({ x: scaleX(fr.dayOffset), y: scaleY(fr.returnPct) });
+        const retVal = isDailyMode ? fr.dailyReturnPct : fr.cumulativeReturnPct;
+        if (retVal !== null && retVal !== undefined) {
+          pts.push({ x: scaleX(fr.dayOffset), y: scaleY(retVal) });
         }
       });
       return {
         date: o.eventDate,
         pathD: pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '),
-        finalReturn: pts.length > 1 ? pts[pts.length - 1] : 0,
       };
     });
 
@@ -301,7 +397,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
       samplePaths,
       stats,
     };
-  }, [data]);
+  }, [data, returnMetricMode]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -326,8 +422,8 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             </h2>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
-            BIST hisselerinde belirli bir fiyat veya kurumsal hacim hareketi gerçekleştikten sonraki{' '}
-            <strong style={{ color: '#fff' }}>T+1 ... T+{forwardDays}</strong> gün boyunca oluşan ileri getirilerin tarihsel dağılımı.
+            BIST hisselerinde belirli bir fiyat değişimi veya kurumsal akış gerçekleştiğinde, sonraki seanslarda hissenin{' '}
+            <strong style={{ color: '#fff' }}>kaçtan kaça gittiği ve bir önceki günün kapanışına göre bağımsız günlük getirileri</strong>.
           </p>
         </div>
 
@@ -367,7 +463,132 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           gap: '16px',
         }}
       >
-        {/* Row 1: Symbol, Condition Type, Thresholds, Horizon */}
+        {/* Direction Mode Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+              HAREKET YÖNÜ:
+            </span>
+            <div style={{ display: 'inline-flex', backgroundColor: 'var(--bg-surface)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <button
+                type="button"
+                onClick={() => handleDirectionChange('DOWN')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: directionMode === 'DOWN' ? 'var(--bear-red-bg)' : 'transparent',
+                  color: directionMode === 'DOWN' ? 'var(--bear-red)' : 'var(--text-secondary)',
+                  border: directionMode === 'DOWN' ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <TrendingDown size={16} />
+                <span>Düşüş (≤ Eşik)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDirectionChange('UP')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: directionMode === 'UP' ? 'var(--bull-green-bg)' : 'transparent',
+                  color: directionMode === 'UP' ? 'var(--bull-green)' : 'var(--text-secondary)',
+                  border: directionMode === 'UP' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <TrendingUp size={16} />
+                <span>Yükseliş (≥ Eşik)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDirectionChange('RANGE')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: directionMode === 'RANGE' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  color: directionMode === 'RANGE' ? 'var(--brand-blue)' : 'var(--text-secondary)',
+                  border: directionMode === 'RANGE' ? '1px solid var(--brand-blue)' : '1px solid transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <Sliders size={16} />
+                <span>Aralık [Min, Max]</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Metric Calculation Mode Selector: Independent Daily vs Cumulative */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+              GETİRİ HESABI:
+            </span>
+            <div style={{ display: 'inline-flex', backgroundColor: 'var(--bg-surface)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <button
+                type="button"
+                onClick={() => setReturnMetricMode('DAILY')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: returnMetricMode === 'DAILY' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  color: returnMetricMode === 'DAILY' ? '#fff' : 'var(--text-secondary)',
+                  border: returnMetricMode === 'DAILY' ? '1px solid var(--brand-blue)' : '1px solid transparent',
+                  cursor: 'pointer',
+                }}
+                title="Her günün getirisi, ondan bir önceki günün kapanışına göre bağımsız olarak hesaplanır."
+              >
+                <Repeat size={14} style={{ color: 'var(--brand-blue)' }} />
+                <span>Günlük Bağımsız Getiri (T-1'e Göre)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReturnMetricMode('CUMULATIVE')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: returnMetricMode === 'CUMULATIVE' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                  color: returnMetricMode === 'CUMULATIVE' ? '#fff' : 'var(--text-secondary)',
+                  border: returnMetricMode === 'CUMULATIVE' ? '1px solid var(--accent-purple)' : '1px solid transparent',
+                  cursor: 'pointer',
+                }}
+                title="Her günün getirisi, olay günü T kapanışına göre kümülatif olarak hesaplanır."
+              >
+                <Layers size={14} style={{ color: 'var(--accent-purple)' }} />
+                <span>Kümülatif Getiri (T Kapanışına Göre)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 1: Symbol, Condition Type, Threshold Input, Horizon Slider */}
         <div
           style={{
             display: 'grid',
@@ -406,25 +627,16 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           {/* Condition Type Selector */}
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
-              HAREKET / KOŞUL TÜRÜ
+              KOŞUL TÜRÜ
             </label>
             <select
               value={conditionType}
               onChange={(e) => {
                 setConditionType(e.target.value);
-                // Reset defaults according to type
                 if (e.target.value === 'DAILY_RETURN') {
-                  setMinValue('3.0');
-                  setMaxValue('');
+                  setSingleValue(directionMode === 'DOWN' ? '-9.0' : '3.0');
                 } else if (e.target.value === 'BOFA_NET_FLOW') {
-                  setMinValue('100000000');
-                  setMaxValue('');
-                } else if (e.target.value === 'PRICE_RANGE') {
-                  setMinValue('4.0');
-                  setMaxValue('');
-                } else {
-                  setMinValue('5000000000');
-                  setMaxValue('');
+                  setSingleValue(directionMode === 'DOWN' ? '-100000000' : '100000000');
                 }
               }}
               style={{
@@ -445,51 +657,77 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             </select>
           </div>
 
-          {/* Min Value Input */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
-              MİNİMUM EŞİK {conditionMeta.unit && `(${conditionMeta.unit})`}
-            </label>
-            <input
-              type="text"
-              value={minValue}
-              onChange={(e) => setMinValue(e.target.value)}
-              placeholder={conditionMeta.placeholderMin}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: 'var(--bg-surface)',
-                color: '#fff',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '0.9rem',
-                fontFamily: 'var(--font-mono)',
-              }}
-            />
-          </div>
+          {/* Single Threshold or Range Inputs */}
+          {directionMode !== 'RANGE' ? (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
+                {directionMode === 'DOWN' ? 'DÜŞÜŞ EŞİĞİ (≤)' : 'YÜKSELİŞ EŞİĞİ (≥)'} {conditionMeta.unit && `(${conditionMeta.unit})`}
+              </label>
+              <input
+                type="text"
+                value={singleValue}
+                onChange={(e) => setSingleValue(e.target.value)}
+                placeholder={conditionMeta.placeholderSingle}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: directionMode === 'DOWN' ? 'var(--bear-red)' : 'var(--bull-green)',
+                  border: `1px solid ${directionMode === 'DOWN' ? 'rgba(244, 63, 94, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
+                  fontSize: '0.95rem',
+                  fontWeight: '700',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              />
+            </div>
+          ) : (
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
+                  MİNİMUM EŞİK {conditionMeta.unit && `(${conditionMeta.unit})`}
+                </label>
+                <input
+                  type="text"
+                  value={minValue}
+                  onChange={(e) => setMinValue(e.target.value)}
+                  placeholder="Örn: -10.0"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-surface)',
+                    color: '#fff',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                />
+              </div>
 
-          {/* Max Value Input (Optional) */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
-              MAKSİMUM EŞİK (İsteğe Bağlı)
-            </label>
-            <input
-              type="text"
-              value={maxValue}
-              onChange={(e) => setMaxValue(e.target.value)}
-              placeholder={conditionMeta.placeholderMax}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: 'var(--bg-surface)',
-                color: '#fff',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '0.9rem',
-                fontFamily: 'var(--font-mono)',
-              }}
-            />
-          </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>
+                  MAKSİMUM EŞİK {conditionMeta.unit && `(${conditionMeta.unit})`}
+                </label>
+                <input
+                  type="text"
+                  value={maxValue}
+                  onChange={(e) => setMaxValue(e.target.value)}
+                  placeholder="Örn: -8.0"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-surface)',
+                    color: '#fff',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                />
+              </div>
+            </>
+          )}
 
           {/* Forward Days Horizon Slider */}
           <div>
@@ -527,15 +765,19 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           {/* Presets */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-              Hazır Filtreler:
+              Hazır Şablonlar:
             </span>
             {conditionMeta.presets.map((p, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => {
-                  setMinValue(p.min);
-                  setMaxValue(p.max);
+                  if (p.val !== undefined) {
+                    setSingleValue(p.val);
+                  } else {
+                    setMinValue(p.min);
+                    setMaxValue(p.max);
+                  }
                 }}
                 style={{
                   padding: '5px 10px',
@@ -637,7 +879,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               </span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              2022 - 2026 tarih aralığında
+              {selectedSymbol} için 2022 - 2026 aralığında
             </div>
           </div>
 
@@ -645,9 +887,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           <div className="glass-card" style={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', marginBottom: '8px' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                T+{forwardDays} Kazanma Oranı
+                T+{forwardDays} Kazanma Oranı ({returnMetricMode === 'DAILY' ? 'Günlük' : 'Kümülatif'})
               </span>
-              {targetStat && targetStat.winRatePct >= 50 ? (
+              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct || targetStat.winRatePct)) >= 50 ? (
                 <CheckCircle2 size={18} style={{ color: 'var(--bull-green)' }} />
               ) : (
                 <XCircle size={18} style={{ color: 'var(--bear-red)' }} />
@@ -658,13 +900,16 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               style={{
                 fontSize: '1.6rem',
                 fontWeight: '700',
-                color: targetStat && targetStat.winRatePct >= 50 ? 'var(--bull-green)' : 'var(--bear-red)',
+                color:
+                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct || targetStat.winRatePct)) >= 50
+                    ? 'var(--bull-green)'
+                    : 'var(--bear-red)',
               }}
             >
-              %{targetStat ? targetStat.winRatePct.toFixed(1) : '—'}
+              %{targetStat ? (returnMetricMode === 'DAILY' ? targetStat.winRatePct.toFixed(1) : (targetStat.cumulWinRatePct || targetStat.winRatePct).toFixed(1)) : '—'}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              {targetStat ? `${targetStat.sampleCount} örnekten pozitif kapananlar` : '—'}
+              {targetStat ? `${targetStat.sampleCount} örnekten artı kapananlar` : '—'}
             </div>
           </div>
 
@@ -672,9 +917,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           <div className="glass-card" style={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', marginBottom: '8px' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                T+{forwardDays} Ortalama Getiri
+                T+{forwardDays} Ortalama Getiri ({returnMetricMode === 'DAILY' ? 'Bağımsız Günlük' : 'Kümülatif'})
               </span>
-              {targetStat && targetStat.avgReturnPct >= 0 ? (
+              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct)) >= 0 ? (
                 <TrendingUp size={18} style={{ color: 'var(--bull-green)' }} />
               ) : (
                 <TrendingDown size={18} style={{ color: 'var(--bear-red)' }} />
@@ -685,13 +930,21 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               style={{
                 fontSize: '1.6rem',
                 fontWeight: '700',
-                color: targetStat && targetStat.avgReturnPct >= 0 ? 'var(--bull-green)' : 'var(--bear-red)',
+                color:
+                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct)) >= 0
+                    ? 'var(--bull-green)'
+                    : 'var(--bear-red)',
               }}
             >
-              {targetStat ? (targetStat.avgReturnPct >= 0 ? '+' : '') + targetStat.avgReturnPct.toFixed(2) + '%' : '—'}
+              {targetStat
+                ? (() => {
+                    const v = returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct);
+                    return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+                  })()
+                : '—'}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Kümülatif ortalama getiri
+              {returnMetricMode === 'DAILY' ? 'T+(N-1) kapanışına göre o gün' : 'T kapanışına göre toplam'}
             </div>
           </div>
 
@@ -714,7 +967,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               {targetStat ? (targetStat.medianReturnPct >= 0 ? '+' : '') + targetStat.medianReturnPct.toFixed(2) + '%' : '—'}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Aykırı değerlerden arındırılmış
+              Aykırı hareketlerden arındırılmış
             </div>
           </div>
 
@@ -722,7 +975,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
           <div className="glass-card" style={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', marginBottom: '8px' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                En İyi / En Kötü Senaryo
+                Uç Değerler (Maks / Min)
               </span>
               <Clock size={18} style={{ color: 'var(--text-muted)' }} />
             </div>
@@ -736,7 +989,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               </span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Uç getiri / maksimum kayıp bandı
+              En yüksek getiri / en derin kayıp
             </div>
           </div>
         </div>
@@ -757,21 +1010,25 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <TrendingUp size={18} style={{ color: 'var(--brand-blue)' }} />
-                İleri Getiri Patikası (Forward Return Trajectory: T+0 &rarr; T+{forwardDays})
+                İleri Getiri Patikası (
+                {returnMetricMode === 'DAILY'
+                  ? 'Günlük Bağımsız Getiri: T-1 Kapanışına Göre'
+                  : 'Kümülatif Getiri: T Kapanışına Göre'}
+                )
               </h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Kalın çizgi kümülatif ortalama getiri patikasını, silik çizgiler geçmiş olayların gerçekleşen patikalarını gösterir.
+                Kalın çizgi ortalama hareketi, silik çizgiler geçmiş olayların gerçekleşen patikalarını gösterir.
               </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.78rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '12px', height: '3px', backgroundColor: 'var(--bull-green)', borderRadius: '2px' }}></span>
-                <span style={{ color: 'var(--text-secondary)' }}>Kümülatif Ortalama</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Ortalama Patika</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '12px', height: '1px', backgroundColor: 'rgba(255,255,255,0.2)' }}></span>
-                <span style={{ color: 'var(--text-muted)' }}>Tarihsel Örnek Olaylar</span>
+                <span style={{ color: 'var(--text-muted)' }}>Tarihsel Seans İzleri</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '12px', height: '1px', borderTop: '1px dashed #6b7280' }}></span>
@@ -787,18 +1044,13 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               style={{ width: '100%', height: 'auto', minWidth: '700px', display: 'block' }}
             >
               <defs>
-                {/* Glow filter */}
                 <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                   <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="rgba(59, 130, 246, 0.4)" />
                 </filter>
-                <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(16, 185, 129, 0.25)" />
-                  <stop offset="100%" stopColor="rgba(16, 185, 129, 0.0)" />
-                </linearGradient>
               </defs>
 
               {/* Horizontal Grid Lines */}
-              {[-10, -5, -2, 0, 2, 5, 10, 15, 20].map((level) => {
+              {[-15, -10, -5, -2, 0, 2, 5, 10, 15, 20].map((level) => {
                 if (level < chartConfig.domainMin || level > chartConfig.domainMax) return null;
                 const y = chartConfig.scaleY(level);
                 const isZero = level === 0;
@@ -916,7 +1168,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             <div
               className="glass-card"
               style={{
-                padding: '10px 16px',
+                padding: '12px 18px',
                 backgroundColor: 'rgba(59, 130, 246, 0.15)',
                 borderColor: 'var(--brand-blue)',
                 display: 'flex',
@@ -932,13 +1184,21 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                   T+{hoveredDay.day} Günü İstatistiği:
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                 <span>
-                  Ortalama Getiri:{' '}
-                  <strong className={hoveredDay.val >= 0 ? 'text-bull' : 'text-bear'}>
-                    {hoveredDay.val >= 0 ? `+${hoveredDay.val.toFixed(2)}%` : `${hoveredDay.val.toFixed(2)}%`}
+                  Günlük Bağımsız Getiri:{' '}
+                  <strong className={hoveredDay.dailyVal >= 0 ? 'text-bull' : 'text-bear'}>
+                    {hoveredDay.dailyVal >= 0 ? `+${hoveredDay.dailyVal.toFixed(2)}%` : `${hoveredDay.dailyVal.toFixed(2)}%`}
                   </strong>
                 </span>
+                {hoveredDay.cumulVal !== undefined && (
+                  <span>
+                    Kümülatif Getiri:{' '}
+                    <strong className={hoveredDay.cumulVal >= 0 ? 'text-bull' : 'text-bear'}>
+                      {hoveredDay.cumulVal >= 0 ? `+${hoveredDay.cumulVal.toFixed(2)}%` : `${hoveredDay.cumulVal.toFixed(2)}%`}
+                    </strong>
+                  </span>
+                )}
                 <span>
                   Kazanma Oranı:{' '}
                   <strong style={{ color: '#fff' }}>%{hoveredDay.winRate.toFixed(1)}</strong>
@@ -980,7 +1240,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               Gün Gün Dağılım Tablosu (T+1 &rarr; T+{forwardDays})
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Hedef güne kadar her seansın kümülatif performans profili
+              {returnMetricMode === 'DAILY'
+                ? 'Her günün bir önceki günün kapanışına göre bağımsız getirisi'
+                : 'Olay günü T kapanışına göre kümülatif getiri'}
             </span>
           </div>
 
@@ -989,17 +1251,19 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                   <th style={{ padding: '10px 12px' }}>VADE</th>
-                  <th style={{ padding: '10px 12px' }}>ORTALAMA GETİRİ</th>
-                  <th style={{ padding: '10px 12px' }}>KAZANMA ORANI (WIN RATE)</th>
+                  <th style={{ padding: '10px 12px' }}>GÜNLÜK BAĞIMSIZ GETİRİ (T-1'E GÖRE)</th>
+                  <th style={{ padding: '10px 12px' }}>KÜMÜLATİF GETİRİ (T'YE GÖRE)</th>
+                  <th style={{ padding: '10px 12px' }}>KAZANMA ORANI (GÜNLÜK)</th>
                   <th style={{ padding: '10px 12px' }}>MEDYAN GETİRİ</th>
                   <th style={{ padding: '10px 12px' }}>EN YÜKSEK KAZANÇ</th>
                   <th style={{ padding: '10px 12px' }}>EN DERİN KAYIP</th>
-                  <th style={{ padding: '10px 12px' }}>ÖRNEK SAYISI</th>
+                  <th style={{ padding: '10px 12px' }}>ÖRNEKLEM</th>
                 </tr>
               </thead>
               <tbody>
                 {data.horizonStats.map((stat) => {
-                  const isPositive = stat.avgReturnPct >= 0;
+                  const isDailyPos = stat.avgReturnPct >= 0;
+                  const isCumulPos = (stat.cumulAvgReturnPct || stat.avgReturnPct) >= 0;
                   return (
                     <tr
                       key={stat.dayOffset}
@@ -1024,15 +1288,22 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px', fontWeight: '700' }} className="num-mono">
-                        <span className={isPositive ? 'text-bull' : 'text-bear'}>
-                          {isPositive ? `+${stat.avgReturnPct.toFixed(2)}%` : `${stat.avgReturnPct.toFixed(2)}%`}
+                        <span className={isDailyPos ? 'text-bull' : 'text-bear'}>
+                          {isDailyPos ? `+${stat.avgReturnPct.toFixed(2)}%` : `${stat.avgReturnPct.toFixed(2)}%`}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', fontWeight: '600' }} className="num-mono">
+                        <span className={isCumulPos ? 'text-bull' : 'text-bear'}>
+                          {stat.cumulAvgReturnPct !== null && stat.cumulAvgReturnPct !== undefined
+                            ? `${isCumulPos ? '+' : ''}${stat.cumulAvgReturnPct.toFixed(2)}%`
+                            : '—'}
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div
                             style={{
-                              width: '80px',
+                              width: '70px',
                               height: '6px',
                               backgroundColor: 'rgba(255, 255, 255, 0.1)',
                               borderRadius: '3px',
@@ -1105,10 +1376,10 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar size={18} style={{ color: 'var(--brand-blue)' }} />
-                Tarihsel Olaylar ve Sonraki Getiriler ({filteredOccurrences.length} Kayıt)
+                Tarihsel Olaylar, Fiyat Hareketi ve Sonraki Getiriler ({filteredOccurrences.length} Kayıt)
               </h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Koşulu sağlayan her bir tarih için kapanış fiyatı ve T+1...T+{forwardDays} gün getiri oranları
+                Her seans için: Önceki Kapanış, Açılış, Kapanış, Kaçtan Kaça Gittiği ve T+1...T+{forwardDays} gün getirileri
               </p>
             </div>
 
@@ -1142,17 +1413,19 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto', maxHeight: '500px' }}>
+          <div style={{ overflowX: 'auto', maxHeight: '550px' }}>
             <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--bg-surface)', zIndex: 2 }}>
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                   <th style={{ padding: '10px 12px' }}>OLAY TARİHİ (T)</th>
-                  <th style={{ padding: '10px 12px' }}>KAPANIŞ (₺)</th>
-                  <th style={{ padding: '10px 12px' }}>HAREKET DEĞERİ</th>
-                  <th style={{ padding: '10px 12px' }}>BOFA NET AKIŞ (T)</th>
+                  <th style={{ padding: '10px 12px' }}>T-1 KAPANIŞ (₺)</th>
+                  <th style={{ padding: '10px 12px' }}>T AÇILIŞ (₺)</th>
+                  <th style={{ padding: '10px 12px' }}>T KAPANIŞ (₺)</th>
+                  <th style={{ padding: '10px 12px' }}>FİYAT HAREKETİ (T)</th>
+                  <th style={{ padding: '10px 12px' }}>BOFA NET AKIŞ</th>
                   {Array.from({ length: forwardDays }, (_, i) => (
                     <th key={i + 1} style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      T+{i + 1} GETİRİ
+                      T+{i + 1} ({returnMetricMode === 'DAILY' ? 'GÜNLÜK' : 'KÜMÜLATİF'})
                     </th>
                   ))}
                 </tr>
@@ -1160,88 +1433,130 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               <tbody>
                 {filteredOccurrences.length === 0 ? (
                   <tr>
-                    <td colSpan={4 + forwardDays} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={6 + forwardDays} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       Belirtilen filtre kriterlerine uygun tarihsel olay bulunamadı.
                     </td>
                   </tr>
                 ) : (
-                  filteredOccurrences.map((occ) => (
-                    <tr
-                      key={occ.eventDate}
-                      style={{
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                        fontSize: '0.82rem',
-                        transition: 'background 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td style={{ padding: '9px 12px', fontWeight: '600' }} className="num-mono">
-                        {occ.eventDate}
-                      </td>
-                      <td style={{ padding: '9px 12px' }} className="num-mono">
-                        {occ.closePrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
-                      </td>
-                      <td style={{ padding: '9px 12px', fontWeight: '600' }} className="num-mono">
-                        {conditionType === 'DAILY_RETURN' ? (
-                          <span className={occ.movementValue >= 0 ? 'text-bull' : 'text-bear'}>
-                            {occ.movementValue >= 0 ? `+${occ.movementValue.toFixed(2)}%` : `${occ.movementValue.toFixed(2)}%`}
-                          </span>
-                        ) : conditionType === 'BOFA_NET_FLOW' ? (
-                          <span className={occ.movementValue >= 0 ? 'text-bull' : 'text-bear'}>
-                            {formatTL(occ.movementValue)}
-                          </span>
-                        ) : (
-                          <span>{occ.movementValue.toFixed(2)}%</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '9px 12px' }} className="num-mono">
-                        <span className={occ.bofaNetFlowTl >= 0 ? 'text-bull' : 'text-bear'}>
-                          {formatTL(occ.bofaNetFlowTl)}
-                        </span>
-                      </td>
+                  filteredOccurrences.map((occ) => {
+                    const isMovePos = (occ.priceChangePct || 0) >= 0;
+                    return (
+                      <tr
+                        key={occ.eventDate}
+                        style={{
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                          fontSize: '0.82rem',
+                          transition: 'background 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        {/* Event Date */}
+                        <td style={{ padding: '9px 12px', fontWeight: '600' }} className="num-mono">
+                          {occ.eventDate}
+                        </td>
 
-                      {/* Day 1 to Day N return columns */}
-                      {occ.forwardReturns.map((fr) => {
-                        const hasRet = fr.returnPct !== null && fr.returnPct !== undefined;
-                        const isPos = hasRet && fr.returnPct > 0;
-                        const isNeg = hasRet && fr.returnPct < 0;
-                        return (
-                          <td key={fr.dayOffset} style={{ padding: '9px 12px', textAlign: 'center' }} className="num-mono">
-                            {hasRet ? (
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  padding: '2px 8px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  fontWeight: '600',
-                                  fontSize: '0.78rem',
-                                  backgroundColor: isPos
-                                    ? 'var(--bull-green-bg)'
-                                    : isNeg
-                                    ? 'var(--bear-red-bg)'
-                                    : 'rgba(255, 255, 255, 0.05)',
-                                  color: isPos ? 'var(--bull-green)' : isNeg ? 'var(--bear-red)' : 'var(--text-muted)',
-                                  border: `1px solid ${
-                                    isPos
-                                      ? 'rgba(16, 185, 129, 0.25)'
-                                      : isNeg
-                                      ? 'rgba(244, 63, 94, 0.25)'
-                                      : 'rgba(255, 255, 255, 0.08)'
-                                  }`,
-                                }}
-                                title={fr.date ? `${fr.date}: ${fr.closePrice ? fr.closePrice.toFixed(2) + ' ₺' : ''}` : ''}
-                              >
-                                {isPos ? `+${fr.returnPct.toFixed(2)}%` : `${fr.returnPct.toFixed(2)}%`}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
+                        {/* T-1 Previous Close */}
+                        <td style={{ padding: '9px 12px', color: 'var(--text-secondary)' }} className="num-mono">
+                          {formatPrice(occ.prevClosePrice)}
+                        </td>
+
+                        {/* T Open */}
+                        <td style={{ padding: '9px 12px', color: 'var(--text-secondary)' }} className="num-mono">
+                          {formatPrice(occ.openPrice)}
+                        </td>
+
+                        {/* T Close */}
+                        <td style={{ padding: '9px 12px', fontWeight: '700', color: '#fff' }} className="num-mono">
+                          {formatPrice(occ.closePrice)}
+                        </td>
+
+                        {/* Price Journey: e.g. 69.10 ➔ 62.20 ₺ [-9.99%] */}
+                        <td style={{ padding: '9px 12px' }} className="num-mono">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                              {occ.prevClosePrice ? `${occ.prevClosePrice.toFixed(2)} ➔` : ''}{' '}
+                              <strong style={{ color: '#fff' }}>{occ.closePrice.toFixed(2)} ₺</strong>
+                            </span>
+                            <span
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: 'var(--radius-sm)',
+                                fontWeight: '700',
+                                fontSize: '0.75rem',
+                                backgroundColor: isMovePos ? 'var(--bull-green-bg)' : 'var(--bear-red-bg)',
+                                color: isMovePos ? 'var(--bull-green)' : 'var(--bear-red)',
+                                border: `1px solid ${isMovePos ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                              }}
+                            >
+                              {occ.priceChangePct !== null && occ.priceChangePct !== undefined
+                                ? `${isMovePos ? '+' : ''}${occ.priceChangePct.toFixed(2)}%`
+                                : `${occ.movementValue.toFixed(2)}%`}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* BofA Net Flow */}
+                        <td style={{ padding: '9px 12px' }} className="num-mono">
+                          <span className={occ.bofaNetFlowTl >= 0 ? 'text-bull' : 'text-bear'}>
+                            {formatTL(occ.bofaNetFlowTl)}
+                          </span>
+                        </td>
+
+                        {/* Day 1 to Day N return columns */}
+                        {occ.forwardReturns.map((fr) => {
+                          const activeRet = returnMetricMode === 'DAILY' ? fr.dailyReturnPct : fr.cumulativeReturnPct;
+                          const hasRet = activeRet !== null && activeRet !== undefined;
+                          const isPos = hasRet && activeRet > 0;
+                          const isNeg = hasRet && activeRet < 0;
+
+                          return (
+                            <td key={fr.dayOffset} style={{ padding: '9px 12px', textAlign: 'center' }} className="num-mono">
+                              {hasRet ? (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '2px 8px',
+                                      borderRadius: 'var(--radius-sm)',
+                                      fontWeight: '600',
+                                      fontSize: '0.78rem',
+                                      backgroundColor: isPos
+                                        ? 'var(--bull-green-bg)'
+                                        : isNeg
+                                        ? 'var(--bear-red-bg)'
+                                        : 'rgba(255, 255, 255, 0.05)',
+                                      color: isPos ? 'var(--bull-green)' : isNeg ? 'var(--bear-red)' : 'var(--text-muted)',
+                                      border: `1px solid ${
+                                        isPos
+                                          ? 'rgba(16, 185, 129, 0.25)'
+                                          : isNeg
+                                          ? 'rgba(244, 63, 94, 0.25)'
+                                          : 'rgba(255, 255, 255, 0.08)'
+                                      }`,
+                                    }}
+                                  >
+                                    {isPos ? `+${activeRet.toFixed(2)}%` : `${activeRet.toFixed(2)}%`}
+                                  </span>
+
+                                  {/* Price journey subtext: e.g. 62.20 ➔ 63.60 */}
+                                  {fr.closePrice && fr.prevClosePrice && (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                      {returnMetricMode === 'DAILY'
+                                        ? `${fr.prevClosePrice.toFixed(2)} ➔ ${fr.closePrice.toFixed(2)} ₺`
+                                        : `${occ.closePrice.toFixed(2)} ➔ ${fr.closePrice.toFixed(2)} ₺`}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
