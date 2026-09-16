@@ -51,13 +51,14 @@ class Query:
     ) -> List[CandleWithBroker]:
         return get_candles(symbol=symbol, timeframe=timeframe, date=date, broker_id=broker_id)
 
-    @strawberry.field(description="Macro daily summary of institutional broker execution across all stocks.")
+    @strawberry.field(description="Daily summary of institutional broker execution for a specific stock or all stocks.")
     def broker_summary(
         self,
         date: Optional[str] = None,
         broker_id: str = "MLB",
+        symbol: Optional[str] = None,
     ) -> BrokerSummary:
-        return get_broker_summary(date=date, broker_id=broker_id)
+        return get_broker_summary(date=date, broker_id=broker_id, symbol=symbol)
 
     @strawberry.field(description="Historical daily FIFO ledger rows from 2022 to present.")
     def daily_fifo(

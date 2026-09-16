@@ -269,44 +269,77 @@ def get_candles(
 def get_broker_summary(
     date: Optional[str] = None,
     broker_id: str = "MLB",
+    symbol: Optional[str] = None,
 ) -> BrokerSummary:
-    """Compute aggregate broker day summary across all stocks using audited FIFO ledger."""
+    """Compute broker day summary for a specific stock or aggregate across all stocks."""
     settings = get_settings()
     duckdb_path = str(settings.duckdb_path)
     target_date = date or "2026-09-14"
+    is_macro = (not symbol) or (symbol in ("XU030", "ALL"))
 
     # 1. First attempt: Query silver_broker_fifo_daily for full fidelity PnL
     try:
         conn = duckdb.connect(duckdb_path, read_only=True)
         try:
-            res = conn.execute(
-                """
-                SELECT 
-                    broker_id,
-                    trade_date,
-                    sum(buy_volume) as total_buy_vol,
-                    sum(buy_turnover_tl) as total_buy_tl,
-                    sum(sell_volume) as total_sell_vol,
-                    sum(sell_turnover_tl) as total_sell_tl,
-                    sum(buy_turnover_tl) - sum(sell_turnover_tl) as net_flow,
-                    sum(matched_volume) as matched_vol,
-                    sum(intraday_realized_pnl_tl) as intra_pnl,
-                    sum(carry_fifo_realized_pnl_tl) as carry_pnl,
-                    sum(daily_realized_pnl_tl) as daily_pnl
-                FROM silver_broker_fifo_daily
-                WHERE broker_id = ? AND trade_date = ?
-                GROUP BY broker_id, trade_date;
-            """,
-                [broker_id, target_date],
-            ).fetchone()
+            if is_macro:
+                res = conn.execute(
+                    """
+                    SELECT 
+                        broker_id,
+                        trade_date,
+                        sum(buy_volume) as total_buy_vol,
+                        sum(buy_turnover_tl) as total_buy_tl,
+                        sum(sell_volume) as total_sell_vol,
+                        sum(sell_turnover_tl) as total_sell_tl,
+                        sum(buy_turnover_tl) - sum(sell_turnover_tl) as net_flow,
+                        sum(matched_volume) as matched_vol,
+                        sum(intraday_realized_pnl_tl) as intra_pnl,
+                        sum(carry_fifo_realized_pnl_tl) as carry_pnl,
+                        sum(daily_realized_pnl_tl) as daily_pnl,
+                        sum(buy_volume) - sum(sell_volume) as net_vol,
+                        sum(open_stock_quantity) as open_stock_quantity
+                    FROM silver_broker_fifo_daily
+                    WHERE broker_id = ? AND trade_date = ?
+                    GROUP BY broker_id, trade_date;
+                """,
+                    [broker_id, target_date],
+                ).fetchone()
+            else:
+                res = conn.execute(
+                    """
+                    SELECT 
+                        broker_id,
+                        trade_date,
+                        buy_volume as total_buy_vol,
+                        buy_turnover_tl as total_buy_tl,
+                        sell_volume as total_sell_vol,
+                        sell_turnover_tl as total_sell_tl,
+                        buy_turnover_tl - sell_turnover_tl as net_flow,
+                        matched_volume as matched_vol,
+                        intraday_realized_pnl_tl as intra_pnl,
+                        carry_fifo_realized_pnl_tl as carry_pnl,
+                        daily_realized_pnl_tl as daily_pnl,
+                        buy_volume - sell_volume as net_vol,
+                        open_stock_quantity
+                    FROM silver_broker_fifo_daily
+                    WHERE broker_id = ? AND trade_date = ? AND symbol = ?;
+                """,
+                    [broker_id, target_date, symbol],
+                ).fetchone()
 
             if res:
                 net_flow = float(res[6])
-                bias = (
-                    "STRONG_BUY"
-                    if net_flow > 500_000_000
-                    else ("BUY" if net_flow > 0 else ("STRONG_SELL" if net_flow < -500_000_000 else "SELL"))
-                )
+                net_vol = float(res[11]) if res[11] is not None else 0.0
+                open_qty = float(res[12]) if res[12] is not None else None
+                if is_macro:
+                    bias = (
+                        "STRONG_BUY"
+                        if net_flow > 500_000_000
+                        else ("BUY" if net_flow > 0 else ("STRONG_SELL" if net_flow < -500_000_000 else "SELL"))
+                    )
+                else:
+                    bias = "BUY" if net_vol > 0 else ("SELL" if net_vol < 0 else "NEUTRAL")
+
                 return BrokerSummary(
                     broker_id=res[0],
                     trade_date=str(res[1]),
@@ -320,39 +353,66 @@ def get_broker_summary(
                     carry_fifo_pnl_tl=float(res[9]),
                     realized_pnl_tl=float(res[10]),
                     position_bias=bias,
+                    symbol=symbol or "XU030",
+                    net_volume=net_vol,
+                    open_stock_quantity=open_qty,
                 )
         finally:
             conn.close()
     except Exception as e:
         logger.warning(f"DuckDB FIFO summary query failed: {e}")
 
-    # Fallback to PostgreSQL 8h candle summary
+    # Fallback to PostgreSQL candle summary
     pg_mgr = PostgresConnectionManager()
     try:
         conn = pg_mgr.get_connection()
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT 
-                        broker_id,
-                        COALESCE(sum(buy_volume), 0),
-                        COALESCE(sum(buy_turnover_tl), 0),
-                        COALESCE(sum(sell_volume), 0),
-                        COALESCE(sum(sell_turnover_tl), 0),
-                        COALESCE(sum(net_flow_tl), 0),
-                        COALESCE(sum(matched_volume), 0),
-                        COALESCE(sum(realized_pnl_tl), 0)
-                    FROM candle_broker_flows
-                    WHERE timeframe = '8h' AND broker_id = %s 
-                      AND bucket_start >= %s AND bucket_start <= %s
-                    GROUP BY broker_id;
-                """,
-                    (broker_id, f"{target_date} 00:00:00", f"{target_date} 23:59:59"),
-                )
+                if is_macro:
+                    cur.execute(
+                        """
+                        SELECT 
+                            broker_id,
+                            COALESCE(sum(buy_volume), 0),
+                            COALESCE(sum(buy_turnover_tl), 0),
+                            COALESCE(sum(sell_volume), 0),
+                            COALESCE(sum(sell_turnover_tl), 0),
+                            COALESCE(sum(net_flow_tl), 0),
+                            COALESCE(sum(matched_volume), 0),
+                            COALESCE(sum(realized_pnl_tl), 0),
+                            COALESCE(sum(net_volume), 0)
+                        FROM candle_broker_flows
+                        WHERE timeframe = '8h' AND broker_id = %s 
+                          AND bucket_start >= %s AND bucket_start <= %s
+                        GROUP BY broker_id;
+                    """,
+                        (broker_id, f"{target_date} 00:00:00", f"{target_date} 23:59:59"),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT 
+                            broker_id,
+                            COALESCE(sum(buy_volume), 0),
+                            COALESCE(sum(buy_turnover_tl), 0),
+                            COALESCE(sum(sell_volume), 0),
+                            COALESCE(sum(sell_turnover_tl), 0),
+                            COALESCE(sum(net_flow_tl), 0),
+                            COALESCE(sum(matched_volume), 0),
+                            COALESCE(sum(realized_pnl_tl), 0),
+                            COALESCE(sum(net_volume), 0)
+                        FROM candle_broker_flows
+                        WHERE broker_id = %s AND symbol = %s
+                          AND bucket_start >= %s AND bucket_start <= %s
+                        GROUP BY broker_id;
+                    """,
+                        (broker_id, symbol, f"{target_date} 00:00:00", f"{target_date} 23:59:59"),
+                    )
                 row = cur.fetchone()
                 if row:
                     net_flow = float(row[5])
+                    net_vol = float(row[8])
+                    bias = "BUY" if (net_flow if is_macro else net_vol) >= 0 else "SELL"
                     return BrokerSummary(
                         broker_id=row[0],
                         trade_date=target_date,
@@ -365,7 +425,10 @@ def get_broker_summary(
                         intraday_pnl_tl=float(row[7]),
                         carry_fifo_pnl_tl=0.0,
                         realized_pnl_tl=float(row[7]),
-                        position_bias="BUY" if net_flow >= 0 else "SELL",
+                        position_bias=bias,
+                        symbol=symbol or "XU030",
+                        net_volume=net_vol,
+                        open_stock_quantity=None,
                     )
         finally:
             conn.close()
@@ -385,6 +448,9 @@ def get_broker_summary(
         carry_fifo_pnl_tl=0.0,
         realized_pnl_tl=0.0,
         position_bias="NEUTRAL",
+        symbol=symbol or "XU030",
+        net_volume=0.0,
+        open_stock_quantity=0.0,
     )
 
 

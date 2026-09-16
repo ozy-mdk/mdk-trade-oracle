@@ -61,6 +61,9 @@ class BrokerSummary:
     carry_fifo_pnl_tl: float
     realized_pnl_tl: float
     position_bias: str
+    symbol: Optional[str] = None
+    net_volume: Optional[float] = None
+    open_stock_quantity: Optional[float] = None
 
 
 @strawberry.type

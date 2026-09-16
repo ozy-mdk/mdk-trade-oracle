@@ -98,14 +98,17 @@ export default function App() {
             realizedPnlTl
             brokerSharePct
           }
-          brokerSummary(date: $date, brokerId: $brokerId) {
+          brokerSummary(date: $date, brokerId: $brokerId, symbol: $symbol) {
             brokerId
             tradeDate
+            symbol
             totalBuyVolume
             totalBuyTurnoverTl
             totalSellVolume
             totalSellTurnoverTl
             netFlowTl
+            netVolume
+            openStockQuantity
             matchedVolume
             intradayPnlTl
             carryFifoPnlTl
@@ -267,6 +270,7 @@ export default function App() {
             summary={brokerSummary}
             candleSummary={candleSummary}
             selectedBroker={selectedBroker}
+            selectedSymbol={selectedSymbol}
           />
 
           <CandleChart

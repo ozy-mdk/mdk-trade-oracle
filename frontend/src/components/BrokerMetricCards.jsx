@@ -17,67 +17,95 @@ function formatTL(num) {
 
 function formatLots(num) {
   if (num === null || num === undefined || isNaN(num)) return '0 Lot';
-  return Math.round(num).toLocaleString('tr-TR') + ' Lot';
+  const sign = num > 0 ? '+' : (num < 0 ? '-' : '');
+  return `${sign}${Math.abs(Math.round(num)).toLocaleString('tr-TR')} Lot`;
 }
 
-export default function BrokerMetricCards({ summary, candleSummary, selectedBroker }) {
-  // Invariant True Session PnL from the institutional daily FIFO ledger
-  // (Prevents discrepancy across different candle timeframes like 1m vs 60m)
-  const trueDailyPnL = summary && summary.realizedPnlTl !== undefined
+export default function BrokerMetricCards({ summary, candleSummary, selectedBroker, selectedSymbol }) {
+  const isXU030 = !selectedSymbol || selectedSymbol === 'XU030';
+
+  // 1. Volumes and turnovers
+  const buyTL = summary?.totalBuyTurnoverTl ?? candleSummary.buyTurnoverTl;
+  const sellTL = summary?.totalSellTurnoverTl ?? candleSummary.sellTurnoverTl;
+  const buyVol = summary?.totalBuyVolume ?? candleSummary.buyVolume;
+  const sellVol = summary?.totalSellVolume ?? candleSummary.sellVolume;
+
+  // 2. Net flow and net volume (kalan miktar)
+  const netFlowTL = summary?.netFlowTl ?? candleSummary.netFlowTl;
+  const netVolume = (summary?.netVolume !== null && summary?.netVolume !== undefined)
+    ? summary.netVolume
+    : candleSummary.netVolume;
+
+  // 3. Matched turnaround volume
+  const matchedVol = summary?.matchedVolume ?? candleSummary.matchedVolume;
+
+  // 4. Intraday and realized PnL
+  const intraPnL = summary?.intradayPnlTl !== undefined
+    ? summary.intradayPnlTl
+    : candleSummary.realizedPnlTl;
+
+  const carryPnL = summary?.carryFifoPnlTl ?? 0;
+
+  const trueDailyPnL = summary?.realizedPnlTl !== undefined
     ? summary.realizedPnlTl
     : candleSummary.realizedPnlTl;
 
-  const intraPnL = summary && summary.intradayPnlTl !== undefined
-    ? summary.intradayPnlTl
-    : 0;
-
-  const carryPnL = summary && summary.carryFifoPnlTl !== undefined
-    ? summary.carryFifoPnlTl
-    : 0;
-
-  const buyTL = summary && summary.totalBuyTurnoverTl ? summary.totalBuyTurnoverTl : candleSummary.buyTurnoverTl;
-  const sellTL = summary && summary.totalSellTurnoverTl ? summary.totalSellTurnoverTl : candleSummary.sellTurnoverTl;
-  const netFlowTL = summary && summary.netFlowTl ? summary.netFlowTl : candleSummary.netFlowTl;
-  const matchedVol = summary && summary.matchedVolume ? summary.matchedVolume : candleSummary.matchedVolume;
-
-  const isProfitable = trueDailyPnL >= 0;
-  const isNetBuyer = netFlowTL >= 0;
+  // Status flags
+  const isNetBuyer = isXU030 ? (netFlowTL >= 0) : (netVolume >= 0);
+  const isProfitable = isXU030 ? (trueDailyPnL >= 0) : (intraPnL >= 0);
 
   return (
     <section className="stats-grid">
       {/* 1. Total Buy Turnover */}
       <div className="stat-card glass-card">
         <div className="stat-header">
-          <span>Toplam Günlük Alış</span>
+          <span>{isXU030 ? 'BIST 30 Toplam Alış' : `${selectedSymbol} Toplam Alış`}</span>
           <ArrowUpRight size={16} className="text-bull" />
         </div>
         <div className="stat-value num-mono text-bull">{formatTL(buyTL)}</div>
-        <div className="stat-subtext num-mono">Hacim: {formatLots(summary?.totalBuyVolume || candleSummary.buyVolume)}</div>
+        <div className="stat-subtext num-mono">
+          Hacim: {formatLots(buyVol).replace('+', '')}
+        </div>
       </div>
 
       {/* 2. Total Sell Turnover */}
       <div className="stat-card glass-card">
         <div className="stat-header">
-          <span>Toplam Günlük Satış</span>
+          <span>{isXU030 ? 'BIST 30 Toplam Satış' : `${selectedSymbol} Toplam Satış`}</span>
           <ArrowDownRight size={16} className="text-bear" />
         </div>
         <div className="stat-value num-mono text-bear">{formatTL(sellTL)}</div>
-        <div className="stat-subtext num-mono">Hacim: {formatLots(summary?.totalSellVolume || candleSummary.sellVolume)}</div>
+        <div className="stat-subtext num-mono">
+          Hacim: {formatLots(sellVol).replace('+', '')}
+        </div>
       </div>
 
-      {/* 3. Net Flow */}
+      {/* 3. Net Position (Akış veya Kalan Miktar) */}
       <div className={`stat-card glass-card ${isNetBuyer ? 'bull' : 'bear'}`}>
         <div className="stat-header">
-          <span>Net Pozisyon (Akış)</span>
-          <span className={`status-pill ${isNetBuyer ? 'bg-bull-badge' : 'bg-bear-badge'}`} style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
+          <span>{isXU030 ? 'Net Pozisyon (Parasal Akış)' : `${selectedSymbol} Kalan Net Miktar`}</span>
+          <span
+            className={`status-pill ${isNetBuyer ? 'bg-bull-badge' : 'bg-bear-badge'}`}
+            style={{ padding: '2px 8px', fontSize: '0.7rem' }}
+          >
             {isNetBuyer ? 'NET ALICI' : 'NET SATICI'}
           </span>
         </div>
         <div className={`stat-value num-mono ${isNetBuyer ? 'text-bull' : 'text-bear'}`}>
-          {isNetBuyer ? '+' : ''}{formatTL(netFlowTL)}
+          {isXU030 ? (
+            // For XU030: Show monetary amount, e.g. "+3,00 Milyon ₺ Net Alıcı"
+            `${netFlowTL >= 0 ? '+' : ''}${formatTL(netFlowTL)}`
+          ) : (
+            // For specific stock: Show remaining lot quantity, e.g. "+6.366.015 Lot"
+            formatLots(netVolume)
+          )}
         </div>
         <div className="stat-subtext num-mono">
-          {selectedBroker} Piyasa Yönü
+          {isXU030 ? (
+            `${selectedBroker} Tüm Hisseler: ${formatTL(Math.abs(netFlowTL))} Net ${isNetBuyer ? 'Alıcı' : 'Satıcı'}`
+          ) : (
+            `Net Tutar: ${formatTL(netFlowTL)} Net ${isNetBuyer ? 'Alıcı' : 'Satıcı'}`
+          )}
         </div>
       </div>
 
@@ -88,15 +116,17 @@ export default function BrokerMetricCards({ summary, candleSummary, selectedBrok
           <Repeat size={16} style={{ color: 'var(--brand-blue)' }} />
         </div>
         <div className="stat-value num-mono" style={{ color: '#93c5fd' }}>
-          {formatLots(matchedVol)}
+          {formatLots(matchedVol).replace('+', '')}
         </div>
-        <div className="stat-subtext">Gün İçi Al-Sat Turnaround</div>
+        <div className="stat-subtext">
+          {isXU030 ? 'Tüm BIST 30 Al-Sat Turnaround' : `${selectedSymbol} Al-Sat Turnaround`}
+        </div>
       </div>
 
-      {/* 5. Invariant Realized PnL */}
+      {/* 5. Intraday PnL & Realized PnL */}
       <div className={`stat-card glass-card ${isProfitable ? 'bull' : 'bear'}`}>
         <div className="stat-header">
-          <span>Günlük Gerçekleşen Net Kâr/Zarar</span>
+          <span>{isXU030 ? 'BIST 30 Toplam Günlük Kâr/Zarar' : `${selectedSymbol} Gün İçi Kâr/Zarar`}</span>
           {isProfitable ? (
             <TrendingUp size={16} className="text-bull" />
           ) : (
@@ -104,15 +134,30 @@ export default function BrokerMetricCards({ summary, candleSummary, selectedBrok
           )}
         </div>
         <div className={`stat-value num-mono ${isProfitable ? 'text-bull' : 'text-bear'}`}>
-          {isProfitable ? '+' : ''}{formatTL(trueDailyPnL)}
+          {isXU030
+            ? `${trueDailyPnL >= 0 ? '+' : ''}${formatTL(trueDailyPnL)}`
+            : `${intraPnL >= 0 ? '+' : ''}${formatTL(intraPnL)}`}
         </div>
         <div className="stat-subtext" style={{ display: 'flex', gap: '8px', fontSize: '0.72rem' }}>
-          <span title="Gün içinde alınan ve aynı gün satılan lotlardan kâr">
-            Gün İçi: <b className={intraPnL >= 0 ? 'text-bull' : 'text-bear'}>{formatTL(intraPnL)}</b>
-          </span>
-          <span title="Önceki günlerden taşınan lotların kapanış kârı">
-            Carry FIFO: <b className={carryPnL >= 0 ? 'text-bull' : 'text-bear'}>{formatTL(carryPnL)}</b>
-          </span>
+          {isXU030 ? (
+            <>
+              <span title="Tüm hisselerde gün içinde alınan ve aynı gün satılan lotlardan kâr">
+                Gün İçi: <b className={intraPnL >= 0 ? 'text-bull' : 'text-bear'}>{formatTL(intraPnL)}</b>
+              </span>
+              <span title="Önceki günlerden taşınan lotların kapanış kârı">
+                Carry: <b className={carryPnL >= 0 ? 'text-bull' : 'text-bear'}>{formatTL(carryPnL)}</b>
+              </span>
+            </>
+          ) : (
+            <>
+              <span title="Hissedeki gün içi alım satımlardan doğan net kâr/zarar">
+                Gün İçi: <b className={intraPnL >= 0 ? 'text-bull' : 'text-bear'}>{formatTL(intraPnL)}</b>
+              </span>
+              <span title="Seçilen hisseden gün sonu kalan net pozisyon">
+                Kalan: <b style={{ color: isNetBuyer ? 'var(--bull-green)' : 'var(--bear-red)' }}>{formatLots(netVolume)}</b>
+              </span>
+            </>
+          )}
         </div>
       </div>
     </section>

@@ -126,3 +126,16 @@ def test_xu030_graphql_resolvers():
     assert study.symbol == "XU030"
     assert study.total_occurrences > 0
     assert len(study.horizon_stats) == 5
+
+    # 5. Stock-Specific vs Macro XU030 Broker Summary
+    from mdk_trading_oracle.api.resolvers import get_broker_summary
+    stock_sum = get_broker_summary(date="2026-09-14", broker_id="MLB", symbol="AKBNK")
+    assert stock_sum.symbol == "AKBNK"
+    assert stock_sum.net_volume == 6366015.0
+    assert stock_sum.intraday_pnl_tl == pytest.approx(178008.61, abs=1.0)
+
+    macro_sum = get_broker_summary(date="2026-09-14", broker_id="MLB", symbol="XU030")
+    assert macro_sum.symbol == "XU030"
+    assert macro_sum.total_buy_turnover_tl > 10_000_000_000.0
+    assert macro_sum.net_flow_tl < 0  # Net seller on market
+
