@@ -17,6 +17,23 @@ import {
   Repeat,
 } from 'lucide-react';
 
+function parseCleanNumber(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  const str = String(val).trim().replace(/,/g, '.');
+  const match = str.match(/[-+]?\d*\.?\d+/);
+  if (!match) return null;
+  const parsed = parseFloat(match[0]);
+  return isNaN(parsed) ? null : parsed;
+}
+
+function safeFixed(num, digits = 2, fallback = '—') {
+  if (num === null || num === undefined) return fallback;
+  const parsed = typeof num === 'number' ? num : parseFloat(num);
+  if (isNaN(parsed)) return fallback;
+  return parsed.toFixed(digits);
+}
+
 function formatTL(num) {
   if (num === null || num === undefined || isNaN(num)) return '—';
   const abs = Math.abs(num);
@@ -172,21 +189,21 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
     let finalDir = directionMode;
 
     if (directionMode === 'DOWN') {
-      const num = parseFloat(singleValue);
-      if (!isNaN(num)) {
+      const num = parseCleanNumber(singleValue);
+      if (num !== null) {
         // Automatically ensure negative threshold for drop
         finalMin = -Math.abs(num);
         finalMax = null;
       }
     } else if (directionMode === 'UP') {
-      const num = parseFloat(singleValue);
-      if (!isNaN(num)) {
+      const num = parseCleanNumber(singleValue);
+      if (num !== null) {
         finalMin = Math.abs(num);
         finalMax = null;
       }
     } else {
-      finalMin = minValue !== '' && !isNaN(parseFloat(minValue)) ? parseFloat(minValue) : null;
-      finalMax = maxValue !== '' && !isNaN(parseFloat(maxValue)) ? parseFloat(maxValue) : null;
+      finalMin = parseCleanNumber(minValue);
+      finalMax = parseCleanNumber(maxValue);
       finalDir = null;
     }
 
@@ -889,7 +906,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               <span style={{ fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 T+{forwardDays} Kazanma Oranı ({returnMetricMode === 'DAILY' ? 'Günlük' : 'Kümülatif'})
               </span>
-              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct || targetStat.winRatePct)) >= 50 ? (
+              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct ?? targetStat.winRatePct)) >= 50 ? (
                 <CheckCircle2 size={18} style={{ color: 'var(--bull-green)' }} />
               ) : (
                 <XCircle size={18} style={{ color: 'var(--bear-red)' }} />
@@ -901,12 +918,12 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                 fontSize: '1.6rem',
                 fontWeight: '700',
                 color:
-                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct || targetStat.winRatePct)) >= 50
+                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct ?? targetStat.winRatePct)) >= 50
                     ? 'var(--bull-green)'
                     : 'var(--bear-red)',
               }}
             >
-              %{targetStat ? (returnMetricMode === 'DAILY' ? targetStat.winRatePct.toFixed(1) : (targetStat.cumulWinRatePct || targetStat.winRatePct).toFixed(1)) : '—'}
+              %{safeFixed(targetStat ? (returnMetricMode === 'DAILY' ? targetStat.winRatePct : (targetStat.cumulWinRatePct ?? targetStat.winRatePct)) : null, 1)}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               {targetStat ? `${targetStat.sampleCount} örnekten artı kapananlar` : '—'}
@@ -919,7 +936,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
               <span style={{ fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 T+{forwardDays} Ortalama Getiri ({returnMetricMode === 'DAILY' ? 'Bağımsız Günlük' : 'Kümülatif'})
               </span>
-              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct)) >= 0 ? (
+              {targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct ?? targetStat.avgReturnPct)) >= 0 ? (
                 <TrendingUp size={18} style={{ color: 'var(--bull-green)' }} />
               ) : (
                 <TrendingDown size={18} style={{ color: 'var(--bear-red)' }} />
@@ -931,15 +948,15 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                 fontSize: '1.6rem',
                 fontWeight: '700',
                 color:
-                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct)) >= 0
+                  targetStat && (returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct ?? targetStat.avgReturnPct)) >= 0
                     ? 'var(--bull-green)'
                     : 'var(--bear-red)',
               }}
             >
               {targetStat
                 ? (() => {
-                    const v = returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct || targetStat.avgReturnPct);
-                    return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+                    const v = returnMetricMode === 'DAILY' ? targetStat.avgReturnPct : (targetStat.cumulAvgReturnPct ?? targetStat.avgReturnPct);
+                    return v !== null && v !== undefined ? (v >= 0 ? '+' : '') + safeFixed(v, 2) + '%' : '—';
                   })()
                 : '—'}
             </div>
@@ -964,7 +981,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                 color: targetStat && targetStat.medianReturnPct >= 0 ? 'var(--bull-green)' : 'var(--bear-red)',
               }}
             >
-              {targetStat ? (targetStat.medianReturnPct >= 0 ? '+' : '') + targetStat.medianReturnPct.toFixed(2) + '%' : '—'}
+              {targetStat && targetStat.medianReturnPct !== null && targetStat.medianReturnPct !== undefined
+                ? (targetStat.medianReturnPct >= 0 ? '+' : '') + safeFixed(targetStat.medianReturnPct, 2) + '%'
+                : '—'}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               Aykırı hareketlerden arındırılmış
@@ -981,11 +1000,11 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
               <span className="num-mono text-bull" style={{ fontSize: '1.25rem', fontWeight: '700' }}>
-                {targetStat ? `+${targetStat.maxGainPct.toFixed(1)}%` : '—'}
+                {targetStat && targetStat.maxGainPct !== null && targetStat.maxGainPct !== undefined ? `+${safeFixed(targetStat.maxGainPct, 1)}%` : '—'}
               </span>
               <span style={{ color: 'var(--text-muted)' }}>/</span>
               <span className="num-mono text-bear" style={{ fontSize: '1.25rem', fontWeight: '700' }}>
-                {targetStat ? `${targetStat.maxLossPct.toFixed(1)}%` : '—'}
+                {targetStat && targetStat.maxLossPct !== null && targetStat.maxLossPct !== undefined ? `${safeFixed(targetStat.maxLossPct, 1)}%` : '—'}
               </span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -1155,7 +1174,7 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                       fontWeight="700"
                       fontFamily="var(--font-mono)"
                     >
-                      {p.val >= 0 ? `+${p.val.toFixed(2)}%` : `${p.val.toFixed(2)}%`}
+                      {p.val >= 0 ? `+${safeFixed(p.val, 2)}%` : `${safeFixed(p.val, 2)}%`}
                     </text>
                   )}
                 </g>
@@ -1188,34 +1207,34 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                 <span>
                   Günlük Bağımsız Getiri:{' '}
                   <strong className={hoveredDay.dailyVal >= 0 ? 'text-bull' : 'text-bear'}>
-                    {hoveredDay.dailyVal >= 0 ? `+${hoveredDay.dailyVal.toFixed(2)}%` : `${hoveredDay.dailyVal.toFixed(2)}%`}
+                    {hoveredDay.dailyVal >= 0 ? `+${safeFixed(hoveredDay.dailyVal, 2)}%` : `${safeFixed(hoveredDay.dailyVal, 2)}%`}
                   </strong>
                 </span>
                 {hoveredDay.cumulVal !== undefined && (
                   <span>
                     Kümülatif Getiri:{' '}
                     <strong className={hoveredDay.cumulVal >= 0 ? 'text-bull' : 'text-bear'}>
-                      {hoveredDay.cumulVal >= 0 ? `+${hoveredDay.cumulVal.toFixed(2)}%` : `${hoveredDay.cumulVal.toFixed(2)}%`}
+                      {hoveredDay.cumulVal >= 0 ? `+${safeFixed(hoveredDay.cumulVal, 2)}%` : `${safeFixed(hoveredDay.cumulVal, 2)}%`}
                     </strong>
                   </span>
                 )}
                 <span>
                   Kazanma Oranı:{' '}
-                  <strong style={{ color: '#fff' }}>%{hoveredDay.winRate.toFixed(1)}</strong>
+                  <strong style={{ color: '#fff' }}>%{safeFixed(hoveredDay.winRate, 1)}</strong>
                 </span>
                 <span>
                   Medyan:{' '}
                   <strong style={{ color: '#fff' }}>
-                    {hoveredDay.median >= 0 ? `+${hoveredDay.median.toFixed(2)}%` : `${hoveredDay.median.toFixed(2)}%`}
+                    {hoveredDay.median >= 0 ? `+${safeFixed(hoveredDay.median, 2)}%` : `${safeFixed(hoveredDay.median, 2)}%`}
                   </strong>
                 </span>
                 <span>
                   Maks Kazanç:{' '}
-                  <strong className="text-bull">+{hoveredDay.maxGain.toFixed(1)}%</strong>
+                  <strong className="text-bull">+{safeFixed(hoveredDay.maxGain, 1)}%</strong>
                 </span>
                 <span>
                   Maks Kayıp:{' '}
-                  <strong className="text-bear">{hoveredDay.maxLoss.toFixed(1)}%</strong>
+                  <strong className="text-bear">{safeFixed(hoveredDay.maxLoss, 1)}%</strong>
                 </span>
               </div>
             </div>
@@ -1289,13 +1308,13 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                       </td>
                       <td style={{ padding: '10px 12px', fontWeight: '700' }} className="num-mono">
                         <span className={isDailyPos ? 'text-bull' : 'text-bear'}>
-                          {isDailyPos ? `+${stat.avgReturnPct.toFixed(2)}%` : `${stat.avgReturnPct.toFixed(2)}%`}
+                          {isDailyPos ? `+${safeFixed(stat.avgReturnPct, 2)}%` : `${safeFixed(stat.avgReturnPct, 2)}%`}
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px', fontWeight: '600' }} className="num-mono">
                         <span className={isCumulPos ? 'text-bull' : 'text-bear'}>
                           {stat.cumulAvgReturnPct !== null && stat.cumulAvgReturnPct !== undefined
-                            ? `${isCumulPos ? '+' : ''}${stat.cumulAvgReturnPct.toFixed(2)}%`
+                            ? `${isCumulPos ? '+' : ''}${safeFixed(stat.cumulAvgReturnPct, 2)}%`
                             : '—'}
                         </span>
                       </td>
@@ -1312,9 +1331,9 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                           >
                             <div
                               style={{
-                                width: `${Math.min(100, Math.max(0, stat.winRatePct))}%`,
+                                width: `${Math.min(100, Math.max(0, stat.winRatePct || 0))}%`,
                                 height: '100%',
-                                backgroundColor: stat.winRatePct >= 50 ? 'var(--bull-green)' : 'var(--bear-red)',
+                                backgroundColor: (stat.winRatePct || 0) >= 50 ? 'var(--bull-green)' : 'var(--bear-red)',
                                 borderRadius: '3px',
                               }}
                             />
@@ -1323,23 +1342,23 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                             className="num-mono"
                             style={{
                               fontWeight: '600',
-                              color: stat.winRatePct >= 50 ? 'var(--bull-green)' : 'var(--bear-red)',
+                              color: (stat.winRatePct || 0) >= 50 ? 'var(--bull-green)' : 'var(--bear-red)',
                             }}
                           >
-                            %{stat.winRatePct.toFixed(1)}
+                            %{safeFixed(stat.winRatePct, 1)}
                           </span>
                         </div>
                       </td>
                       <td style={{ padding: '10px 12px' }} className="num-mono">
-                        <span className={stat.medianReturnPct >= 0 ? 'text-bull' : 'text-bear'}>
-                          {stat.medianReturnPct >= 0 ? `+${stat.medianReturnPct.toFixed(2)}%` : `${stat.medianReturnPct.toFixed(2)}%`}
+                        <span className={(stat.medianReturnPct || 0) >= 0 ? 'text-bull' : 'text-bear'}>
+                          {(stat.medianReturnPct || 0) >= 0 ? `+${safeFixed(stat.medianReturnPct, 2)}%` : `${safeFixed(stat.medianReturnPct, 2)}%`}
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px' }} className="num-mono text-bull">
-                        +{stat.maxGainPct.toFixed(2)}%
+                        +{safeFixed(stat.maxGainPct, 2)}%
                       </td>
                       <td style={{ padding: '10px 12px' }} className="num-mono text-bear">
-                        {stat.maxLossPct.toFixed(2)}%
+                        {safeFixed(stat.maxLossPct, 2)}%
                       </td>
                       <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }} className="num-mono">
                         {stat.sampleCount} Seans
@@ -1475,8 +1494,8 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                         <td style={{ padding: '9px 12px' }} className="num-mono">
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                              {occ.prevClosePrice ? `${occ.prevClosePrice.toFixed(2)} ➔` : ''}{' '}
-                              <strong style={{ color: '#fff' }}>{occ.closePrice.toFixed(2)} ₺</strong>
+                              {occ.prevClosePrice ? `${safeFixed(occ.prevClosePrice, 2)} ➔` : ''}{' '}
+                              <strong style={{ color: '#fff' }}>{safeFixed(occ.closePrice, 2)} ₺</strong>
                             </span>
                             <span
                               style={{
@@ -1490,8 +1509,8 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                               }}
                             >
                               {occ.priceChangePct !== null && occ.priceChangePct !== undefined
-                                ? `${isMovePos ? '+' : ''}${occ.priceChangePct.toFixed(2)}%`
-                                : `${occ.movementValue.toFixed(2)}%`}
+                                ? `${isMovePos ? '+' : ''}${safeFixed(occ.priceChangePct, 2)}%`
+                                : `${safeFixed(occ.movementValue, 2)}%`}
                             </span>
                           </div>
                         </td>
@@ -1536,15 +1555,15 @@ export default function EventStudyDashboard({ instruments, fetchGraphQL }) {
                                       }`,
                                     }}
                                   >
-                                    {isPos ? `+${activeRet.toFixed(2)}%` : `${activeRet.toFixed(2)}%`}
+                                    {isPos ? `+${safeFixed(activeRet, 2)}%` : `${safeFixed(activeRet, 2)}%`}
                                   </span>
 
                                   {/* Price journey subtext: e.g. 62.20 ➔ 63.60 */}
                                   {fr.closePrice && fr.prevClosePrice && (
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                       {returnMetricMode === 'DAILY'
-                                        ? `${fr.prevClosePrice.toFixed(2)} ➔ ${fr.closePrice.toFixed(2)} ₺`
-                                        : `${occ.closePrice.toFixed(2)} ➔ ${fr.closePrice.toFixed(2)} ₺`}
+                                        ? `${safeFixed(fr.prevClosePrice, 2)} ➔ ${safeFixed(fr.closePrice, 2)} ₺`
+                                        : `${safeFixed(occ.closePrice, 2)} ➔ ${safeFixed(fr.closePrice, 2)} ₺`}
                                     </span>
                                   )}
                                 </div>

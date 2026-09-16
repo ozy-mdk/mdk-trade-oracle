@@ -14,6 +14,7 @@ from mdk_trading_oracle.api.resolvers import (
     get_instruments,
     get_tertip_lots,
     get_tertip_summary,
+    get_time_window_analysis,
 )
 from mdk_trading_oracle.api.types import (
     Broker,
@@ -24,6 +25,7 @@ from mdk_trading_oracle.api.types import (
     Instrument,
     TertipExecutiveSummary,
     TertipLot,
+    TimeWindowAnalysisResult,
 )
 
 
@@ -125,5 +127,23 @@ class Query:
             limit=limit,
         )
 
+    @strawberry.field(description="Custom date and time window analysis with opening/closing auctions and broker flows.")
+    def time_window_analysis(
+        self,
+        symbol: str = "AKBNK",
+        broker_id: str = "MLB",
+        start_datetime: str = "2026-09-14 09:55:00",
+        end_datetime: str = "2026-09-14 18:08:00",
+        timeframe: str = "5m",
+    ) -> TimeWindowAnalysisResult:
+        return get_time_window_analysis(
+            symbol=symbol,
+            broker_id=broker_id,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            timeframe=timeframe,
+        )
+
 
 schema = strawberry.Schema(query=Query)
+

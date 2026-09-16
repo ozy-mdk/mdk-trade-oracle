@@ -6,7 +6,8 @@ import CandleChart from './components/CandleChart';
 import CandleDataTable from './components/CandleDataTable';
 import TertipDashboard from './components/TertipDashboard';
 import EventStudyDashboard from './components/EventStudyDashboard';
-import { CandlestickChart, Layers, TrendingUp } from 'lucide-react';
+import TimeWindowTerminal from './components/TimeWindowTerminal';
+import { CandlestickChart, Layers, TrendingUp, Clock } from 'lucide-react';
 
 const GRAPHQL_ENDPOINT = 'http://127.0.0.1:8000/graphql';
 
@@ -232,6 +233,31 @@ export default function App() {
           <TrendingUp size={20} style={{ color: activeTab === 'eventStudy' ? 'var(--bull-green)' : '' }} />
           <span>3. Hisse Hareket &amp; İleri Getiri Analizi (Event Study)</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('timeWindow')}
+          className="glass-card"
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '14px 20px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: '600',
+            color: activeTab === 'timeWindow' ? '#fff' : 'var(--text-secondary)',
+            borderColor: activeTab === 'timeWindow' ? 'var(--brand-blue)' : 'var(--border-subtle)',
+            background: activeTab === 'timeWindow' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
+            boxShadow: activeTab === 'timeWindow' ? '0 0 25px -5px rgba(59, 130, 246, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Clock size={20} style={{ color: activeTab === 'timeWindow' ? 'var(--brand-blue)' : '' }} />
+          <span>4. Özel Tarih &amp; Saat Aralığı (Açılış/Kapanış Analizi)</span>
+        </button>
       </div>
 
       {error && (
@@ -301,6 +327,17 @@ export default function App() {
           fetchGraphQL={fetchGraphQL}
         />
       )}
+
+      {/* Tab 4: Custom Date & Time Range Terminal */}
+      {activeTab === 'timeWindow' && (
+        <TimeWindowTerminal
+          instruments={instruments}
+          brokers={brokers}
+          dates={dates}
+          fetchGraphQL={fetchGraphQL}
+        />
+      )}
     </div>
   );
 }
+

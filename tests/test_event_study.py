@@ -98,8 +98,8 @@ def test_get_event_study_akbnk_negative_drop():
         limit=10,
     )
     assert result.symbol == "AKBNK"
-    assert result.total_occurrences == 6  # Exact 6 occurrences in AKBNK with <= -9% drop
-    assert len(result.occurrences) == 6
+    assert result.total_occurrences == 13  # 13 occurrences in AKBNK with <= -9% drop from prev close
+    assert len(result.occurrences) == 10  # Clamped to limit=10
 
     # Verify 2026-05-21 drop event details
     may_event = next(o for o in result.occurrences if o.event_date == "2026-05-21")
@@ -121,4 +121,28 @@ def test_get_event_study_akbnk_negative_drop():
     assert t2.close_price == 65.40
     assert t2.daily_return_pct == 2.83
     assert t2.cumulative_return_pct == 5.14
+
+
+def test_get_event_study_upward_return_3_percent():
+    """Test Event Study calculation for AKBNK with >= +3.0% rally (direction='UP')."""
+    result = get_event_study(
+        symbol="AKBNK",
+        condition_type="DAILY_RETURN",
+        min_value=3.0,
+        direction="UP",
+        forward_days=5,
+        limit=20,
+    )
+    assert result.symbol == "AKBNK"
+    assert result.total_occurrences > 0
+    assert len(result.occurrences) <= 20
+    assert len(result.horizon_stats) == 5
+
+    # Verify that each occurrence has priceChangePct >= 3.0
+    for occ in result.occurrences:
+        assert occ.price_change_pct is not None
+        assert occ.price_change_pct >= 2.99
+        assert occ.close_price > 0
+        assert occ.bofa_net_flow_tl is not None
+
 

@@ -178,3 +178,76 @@ class EventStudyResult:
     horizon_stats: list[ForwardHorizonStat]
     occurrences: list[EventStudyOccurrence]
 
+
+@strawberry.type
+class TimeWindowAuctionDetail:
+    auction_type: str  # "OPENING_AUCTION" (09:55) or "CLOSING_AUCTION" (18:05)
+    match_time: str
+    match_price: float
+    total_volume: float
+    total_turnover_tl: float
+    broker_buy_volume: float
+    broker_sell_volume: float
+    broker_net_volume: float
+    broker_net_flow_tl: float
+    broker_share_pct: float
+
+
+@strawberry.type
+class TimeWindowCandle:
+    bucket_start: str
+    bucket_end: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    turnover_tl: float
+    vwap: float
+    trades_count: int
+    broker_buy_volume: float
+    broker_sell_volume: float
+    broker_net_volume: float
+    broker_net_flow_tl: float
+    broker_realized_pnl_tl: float
+    broker_share_pct: float
+
+
+@strawberry.type
+class TimeWindowAnalysisResult:
+    symbol: str
+    symbol_name: str
+    broker_id: str
+    broker_name: str
+    start_datetime: str
+    end_datetime: str
+    timeframe: str
+    # Window price stats
+    window_open_price: Optional[float]
+    window_close_price: Optional[float]
+    price_change_tl: Optional[float]
+    price_change_pct: Optional[float]
+    window_high_price: Optional[float]
+    window_low_price: Optional[float]
+    price_range_pct: Optional[float]
+    total_volume: float
+    total_turnover_tl: float
+    total_trades_count: int
+    # Broker stats in this window
+    broker_buy_volume: float
+    broker_buy_turnover_tl: float
+    broker_buy_vwap: Optional[float]
+    broker_sell_volume: float
+    broker_sell_turnover_tl: float
+    broker_sell_vwap: Optional[float]
+    broker_net_volume: float
+    broker_net_flow_tl: float
+    broker_realized_pnl_tl: float
+    broker_market_share_pct: float
+    # Auction match details
+    opening_auction: Optional[TimeWindowAuctionDetail]
+    closing_auction: Optional[TimeWindowAuctionDetail]
+    # Candle series
+    candles: list[TimeWindowCandle]
+
+
