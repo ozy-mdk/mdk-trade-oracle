@@ -150,12 +150,31 @@ def get_candles(
         conn.close()
 
     if count == 0:
-        logger.info(f"Generating on-the-fly candles for {target_date} [{timeframe}]...")
+        logger.info(f"Generating on-the-fly candles for {symbol} {target_date} [{timeframe}]...")
         try:
-            engine = MultiTimeframeCandleEngine(pg_manager=pg_mgr)
-            engine.process_date_timeframe(target_date, timeframe)
+            if symbol == "XU030":
+                from mdk_trading_oracle.data.bist30.index_engine import BIST30IndexEngine
+                bist30_engine = BIST30IndexEngine()
+                # Check if constituent candles exist, if not generate them first
+                check_conn = pg_mgr.get_connection()
+                try:
+                    with check_conn.cursor() as cur:
+                        cur.execute(
+                            "SELECT count(*) FROM market_candles WHERE timeframe = %s AND bucket_start >= %s AND bucket_start <= %s;",
+                            (timeframe, f"{target_date} 00:00:00", f"{target_date} 23:59:59"),
+                        )
+                        c_count = cur.fetchone()[0]
+                finally:
+                    check_conn.close()
+                if c_count == 0:
+                    engine = MultiTimeframeCandleEngine(pg_manager=pg_mgr)
+                    engine.process_date_timeframe(target_date, timeframe)
+                bist30_engine.generate_xu030_candles(target_date, timeframe)
+            else:
+                engine = MultiTimeframeCandleEngine(pg_manager=pg_mgr)
+                engine.process_date_timeframe(target_date, timeframe)
         except Exception as e:
-            logger.warning(f"Failed to dynamically generate candles: {e}")
+            logger.warning(f"Failed to dynamically generate candles for {symbol}: {e}")
 
     # Query PG for combined market candles + broker flows
     conn = pg_mgr.get_connection()
@@ -384,7 +403,10 @@ def get_daily_fifo(
     try:
         conditions = ["broker_id = ?"]
         params = [broker_id]
-        if symbol and symbol != "ALL":
+        is_xu030 = (symbol == "XU030")
+        if is_xu030:
+            conditions.append("symbol IN (SELECT symbol FROM bronze_instruments WHERE index_name = 'BIST30' AND symbol != 'XU030')")
+        elif symbol and symbol != "ALL":
             conditions.append("symbol = ?")
             params.append(symbol)
         if start_date:
@@ -395,21 +417,51 @@ def get_daily_fifo(
             params.append(end_date)
 
         where_clause = " WHERE " + " AND ".join(conditions)
-        query = f"""
-            SELECT 
-                trade_date, symbol, symbol_name, sector, broker_id,
-                buy_volume, buy_turnover_tl, buy_vwap,
-                sell_volume, sell_turnover_tl, sell_vwap,
-                matched_volume, intraday_realized_pnl_tl,
-                carry_fifo_realized_pnl_tl, daily_realized_pnl_tl,
-                position_side, open_stock_quantity, open_fifo_cost_tl, fifo_avg_cost,
-                market_close_price, market_value_tl, unrealized_pnl_tl,
-                total_daily_pnl_tl, cumulative_realized_pnl_tl
-            FROM silver_broker_fifo_daily
-            {where_clause}
-            ORDER BY trade_date DESC, symbol ASC
-            LIMIT {limit};
-        """
+        if is_xu030:
+            query = f"""
+                SELECT 
+                    trade_date, 'XU030' as symbol, 'BIST 30 Endeksi' as symbol_name, 'ENDEKS' as sector, broker_id,
+                    sum(buy_volume) as buy_volume,
+                    sum(buy_turnover_tl) as buy_turnover_tl,
+                    CASE WHEN sum(buy_volume) > 0 THEN sum(buy_turnover_tl) / sum(buy_volume) ELSE NULL END as buy_vwap,
+                    sum(sell_volume) as sell_volume,
+                    sum(sell_turnover_tl) as sell_turnover_tl,
+                    CASE WHEN sum(sell_volume) > 0 THEN sum(sell_turnover_tl) / sum(sell_volume) ELSE NULL END as sell_vwap,
+                    sum(matched_volume) as matched_volume,
+                    sum(intraday_realized_pnl_tl) as intraday_realized_pnl_tl,
+                    sum(carry_fifo_realized_pnl_tl) as carry_fifo_realized_pnl_tl,
+                    sum(daily_realized_pnl_tl) as daily_realized_pnl_tl,
+                    CASE WHEN sum(market_value_tl) > 0 THEN 'LONG' WHEN sum(market_value_tl) < 0 THEN 'SHORT' ELSE 'FLAT' END as position_side,
+                    sum(open_stock_quantity) as open_stock_quantity,
+                    sum(open_fifo_cost_tl) as open_fifo_cost_tl,
+                    NULL as fifo_avg_cost,
+                    NULL as market_close_price,
+                    sum(market_value_tl) as market_value_tl,
+                    sum(unrealized_pnl_tl) as unrealized_pnl_tl,
+                    sum(total_daily_pnl_tl) as total_daily_pnl_tl,
+                    sum(cumulative_realized_pnl_tl) as cumulative_realized_pnl_tl
+                FROM silver_broker_fifo_daily
+                {where_clause}
+                GROUP BY trade_date, broker_id
+                ORDER BY trade_date DESC
+                LIMIT {limit};
+            """
+        else:
+            query = f"""
+                SELECT 
+                    trade_date, symbol, symbol_name, sector, broker_id,
+                    buy_volume, buy_turnover_tl, buy_vwap,
+                    sell_volume, sell_turnover_tl, sell_vwap,
+                    matched_volume, intraday_realized_pnl_tl,
+                    carry_fifo_realized_pnl_tl, daily_realized_pnl_tl,
+                    position_side, open_stock_quantity, open_fifo_cost_tl, fifo_avg_cost,
+                    market_close_price, market_value_tl, unrealized_pnl_tl,
+                    total_daily_pnl_tl, cumulative_realized_pnl_tl
+                FROM silver_broker_fifo_daily
+                {where_clause}
+                ORDER BY trade_date DESC, symbol ASC
+                LIMIT {limit};
+            """
         rows = conn.execute(query, params).fetchall()
         for r in rows:
             results.append(
@@ -459,7 +511,9 @@ def get_tertip_lots(
     try:
         conditions = ["broker_id = ?"]
         params = [broker_id]
-        if symbol and symbol != "ALL":
+        if symbol == "XU030":
+            conditions.append("symbol IN (SELECT symbol FROM bronze_instruments WHERE index_name = 'BIST30' AND symbol != 'XU030')")
+        elif symbol and symbol != "ALL":
             conditions.append("symbol = ?")
             params.append(symbol)
         if status and status != "ALL":
