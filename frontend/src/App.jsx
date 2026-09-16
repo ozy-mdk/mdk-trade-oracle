@@ -4,10 +4,12 @@ import FilterBar from './components/FilterBar';
 import BrokerMetricCards from './components/BrokerMetricCards';
 import CandleChart from './components/CandleChart';
 import CandleDataTable from './components/CandleDataTable';
+import TertipDashboard from './components/TertipDashboard';
+import { CandlestickChart, Layers } from 'lucide-react';
 
 const GRAPHQL_ENDPOINT = 'http://127.0.0.1:8000/graphql';
 
-async function fetchGraphQL(query, variables = {}) {
+export async function fetchGraphQL(query, variables = {}) {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -21,6 +23,8 @@ async function fetchGraphQL(query, variables = {}) {
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('candles'); // 'candles' or 'tertip'
+
   const [instruments, setInstruments] = useState([]);
   const [brokers, setBrokers] = useState([]);
   const [dates, setDates] = useState([]);
@@ -102,6 +106,8 @@ export default function App() {
             totalSellTurnoverTl
             netFlowTl
             matchedVolume
+            intradayPnlTl
+            carryFifoPnlTl
             realizedPnlTl
             positionBias
           }
@@ -125,8 +131,10 @@ export default function App() {
   }, [selectedSymbol, selectedTimeframe, selectedDate, selectedBroker]);
 
   useEffect(() => {
-    loadCandleData();
-  }, [loadCandleData]);
+    if (activeTab === 'candles') {
+      loadCandleData();
+    }
+  }, [loadCandleData, activeTab]);
 
   // Aggregate candle-specific stats for this symbol
   const candleSummary = {
@@ -144,6 +152,59 @@ export default function App() {
     <div className="app-container">
       <Header onRefresh={loadCandleData} loading={loading} />
 
+      {/* Main Tab Navigation */}
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('candles')}
+          className="glass-card"
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '14px 20px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: '600',
+            color: activeTab === 'candles' ? '#fff' : 'var(--text-secondary)',
+            borderColor: activeTab === 'candles' ? 'var(--brand-blue)' : 'var(--border-subtle)',
+            background: activeTab === 'candles' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
+            boxShadow: activeTab === 'candles' ? 'var(--shadow-glow)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <CandlestickChart size={20} className={activeTab === 'candles' ? 'text-bull' : ''} />
+          <span>1. Mum Grafiği &amp; Gün İçi Akış (Candles &amp; Flow)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('tertip')}
+          className="glass-card"
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '14px 20px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            fontWeight: '600',
+            color: activeTab === 'tertip' ? '#fff' : 'var(--text-secondary)',
+            borderColor: activeTab === 'tertip' ? 'var(--accent-purple)' : 'var(--border-subtle)',
+            background: activeTab === 'tertip' ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-card)',
+            boxShadow: activeTab === 'tertip' ? '0 0 25px -5px rgba(139, 92, 246, 0.3)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Layers size={20} style={{ color: activeTab === 'tertip' ? 'var(--accent-purple)' : '' }} />
+          <span>2. Kurum Tertip &amp; FIFO Takibi (2022 - 2026 Defteri)</span>
+        </button>
+      </div>
+
       {error && (
         <div
           className="glass-card"
@@ -159,34 +220,49 @@ export default function App() {
         </div>
       )}
 
-      <FilterBar
-        instruments={instruments}
-        brokers={brokers}
-        dates={dates}
-        selectedSymbol={selectedSymbol}
-        onSelectSymbol={setSelectedSymbol}
-        selectedBroker={selectedBroker}
-        onSelectBroker={setSelectedBroker}
-        selectedTimeframe={selectedTimeframe}
-        onSelectTimeframe={setSelectedTimeframe}
-        selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
-      />
+      {/* Tab 1: Candles & Intraday Flow */}
+      {activeTab === 'candles' && (
+        <>
+          <FilterBar
+            instruments={instruments}
+            brokers={brokers}
+            dates={dates}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={setSelectedSymbol}
+            selectedBroker={selectedBroker}
+            onSelectBroker={setSelectedBroker}
+            selectedTimeframe={selectedTimeframe}
+            onSelectTimeframe={setSelectedTimeframe}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+          />
 
-      <BrokerMetricCards
-        summary={brokerSummary}
-        candleSummary={candleSummary}
-        selectedBroker={selectedBroker}
-      />
+          <BrokerMetricCards
+            summary={brokerSummary}
+            candleSummary={candleSummary}
+            selectedBroker={selectedBroker}
+          />
 
-      <CandleChart
-        candles={candles}
-        symbol={selectedSymbol}
-        brokerId={selectedBroker}
-        timeframe={selectedTimeframe}
-      />
+          <CandleChart
+            candles={candles}
+            symbol={selectedSymbol}
+            brokerId={selectedBroker}
+            timeframe={selectedTimeframe}
+          />
 
-      <CandleDataTable candles={candles} brokerId={selectedBroker} />
+          <CandleDataTable candles={candles} brokerId={selectedBroker} />
+        </>
+      )}
+
+      {/* Tab 2: Tertip & FIFO Lifecycle Dashboard */}
+      {activeTab === 'tertip' && (
+        <TertipDashboard
+          brokers={brokers}
+          instruments={instruments}
+          dates={dates}
+          fetchGraphQL={fetchGraphQL}
+        />
+      )}
     </div>
   );
 }

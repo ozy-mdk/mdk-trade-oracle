@@ -3,10 +3,18 @@
 import logging
 from typing import List, Optional
 
-import psycopg2
+import duckdb
 import yaml
 
-from mdk_trading_oracle.api.types import Broker, BrokerSummary, CandleWithBroker, Instrument
+from mdk_trading_oracle.api.types import (
+    Broker,
+    BrokerSummary,
+    CandleWithBroker,
+    DailyFifoRecord,
+    Instrument,
+    TertipExecutiveSummary,
+    TertipLot,
+)
 from mdk_trading_oracle.core.config import get_settings
 from mdk_trading_oracle.data.postgres.candle_engine import MultiTimeframeCandleEngine
 from mdk_trading_oracle.data.postgres.connection import PostgresConnectionManager
@@ -30,9 +38,9 @@ def get_instruments() -> List[Instrument]:
             for item in data.get("instruments", [])
         ]
     return [
-        Instrument(symbol="THYAO", name="Türk Hava Yolları", sector="ULASTIRMA"),
-        Instrument(symbol="AKBNK", name="Akbank", sector="BANKA"),
-        Instrument(symbol="ASELS", name="Aselsan", sector="SAVUNMA"),
+        Instrument(symbol="THYAO", name="Türk Hava Yolları", sector="Transportation"),
+        Instrument(symbol="AKBNK", name="Akbank", sector="Banking"),
+        Instrument(symbol="ASELS", name="Aselsan", sector="Defense"),
     ]
 
 
@@ -46,7 +54,10 @@ def get_brokers() -> List[Broker]:
         brokers_raw = data.get("brokers", [])
         brokers_sorted = sorted(
             brokers_raw,
-            key=lambda x: (0 if x.get("code") == "MLB" or x.get("broker_id") == "MLB" else 1, x.get("code", x.get("broker_id", ""))),
+            key=lambda x: (
+                0 if x.get("code") == "MLB" or x.get("broker_id") == "MLB" else 1,
+                x.get("code", x.get("broker_id", "")),
+            ),
         )
         return [
             Broker(
@@ -66,31 +77,45 @@ def get_brokers() -> List[Broker]:
 
 def get_available_dates() -> List[str]:
     """Return distinct dates with available trade data."""
-    pg_mgr = PostgresConnectionManager()
-    conn = pg_mgr.get_connection()
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT DISTINCT to_char(bucket_start, 'YYYY-MM-DD') as d 
-                FROM market_candles 
-                ORDER BY d DESC;
-            """)
-            rows = cur.fetchall()
-            dates = [r[0] for r in rows if r[0]]
-            if dates:
-                return dates
+        conn = duckdb.connect(duckdb_path, read_only=True)
+        try:
+            rows = conn.execute("""
+                SELECT DISTINCT strftime(trade_date, '%Y-%m-%d') as d 
+                FROM silver_broker_fifo_daily 
+                ORDER BY d DESC 
+                LIMIT 60;
+            """).fetchall()
+            if rows:
+                return [r[0] for r in rows if r[0]]
+        finally:
+            conn.close()
     except Exception as e:
-        logger.warning(f"Failed to fetch dates from PG: {e}")
-    finally:
-        conn.close()
+        logger.warning(f"Failed to fetch dates from DuckDB: {e}")
 
-    # Fallback to candle engine discovery from DuckDB
+    # Fallback to PostgreSQL
+    pg_mgr = PostgresConnectionManager()
     try:
-        engine = MultiTimeframeCandleEngine(pg_manager=pg_mgr)
-        dates = engine.get_available_dates()
-        return list(reversed(dates[-30:]))  # Most recent 30 trading days
+        conn = pg_mgr.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DISTINCT to_char(bucket_start, 'YYYY-MM-DD') as d 
+                    FROM market_candles 
+                    ORDER BY d DESC;
+                """)
+                rows = cur.fetchall()
+                dates = [r[0] for r in rows if r[0]]
+                if dates:
+                    return dates
+        finally:
+            conn.close()
     except Exception:
-        return ["2026-09-14", "2026-03-02"]
+        pass
+
+    return ["2026-09-14", "2026-03-02"]
 
 
 def get_candles(
@@ -221,53 +246,107 @@ def get_broker_summary(
     date: Optional[str] = None,
     broker_id: str = "MLB",
 ) -> BrokerSummary:
-    """Compute aggregate broker day summary across all stocks."""
-    pg_mgr = PostgresConnectionManager()
+    """Compute aggregate broker day summary across all stocks using audited FIFO ledger."""
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
     target_date = date or "2026-09-14"
 
-    conn = pg_mgr.get_connection()
+    # 1. First attempt: Query silver_broker_fifo_daily for full fidelity PnL
     try:
-        query = """
-            SELECT 
-                broker_id,
-                COALESCE(sum(buy_volume), 0) as total_buy_vol,
-                COALESCE(sum(buy_turnover_tl), 0) as total_buy_tl,
-                COALESCE(sum(sell_volume), 0) as total_sell_vol,
-                COALESCE(sum(sell_turnover_tl), 0) as total_sell_tl,
-                COALESCE(sum(net_flow_tl), 0) as net_flow,
-                COALESCE(sum(matched_volume), 0) as matched_vol,
-                COALESCE(sum(realized_pnl_tl), 0) as realized_pnl
-            FROM candle_broker_flows
-            WHERE timeframe = '8h' 
-              AND broker_id = %s 
-              AND bucket_start >= %s 
-              AND bucket_start <= %s
-            GROUP BY broker_id;
-        """
-        with conn.cursor() as cur:
-            cur.execute(query, (broker_id, f"{target_date} 00:00:00", f"{target_date} 23:59:59"))
-            row = cur.fetchone()
-            if row:
-                net_flow = float(row[5])
-                bias = "STRONG_BUY" if net_flow > 500_000_000 else (
-                    "BUY" if net_flow > 0 else (
-                        "STRONG_SELL" if net_flow < -500_000_000 else "SELL"
-                    )
+        conn = duckdb.connect(duckdb_path, read_only=True)
+        try:
+            res = conn.execute(
+                """
+                SELECT 
+                    broker_id,
+                    trade_date,
+                    sum(buy_volume) as total_buy_vol,
+                    sum(buy_turnover_tl) as total_buy_tl,
+                    sum(sell_volume) as total_sell_vol,
+                    sum(sell_turnover_tl) as total_sell_tl,
+                    sum(buy_turnover_tl) - sum(sell_turnover_tl) as net_flow,
+                    sum(matched_volume) as matched_vol,
+                    sum(intraday_realized_pnl_tl) as intra_pnl,
+                    sum(carry_fifo_realized_pnl_tl) as carry_pnl,
+                    sum(daily_realized_pnl_tl) as daily_pnl
+                FROM silver_broker_fifo_daily
+                WHERE broker_id = ? AND trade_date = ?
+                GROUP BY broker_id, trade_date;
+            """,
+                [broker_id, target_date],
+            ).fetchone()
+
+            if res:
+                net_flow = float(res[6])
+                bias = (
+                    "STRONG_BUY"
+                    if net_flow > 500_000_000
+                    else ("BUY" if net_flow > 0 else ("STRONG_SELL" if net_flow < -500_000_000 else "SELL"))
                 )
                 return BrokerSummary(
-                    broker_id=row[0],
-                    trade_date=target_date,
-                    total_buy_volume=float(row[1]),
-                    total_buy_turnover_tl=float(row[2]),
-                    total_sell_volume=float(row[3]),
-                    total_sell_turnover_tl=float(row[4]),
+                    broker_id=res[0],
+                    trade_date=str(res[1]),
+                    total_buy_volume=float(res[2]),
+                    total_buy_turnover_tl=float(res[3]),
+                    total_sell_volume=float(res[4]),
+                    total_sell_turnover_tl=float(res[5]),
                     net_flow_tl=net_flow,
-                    matched_volume=float(row[6]),
-                    realized_pnl_tl=float(row[7]),
+                    matched_volume=float(res[7]),
+                    intraday_pnl_tl=float(res[8]),
+                    carry_fifo_pnl_tl=float(res[9]),
+                    realized_pnl_tl=float(res[10]),
                     position_bias=bias,
                 )
-    finally:
-        conn.close()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning(f"DuckDB FIFO summary query failed: {e}")
+
+    # Fallback to PostgreSQL 8h candle summary
+    pg_mgr = PostgresConnectionManager()
+    try:
+        conn = pg_mgr.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 
+                        broker_id,
+                        COALESCE(sum(buy_volume), 0),
+                        COALESCE(sum(buy_turnover_tl), 0),
+                        COALESCE(sum(sell_volume), 0),
+                        COALESCE(sum(sell_turnover_tl), 0),
+                        COALESCE(sum(net_flow_tl), 0),
+                        COALESCE(sum(matched_volume), 0),
+                        COALESCE(sum(realized_pnl_tl), 0)
+                    FROM candle_broker_flows
+                    WHERE timeframe = '8h' AND broker_id = %s 
+                      AND bucket_start >= %s AND bucket_start <= %s
+                    GROUP BY broker_id;
+                """,
+                    (broker_id, f"{target_date} 00:00:00", f"{target_date} 23:59:59"),
+                )
+                row = cur.fetchone()
+                if row:
+                    net_flow = float(row[5])
+                    return BrokerSummary(
+                        broker_id=row[0],
+                        trade_date=target_date,
+                        total_buy_volume=float(row[1]),
+                        total_buy_turnover_tl=float(row[2]),
+                        total_sell_volume=float(row[3]),
+                        total_sell_turnover_tl=float(row[4]),
+                        net_flow_tl=net_flow,
+                        matched_volume=float(row[6]),
+                        intraday_pnl_tl=float(row[7]),
+                        carry_fifo_pnl_tl=0.0,
+                        realized_pnl_tl=float(row[7]),
+                        position_bias="BUY" if net_flow >= 0 else "SELL",
+                    )
+        finally:
+            conn.close()
+    except Exception:
+        pass
 
     return BrokerSummary(
         broker_id=broker_id,
@@ -278,6 +357,218 @@ def get_broker_summary(
         total_sell_turnover_tl=0.0,
         net_flow_tl=0.0,
         matched_volume=0.0,
+        intraday_pnl_tl=0.0,
+        carry_fifo_pnl_tl=0.0,
         realized_pnl_tl=0.0,
         position_bias="NEUTRAL",
+    )
+
+
+def get_daily_fifo(
+    broker_id: str = "MLB",
+    symbol: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 100,
+) -> List[DailyFifoRecord]:
+    """Return historical daily FIFO ledger records from silver_broker_fifo_daily."""
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
+    conn = duckdb.connect(duckdb_path, read_only=True)
+    results: List[DailyFifoRecord] = []
+    try:
+        conditions = ["broker_id = ?"]
+        params = [broker_id]
+        if symbol and symbol != "ALL":
+            conditions.append("symbol = ?")
+            params.append(symbol)
+        if start_date:
+            conditions.append("trade_date >= ?")
+            params.append(start_date)
+        if end_date:
+            conditions.append("trade_date <= ?")
+            params.append(end_date)
+
+        where_clause = " WHERE " + " AND ".join(conditions)
+        query = f"""
+            SELECT 
+                trade_date, symbol, symbol_name, sector, broker_id,
+                buy_volume, buy_turnover_tl, buy_vwap,
+                sell_volume, sell_turnover_tl, sell_vwap,
+                matched_volume, intraday_realized_pnl_tl,
+                carry_fifo_realized_pnl_tl, daily_realized_pnl_tl,
+                position_side, open_stock_quantity, open_fifo_cost_tl, fifo_avg_cost,
+                market_close_price, market_value_tl, unrealized_pnl_tl,
+                total_daily_pnl_tl, cumulative_realized_pnl_tl
+            FROM silver_broker_fifo_daily
+            {where_clause}
+            ORDER BY trade_date DESC, symbol ASC
+            LIMIT {limit};
+        """
+        rows = conn.execute(query, params).fetchall()
+        for r in rows:
+            results.append(
+                DailyFifoRecord(
+                    trade_date=str(r[0]),
+                    symbol=r[1],
+                    symbol_name=r[2] or r[1],
+                    sector=r[3] or "GENEL",
+                    broker_id=r[4],
+                    buy_volume=float(r[5] or 0),
+                    buy_turnover_tl=float(r[6] or 0),
+                    buy_vwap=float(r[7]) if r[7] is not None else None,
+                    sell_volume=float(r[8] or 0),
+                    sell_turnover_tl=float(r[9] or 0),
+                    sell_vwap=float(r[10]) if r[10] is not None else None,
+                    matched_volume=float(r[11] or 0),
+                    intraday_realized_pnl_tl=float(r[12] or 0),
+                    carry_fifo_realized_pnl_tl=float(r[13] or 0),
+                    daily_realized_pnl_tl=float(r[14] or 0),
+                    position_side=r[15] or "FLAT",
+                    open_stock_quantity=float(r[16] or 0),
+                    open_fifo_cost_tl=float(r[17] or 0),
+                    fifo_avg_cost=float(r[18]) if r[18] is not None else None,
+                    market_close_price=float(r[19]) if r[19] is not None else None,
+                    market_value_tl=float(r[20] or 0),
+                    unrealized_pnl_tl=float(r[21] or 0),
+                    total_daily_pnl_tl=float(r[22] or 0),
+                    cumulative_realized_pnl_tl=float(r[23] or 0),
+                )
+            )
+    finally:
+        conn.close()
+    return results
+
+
+def get_tertip_lots(
+    broker_id: str = "MLB",
+    symbol: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+) -> List[TertipLot]:
+    """Return historical tertip lot lifecycles from silver_broker_fifo_lot_lifecycle."""
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
+    conn = duckdb.connect(duckdb_path, read_only=True)
+    results: List[TertipLot] = []
+    try:
+        conditions = ["broker_id = ?"]
+        params = [broker_id]
+        if symbol and symbol != "ALL":
+            conditions.append("symbol = ?")
+            params.append(symbol)
+        if status and status != "ALL":
+            conditions.append("status = ?")
+            params.append(status.upper())
+
+        where_clause = " WHERE " + " AND ".join(conditions)
+        query = f"""
+            SELECT 
+                lot_id, broker_id, symbol, direction, open_date,
+                opened_quantity, opened_value_tl, opened_unit_cost,
+                status, closed_date, total_quantity_closed,
+                total_closing_value_tl, total_realized_pnl_tl,
+                remaining_quantity, remaining_value_tl
+            FROM silver_broker_fifo_lot_lifecycle
+            {where_clause}
+            ORDER BY open_date DESC
+            LIMIT {limit};
+        """
+        rows = conn.execute(query, params).fetchall()
+        for r in rows:
+            results.append(
+                TertipLot(
+                    lot_id=r[0],
+                    broker_id=r[1],
+                    symbol=r[2],
+                    direction=r[3],
+                    open_date=str(r[4]),
+                    opened_quantity=float(r[5] or 0),
+                    opened_value_tl=float(r[6] or 0),
+                    opened_unit_cost=float(r[7] or 0),
+                    status=r[8],
+                    closed_date=str(r[9]) if r[9] is not None else None,
+                    total_quantity_closed=float(r[10] or 0),
+                    total_closing_value_tl=float(r[11] or 0),
+                    total_realized_pnl_tl=float(r[12] or 0),
+                    remaining_quantity=float(r[13] or 0),
+                    remaining_value_tl=float(r[14] or 0),
+                )
+            )
+    finally:
+        conn.close()
+    return results
+
+
+def get_tertip_summary(
+    broker_id: str = "MLB",
+    date: Optional[str] = None,
+) -> TertipExecutiveSummary:
+    """Return executive summary metrics for tertip inventory and PnL."""
+    settings = get_settings()
+    duckdb_path = str(settings.duckdb_path)
+    target_date = date or "2026-09-14"
+
+    conn = duckdb.connect(duckdb_path, read_only=True)
+    try:
+        # Sum metrics from daily FIFO
+        row = conn.execute(
+            """
+            SELECT 
+                broker_id,
+                trade_date,
+                sum(cumulative_realized_pnl_tl),
+                sum(daily_realized_pnl_tl),
+                sum(intraday_realized_pnl_tl),
+                sum(carry_fifo_realized_pnl_tl),
+                sum(open_fifo_cost_tl),
+                sum(market_value_tl),
+                sum(unrealized_pnl_tl),
+                sum(total_daily_pnl_tl)
+            FROM silver_broker_fifo_daily
+            WHERE broker_id = ? AND trade_date = ?
+            GROUP BY broker_id, trade_date;
+        """,
+            [broker_id, target_date],
+        ).fetchone()
+
+        # Count active open lots
+        open_lots_count = conn.execute(
+            """
+            SELECT count(*) 
+            FROM silver_broker_fifo_lots 
+            WHERE broker_id = ?;
+        """,
+            [broker_id],
+        ).fetchone()[0]
+
+        if row:
+            return TertipExecutiveSummary(
+                broker_id=row[0],
+                trade_date=str(row[1]),
+                cumulative_realized_pnl_tl=float(row[2] or 0),
+                daily_realized_pnl_tl=float(row[3] or 0),
+                intraday_realized_pnl_tl=float(row[4] or 0),
+                carry_fifo_realized_pnl_tl=float(row[5] or 0),
+                open_inventory_cost_tl=float(row[6] or 0),
+                open_inventory_value_tl=float(row[7] or 0),
+                unrealized_pnl_tl=float(row[8] or 0),
+                total_daily_pnl_tl=float(row[9] or 0),
+                total_open_lots_count=int(open_lots_count),
+            )
+    finally:
+        conn.close()
+
+    return TertipExecutiveSummary(
+        broker_id=broker_id,
+        trade_date=target_date,
+        cumulative_realized_pnl_tl=0.0,
+        daily_realized_pnl_tl=0.0,
+        intraday_realized_pnl_tl=0.0,
+        carry_fifo_realized_pnl_tl=0.0,
+        open_inventory_cost_tl=0.0,
+        open_inventory_value_tl=0.0,
+        unrealized_pnl_tl=0.0,
+        total_daily_pnl_tl=0.0,
+        total_open_lots_count=0,
     )

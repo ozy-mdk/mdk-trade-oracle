@@ -1,6 +1,7 @@
 """FastAPI server application serving Strawberry GraphQL and REST health endpoints."""
 
 import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter

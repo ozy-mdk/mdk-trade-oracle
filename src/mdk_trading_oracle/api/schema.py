@@ -1,20 +1,27 @@
 """Strawberry GraphQL Schema definition for MDK Trading Oracle."""
 
 from typing import List, Optional
+
 import strawberry
 
+from mdk_trading_oracle.api.resolvers import (
+    get_available_dates,
+    get_broker_summary,
+    get_brokers,
+    get_candles,
+    get_daily_fifo,
+    get_instruments,
+    get_tertip_lots,
+    get_tertip_summary,
+)
 from mdk_trading_oracle.api.types import (
     Broker,
     BrokerSummary,
     CandleWithBroker,
+    DailyFifoRecord,
     Instrument,
-)
-from mdk_trading_oracle.api.resolvers import (
-    get_available_dates,
-    get_brokers,
-    get_broker_summary,
-    get_candles,
-    get_instruments,
+    TertipExecutiveSummary,
+    TertipLot,
 )
 
 
@@ -49,6 +56,46 @@ class Query:
         broker_id: str = "MLB",
     ) -> BrokerSummary:
         return get_broker_summary(date=date, broker_id=broker_id)
+
+    @strawberry.field(description="Historical daily FIFO ledger rows from 2022 to present.")
+    def daily_fifo(
+        self,
+        broker_id: str = "MLB",
+        symbol: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[DailyFifoRecord]:
+        return get_daily_fifo(
+            broker_id=broker_id,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+
+    @strawberry.field(description="Historical individual tertip lot lifecycle records from 2022 to present.")
+    def tertip_lots(
+        self,
+        broker_id: str = "MLB",
+        symbol: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[TertipLot]:
+        return get_tertip_lots(
+            broker_id=broker_id,
+            symbol=symbol,
+            status=status,
+            limit=limit,
+        )
+
+    @strawberry.field(description="Executive tertip inventory and PnL summary for selected session.")
+    def tertip_summary(
+        self,
+        broker_id: str = "MLB",
+        date: Optional[str] = None,
+    ) -> TertipExecutiveSummary:
+        return get_tertip_summary(broker_id=broker_id, date=date)
 
 
 schema = strawberry.Schema(query=Query)
