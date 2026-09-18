@@ -37,14 +37,20 @@ class BronzeIngestor:
         file_mtime = stat.st_mtime
 
         # Extract date (e.g. '2026-03-09' or '20260309')
+        # Extract date (e.g. '2026-03-09' or '20260309' or '16092026')
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", path_str)
         if date_match:
             trade_date_str = date_match.group(1)
         else:
-            compact_date = re.search(r"/(\d{8})/", path_str)
-            if compact_date:
-                raw_d = compact_date.group(1)
-                trade_date_str = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
+            compact_match = re.search(r"(?:/|[_\-])(\d{8})(?:\.|\/|[_\-]|$)", path_str)
+            if compact_match:
+                raw_d = compact_match.group(1)
+                if raw_d.startswith(("202", "203")):
+                    trade_date_str = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
+                elif raw_d.endswith(("202", "203")) or raw_d[-4:].startswith(("202", "203")):
+                    trade_date_str = f"{raw_d[4:8]}-{raw_d[2:4]}-{raw_d[:2]}"
+                else:
+                    trade_date_str = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
             else:
                 trade_date_str = None
 
@@ -170,27 +176,81 @@ class BronzeIngestor:
             chunk = csv_metas[i : i + batch_size]
             paths = [m["file_path"] for m in chunk]
 
-            # Ingest chunk into bronze_raw_trades
-            query = f"""
-                INSERT INTO bronze_raw_trades (
-                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                )
-                SELECT 
-                    md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
-                    TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
-                    CAST(symbol AS VARCHAR) AS symbol,
-                    CAST(price AS DOUBLE) AS price,
-                    CAST(quantity AS DOUBLE) AS volume,
-                    CAST(buyer AS VARCHAR) AS buyer_broker_id,
-                    CAST(seller AS VARCHAR) AS seller_broker_id,
-                    filename AS raw_source
-                FROM read_csv_auto({paths}, union_by_name=true, header=true, filename=true)
-                WHERE symbol IS NOT NULL AND price > 0;
-            """
-            conn.execute(query)
+            # Detect if this chunk contains headerless semicolon-delimited BIST trade feeds
+            is_bist_raw_semicolon = False
+            sample_path = chunk[0]["file_path"]
+            try:
+                with open(sample_path, "r", encoding="utf-8", errors="ignore") as fp:
+                    first_line = fp.readline()
+                    if ";" in first_line and "symbol" not in first_line.lower():
+                        is_bist_raw_semicolon = True
+            except Exception:
+                pass
+
+            if is_bist_raw_semicolon:
+                for meta in chunk:
+                    p = meta["file_path"]
+                    d_str = meta["trade_date"] or "2026-09-16"
+                    query = f"""
+                        INSERT INTO bronze_raw_trades (
+                            trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
+                        )
+                        SELECT 
+                            md5('{d_str}_' || symbol || '_' || time_str || '_' || buyer || '_' || seller || '_' || trade_seq) AS trade_id,
+                            TRY_CAST('{d_str} ' || time_str AS TIMESTAMP) AS timestamp,
+                            CAST(symbol AS VARCHAR) AS symbol,
+                            CAST(REPLACE(price_str, ',', '.') AS DOUBLE) AS price,
+                            CAST(volume_str AS DOUBLE) AS volume,
+                            CAST(buyer AS VARCHAR) AS buyer_broker_id,
+                            CAST(seller AS VARCHAR) AS seller_broker_id,
+                            '{meta["file_name"]}' AS raw_source
+                        FROM read_csv(
+                            '{p}',
+                            delim=';',
+                            header=false,
+                            columns={{
+                                'time_str': 'VARCHAR',
+                                'symbol': 'VARCHAR',
+                                'price_str': 'VARCHAR',
+                                'volume_str': 'VARCHAR',
+                                'turnover_str': 'VARCHAR',
+                                'buyer': 'VARCHAR',
+                                'seller': 'VARCHAR',
+                                'trade_seq': 'VARCHAR'
+                            }}
+                        )
+                        WHERE symbol IS NOT NULL AND TRY_CAST(REPLACE(price_str, ',', '.') AS DOUBLE) > 0;
+                    """
+                    conn.execute(query)
+            else:
+                # Ingest legacy chunk into bronze_raw_trades
+                query = f"""
+                    INSERT INTO bronze_raw_trades (
+                        trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
+                    )
+                    SELECT 
+                        md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
+                        TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
+                        CAST(symbol AS VARCHAR) AS symbol,
+                        CAST(price AS DOUBLE) AS price,
+                        CAST(quantity AS DOUBLE) AS volume,
+                        CAST(buyer AS VARCHAR) AS buyer_broker_id,
+                        CAST(seller AS VARCHAR) AS seller_broker_id,
+                        filename AS raw_source
+                    FROM read_csv_auto({paths}, union_by_name=true, header=true, filename=true)
+                    WHERE symbol IS NOT NULL AND price > 0;
+                """
+                conn.execute(query)
 
             # Record each ingested file in bronze_ingestion_log
             for meta in chunk:
+                try:
+                    rows_cnt = conn.execute(
+                        "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ?;", [meta["file_name"]]
+                    ).fetchone()[0]
+                except Exception:
+                    rows_cnt = 0
+
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO bronze_ingestion_log (
@@ -204,7 +264,7 @@ class BronzeIngestor:
                         meta["file_mtime_epoch"],
                         meta["trade_date"],
                         meta["year_month"],
-                        0,
+                        rows_cnt,
                         meta["file_name"],
                     ],
                 )
