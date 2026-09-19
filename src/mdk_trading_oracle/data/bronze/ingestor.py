@@ -776,7 +776,7 @@ class BronzeIngestor:
                 TRUE AS is_forward_filled,
                 'forward_fill_market_sync' AS raw_source,
                 CURRENT_TIMESTAMP AS ingested_at
-            FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
+            FROM generate_series(?::TIMESTAMP, ?::TIMESTAMP, INTERVAL '1 day') t(d);
         """,
             [latest_rate, start_fill, eff_target_date],
         )
@@ -977,7 +977,7 @@ class BronzeIngestor:
                 0.0 AS price_range_pct,
                 TRUE AS is_forward_filled,
                 'forward_fill_market_sync' AS source
-            FROM generate_series(?::DATE, ?::DATE, INTERVAL 1 DAY) t(d);
+            FROM generate_series(?::TIMESTAMP, ?::TIMESTAMP, INTERVAL '1 day') t(d);
         """,
             [
                 latest_bench[0],

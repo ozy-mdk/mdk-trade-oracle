@@ -930,7 +930,44 @@ class SilverTransformer:
             )
 
         # 1. Register and persist daily summary
-        pl_daily = pl.DataFrame(daily_rows)
+        pl_daily = (
+            pl.DataFrame(daily_rows)
+            if daily_rows
+            else pl.DataFrame(
+                {
+                    "trade_date": pl.Series([], dtype=pl.Date),
+                    "symbol": pl.Series([], dtype=pl.Utf8),
+                    "symbol_name": pl.Series([], dtype=pl.Utf8),
+                    "sector": pl.Series([], dtype=pl.Utf8),
+                    "broker_id": pl.Series([], dtype=pl.Utf8),
+                    "broker_name": pl.Series([], dtype=pl.Utf8),
+                    "buy_volume": pl.Series([], dtype=pl.Float64),
+                    "buy_turnover_tl": pl.Series([], dtype=pl.Float64),
+                    "buy_vwap": pl.Series([], dtype=pl.Float64),
+                    "sell_volume": pl.Series([], dtype=pl.Float64),
+                    "sell_turnover_tl": pl.Series([], dtype=pl.Float64),
+                    "sell_vwap": pl.Series([], dtype=pl.Float64),
+                    "matched_volume": pl.Series([], dtype=pl.Float64),
+                    "matched_buy_value_tl": pl.Series([], dtype=pl.Float64),
+                    "matched_sell_value_tl": pl.Series([], dtype=pl.Float64),
+                    "intraday_realized_pnl_tl": pl.Series([], dtype=pl.Float64),
+                    "residual_volume": pl.Series([], dtype=pl.Float64),
+                    "residual_value_tl": pl.Series([], dtype=pl.Float64),
+                    "residual_flow_unit_cost": pl.Series([], dtype=pl.Float64),
+                    "carry_fifo_realized_pnl_tl": pl.Series([], dtype=pl.Float64),
+                    "daily_realized_pnl_tl": pl.Series([], dtype=pl.Float64),
+                    "position_side": pl.Series([], dtype=pl.Utf8),
+                    "open_stock_quantity": pl.Series([], dtype=pl.Float64),
+                    "open_fifo_cost_tl": pl.Series([], dtype=pl.Float64),
+                    "fifo_avg_cost": pl.Series([], dtype=pl.Float64),
+                    "market_close_price": pl.Series([], dtype=pl.Float64),
+                    "market_value_tl": pl.Series([], dtype=pl.Float64),
+                    "unrealized_pnl_tl": pl.Series([], dtype=pl.Float64),
+                    "total_daily_pnl_tl": pl.Series([], dtype=pl.Float64),
+                    "cumulative_realized_pnl_tl": pl.Series([], dtype=pl.Float64),
+                }
+            )
+        )
         conn.register("df_fifo_daily_temp", pl_daily)
         conn.execute(
             "CREATE OR REPLACE TABLE silver_broker_fifo_daily AS SELECT *, CURRENT_TIMESTAMP AS calculated_at FROM df_fifo_daily_temp;"
@@ -956,14 +993,14 @@ class SilverTransformer:
             if entry_rows
             else pl.DataFrame(
                 {
-                    "lot_id": [],
-                    "broker_id": [],
-                    "symbol": [],
-                    "direction": [],
-                    "open_date": [],
-                    "opened_quantity": [],
-                    "opened_value_tl": [],
-                    "opened_unit_cost": [],
+                    "lot_id": pl.Series([], dtype=pl.Utf8),
+                    "broker_id": pl.Series([], dtype=pl.Utf8),
+                    "symbol": pl.Series([], dtype=pl.Utf8),
+                    "direction": pl.Series([], dtype=pl.Utf8),
+                    "open_date": pl.Series([], dtype=pl.Date),
+                    "opened_quantity": pl.Series([], dtype=pl.Float64),
+                    "opened_value_tl": pl.Series([], dtype=pl.Float64),
+                    "opened_unit_cost": pl.Series([], dtype=pl.Float64),
                 }
             )
         )
@@ -995,14 +1032,14 @@ class SilverTransformer:
             if active_lot_rows
             else pl.DataFrame(
                 {
-                    "lot_id": [],
-                    "broker_id": [],
-                    "symbol": [],
-                    "direction": [],
-                    "open_date": [],
-                    "remaining_quantity": [],
-                    "remaining_value_tl": [],
-                    "unit_cost": [],
+                    "lot_id": pl.Series([], dtype=pl.Utf8),
+                    "broker_id": pl.Series([], dtype=pl.Utf8),
+                    "symbol": pl.Series([], dtype=pl.Utf8),
+                    "direction": pl.Series([], dtype=pl.Utf8),
+                    "open_date": pl.Series([], dtype=pl.Date),
+                    "remaining_quantity": pl.Series([], dtype=pl.Float64),
+                    "remaining_value_tl": pl.Series([], dtype=pl.Float64),
+                    "unit_cost": pl.Series([], dtype=pl.Float64),
                 }
             )
         )

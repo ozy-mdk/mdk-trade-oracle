@@ -382,8 +382,8 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
             FROM lagged_sector_features r
             LEFT JOIN day_t_sector_targets t ON r.trade_date = t.trade_date AND r.sector = t.sector
             WHERE r.feat_sector_bofa_prev_day_net_flow_tl IS NOT NULL
-              AND (? IS NULL OR r.trade_date >= ?)
-              AND (? IS NULL OR r.trade_date <= ?)
+              AND (CAST(? AS DATE) IS NULL OR r.trade_date >= CAST(? AS DATE))
+              AND (CAST(? AS DATE) IS NULL OR r.trade_date <= CAST(? AS DATE))
             ORDER BY r.trade_date ASC, r.sector ASC;
         """
         df = conn.execute(query, [effective_start, effective_start, end_date, end_date]).pl()

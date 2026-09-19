@@ -621,12 +621,12 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
                 LAG(mc.feat_macro_rate_shock_decay, 1) OVER (PARTITION BY w1_bofa.symbol ORDER BY w1_bofa.trade_date)
                                                                             AS feat_macro_rate_shock_decay_t1,
 
-                DAYOFWEEK(w1_bofa.trade_date)                               AS feat_day_of_week,
-                CASE WHEN DAYOFWEEK(w1_bofa.trade_date) = 2 THEN 1 ELSE 0 END
+                CAST(EXTRACT(DOW FROM w1_bofa.trade_date) + 1 AS INTEGER)   AS feat_day_of_week,
+                CASE WHEN CAST(EXTRACT(DOW FROM w1_bofa.trade_date) AS INTEGER) = 1 THEN 1 ELSE 0 END
                                                                             AS feat_is_monday,
-                CASE WHEN DAYOFWEEK(w1_bofa.trade_date) = 6 THEN 1 ELSE 0 END
+                CASE WHEN CAST(EXTRACT(DOW FROM w1_bofa.trade_date) AS INTEGER) = 5 THEN 1 ELSE 0 END
                                                                             AS feat_is_friday,
-                DAYOFMONTH(w1_bofa.trade_date)                              AS feat_day_of_month,
+                CAST(EXTRACT(DAY FROM w1_bofa.trade_date) AS INTEGER)       AS feat_day_of_month,
 
                 CASE
                     WHEN ABS(COALESCE(w1_bofa.feat_bofa_w1_direction_strength, 0)) >= 2.0
