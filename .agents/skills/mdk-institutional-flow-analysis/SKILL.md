@@ -152,7 +152,7 @@ flowchart LR
 
 ## 7. Trailing Evaluation Horizon & Walk-Forward Validation
 
-To prevent lookahead bias in financial time series and scale efficiently from 1 month to 5+ years of data:
+To prevent lookahead bias in financial time series and scale efficiently across 2.2B+ trades and 4.5+ years of historical data on the Apple Silicon M5 Mac Pro:
 
 ```
                             FULL HISTORICAL DATASET (e.g. 1 Year / 250 Days)
@@ -173,7 +173,7 @@ Step 20: Train on [Day 1 … 249] (249 days)  ──► Predict Day 250 ──�
   - `eval_window_days: 20`: Number of trailing out-of-sample evaluation steps in the tournament.
   - `min_burn_in_days: 5`: Minimum warmup sessions.
 - **`DayStartModelArena` & `SectorDayStartModelArena`**: Runs the tournament and crowns the champion.
-- **`DayStartForecaster` & `SectorDayStartForecaster`**: Fits the champion on 100% of historical data and writes forecasts into DuckDB Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`) and backtest ledgers (`gold_bofa_day_start_backtests` and `gold_bofa_sector_day_start_backtests`).
+- **`DayStartForecaster` & `SectorDayStartForecaster`**: Fits the champion on 100% of historical data and writes forecasts into PostgreSQL Gold tables (`gold_bofa_day_start_forecasts` and `gold_bofa_sector_day_start_forecasts`) and backtest ledgers (`gold_bofa_day_start_backtests` and `gold_bofa_sector_day_start_backtests`).
 
 ---
 
@@ -268,8 +268,8 @@ Every model exploration notebook (e.g. `03_bofa_day_start_modeling.ipynb`, `04_b
    - Positioned prominently before historical charts. Displays upcoming date, predicted flow ($TL$), 90% credible intervals, directional conviction badges (`STRONG_ACCUMULATE`, `DISTRIBUTE`), institutional playbooks, and sector allocation bar charts.
 3. **Performance Ledger & Calibration Explorer**:
    - Visualizes actual vs. predicted curves from `gold_bofa_*_performance` with 90% confidence ribbons and interactive dropdown inspectors for examining past session performance.
-4. **DuckDB Gold Verification**:
-   - Queries `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, and `gold_bofa_*_backtests` using `read_only=True` to audit persisted production records.
+4. **PostgreSQL / TimescaleDB Gold Verification**:
+   - Direct SQL inspection of `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, and `gold_bofa_*_backtests` to audit persisted production records.
 5. **Clean & Professional Documentation (No Excessive Emojis)**:
    - **Do NOT use excessive emojis** in headers, text cells, logs, or card templates. Emojis clutter technical documents and impair readability.
    - Use clean typography, structured headers, standard tables, and crisp text badges (`[PASS]`, `HIT`, `MISS`).

@@ -29,6 +29,20 @@ class Settings(BaseSettings):
     default_market: str = Field(default="BIST", alias="DEFAULT_MARKET")
     primary_institution: str = Field(default="MLB", alias="PRIMARY_INSTITUTION")
 
+    # Database Settings (PostgreSQL + TimescaleDB)
+    pg_host: str = Field(default="127.0.0.1", alias="PG_HOST")
+    pg_port: int = Field(default=5432, alias="PG_PORT")
+    pg_database: str = Field(default="mdk_oracle", alias="PG_DATABASE")
+    pg_user: str = Field(default="ozkanyildirim", alias="PG_USER")
+    pg_password: str = Field(default="", alias="PG_PASSWORD")
+    pg_sslmode: str = Field(default="prefer", alias="PG_SSLMODE")
+
+    @property
+    def postgres_uri(self) -> str:
+        """Construct PostgreSQL connection URI."""
+        auth = f"{self.pg_user}:{self.pg_password}@" if self.pg_password else f"{self.pg_user}@"
+        return f"postgresql://{auth}{self.pg_host}:{self.pg_port}/{self.pg_database}"
+
     # Project Directories (Inside repository)
     project_root: Path = PROJECT_ROOT
     config_dir: Path = PROJECT_ROOT / "config"

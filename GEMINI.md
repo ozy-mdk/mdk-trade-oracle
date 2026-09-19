@@ -20,21 +20,23 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ---
 
 ## 3. System Architecture (Medallion Lakehouse)
-A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
+A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars + Python 3.9 on Apple Silicon M5 Mac Pro**:
 
 - **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_bist30_membership`, `bronze_bist30_changes`, `bronze_bist30_stock_periods`, `bronze_instruments`, `bronze_brokers`)**:
-  - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs).
+  - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs) stored in a TimescaleDB Hypertable with columnar compression.
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
   - Historical corporate actions (stock splits, rights issues, ticker symbol changes).
   - BIST 30 index membership snapshots, quarterly rebalancing changes, and continuous stock periods.
   - Dimension reference tables for all tracked equities and brokerages.
-- **Silver Layer (`silver_corporate_action_adjustment_periods`, `silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+- **Silver Layer (`silver_candles_1m`, `silver_candles_5m`, `silver_candles_1d`, `silver_corporate_action_adjustment_periods`, `silver_daily_broker_summary`, `silver_daily_broker_overview`, `silver_daily_stock_summary`, `silver_daily_sector_summary`, `silver_daily_macro_rates`, `silver_daily_benchmark_index`, `silver_bofa_historical_flow_thresholds`, `silver_broker_fifo_daily`, `silver_broker_fifo_lot_entries`, `silver_broker_fifo_lots`, `silver_broker_fifo_lot_realizations`, `silver_broker_fifo_lot_lifecycle`, `silver_intraday_broker_window_summary`, `silver_intraday_sector_window_summary`)**:
+  - Continuous aggregate hypertables (`silver_candles_1m`, `silver_candles_5m`, `silver_candles_1d`) computing sub-millisecond OHLCV, volume, and BofA institutional net turnover for the React candlestick frontend.
   - Cleaned, daily aggregated broker turnarounds, buy/sell volume, net flow (TL), and VWAP prices.
   - Precision corporate action adjustment periods (`silver_corporate_action_adjustment_periods`) providing continuous `quantity_factor` and `canonical_symbol` mappings with zero monetary distortion ($\text{Turnover TL} = \text{Conserved}$).
   - Adjusted prices and returns enriched directly in `silver_daily_stock_summary` (`adj_close_price`, `adj_daily_return_pct`, `adj_market_vwap`, `adj_total_volume`, `adj_bofa_total_vwap`).
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
-  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day  - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
+  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
+  - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
   - Empirical stock return percentile profiles (`silver_stock_reaction_thresholds` across BIST30 equities x W2/W3/W5) computing $P_{25}, P_{50}, P_{85}$ for rally and decline phases.
   - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1` across 7 institutions: `MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`):
     - `silver_broker_fifo_daily`: Historical point-in-time time-series logging daily matched flow, intraday PnL, residual flow, carry FIFO realized PnL, open stock inventory, average unit cost, and MTM valuation for every session $T$.
@@ -96,7 +98,7 @@ Every new model adheres to this **Universal Modeling Blueprint**:
    - Every modeling notebook (`notebooks/03_*.ipynb`, `notebooks/04_*.ipynb`, etc.) must provide:
      1. **Live Upcoming Session Signal Card ($T+1$)**: Prominent executive card with forecasted net flow ($TL$), 90% credible ranges, directional badges, institutional playbooks, and sector rotation allocations.
      2. **Performance Ledger & Historical Backtest View**: Actual vs. predicted track record with 90% confidence interval ribbons and interactive dropdown session inspectors.
-     3. **DuckDB Gold Table Verification**: Direct queries inspecting persisted production records (live forecasts, performance ledgers, and backtest simulations).
+     3. **PostgreSQL / TimescaleDB Table Verification**: Direct queries inspecting persisted production records (live forecasts, performance ledgers, and backtest simulations).
    - **Clean & Professional Typography (No Excessive Emojis)**:
      - Keep documentation, markdown cells, headers, section titles, comments, and card templates clean, crisp, and professional.
      - **Do NOT use excessive emojis** in headers, text blocks, or notebooks. Use standard structured markdown headers, clean typography, tables, and minimal functional status badges (`[PASS]`, `[FAIL]`, `HIT`, `MISS`).
@@ -127,29 +129,31 @@ To allow seamless portability across different team members' local machines:
   - Raw Landings:
     - BIST Trades: `~/data/mdk_oracle/00_raw_data/<year>/<month>/raw_csv/**/*.csv`
     - Central Bank Rates: `~/data/mdk_oracle/00_raw_data/central_bank_interest_rates/**/*.*` (`.xlsx`, `.xls`, `.csv`, `.parquet`)
-  - DuckDB Storage: `~/data/mdk_oracle/database/mdk_oracle.duckdb`
+  - Database: PostgreSQL 16 + TimescaleDB (`PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER` in `.env`).
   - **Rule**: Never hardcode absolute user-specific home paths (e.g. `/Users/ozkanyildirim/`). Always use `Path.home() / "data" / "mdk_oracle"` or `get_settings().data_dir`.
 
 ---
 
-## 6. Incremental & Multi-Month Data Ingestion
-- Current baseline dataset: March 2026 (945 CSV files, 21 trading days, 36.8M+ trades) + Central Bank 1-week repo rate history (1,157 records from 2022 to 2026).
-- **Sample vs. Production Scaling**: The local development workspace uses the March 2026 baseline sample dataset for rapid iteration. Production environments ingest multi-year and multi-month trading data; all lakehouse transformations, daily FIFO ledgers, and predictive models scale seamlessly to arbitrary history lengths.
-- The pipeline supports adding new daily and monthly raw data feeds under `00_raw_data/<year>/<month>/raw_csv/` and monthly Central Bank policy updates under `00_raw_data/central_bank_interest_rates/`.
-- **Idempotent Upserting**: Central Bank files are upserted (`INSERT OR REPLACE`) to preserve historical series while updating new rates.
+## 6. Full Historical Dataset & Apple Silicon M5 Mac Pro Architecture
+- **Full History Scope**: Powered by the **Apple Silicon M5 Mac Pro**, the platform hosts the complete historical dataset spanning **2022 to 2026+ (2.2+ Billion executed trades, 4.5+ years of daily and intraday order flow)**, along with full Central Bank interest rate history (1,180+ policy sessions) and BIST 30 benchmark OHLCV series.
+- **Hardware Acceleration**: Takes full advantage of the M5 Mac Pro's high-bandwidth unified memory architecture, multi-core SIMD processing, and TimescaleDB columnar compression policies.
+- The pipeline supports continuous ingestion of new daily and monthly raw trade dumps under `00_raw_data/<year>/<month>/raw_csv/` and Central Bank policy updates under `00_raw_data/central_bank_interest_rates/`.
+- **Idempotent Upserting**: Central Bank files are upserted (`ON CONFLICT DO UPDATE`) to preserve historical series while updating new rates.
 - **Continuous Forward-Fill Sync**: When market trading dates advance beyond the latest CBRT file, the pipeline forward-fills the latest known rate (`is_forward_filled = TRUE`) so daily models never have date gaps.
 - Use `--sync-catalog` during ingestion to auto-discover any new stock tickers or broker codes.
 
 ---
 
-## 7. Python Environment & Concurrency Rules
+## 7. Concurrency & Serving Rules
 - **Virtual Environment**: Always use `.venv` at project root:
   - Binary path: `.venv/bin/python`, `.venv/bin/pytest`, `.venv/bin/ruff`
   - Jupyter Kernel: `Python 3.9 (mdk-trading-oracle)`
-- **DuckDB Concurrency & File Locks (CRITICAL)**:
-  - DuckDB uses exclusive file write locks.
-  - **Pipelines & Ingestors**: Use write mode via `DuckDBManager()`.
-  - **Notebooks & Analytical Queries**: MUST use `read_only=True` (`DuckDBManager(read_only=True)` or `duckdb.connect(path, read_only=True)`) to ensure notebooks never block pipeline executions.
+- **Multi-User PostgreSQL MVCC Concurrency**:
+  - PostgreSQL eliminates single-writer file lock bottlenecks.
+  - High-throughput parallel reads and writes run simultaneously without collisions:
+    - Batch pipelines and model trainers write to hypertables using binary `COPY` protocol.
+    - React frontend and FastAPI asynchronously serve candlestick charts from continuous aggregate views (`silver_candles_5m`).
+    - Multiple Jupyter notebooks query analytical data concurrently without blocking.
 
 ---
 

@@ -23,12 +23,12 @@ When adding new tables, transforming features, or integrating new Gold models:
 
 ## 2. Lakehouse Architecture & Table Reference
 
-A high-performance local-first lakehouse powered by **DuckDB + Polars + Python 3.9**:
+A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars + Python 3.9 on Apple Silicon M5 Mac Pro**:
 
 ```mermaid
 flowchart TD
     subgraph Bronze["Bronze Layer (Raw & Ingestion Audit)"]
-        B_RAW["bronze_raw_trades<br/>(36.8M+ microsecond ticks)"]
+        B_RAW["bronze_raw_trades<br/>(2.2B+ microsecond ticks, 2022-2026)"]
         B_LOG["bronze_ingestion_log<br/>(mtime & partition tracker)"]
         B_BROK["bronze_brokers<br/>(65 brokerages)"]
         B_INST["bronze_instruments<br/>(45 liquid BIST equities)"]
@@ -37,7 +37,8 @@ flowchart TD
         B_BIST30["bronze_bist30_membership<br/>(BIST 30 Snapshots, Changes & Periods)"]
     end
 
-    subgraph Silver["Silver Layer (Aggregated Microstructure & Macro)"]
+    subgraph Silver["Silver Layer (Aggregated Microstructure, Candles & Macro)"]
+        S_CANDLES["silver_candles_1m, 5m, 1d<br/>(Continuous Aggregates for React Charts)"]
         S_BROK_SUM["silver_daily_broker_summary<br/>(Stock x Broker x Date)"]
         S_BROK_OVR["silver_daily_broker_overview<br/>(Broker Macro Market Share & Ranks)"]
         S_STK_SUM["silver_daily_stock_summary<br/>(OHLCV, CR5, BofA VWAP & Spreads)"]
@@ -264,30 +265,20 @@ The pipeline is tightly integrated with interactive Jupyter notebooks located in
 
 ## 6. Concurrency, Storage Portability & Lock Troubleshooting
 
-### DuckDB File Lock Protocol (CRITICAL)
-DuckDB enforces exclusive single-process write locks.
-- **Pipelines & Ingestors**: Use write mode via `DuckDBManager()`.
-- **Notebooks & Analytical Queries**: **MUST** use `read_only=True`:
+### PostgreSQL Concurrency & Connection Rules
+- **Multi-User MVCC Concurrency**:
+  - PostgreSQL 16 eliminates DuckDB's single-writer file lock bottlenecks.
+  - High-throughput parallel reads and writes execute simultaneously without collisions:
+    - Ingestor and pipeline workers insert via binary `COPY` protocol.
+    - React frontend queries continuous aggregates (`silver_candles_5m`) in sub-10ms.
+    - Research notebooks query `PostgresManager` concurrently without blocking.
+- **Connection Management**:
   ```python
-  from mdk_trading_oracle.core.db import DuckDBManager
+  from mdk_trading_oracle.core.db import PostgresManager
 
-  db = DuckDBManager(read_only=True)
-  # Or directly via DuckDB:
-  import duckdb
-
-  conn = duckdb.connect(str(settings.database_path), read_only=True)
+  db = PostgresManager()
+  df = db.query_pl("SELECT * FROM silver_daily_stock_summary WHERE symbol = 'THYAO'")
   ```
-
-### Resolving Lock Conflicts
-If `DuckDB lock conflict: ... is currently locked by another process` occurs:
-1. Identify the holding process:
-   ```bash
-   ps aux | grep -E "python|jupyter|duckdb"
-   ```
-2. Terminate the blocking process:
-   ```bash
-   kill <PID>
-   ```
 
 ### Storage Portability
 Never hardcode absolute user-specific paths (`/Users/...`). Always use:

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: mdk-timescaledb
+    restart: unless-stopped
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${PG_DATABASE:-mdk_oracle}
+      POSTGRES_USER: ${PG_USER:-ozkanyildirim}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+    volumes:
+      - ${DATA_DIR:-~/data/mdk_oracle}/timescale_data:/var/lib/postgresql/data
+    shm_size: 4g
+    command: >
+      postgres
+        -c shared_buffers=4GB
+        -c work_mem=64MB
+        -c maintenance_work_mem=1GB
+        -c effective_cache_size=16GB
+        -c max_parallel_workers_per_gather=4
+        -c max_parallel_maintenance_workers=4
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=64MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
