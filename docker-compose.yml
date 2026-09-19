@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
@@ -11,8 +9,9 @@ services:
       POSTGRES_DB: ${PG_DATABASE:-mdk_oracle}
       POSTGRES_USER: ${PG_USER:-ozkanyildirim}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: "trust"
     volumes:
-      - ${DATA_DIR:-~/data/mdk_oracle}/timescale_data:/var/lib/postgresql/data
+      - ${HOME}/data/mdk_oracle/timescale_data:/var/lib/postgresql/data
     shm_size: 4g
     command: >
       postgres
