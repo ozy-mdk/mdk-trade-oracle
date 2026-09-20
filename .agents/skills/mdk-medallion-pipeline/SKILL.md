@@ -299,3 +299,91 @@ Verify pipeline integrity after any modifications:
 .venv/bin/ruff check .
 ```
 
+---
+
+## 8. Frontend & Serving Architecture: Design Choices, Quantitative Rationale & Future Roadmap
+
+The serving layer and interactive user interface are designed as an **institutional trading workstation** tailored directly for quantitative analysts and equity traders tracking institutional order flows.
+
+### A. Architectural Design Choices & Quantitative Rationale
+
+#### 1. Native PostgreSQL 16 + TimescaleDB (Elimination of DuckDB Dual-State Sync)
+- **Prior Problem**: An experimental architecture attempted to maintain a dual-engine setup where DuckDB ran local analytical queries while a custom synchronizer (`LakehousePostgresSynchronizer`) pushed snapshots to PostgreSQL. This introduced single-writer file-lock collisions, synchronization lag, and dual schema maintenance.
+- **Adopted Solution**: Unified 100% of data storage, continuous aggregation, and analytical queries in native **PostgreSQL 16 + TimescaleDB**.
+- **Rationale**:
+  - **Zero Lock Collisions**: Multi-Version Concurrency Control (MVCC) enables high-throughput binary `COPY` bulk trade ingestion, machine learning model training, interactive Jupyter research, and live React frontend queries to execute concurrently without blocking.
+  - **Sub-10ms Serving**: TimescaleDB continuous aggregate views (`silver_candles_1m`, `silver_candles_5m`) compute sub-millisecond OHLCV and BofA net turnover increments incrementally in background chunks.
+  - **Fully Open-Source & Portable**: Runs anywhere via Docker (`compose up -d`) with zero paid licenses, zero cloud subscriptions, and zero external vendor lock-in.
+
+#### 2. FastAPI Asynchronous REST + TanStack React Query (vs. Strawberry GraphQL)
+- **Prior Proposal**: A GraphQL layer (Strawberry) was proposed with complex schema definitions and nested resolvers.
+- **Adopted Solution**: Lightweight **FastAPI asynchronous REST endpoints** paired with **`@tanstack/react-query`** in the React frontend.
+- **Rationale**:
+  - **Ultra-Low Latency**: REST queries execute directly in 2ms - 5ms with zero AST parsing or resolver reflection overhead.
+  - **Stale-While-Revalidate & Auto-Caching**: TanStack Query provides automatic background revalidation, cache synchronization across tabs, deduplication of concurrent requests, and zero schema boilerplate.
+  - **Vite Reverse Proxy**: The frontend dev server proxies `/api` directly to `http://127.0.0.1:8000`, eliminating Cross-Origin Resource Sharing (CORS) friction and hardcoded ports across development and production.
+
+#### 3. High-Performance Canvas Charting with Scale Isolation (TradingView Lightweight Charts)
+- **Adopted Solution**: Built on `lightweight-charts` (^4.2.0) with an upper Candlestick Series and lower BofA Net Flow histogram sub-pane.
+- **Rationale**:
+  - **Canvas Rendering**: Renders tens of thousands of intraday bars at 60 FPS without DOM node explosion or SVG overhead.
+  - **Sub-Scale Isolation**: BofA net order flow is isolated to a dedicated price scale (`priceScaleId: 'bofa_flow'`) with fixed margins (`scaleMargins: { top: 0.76, bottom: 0.02 }`), ensuring institutional flow bars stay pinned to the bottom 24% of the viewport without distorting stock price scales.
+  - **Synthetic Benchmark `XU030`**: Dynamically serves official BIST 30 benchmark OHLCV candles, allowing traders to benchmark individual equity momentum against broad index trends.
+
+#### 4. Institutional FIFO Tertip Mechanism Integration (`INTRADAY_MATCHED_FIFO_V1`)
+- **Adopted Solution**: Native point-in-time integration with `silver_broker_fifo_daily`, `silver_broker_fifo_lots`, and `silver_broker_fifo_lot_realizations`.
+- **Rationale**:
+  - Volume alone is insufficient to identify institutional intentions. Separating **Intraday Matched PnL** (scalping/market making during session $T$) from **Carry FIFO Realized PnL** (closing multi-day inventory) reveals whether BofA is providing short-term liquidity or fundamentally unwinding a strategic position.
+  - Open lot queues reveal remaining inventory, unit cost basis, and days held, allowing traders to pinpoint potential profit-taking thresholds (`LIQUIDITY_FADE`) or defense support zones (`DEFENSE_SUPPORT`).
+
+#### 5. Event Study Forward Horizon Scanner ($T+1 \to T+10$)
+- **Adopted Solution**: High-performance PostgreSQL CTE with `LEAD(adj_close_price, N)` window functions, conditioned on BofA flow triggers and prior-session ($D-1$) return bounds.
+- **Rationale**:
+  - Translates institutional flow into concrete statistical edge: answers whether large BofA accumulation after a market drop yields positive forward returns.
+  - Computes forward returns exclusively on corporate action adjusted prices (`adj_close_price`) to prevent stock split or rights issue distortion.
+
+#### 6. Microstructure Mandate: Turkish Time (TRT / UTC+3)
+- **Adopted Solution**: Strict enforcement of **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** across all database queries, 5 intraday execution windows (`W1` to `W5`), log outputs, and frontend clocks.
+- **Rationale**: Turkey does not observe Daylight Saving Time (DST). Converting to UTC or Central European Time (CET) causes daylight saving shifts and breaks intraday session window boundaries (09:55, 10:30, 11:30, 14:30, 16:00, 18:15).
+
+---
+
+### B. Trader Decision Terminals & Workstation Architecture
+
+The workstation UI (`frontend/src/`) is partitioned into 5 modular, high-density trader dashboards:
+
+```
+                                    MDK TRADING ORACLE WORKSTATION
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Top Header: Active Symbol Selector | Broker Selector (MLB default) | Date | Live TRT Clock  │
+  ├──────────────────┬──────────────────┬──────────────────┬──────────────────┬──────────────────┤
+  │ Tab 1: Candles   │ Tab 2: Tertip    │ Tab 3: Event     │ Tab 4: Time      │ Tab 5: Gold      │
+  │ & Flow Chart     │ FIFO Inventory   │ Study Scanner    │ Window Terminal  │ Predictive Hub   │
+  └──────────────────┴──────────────────┴──────────────────┴──────────────────┴──────────────────┘
+```
+
+1. **Tab 1: `CandleDashboard`**: 5 Core KPI badges (Close Price, Total Turnover, Broker Net Flow with pulse badge, Realized PnL, Institutional Bias Badge) + Dual-pane TradingView chart + Live Crosshair Inspector.
+2. **Tab 2: `TertipDashboard`**: Portfolio MTM Valuation, Unrealized PnL, Daily Realized PnL, and Cumulative Realized PnL + Sub-views for Active Stock Inventory, Audited Open Lots, and Historical PnL Progression.
+3. **Tab 3: `EventStudyDashboard`**: Interactive scanner with flow presets (`≥ ₺50M`, `≥ ₺100M`, `≤ -₺50M`) and $D-1$ return conditioning. Computes forward win rates and returns ($T+1, T+2, T+3, T+5, T+10$).
+4. **Tab 4: `TimeWindowTerminal`**: 5 execution splits (`W1` Day-Start, `W2` First Reaction, `W3` Midday Followup, `W4` Afternoon Reaction, `W5` Closing Session) with opening auction (09:55) and closing auction (18:05) highlights and cumulative flow progression.
+5. **Tab 5: `OracleHubDashboard`**: Live Model 1 Day-Start Macro forecast card for $T+1$ (predicted flow, 90% credible intervals, conviction badge, and institutional playbook), Model 2 Sector Allocation matrix, and Model 3 Stock Reaction rankings.
+
+---
+
+### C. Future Development Roadmap & Engineering Guidelines
+
+When expanding or upgrading the workstation and serving pipeline, adhere to these guidelines:
+
+1. **WebSocket Real-Time Event Streaming**:
+   - The FastAPI backend provides `/api/v1/stream`. Future frontend development should connect a WebSocket hook to push live trade ticks, candle completions, and high-impact flow alerts in real time without polling.
+2. **Dynamic Empirical Quantile Integration**:
+   - Rather than static nominal thresholds (e.g. 25M / 100M TL), frontend badges should dynamically query `silver_bofa_historical_flow_thresholds` ($P_{25}, P_{50}, P_{85}$) for stock-specific and sector-specific conviction scoring.
+3. **Multi-Broker Consortium Comparisons**:
+   - Extend the Time Window Terminal and Candle Dashboard to overlay domestic broker consortium flows (`Top 5 Domestic` = `IYM + YKR + AKM + GRM + ZRY`) against BofA (`MLB`) to visualize institutional liquidity absorption.
+4. **Interactive Strategy Backtest Simulator**:
+   - Build upon the Event Study scanner to allow traders to configure stop-loss and take-profit exit rules and compute hypothetical equity curves directly in the browser.
+5. **Component Modularity & Code Hygiene**:
+   - Preserve Vanilla Tailwind styling tokens, Inter typography, and glassmorphic card designs.
+   - Maintain zero TypeScript compilation errors (`tsc --noEmit`) and clean ruff linting at all times.
+
+

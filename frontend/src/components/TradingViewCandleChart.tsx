@@ -8,29 +8,19 @@ import {
   UTCTimestamp,
   ColorType,
 } from 'lightweight-charts';
-
-export interface CandleRecord {
-  time: number; // UNIX epoch seconds
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  turnover_tl: number;
-  trade_count: number;
-  bofa_net_flow_tl: number;
-}
+import { CandleBar } from '../types/api';
 
 interface TradingViewChartProps {
   symbol: string;
   interval?: '1m' | '5m' | '1d';
-  apiBaseUrl?: string;
+  brokerId?: string;
+  onHoverData?: (data: CandleBar | null) => void;
 }
 
 export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   symbol,
   interval = '5m',
-  apiBaseUrl = 'http://localhost:8000',
+  brokerId = 'MLB',
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -39,30 +29,45 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeCandle, setActiveCandle] = useState<CandleBar | null>(null);
 
+  // Initialize TradingView Chart Canvas
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // 1. Initialize Chart Canvas
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 550,
+      height: 560,
       layout: {
-        background: { type: ColorType.Solid, color: '#0f172a' }, // Slate-900
+        background: { type: ColorType.Solid, color: '#090d16' },
         textColor: '#94a3b8',
       },
       grid: {
-        vertLines: { color: '#1e293b' },
-        horzLines: { color: '#1e293b' },
+        vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
+        horzLines: { color: 'rgba(30, 41, 59, 0.4)' },
       },
       crosshair: {
         mode: 1, // Magnet mode
+        vertLine: {
+          color: '#06b6d4',
+          width: 1,
+          style: 3,
+        },
+        horzLine: {
+          color: '#06b6d4',
+          width: 1,
+          style: 3,
+        },
       },
       rightPriceScale: {
-        borderColor: '#334155',
+        borderColor: '#1e293b',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.28, // Leave room for lower sub-pane
+        },
       },
       timeScale: {
-        borderColor: '#334155',
+        borderColor: '#1e293b',
         timeVisible: true,
         secondsVisible: false,
       },
@@ -70,33 +75,56 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
     chartRef.current = chart;
 
-    // 2. Add Candlestick Series (Upper Pane)
+    // 1. Candlestick Series (Upper Pane)
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10b981', // Emerald-500
-      downColor: '#ef4444', // Red-500
+      upColor: '#10b981', // Emerald
+      downColor: '#f43f5e', // Rose
       borderVisible: false,
       wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
+      wickDownColor: '#f43f5e',
     });
     candleSeriesRef.current = candleSeries;
 
-    // 3. Add BofA Net Order Flow Histogram (Sub-Pane at bottom)
+    // 2. Broker Institutional Net Flow Histogram (Lower Sub-Pane)
     const bofaSeries = chart.addHistogramSeries({
       priceFormat: {
         type: 'volume',
       },
-      priceScaleId: 'bofa_flow', // Separate sub-scale
+      priceScaleId: 'bofa_flow',
     });
 
     chart.priceScale('bofa_flow').applyOptions({
       scaleMargins: {
-        top: 0.75, // Keeps BofA flow pinned to bottom 25% of the chart
-        bottom: 0,
+        top: 0.76, // Pinned to bottom 24%
+        bottom: 0.02,
       },
     });
     bofaSeriesRef.current = bofaSeries;
 
-    // 4. Resize listener
+    // Crosshair move handler
+    chart.subscribeCrosshairMove((param: any) => {
+      if (!param || !param.time || !param.seriesData) {
+        setActiveCandle(null);
+        return;
+      }
+      const candlePrice = param.seriesData.get(candleSeries) as any;
+      const bofaData = param.seriesData.get(bofaSeries) as any;
+      if (candlePrice) {
+        setActiveCandle({
+          time: Number(param.time),
+          open: candlePrice.open,
+          high: candlePrice.high,
+          low: candlePrice.low,
+          close: candlePrice.close,
+          volume: 0,
+          turnover_tl: 0,
+          trade_count: 0,
+          bofa_net_flow_tl: bofaData?.value || 0,
+        });
+      }
+    });
+
+    // Handle Window Resize
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -111,25 +139,31 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     };
   }, []);
 
-  // Fetch candle data from FastAPI backend whenever symbol or interval changes
+  // Fetch candle data whenever symbol or interval changes
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
     setError(null);
 
-    const fetchCandles = async () => {
+    const fetchCandleData = async () => {
       try {
         const response = await fetch(
-          `${apiBaseUrl}/api/v1/market/candles?symbol=${symbol}&interval=${interval}&limit=1000`
+          `/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=1000`
         );
         if (!response.ok) {
           throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
         }
-        const data: CandleRecord[] = await response.json();
+        const data: CandleBar[] = await response.json();
 
         if (!isMounted) return;
 
-        // Transform for TradingView Candlestick
+        if (data.length === 0) {
+          setError(`No candlestick records found for ${symbol} (${interval})`);
+          setLoading(false);
+          return;
+        }
+
+        // Map to lightweight-charts CandlestickData
         const candleData: CandlestickData[] = data.map((d) => ({
           time: d.time as UTCTimestamp,
           open: d.open,
@@ -138,11 +172,11 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
           close: d.close,
         }));
 
-        // Transform for BofA Net Flow (Green if net positive, Red if net negative)
+        // Map to lightweight-charts HistogramData
         const bofaData: HistogramData[] = data.map((d) => ({
           time: d.time as UTCTimestamp,
           value: d.bofa_net_flow_tl,
-          color: d.bofa_net_flow_tl >= 0 ? '#059669' : '#dc2626',
+          color: d.bofa_net_flow_tl >= 0 ? '#10b981' : '#f43f5e',
         }));
 
         if (candleSeriesRef.current && bofaSeriesRef.current && chartRef.current) {
@@ -154,37 +188,57 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
         setLoading(false);
       } catch (err: any) {
         if (!isMounted) return;
-        setError(err.message || 'Failed to fetch candlestick data');
+        setError(err.message || 'Failed to fetch candle data');
         setLoading(false);
       }
     };
 
-    fetchCandles();
+    fetchCandleData();
 
     return () => {
       isMounted = false;
     };
-  }, [symbol, interval, apiBaseUrl]);
+  }, [symbol, interval]);
 
   return (
-    <div className="relative w-full bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-800/80 border-b border-slate-700">
+    <div className="relative w-full glass-panel rounded-xl overflow-hidden shadow-2xl border border-slate-800">
+      {/* Sub-Header & Live Metric Inspector */}
+      <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-900/90 border-b border-slate-800/80 text-xs">
         <div className="flex items-center space-x-3">
-          <span className="text-xl font-bold text-white tracking-wider">{symbol}</span>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <span className="font-semibold text-white tracking-wide text-sm">{symbol}</span>
+          <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">
             {interval.toUpperCase()}
           </span>
-          <span className="text-xs text-slate-400">
-            Sub-Pane: BofA (MLB) Net Flow (TL)
+          <span className="text-slate-400">
+            Sub-Pane: <span className="text-slate-200 font-medium">{brokerId} Net Flow (TL)</span>
           </span>
         </div>
-        {loading && <div className="text-xs text-cyan-400 animate-pulse">Streaming data...</div>}
-        {error && <div className="text-xs text-red-400">{error}</div>}
+
+        {/* Dynamic Crosshair Inspector */}
+        {activeCandle ? (
+          <div className="flex items-center space-x-4 font-mono text-slate-300">
+            <span>O: <span className="text-white font-semibold">{activeCandle.open.toFixed(2)}</span></span>
+            <span>H: <span className="text-emerald-400 font-semibold">{activeCandle.high.toFixed(2)}</span></span>
+            <span>L: <span className="text-rose-400 font-semibold">{activeCandle.low.toFixed(2)}</span></span>
+            <span>C: <span className="text-white font-semibold">{activeCandle.close.toFixed(2)}</span></span>
+            <span>
+              Net: <span className={activeCandle.bofa_net_flow_tl >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                ₺{(activeCandle.bofa_net_flow_tl / 1_000_000).toFixed(2)}M
+              </span>
+            </span>
+          </div>
+        ) : (
+          <div className="text-slate-500 font-mono text-[11px]">Hover over candle to inspect micro-metrics</div>
+        )}
+
+        <div className="flex items-center space-x-2">
+          {loading && <span className="text-cyan-400 animate-pulse font-mono">Streaming...</span>}
+          {error && <span className="text-rose-400 font-mono">{error}</span>}
+        </div>
       </div>
 
       {/* Chart Canvas */}
-      <div ref={chartContainerRef} className="w-full h-[550px]" />
+      <div ref={chartContainerRef} className="w-full h-[560px]" />
     </div>
   );
 };

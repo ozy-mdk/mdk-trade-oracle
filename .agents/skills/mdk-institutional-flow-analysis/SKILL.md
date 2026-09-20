@@ -291,3 +291,27 @@ Predictive models support column-level granularity and cluster-level toggling vi
    - `.venv/bin/python scripts/run_pipeline.py --target gold --exclude-features feat_macro_rate_shock_decay`
    - `.venv/bin/python scripts/run_pipeline.py --target gold --disabled-clusters macro_rates,calendar_dynamics`
 
+---
+
+## 13. Institutional Trader Workstation & Real-Time Decision Terminals
+
+To bridge quantitative research and actual trading execution, the Gold Layer models and Silver institutional flows are served directly through an interactive **React 18 + TradingView Lightweight Charts** trading workstation (`frontend/`):
+
+1. **Tab 1: Candlestick & Order Flow Dashboard (`CandleDashboard`)**:
+   - Visualizes tick and candle aggregations (`1m`, `5m`, `1d`) with BofA net flow histograms on an isolated sub-scale.
+   - Live crosshair inspector displays VWAP spreads, net flow, and algorithmic volume.
+   - Header ribbon computes the 5 Core Trader KPIs: Turnover, Net Flow (TL), Matched Volume, Realized PnL, and Institutional Bias Badge.
+2. **Tab 2: FIFO Tertip Inventory Terminal (`TertipDashboard`)**:
+   - Tracks BofA's open inventory, unit cost basis, mark-to-market valuation, and unrealized gains/losses.
+   - Decomposes performance into Intraday Scalping PnL vs Carry FIFO Realized PnL across active symbols and audited open lots.
+3. **Tab 3: Stock Movement & Event Study Scanner (`EventStudyDashboard`)**:
+   - Evaluates empirical forward returns ($T+1, T+2, T+3, T+5, T+10$) following institutional volume surges conditioned on prior session ($D-1$) market state.
+4. **Tab 4: Custom Time Window Terminal (`TimeWindowTerminal`)**:
+   - Partitions execution into the 5 standardized Turkish Time (TRT) windows (`W1` Day-Start to `W5` Closing Session).
+   - Highlights opening (09:55) and closing (18:05) auction imbalances and plots cumulative intraday flow trajectories.
+5. **Tab 5: Gold Predictive Oracle Hub (`OracleHubDashboard`)**:
+   - Centralized predictive command center presenting the Model 1 Day-Start Macro forecast card for $T+1$, Model 2 Sector Allocation matrix across all 26 sectors, and Model 3 Stock Reaction rankings for BIST 30 equities.
+
+*For complete architecture, PostgreSQL 16 + TimescaleDB serving benchmarks, and future development guidelines, refer to Section 8 in the [`mdk-medallion-pipeline`](file:///Users/ozkanyildirim/mdk-trade-oracle/.agents/skills/mdk-medallion-pipeline/SKILL.md) skill.*
+
+
