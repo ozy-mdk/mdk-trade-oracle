@@ -1,6 +1,7 @@
 import {
   InstrumentItem,
   BrokerItem,
+  DateRangeResponse,
   CandleBar,
   MarketSummaryResponse,
   TertipPortfolioResponse,
@@ -27,10 +28,18 @@ export async function fetchBrokers(): Promise<BrokerItem[]> {
   return res.json();
 }
 
+export async function fetchDateRange(symbol?: string): Promise<DateRangeResponse> {
+  let url = `${BASE_URL}/api/v1/meta/date-range`;
+  if (symbol) url += `?symbol=${encodeURIComponent(symbol)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch date range');
+  return res.json();
+}
+
 export async function fetchCandles(
   symbol: string,
   interval: string = '5m',
-  limit: number = 500
+  limit: number = 1500
 ): Promise<CandleBar[]> {
   const res = await fetch(
     `${BASE_URL}/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`
@@ -101,7 +110,7 @@ export async function fetchTertipHorizons(
 export async function fetchTertipTimeseries(
   symbol: string,
   brokerId: string = 'MLB',
-  limitDays: number = 500
+  limitDays: number = 1500
 ): Promise<TertipTimeseriesPoint[]> {
   const url = `${BASE_URL}/api/v1/tertip/timeseries?symbol=${encodeURIComponent(symbol)}&broker_id=${encodeURIComponent(brokerId)}&limit_days=${limitDays}`;
   const res = await fetch(url);

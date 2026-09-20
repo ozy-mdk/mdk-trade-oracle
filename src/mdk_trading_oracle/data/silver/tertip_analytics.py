@@ -5,7 +5,7 @@ underlying Tertip (inventory / custody posture), Exponentially Weighted Moving A
 positioning ribbons, and cost-basis PnL pressure.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 import polars as pl
@@ -398,7 +398,7 @@ def get_tertip_timeseries_chart(
     db: PostgresManager,
     symbol: str,
     broker_id: str = "MLB",
-    limit_days: int = 500,
+    limit_days: int = 1500,
 ) -> list[dict[str, Any]]:
     """Return chronological time series with EWMA ribbons and cost basis for charting."""
     sym = symbol.upper()
@@ -449,11 +449,12 @@ def get_tertip_timeseries_chart(
     for r in rows:
         td = r["trade_date"]
         if hasattr(td, "timestamp"):
-            epoch_sec = int(td.timestamp())
+            epoch_sec = int(td.replace(tzinfo=timezone.utc).timestamp()) if getattr(td, "tzinfo", None) is None else int(td.timestamp())
         elif isinstance(td, date):
-            epoch_sec = int(datetime.combine(td, datetime.min.time()).timestamp())
+            epoch_sec = int(datetime.combine(td, datetime.min.time(), tzinfo=timezone.utc).timestamp())
         else:
-            epoch_sec = int(datetime.fromisoformat(str(td)).timestamp())
+            d_obj = date.fromisoformat(str(td)[:10])
+            epoch_sec = int(datetime.combine(d_obj, datetime.min.time(), tzinfo=timezone.utc).timestamp())
 
         result.append({
             "time": epoch_sec,

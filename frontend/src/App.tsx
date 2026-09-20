@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchInstruments, fetchBrokers } from './api/client';
+import { fetchInstruments, fetchBrokers, fetchDateRange } from './api/client';
 import { CandleDashboard } from './components/CandleDashboard';
 import { TertipDashboard } from './components/TertipDashboard';
 import { EventStudyDashboard } from './components/EventStudyDashboard';
@@ -34,6 +34,18 @@ export const App: React.FC = () => {
     queryKey: ['metaBrokers'],
     queryFn: fetchBrokers,
   });
+
+  // Fetch dynamic available date range from lakehouse
+  const { data: dateRange } = useQuery({
+    queryKey: ['metaDateRange'],
+    queryFn: () => fetchDateRange(),
+  });
+
+  useEffect(() => {
+    if (dateRange?.latest_date && selectedDate === '2026-09-16') {
+      setSelectedDate(dateRange.latest_date);
+    }
+  }, [dateRange]);
 
   // Live TRT Clock (Turkish Time / Europe/Istanbul / UTC+3)
   useEffect(() => {
@@ -125,10 +137,25 @@ export const App: React.FC = () => {
               <input
                 type="date"
                 value={selectedDate}
+                min={dateRange?.min_date}
+                max={dateRange?.max_date}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 aria-label="Trading Session Date"
                 className="bg-transparent text-slate-200 text-xs font-mono focus:outline-none cursor-pointer"
               />
+              {dateRange && selectedDate !== dateRange.latest_date ? (
+                <button
+                  onClick={() => setSelectedDate(dateRange.latest_date)}
+                  className="ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 rounded border border-cyan-500/40 transition-colors"
+                  title={`Jump to latest session (${dateRange.latest_date})`}
+                >
+                  Latest
+                </button>
+              ) : (
+                <span className="ml-1 px-1 py-0.2 text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/30">
+                  LATEST
+                </span>
+              )}
             </div>
           </div>
 

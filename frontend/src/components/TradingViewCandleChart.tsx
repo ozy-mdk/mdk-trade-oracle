@@ -31,6 +31,8 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const bofaSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const costLineRef = useRef<any>(null);
+  const totalBarsRef = useRef<number>(0);
+  const latestCandleRef = useRef<CandleBar | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,11 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
         borderColor: '#1e293b',
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 15, // 15 bars of whitespace on right: ensures latest date & candle are never blocked by scale
+        barSpacing: 9,
+        minBarSpacing: 2,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: true,
       },
     });
 
@@ -109,14 +116,22 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     // Crosshair move handler
     chart.subscribeCrosshairMove((param: any) => {
       if (!param || !param.time || !param.seriesData) {
-        setActiveCandle(null);
+        setActiveCandle(latestCandleRef.current);
         return;
       }
       const candlePrice = param.seriesData.get(candleSeries) as any;
       const bofaData = param.seriesData.get(bofaSeries) as any;
       if (candlePrice) {
+        let epochSec = 0;
+        if (typeof param.time === 'number') {
+          epochSec = Number(param.time);
+        } else if (typeof param.time === 'string') {
+          epochSec = Math.floor(new Date(`${param.time}T00:00:00Z`).getTime() / 1000);
+        } else if (typeof param.time === 'object' && param.time !== null) {
+          epochSec = Math.floor(Date.UTC(param.time.year, param.time.month - 1, param.time.day) / 1000);
+        }
         setActiveCandle({
-          time: Number(param.time),
+          time: epochSec,
           open: candlePrice.open,
           high: candlePrice.high,
           low: candlePrice.low,
@@ -168,9 +183,16 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
           return;
         }
 
+        const getTimeVal = (t: number) => {
+          if (interval === '1d') {
+            return new Date(t * 1000).toISOString().split('T')[0] as any;
+          }
+          return t as UTCTimestamp;
+        };
+
         // Map to lightweight-charts CandlestickData
         const candleData: CandlestickData[] = data.map((d) => ({
-          time: d.time as UTCTimestamp,
+          time: getTimeVal(d.time),
           open: d.open,
           high: d.high,
           low: d.low,
@@ -179,15 +201,32 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
         // Map to lightweight-charts HistogramData
         const bofaData: HistogramData[] = data.map((d) => ({
-          time: d.time as UTCTimestamp,
+          time: getTimeVal(d.time),
           value: d.bofa_net_flow_tl,
           color: d.bofa_net_flow_tl >= 0 ? '#10b981' : '#f43f5e',
         }));
 
         if (candleSeriesRef.current && bofaSeriesRef.current && chartRef.current) {
+          chartRef.current.timeScale().applyOptions({
+            timeVisible: interval !== '1d',
+          });
           candleSeriesRef.current.setData(candleData);
           bofaSeriesRef.current.setData(bofaData);
-          chartRef.current.timeScale().fitContent();
+
+          const totalBars = candleData.length;
+          totalBarsRef.current = totalBars;
+          if (totalBars > 0) {
+            const lastBar = data[data.length - 1];
+            latestCandleRef.current = lastBar;
+            setActiveCandle(lastBar);
+
+            // Focus view on recent bars so the latest date and action are immediately visible without being squished
+            const visibleCount = Math.min(totalBars, interval === '1d' ? 140 : 180);
+            chartRef.current.timeScale().setVisibleLogicalRange({
+              from: Math.max(0, totalBars - visibleCount),
+              to: totalBars + 15,
+            });
+          }
         }
 
         setLoading(false);
@@ -244,7 +283,20 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
         {/* Dynamic Crosshair Inspector */}
         {activeCandle ? (
-          <div className="flex items-center space-x-4 font-mono text-slate-300">
+          <div className="flex items-center space-x-3 font-mono text-slate-300">
+            {activeCandle.time && (
+              <span className="flex items-center space-x-1">
+                <span className="text-slate-400">Date:</span>
+                <span className="text-cyan-300 font-semibold">
+                  {new Date(activeCandle.time * 1000).toISOString().split('T')[0]}
+                </span>
+                {latestCandleRef.current && activeCandle.time === latestCandleRef.current.time && (
+                  <span className="ml-1 px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                    LATEST
+                  </span>
+                )}
+              </span>
+            )}
             <span>O: <span className="text-white font-semibold">{activeCandle.open.toFixed(2)}</span></span>
             <span>H: <span className="text-emerald-400 font-semibold">{activeCandle.high.toFixed(2)}</span></span>
             <span>L: <span className="text-rose-400 font-semibold">{activeCandle.low.toFixed(2)}</span></span>
@@ -260,6 +312,36 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
         )}
 
         <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 bg-slate-950/60 px-1.5 py-0.5 rounded border border-slate-800">
+            <button
+              onClick={() => {
+                if (!chartRef.current) return;
+                const totalBars = totalBarsRef.current;
+                if (totalBars > 0) {
+                  const visibleCount = Math.min(totalBars, interval === '1d' ? 140 : 180);
+                  chartRef.current.timeScale().setVisibleLogicalRange({
+                    from: Math.max(0, totalBars - visibleCount),
+                    to: totalBars + 15,
+                  });
+                }
+              }}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-300 hover:text-cyan-300 hover:bg-slate-800 transition-colors"
+              title="Focus view on latest date with right breathing room"
+            >
+              Latest
+            </button>
+            <span className="text-slate-700">|</span>
+            <button
+              onClick={() => {
+                if (!chartRef.current) return;
+                chartRef.current.timeScale().fitContent();
+              }}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Fit all historical records onto canvas"
+            >
+              Fit All
+            </button>
+          </div>
           {loading && <span className="text-cyan-400 animate-pulse font-mono">Streaming...</span>}
           {error && <span className="text-rose-400 font-mono">{error}</span>}
         </div>

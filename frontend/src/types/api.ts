@@ -14,6 +14,12 @@ export interface BrokerItem {
   is_primary_target: boolean;
 }
 
+export interface DateRangeResponse {
+  min_date: string;
+  max_date: string;
+  latest_date: string;
+}
+
 export interface CandleBar {
   time: number; // Unix timestamp in seconds
   open: number;

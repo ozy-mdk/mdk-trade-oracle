@@ -111,3 +111,13 @@ def test_candlesticks_xu030(client):
     candles = response.json()
     assert len(candles) > 0
     assert "open" in candles[0]
+
+
+def test_metadata_date_range(client):
+    response = client.get("/api/v1/meta/date-range")
+    assert response.status_code == 200
+    data = response.json()
+    assert "min_date" in data
+    assert "max_date" in data
+    assert "latest_date" in data
+    assert data["latest_date"] >= "2026-09-16"

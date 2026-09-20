@@ -66,11 +66,13 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
   // Hover inspector state
   const [hoveredPoint, setHoveredPoint] = useState<TertipTimeseriesPoint | null>(null);
+  const timeseriesRef = useRef<TertipTimeseriesPoint[]>([]);
+  const timeMapRef = useRef<Map<string | number, TertipTimeseriesPoint>>(new Map());
 
-  // Fetch Time Series Data
+  // Fetch Time Series Data (all available history up to latest date)
   const { data: timeseries, isLoading, error } = useQuery({
     queryKey: ['tertipTimeseries', symbol, brokerId],
-    queryFn: () => fetchTertipTimeseries(symbol, brokerId, 500),
+    queryFn: () => fetchTertipTimeseries(symbol, brokerId, 1500),
   });
 
   // Initialize TradingView Canvas
@@ -103,8 +105,13 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       },
       timeScale: {
         borderColor: '#1e293b',
-        timeVisible: true,
+        timeVisible: false,
         secondsVisible: false,
+        rightOffset: 15, // 15 bars margin on right: ensures latest date & points are never blocked by axis
+        barSpacing: 8,
+        minBarSpacing: 2,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: true,
       },
     });
 
@@ -207,6 +214,25 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     });
     ewma252SeriesRef.current = ewma252Series;
 
+    // Crosshair move handler: inspect hovered date or snap to latest date on exit
+    chart.subscribeCrosshairMove((param: any) => {
+      if (!param || !param.time) {
+        if (timeseriesRef.current && timeseriesRef.current.length > 0) {
+          setHoveredPoint(timeseriesRef.current[timeseriesRef.current.length - 1]);
+        }
+        return;
+      }
+      const raw = param.time;
+      let dateKey: string | number = raw;
+      if (typeof raw === 'object' && raw !== null) {
+        dateKey = `${raw.year}-${String(raw.month).padStart(2, '0')}-${String(raw.day).padStart(2, '0')}`;
+      }
+      const pt = timeMapRef.current.get(dateKey) || timeMapRef.current.get(String(raw)) || timeMapRef.current.get(Number(raw));
+      if (pt) {
+        setHoveredPoint(pt);
+      }
+    });
+
     // Window Resize & Container Observer Handler
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
@@ -258,7 +284,8 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     const ewma252Data: LineData[] = [];
 
     for (const p of timeseries) {
-      const t = p.time as UTCTimestamp;
+      // Use trade_date string directly so dates are 100% calendar-aligned with zero timezone distortion
+      const t = p.trade_date as any;
       priceData.push({ time: t, value: p.close_price });
       costData.push({ time: t, value: p.fifo_avg_cost });
       qtyData.push({ time: t, value: p.open_quantity });
@@ -285,7 +312,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       } else {
         const cfg = COST_HORIZONS.find((c) => c.id === costHorizon);
         const ewmaCostData: LineData[] = timeseries.map((p) => ({
-          time: p.time as UTCTimestamp,
+          time: p.trade_date as any,
           value: getPointCost(p, costHorizon),
         }));
         costEwmaSeriesRef.current.setData(ewmaCostData);
@@ -297,7 +324,23 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       }
     }
 
-    chartRef.current.timeScale().fitContent();
+    const totalPoints = timeseries.length;
+    timeseriesRef.current = timeseries;
+    const timeMap = new Map<string | number, TertipTimeseriesPoint>();
+    for (const p of timeseries) {
+      timeMap.set(p.trade_date, p);
+      timeMap.set(p.time, p);
+    }
+    timeMapRef.current = timeMap;
+
+    if (totalPoints > 0) {
+      // Focus on recent 140 sessions with 15-bar margin on right so latest date is clearly visible and unblocked
+      const visibleCount = Math.min(totalPoints, 140);
+      chartRef.current.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, totalPoints - visibleCount),
+        to: totalPoints + 15,
+      });
+    }
 
     // Set latest point for inspector
     setHoveredPoint(timeseries[timeseries.length - 1]);
@@ -347,6 +390,11 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
           <span className="text-slate-300 font-mono text-[11px]">
             Price & Costs (Top) vs. {brokerId} Inventory Ribbons (Bottom)
           </span>
+          {timeseries && timeseries.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-semibold">
+              Latest: {timeseries[timeseries.length - 1].trade_date}
+            </span>
+          )}
         </div>
 
         {/* Interactive Legend Toggles */}
@@ -459,6 +507,37 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
               <span>12M</span>
             </button>
           </div>
+
+          <span className="text-slate-700 hidden sm:inline">|</span>
+
+          {/* View Range Controls */}
+          <div className="flex items-center space-x-1 bg-slate-950/70 px-1.5 py-1 rounded-lg border border-slate-800">
+            <button
+              onClick={() => {
+                if (!chartRef.current || !timeseries) return;
+                const totalPoints = timeseries.length;
+                chartRef.current.timeScale().setVisibleLogicalRange({
+                  from: Math.max(0, totalPoints - 140),
+                  to: totalPoints + 15,
+                });
+              }}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-300 hover:text-cyan-300 hover:bg-slate-800 transition-colors"
+              title="Focus view on latest date with right breathing room"
+            >
+              Latest
+            </button>
+            <span className="text-slate-700">|</span>
+            <button
+              onClick={() => {
+                if (!chartRef.current) return;
+                chartRef.current.timeScale().fitContent();
+              }}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Fit all historical records onto canvas"
+            >
+              Fit All
+            </button>
+          </div>
         </div>
       </div>
 
@@ -466,7 +545,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       {hoveredPoint && (
         <div className="px-4 py-1.5 bg-slate-950/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 gap-2">
           <div className="flex items-center space-x-3">
-            <span>Date: <span className="text-white font-semibold">{hoveredPoint.trade_date}</span></span>
+            <span className="flex items-center space-x-1">
+              <span className="text-slate-400">Date:</span>
+              <span className="text-white font-semibold">{hoveredPoint.trade_date}</span>
+              {timeseries && hoveredPoint.trade_date === timeseries[timeseries.length - 1]?.trade_date && (
+                <span className="ml-1 px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  LATEST
+                </span>
+              )}
+            </span>
             <span>Close: <span className="text-sky-300 font-semibold">₺{hoveredPoint.close_price.toFixed(2)}</span></span>
             <span>FIFO Cost: <span className="text-amber-300 font-semibold">₺{hoveredPoint.fifo_avg_cost.toFixed(2)}</span></span>
             {costHorizon !== 'none' && (

@@ -9,7 +9,7 @@ Provides ultra-low latency REST endpoints and WebSocket streams for:
 - Live Gold Predictive Forecasts, Credible Intervals & Playbook Signals
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -69,6 +69,12 @@ class BrokerItem(BaseModel):
     broker_name: str
     category: str
     is_primary_target: bool
+
+
+class DateRangeResponse(BaseModel):
+    min_date: str
+    max_date: str
+    latest_date: str
 
 
 class MarketSummaryResponse(BaseModel):
@@ -352,6 +358,31 @@ def get_brokers() -> List[BrokerItem]:
     ]
 
 
+@app.get("/api/v1/meta/date-range", response_model=DateRangeResponse)
+def get_date_range(
+    symbol: Optional[str] = Query(None, description="Optional equity symbol to filter by"),
+) -> DateRangeResponse:
+    """Return earliest and latest trade dates available in the lakehouse."""
+    if symbol:
+        sym = symbol.upper()
+        row = db.execute(
+            "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_stock_summary WHERE symbol = %s;",
+            [sym],
+        ).fetchone()
+    else:
+        row = db.execute(
+            "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_stock_summary;"
+        ).fetchone()
+
+    min_date = str(row[0]) if (row and row[0]) else "2022-01-03"
+    max_date = str(row[1]) if (row and row[1]) else "2026-09-16"
+    return DateRangeResponse(
+        min_date=min_date,
+        max_date=max_date,
+        latest_date=max_date,
+    )
+
+
 # ── Market & Chart Endpoints ──────────────────────────────────────────────────
 
 @app.get("/api/v1/market/candles", response_model=List[CandleBar])
@@ -360,7 +391,7 @@ def get_candlesticks(
     interval: str = Query("5m", description="Candle interval: 1m, 5m, 1d"),
     from_time: Optional[str] = Query(None, description="Start time ISO string"),
     to_time: Optional[str] = Query(None, description="End time ISO string"),
-    limit: int = Query(500, le=5000, description="Max candle bars to return"),
+    limit: int = Query(1500, le=5000, description="Max candle bars to return"),
 ) -> List[CandleBar]:
     """Sub-10ms candlestick endpoint querying TimescaleDB continuous aggregates.
     
@@ -370,80 +401,152 @@ def get_candlesticks(
     interval_clean = interval.lower()
 
     if sym == "XU030" and interval_clean == "1d":
-        query = """
-            SELECT 
-                trade_date AS candle_time,
-                open_price AS open,
-                high_price AS high,
-                low_price AS low,
-                close_price AS close,
-                volume,
-                (volume * close_price) AS turnover_tl,
-                0 AS trade_count,
-                0.0 AS bofa_net_flow_tl
-            FROM bronze_bist_index_benchmarks
-            WHERE index_code = 'XU030'
-        """
         params: List[Any] = []
+        where_clauses = ["index_code = 'XU030'"]
         if from_time:
-            query += " AND trade_date >= %s"
+            where_clauses.append("trade_date >= %s")
             params.append(from_time[:10])
         if to_time:
-            query += " AND trade_date <= %s"
+            where_clauses.append("trade_date <= %s")
             params.append(to_time[:10])
-        query += " ORDER BY trade_date ASC LIMIT %s"
-        params.append(limit)
+        where_sql = " AND ".join(where_clauses)
+
+        if from_time:
+            query = f"""
+                SELECT 
+                    trade_date AS candle_time,
+                    open_price AS open,
+                    high_price AS high,
+                    low_price AS low,
+                    close_price AS close,
+                    volume,
+                    (volume * close_price) AS turnover_tl,
+                    0 AS trade_count,
+                    0.0 AS bofa_net_flow_tl
+                FROM bronze_bist_index_benchmarks
+                WHERE {where_sql}
+                ORDER BY trade_date ASC LIMIT %s
+            """
+            params.append(limit)
+        else:
+            query = f"""
+                SELECT * FROM (
+                    SELECT 
+                        trade_date AS candle_time,
+                        open_price AS open,
+                        high_price AS high,
+                        low_price AS low,
+                        close_price AS close,
+                        volume,
+                        (volume * close_price) AS turnover_tl,
+                        0 AS trade_count,
+                        0.0 AS bofa_net_flow_tl
+                    FROM bronze_bist_index_benchmarks
+                    WHERE {where_sql}
+                    ORDER BY trade_date DESC LIMIT %s
+                ) sub
+                ORDER BY candle_time ASC
+            """
+            params.append(limit)
 
     elif interval_clean == "1d":
-        query = """
-            SELECT 
-                trade_date AS candle_time,
-                open_price AS open,
-                high_price AS high,
-                low_price AS low,
-                close_price AS close,
-                total_volume AS volume,
-                total_turnover_tl AS turnover_tl,
-                total_trades AS trade_count,
-                COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
-            FROM silver_daily_stock_summary
-            WHERE symbol = %s
-        """
         params = [sym]
+        where_clauses = ["symbol = %s"]
         if from_time:
-            query += " AND trade_date >= %s"
+            where_clauses.append("trade_date >= %s")
             params.append(from_time[:10])
         if to_time:
-            query += " AND trade_date <= %s"
+            where_clauses.append("trade_date <= %s")
             params.append(to_time[:10])
-        query += " ORDER BY trade_date ASC LIMIT %s"
-        params.append(limit)
+        where_sql = " AND ".join(where_clauses)
+
+        if from_time:
+            query = f"""
+                SELECT 
+                    trade_date AS candle_time,
+                    open_price AS open,
+                    high_price AS high,
+                    low_price AS low,
+                    close_price AS close,
+                    total_volume AS volume,
+                    total_turnover_tl AS turnover_tl,
+                    total_trades AS trade_count,
+                    COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
+                FROM silver_daily_stock_summary
+                WHERE {where_sql}
+                ORDER BY trade_date ASC LIMIT %s
+            """
+            params.append(limit)
+        else:
+            query = f"""
+                SELECT * FROM (
+                    SELECT 
+                        trade_date AS candle_time,
+                        open_price AS open,
+                        high_price AS high,
+                        low_price AS low,
+                        close_price AS close,
+                        total_volume AS volume,
+                        total_turnover_tl AS turnover_tl,
+                        total_trades AS trade_count,
+                        COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
+                    FROM silver_daily_stock_summary
+                    WHERE {where_sql}
+                    ORDER BY trade_date DESC LIMIT %s
+                ) sub
+                ORDER BY candle_time ASC
+            """
+            params.append(limit)
 
     else:
         tbl = "silver_candles_1m" if interval_clean == "1m" else "silver_candles_5m"
-        query = f"""
-            SELECT 
-                candle_time,
-                open_price AS open,
-                high_price AS high,
-                low_price AS low,
-                close_price AS close,
-                total_volume AS volume,
-                total_turnover_tl AS turnover_tl,
-                trade_count,
-                COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
-            FROM {tbl}
-            WHERE symbol = %s
-        """
         params = [sym]
+        where_clauses = ["symbol = %s"]
         if from_time:
-            query += " AND candle_time >= %s"
+            where_clauses.append("candle_time >= %s")
             params.append(from_time)
         if to_time:
-            query += " AND candle_time <= %s"
+            where_clauses.append("candle_time <= %s")
             params.append(to_time)
-        query += " ORDER BY candle_time ASC LIMIT %s"
-        params.append(limit)
+        where_sql = " AND ".join(where_clauses)
+
+        if from_time:
+            query = f"""
+                SELECT 
+                    candle_time,
+                    open_price AS open,
+                    high_price AS high,
+                    low_price AS low,
+                    close_price AS close,
+                    total_volume AS volume,
+                    total_turnover_tl AS turnover_tl,
+                    trade_count,
+                    COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
+                FROM {tbl}
+                WHERE {where_sql}
+                ORDER BY candle_time ASC LIMIT %s
+            """
+            params.append(limit)
+        else:
+            query = f"""
+                SELECT * FROM (
+                    SELECT 
+                        candle_time,
+                        open_price AS open,
+                        high_price AS high,
+                        low_price AS low,
+                        close_price AS close,
+                        total_volume AS volume,
+                        total_turnover_tl AS turnover_tl,
+                        trade_count,
+                        COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
+                    FROM {tbl}
+                    WHERE {where_sql}
+                    ORDER BY candle_time DESC LIMIT %s
+                ) sub
+                ORDER BY candle_time ASC
+            """
+            params.append(limit)
 
     try:
         rows = db.execute(query, params).fetchall()
@@ -455,11 +558,12 @@ def get_candlesticks(
     for r in rows:
         dt = r[0]
         if hasattr(dt, "timestamp"):
-            epoch_sec = int(dt.timestamp())
+            epoch_sec = int(dt.replace(tzinfo=timezone.utc).timestamp()) if getattr(dt, "tzinfo", None) is None else int(dt.timestamp())
         elif isinstance(dt, date):
-            epoch_sec = int(datetime.combine(dt, datetime.min.time()).timestamp())
+            epoch_sec = int(datetime.combine(dt, datetime.min.time(), tzinfo=timezone.utc).timestamp())
         else:
-            epoch_sec = int(datetime.fromisoformat(str(dt)).timestamp())
+            d_obj = date.fromisoformat(str(dt)[:10])
+            epoch_sec = int(datetime.combine(d_obj, datetime.min.time(), tzinfo=timezone.utc).timestamp())
 
         bars.append(
             CandleBar(
@@ -813,7 +917,7 @@ def get_tertip_horizons(
 def get_tertip_timeseries(
     symbol: str = Query("THYAO", description="Stock symbol"),
     broker_id: str = Query("MLB", description="Broker clearing code (MLB = BofA)"),
-    limit_days: int = Query(500, le=1500, description="Max historical sessions"),
+    limit_days: int = Query(1500, le=5000, description="Max historical sessions"),
 ) -> List[TertipTimeseriesPoint]:
     """Return chronological time series with EWMA ribbons and cost basis for charting."""
     try:
