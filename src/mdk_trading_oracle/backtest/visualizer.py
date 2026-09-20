@@ -561,7 +561,9 @@ class BacktestVisualizer:
             return go.Figure()
 
         # Compute hit rate per (symbol, window)
-        grouped = df.groupby([symbol_col, window_col])[is_hit_col].agg(["count", "sum"]).reset_index()
+        work_df = df.copy()
+        work_df[is_hit_col] = pd.to_numeric(work_df[is_hit_col], errors="coerce").fillna(0.0)
+        grouped = work_df.groupby([symbol_col, window_col])[is_hit_col].agg(["count", "sum"]).reset_index()
         grouped["hit_rate_pct"] = (grouped["sum"] / grouped["count"]) * 100.0
 
         # Map window names to clean display labels
@@ -592,9 +594,10 @@ class BacktestVisualizer:
         if col_order:
             pivot_df = pivot_df[col_order]
 
+        pivot_df = pivot_df.astype(float)
         symbols = pivot_df.index.tolist()
         windows = pivot_df.columns.tolist()
-        z_vals = pivot_df.values
+        z_vals = pivot_df.to_numpy(dtype=float)
 
         fig = go.Figure(
             go.Heatmap(
