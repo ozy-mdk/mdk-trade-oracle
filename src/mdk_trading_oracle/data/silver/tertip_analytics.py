@@ -8,9 +8,12 @@ positioning ribbons, and cost-basis PnL pressure.
 from datetime import date, datetime
 from typing import Any, Optional
 
+import polars as pl
+
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.ewma import (
     add_multi_horizon_ewma_polars,
+    add_multi_horizon_size_weighted_ewma_polars,
     calculate_bounded_ewma,
     calculate_size_weighted_bounded_ewma,
 )
@@ -200,6 +203,7 @@ def get_tertip_horizons_analysis(
             sell_turnover_tl,
             buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
             buy_volume - sell_volume AS net_volume,
+            buy_vwap,
             matched_volume,
             intraday_realized_pnl_tl,
             carry_fifo_realized_pnl_tl,
@@ -242,11 +246,18 @@ def get_tertip_horizons_analysis(
     total_vol = float(latest_row["buy_volume"] or 0.0) + float(latest_row["sell_volume"] or 0.0)
     matched_pct = (matched_vol * 2.0 / total_vol * 100.0) if total_vol > 0 else 0.0
 
+    # Prepare daily execution entry price (buy_vwap or close) and size (turnover)
+    df = df.with_columns([
+        pl.coalesce(pl.col("buy_vwap"), pl.col("market_close_price")).alias("entry_price"),
+        pl.coalesce(pl.col("buy_turnover_tl"), pl.lit(1e6)).alias("entry_size"),
+    ])
+
     # Extract historical vectors for bounded EWMA & rolling metrics
     net_flows = df["net_flow_tl"].to_list()
     net_vols = df["net_volume"].to_list()
     quantities = df["open_stock_quantity"].to_list()
-    costs = df["fifo_avg_cost"].to_list()
+    entry_prices = df["entry_price"].to_list()
+    entry_sizes = df["entry_size"].to_list()
 
     n_sessions = len(quantities)
 
@@ -263,7 +274,10 @@ def get_tertip_horizons_analysis(
     ewma_21d = calculate_bounded_ewma(quantities, window=21, span=21)
     ewma_63d = calculate_bounded_ewma(quantities, window=63, span=63)
     ewma_126d = calculate_bounded_ewma(quantities, window=126, span=126)
-    ewma_cost_63d = calculate_size_weighted_bounded_ewma(costs, sizes=net_flows, window=63, span=63)
+    eff_63 = min(n_sessions, 63)
+    ewma_cost_63d = calculate_size_weighted_bounded_ewma(
+        entry_prices[-eff_63:], sizes=entry_sizes[-eff_63:], window=63, span=63
+    )
 
     # Calculate Horizon Matrix
     horizons_data = []
@@ -291,15 +305,16 @@ def get_tertip_horizons_analysis(
         flow_slice = net_flows[-eff_w:]
         vol_slice = net_vols[-eff_w:]
         q_slice = quantities[-eff_w:]
-        c_slice = costs[-eff_w:]
 
         cum_flow = sum(flow_slice) if flow_slice else 0.0
         cum_shares = sum(vol_slice) if vol_slice else 0.0
 
         # EWMA inventory quantity (recency weighted)
         ewma_q = calculate_bounded_ewma(quantities, window=w, span=float(w))
-        # EWMA unit cost (compounding recency decay WITH position magnitude taken)
-        ewma_c = calculate_size_weighted_bounded_ewma(c_slice, sizes=flow_slice, window=w, span=float(w))
+        # EWMA acquisition cost on actual execution entry prices (compounding recency decay WITH position magnitude taken)
+        ewma_c = calculate_size_weighted_bounded_ewma(
+            entry_prices[-eff_w:], sizes=entry_sizes[-eff_w:], window=w, span=float(w)
+        )
 
         spread_c = ((close_p - ewma_c) / ewma_c * 100.0) if ewma_c > 0 else 0.0
 
@@ -401,7 +416,8 @@ def get_tertip_timeseries_chart(
             unrealized_pnl_tl,
             buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
             buy_turnover_tl,
-            sell_turnover_tl
+            sell_turnover_tl,
+            buy_vwap
         FROM silver_broker_fifo_daily
         WHERE symbol = %s AND broker_id = %s
         ORDER BY trade_date ASC;
@@ -411,9 +427,17 @@ def get_tertip_timeseries_chart(
     if df.is_empty():
         return []
 
+    # Prepare daily execution entry price (buy_vwap or close) and size (turnover)
+    df = df.with_columns([
+        pl.coalesce(pl.col("buy_vwap"), pl.col("market_close_price")).alias("entry_price"),
+        pl.coalesce(pl.col("buy_turnover_tl"), pl.lit(1e6)).alias("entry_size"),
+    ])
+
     # Enrich with multi-horizon EWMAs
     df = add_multi_horizon_ewma_polars(df, value_col="open_stock_quantity", prefix="ewma_qty")
-    df = add_multi_horizon_ewma_polars(df, value_col="fifo_avg_cost", prefix="ewma_cost")
+    df = add_multi_horizon_size_weighted_ewma_polars(
+        df, value_col="entry_price", size_col="entry_size", prefix="ewma_cost"
+    )
 
     # Take the last limit_days sessions
     if len(df) > limit_days:

@@ -217,6 +217,38 @@ def compute_ewma_series_numpy(
     return result
 
 
+def compute_size_weighted_ewma_series_numpy(
+    values: Sequence[float],
+    sizes: Sequence[float],
+    span: float,
+) -> np.ndarray:
+    """Compute recursive continuous size-weighted EWMA series.
+
+    Formulation:
+        Numerator_t = alpha * (size_t * value_t) + (1 - alpha) * Numerator_{t-1}
+        Denominator_t = alpha * size_t + (1 - alpha) * Denominator_{t-1}
+        EWMA_t = Numerator_t / Denominator_t
+    """
+    arr_val = np.asarray(values, dtype=np.float64)
+    arr_size = np.maximum(np.asarray(sizes, dtype=np.float64), 1e-6)
+    n = len(arr_val)
+    if n == 0:
+        return np.array([], dtype=np.float64)
+
+    alpha = alpha_from_span(span)
+    num = np.empty(n, dtype=np.float64)
+    den = np.empty(n, dtype=np.float64)
+
+    num[0] = arr_size[0] * arr_val[0]
+    den[0] = arr_size[0]
+
+    for t in range(1, n):
+        num[t] = alpha * (arr_size[t] * arr_val[t]) + (1.0 - alpha) * num[t - 1]
+        den[t] = alpha * arr_size[t] + (1.0 - alpha) * den[t - 1]
+
+    return num / den
+
+
 def add_multi_horizon_ewma_polars(
     df: pl.DataFrame,
     value_col: str,
@@ -252,3 +284,28 @@ def add_multi_horizon_ewma_polars(
         )
 
     return df.with_columns(exprs)
+
+
+def add_multi_horizon_size_weighted_ewma_polars(
+    df: pl.DataFrame,
+    value_col: str,
+    size_col: str,
+    prefix: str = "ewma_cost",
+    horizons: Optional[dict[str, int]] = None,
+) -> pl.DataFrame:
+    """Add multi-horizon size-weighted EWMA columns to a sorted Polars DataFrame.
+
+    Weights each historical observation by both temporal decay (span) and position magnitude.
+    """
+    h_map = horizons or HORIZON_MAP
+    vals = df[value_col].fill_null(0.0).to_numpy()
+    sizes = df[size_col].fill_null(1.0).to_numpy()
+
+    new_cols = []
+    for tag, span in h_map.items():
+        col_name = f"{prefix}_{tag.lower()}_{span}d"
+        series_arr = compute_size_weighted_ewma_series_numpy(vals, sizes, span=float(span))
+        new_cols.append(pl.Series(col_name, series_arr))
+
+    return df.with_columns(new_cols)
+
