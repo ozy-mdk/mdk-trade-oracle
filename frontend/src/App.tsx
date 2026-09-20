@@ -191,6 +191,7 @@ export const App: React.FC = () => {
         {activeTab === 'tertip' && (
           <TertipDashboard
             brokerId={selectedBroker}
+            symbol={selectedSymbol}
             tradeDate={selectedDate}
             onSelectSymbol={handleSelectSymbol}
           />

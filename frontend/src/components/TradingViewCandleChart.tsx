@@ -14,6 +14,8 @@ interface TradingViewChartProps {
   symbol: string;
   interval?: '1m' | '5m' | '1d';
   brokerId?: string;
+  fifoAvgCost?: number | null;
+  showCostLine?: boolean;
   onHoverData?: (data: CandleBar | null) => void;
 }
 
@@ -21,11 +23,14 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   symbol,
   interval = '5m',
   brokerId = 'MLB',
+  fifoAvgCost,
+  showCostLine = false,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const bofaSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const costLineRef = useRef<any>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +204,29 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
       isMounted = false;
     };
   }, [symbol, interval]);
+
+  // Update BofA FIFO Cost Price Line
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+    if (costLineRef.current) {
+      try {
+        candleSeriesRef.current.removePriceLine(costLineRef.current);
+      } catch (e) {
+        // Ignore removal error
+      }
+      costLineRef.current = null;
+    }
+    if (showCostLine && fifoAvgCost && fifoAvgCost > 0) {
+      costLineRef.current = candleSeriesRef.current.createPriceLine({
+        price: fifoAvgCost,
+        color: '#eab308',
+        lineWidth: 2,
+        lineStyle: 2, // Dashed
+        axisLabelVisible: true,
+        title: `${brokerId} Cost: ₺${fifoAvgCost.toFixed(2)}`,
+      });
+    }
+  }, [fifoAvgCost, showCostLine, brokerId]);
 
   return (
     <div className="relative w-full glass-panel rounded-xl overflow-hidden shadow-2xl border border-slate-800">

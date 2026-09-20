@@ -18,6 +18,10 @@ from pydantic import BaseModel, Field
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
+from mdk_trading_oracle.data.silver.tertip_analytics import (
+    get_tertip_horizons_analysis,
+    get_tertip_timeseries_chart,
+)
 
 logger = get_logger("mdk_oracle.api")
 
@@ -134,6 +138,67 @@ class TertipHistoryPoint(BaseModel):
     net_flow_tl: float
     mtm_valuation_tl: float
     cumulative_realized_pnl_tl: float
+
+
+class TertipDiagnostic(BaseModel):
+    diagnostic_badge: str
+    badge_color: str
+    conviction_pct: int
+    headline: str
+    rationale: str
+
+
+class TertipHorizonItem(BaseModel):
+    code: str
+    label: str
+    lookback_days: int
+    cum_net_flow_tl: float
+    cum_net_shares: float
+    ewma_inventory_qty: float
+    ewma_unit_cost: float
+    cost_spread_pct: float
+    saturation_pct: float
+    stance: str
+    description: str
+
+
+class TertipHorizonsResponse(BaseModel):
+    symbol: str
+    broker_id: str
+    trade_date: str
+    market_close_price: float
+    day_net_flow_tl: float
+    day_buy_turnover_tl: float
+    day_sell_turnover_tl: float
+    open_stock_quantity: float
+    market_value_tl: float
+    fifo_avg_cost: float
+    unrealized_pnl_tl: float
+    unrealized_pnl_pct: float
+    matched_volume_pct: float
+    global_saturation_pct: float
+    ribbon_status: str
+    diagnostic: TertipDiagnostic
+    horizons: List[TertipHorizonItem]
+
+
+class TertipTimeseriesPoint(BaseModel):
+    time: int
+    trade_date: str
+    close_price: float
+    fifo_avg_cost: float
+    ewma_cost_63d: float
+    ewma_cost_126d: float
+    open_quantity: float
+    ewma_qty_5d: float
+    ewma_qty_10d: float
+    ewma_qty_21d: float
+    ewma_qty_63d: float
+    ewma_qty_126d: float
+    ewma_qty_252d: float
+    net_flow_tl: float
+    unrealized_pnl_tl: float
+
 
 
 class EventStudyScanItem(BaseModel):
@@ -719,6 +784,40 @@ def get_tertip_history(
     ]
     points.reverse()  # Return in chronological order for charting
     return points
+
+
+@app.get("/api/v1/tertip/horizons", response_model=TertipHorizonsResponse)
+def get_tertip_horizons(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+    broker_id: str = Query("MLB", description="Broker clearing code (MLB = BofA)"),
+    trade_date: Optional[str] = Query(None, description="Optional trade date YYYY-MM-DD"),
+) -> TertipHorizonsResponse:
+    """Return multi-horizon EWMA inventory metrics, cost-basis spreads, and action diagnostic."""
+    try:
+        data = get_tertip_horizons_analysis(db, symbol, broker_id, trade_date)
+        if "error" in data:
+            raise HTTPException(status_code=404, detail=data["error"])
+        return TertipHorizonsResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing tertip horizons for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tertip/timeseries", response_model=List[TertipTimeseriesPoint])
+def get_tertip_timeseries(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+    broker_id: str = Query("MLB", description="Broker clearing code (MLB = BofA)"),
+    limit_days: int = Query(500, le=1500, description="Max historical sessions"),
+) -> List[TertipTimeseriesPoint]:
+    """Return chronological time series with EWMA ribbons and cost basis for charting."""
+    try:
+        rows = get_tertip_timeseries_chart(db, symbol, broker_id, limit_days)
+        return [TertipTimeseriesPoint(**r) for r in rows]
+    except Exception as e:
+        logger.error(f"Error computing tertip timeseries for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Stock Movement & Event Study Scanner Endpoints ───────────────────────────

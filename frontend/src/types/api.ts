@@ -176,3 +176,64 @@ export interface AllSignalsResponse {
   sector_allocations: SectorAllocationItem[];
   stock_reactions: StockReactionForecastItem[];
 }
+
+export interface TertipDiagnostic {
+  diagnostic_badge: string;
+  badge_color: string;
+  conviction_pct: number;
+  headline: string;
+  rationale: string;
+}
+
+export interface TertipHorizonItem {
+  code: string;
+  label: string;
+  lookback_days: number;
+  cum_net_flow_tl: number;
+  cum_net_shares: number;
+  ewma_inventory_qty: number;
+  ewma_unit_cost: number;
+  cost_spread_pct: number;
+  saturation_pct: number;
+  stance: string;
+  description: string;
+}
+
+export interface TertipHorizonsResponse {
+  symbol: string;
+  broker_id: string;
+  trade_date: string;
+  market_close_price: number;
+  day_net_flow_tl: number;
+  day_buy_turnover_tl: number;
+  day_sell_turnover_tl: number;
+  open_stock_quantity: number;
+  market_value_tl: number;
+  fifo_avg_cost: number;
+  unrealized_pnl_tl: number;
+  unrealized_pnl_pct: number;
+  matched_volume_pct: number;
+  global_saturation_pct: number;
+  ribbon_status: string;
+  diagnostic: TertipDiagnostic;
+  horizons: TertipHorizonItem[];
+}
+
+export interface TertipTimeseriesPoint {
+  time: number;
+  trade_date: string;
+  close_price: number;
+  fifo_avg_cost: number;
+  ewma_cost_63d: number;
+  ewma_cost_126d: number;
+  open_quantity: number;
+  ewma_qty_5d: number;
+  ewma_qty_10d: number;
+  ewma_qty_21d: number;
+  ewma_qty_63d: number;
+  ewma_qty_126d: number;
+  ewma_qty_252d: number;
+  net_flow_tl: number;
+  unrealized_pnl_tl: number;
+}
+

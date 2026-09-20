@@ -9,6 +9,8 @@ import {
   EventStudyScanItem,
   TimeWindowAnalysisResponse,
   AllSignalsResponse,
+  TertipHorizonsResponse,
+  TertipTimeseriesPoint,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -81,6 +83,29 @@ export async function fetchTertipHistory(
   if (limit) url += `&limit=${limit}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch tertip history');
+  return res.json();
+}
+
+export async function fetchTertipHorizons(
+  symbol: string,
+  brokerId: string = 'MLB',
+  tradeDate?: string
+): Promise<TertipHorizonsResponse> {
+  let url = `${BASE_URL}/api/v1/tertip/horizons?symbol=${encodeURIComponent(symbol)}&broker_id=${encodeURIComponent(brokerId)}`;
+  if (tradeDate) url += `&trade_date=${tradeDate}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch tertip horizons');
+  return res.json();
+}
+
+export async function fetchTertipTimeseries(
+  symbol: string,
+  brokerId: string = 'MLB',
+  limitDays: number = 500
+): Promise<TertipTimeseriesPoint[]> {
+  const url = `${BASE_URL}/api/v1/tertip/timeseries?symbol=${encodeURIComponent(symbol)}&broker_id=${encodeURIComponent(brokerId)}&limit_days=${limitDays}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch tertip timeseries');
   return res.json();
 }
 
