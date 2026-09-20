@@ -90,10 +90,10 @@ def _playbook(return_pct: float, thresholds: ReturnThresholdProfile,
               row: Optional[Dict[str, Any]] = None) -> str:
     """Determine institutional execution playbook from predicted return and feature context."""
     row = row or {}
-    bofa_net_flow = float(row.get("feat_bofa_w1_net_flow_tl", 0.0))
-    tra_contra = float(row.get("feat_w1_bofa_tra_contra_signal", 0.0))
-    cost_spread = float(row.get("feat_bofa_t1_cost_spread_pct", 0.0))
-    comp_aligned = float(row.get("feat_w1_bofa_comp_alignment", 0.0))
+    bofa_net_flow = float(row.get("feat_bofa_w1_net_flow_tl", 0.0) or 0.0)
+    tra_contra = float(row.get("feat_w1_bofa_tra_contra_signal", 0.0) or 0.0)
+    cost_spread = float(row.get("feat_bofa_t1_cost_spread_pct", 0.0) or 0.0)
+    comp_aligned = float(row.get("feat_w1_bofa_comp_alignment", 0.0) or 0.0)
 
     if return_pct >= thresholds.up_p85_pct and tra_contra > 0:
         return OpeningPlaybook.SQUEEZE_LONG
@@ -250,7 +250,7 @@ class BaseStockReactionModel(BaseForecaster):
         direction = ReturnDirectionClassifier.classify(predicted_return_pct, self.thresholds)
         confidence = min(abs(predicted_return_pct) / max(self.thresholds.up_p85_pct, 0.01), 1.0)
         play = _playbook(predicted_return_pct, self.thresholds, row)
-        bofa_sign = float(row.get("feat_bofa_w1_direction_sign", 0.0))
+        bofa_sign = float(row.get("feat_bofa_w1_direction_sign", 0.0) or 0.0)
         bofa_dir = "BUY" if bofa_sign > 0 else ("SELL" if bofa_sign < 0 else "NEUTRAL")
         window_map = {"w2": "first_reaction", "w3": "midday_followup", "w5": "closing_session",
                       "first_reaction": "first_reaction", "midday_followup": "midday_followup",
@@ -266,8 +266,8 @@ class BaseStockReactionModel(BaseForecaster):
             direction_confidence=round(min(confidence, 1.0), 4),
             predicted_playbook=play,
             bofa_w1_direction=bofa_dir,
-            bofa_w1_net_flow_tl=float(row.get("feat_bofa_w1_net_flow_tl", 0.0)),
-            bofa_w1_volume_share=float(row.get("feat_bofa_w1_vol_share", 0.0)),
+            bofa_w1_net_flow_tl=float(row.get("feat_bofa_w1_net_flow_tl", 0.0) or 0.0),
+            bofa_w1_volume_share=float(row.get("feat_bofa_w1_vol_share", 0.0) or 0.0),
             model_name=self.model_name,
             model_version=self.model_version,
             features_used={k: v for k, v in row.items() if k.startswith("feat_")},
