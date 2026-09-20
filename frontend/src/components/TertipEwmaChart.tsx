@@ -8,13 +8,31 @@ import {
   ColorType,
 } from 'lightweight-charts';
 import { useQuery } from '@tanstack/react-query';
-import { fetchTertipTimeseries } from '../api/client';
-import { TertipTimeseriesPoint } from '../types/api';
+import { fetchTertipTimeseries, fetchTertipHorizons } from '../api/client';
+import {
+  TertipTimeseriesPoint,
+  TertipHorizonsResponse,
+  ForwardHorizonCode,
+} from '../types/api';
 import { formatVolume } from '../utils/formatters';
+import {
+  calculateForwardOpportunity,
+  calculateEwmaConfluence,
+} from '../utils/forwardOpportunity';
+import {
+  Compass,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  Eye,
+  EyeOff,
+  Table,
+} from 'lucide-react';
 
 interface TertipEwmaChartProps {
   symbol: string;
   brokerId?: string;
+  tertipData?: TertipHorizonsResponse | null;
 }
 
 type CostHorizonId = 'none' | '5d' | '10d' | '21d' | '63d' | '126d' | '252d';
@@ -38,6 +56,7 @@ const COST_HORIZONS: CostHorizonConfig[] = [
 export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   symbol,
   brokerId = 'MLB',
+  tertipData: tertipDataProp,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -46,6 +65,8 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   const priceSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const costSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const costEwmaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const forwardAreaSeriesRef = useRef<ISeriesApi<'Area'> | null>(null);
+  const outlookTargetLineRef = useRef<any>(null);
 
   // Lower Sub-Pane Series (EWMA Ribbons)
   const qtySeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -64,6 +85,11 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   const [showEwma126, setShowEwma126] = useState(true);
   const [showEwma252, setShowEwma252] = useState(true);
 
+  // Action Zone State
+  const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
+  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook'>('table');
+  const [selectedHorizon, setSelectedHorizon] = useState<ForwardHorizonCode>('3M');
+
   // Hover inspector state
   const [hoveredPoint, setHoveredPoint] = useState<TertipTimeseriesPoint | null>(null);
   const timeseriesRef = useRef<TertipTimeseriesPoint[]>([]);
@@ -74,6 +100,23 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     queryKey: ['tertipTimeseries', symbol, brokerId],
     queryFn: () => fetchTertipTimeseries(symbol, brokerId, 1500),
   });
+
+  // Fetch Horizons if not provided via props
+  const { data: fetchedTertipData } = useQuery({
+    queryKey: ['tertipHorizons', symbol, brokerId],
+    queryFn: () => fetchTertipHorizons(symbol, brokerId),
+    enabled: !tertipDataProp,
+  });
+  const tertipData = tertipDataProp || fetchedTertipData;
+
+  const currentPrice =
+    hoveredPoint?.close_price ||
+    (timeseries && timeseries.length > 0 ? timeseries[timeseries.length - 1].close_price : 0) ||
+    tertipData?.market_close_price ||
+    0;
+
+  const outlook = calculateForwardOpportunity(currentPrice, tertipData, selectedHorizon);
+  const confluence = calculateEwmaConfluence(currentPrice, tertipData);
 
   // Initialize TradingView Canvas
   useEffect(() => {
@@ -146,6 +189,17 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       title: '3M EWMA Cost',
     });
     costEwmaSeriesRef.current = costEwmaSeries;
+
+    // 3b. Forward Opportunity Corridor (Upper Pane)
+    const forwardAreaSeries = chart.addAreaSeries({
+      priceScaleId: 'right',
+      topColor: 'rgba(16, 185, 129, 0.18)',
+      bottomColor: 'rgba(16, 185, 129, 0.01)',
+      lineColor: '#10b981',
+      lineWidth: 1,
+      lineStyle: 2,
+    });
+    forwardAreaSeriesRef.current = forwardAreaSeries;
 
     // ── Lower Pane: EWMA Inventory Ribbons (Dedicated Scale) ───────────────────
     // 4. Actual Open Inventory Quantity (Registers 'inventory_scale')
@@ -257,6 +311,8 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
+      forwardAreaSeriesRef.current = null;
+      outlookTargetLineRef.current = null;
     };
   }, []);
 
@@ -388,6 +444,104 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   const potentialReturnPct = hoveredPoint && targetCostForOpp > 0
     ? ((targetCostForOpp - hoveredPoint.close_price) / hoveredPoint.close_price) * 100
     : 0;
+
+  const handleSelectHorizon = (code: ForwardHorizonCode) => {
+    setSelectedHorizon(code);
+    if (code === '1W') setCostHorizon('5d');
+    else if (code === '2W') setCostHorizon('10d');
+    else if (code === '1M') setCostHorizon('21d');
+    else if (code === '3M') setCostHorizon('63d');
+    else if (code === '6M') setCostHorizon('126d');
+    else if (code === 'FIFO') setCostHorizon('none');
+  };
+
+  // Forward Opportunity Projection (Target Line & Forward Shaded Ribbon on Upper Pane)
+  useEffect(() => {
+    if (!priceSeriesRef.current || !chartRef.current) return;
+
+    if (outlookTargetLineRef.current) {
+      try {
+        priceSeriesRef.current.removePriceLine(outlookTargetLineRef.current);
+      } catch (e) {
+        // Ignore removal error
+      }
+      outlookTargetLineRef.current = null;
+    }
+
+    if (!showOutlookZone || !outlook || !forwardAreaSeriesRef.current || !timeseries || timeseries.length === 0) {
+      forwardAreaSeriesRef.current?.setData([]);
+      return;
+    }
+
+    // 1. Create Target Price Line extending into the right scale
+    const lineColor =
+      outlook.direction === 'BUY'
+        ? '#10b981'
+        : outlook.direction === 'SELL'
+        ? '#f43f5e'
+        : '#64748b';
+    const returnPrefix = outlook.potentialReturnPct >= 0 ? '+' : '';
+
+    outlookTargetLineRef.current = priceSeriesRef.current.createPriceLine({
+      price: outlook.targetCost,
+      color: lineColor,
+      lineWidth: 2,
+      lineStyle: 2, // Dashed
+      axisLabelVisible: true,
+      title: `${brokerId} ${outlook.horizonCode} Target: ₺${outlook.targetCost.toFixed(2)} (${returnPrefix}${outlook.potentialReturnPct.toFixed(1)}%)`,
+    });
+
+    // 2. Populate Forward Area Ribbon across the 15-bar margin
+    const lastPoint = timeseries[timeseries.length - 1];
+    const lastClose = lastPoint.close_price;
+    const targetCost = outlook.targetCost;
+    const startDateStr = lastPoint.trade_date;
+    const curDate = new Date(`${startDateStr}T00:00:00Z`);
+
+    const topCol =
+      outlook.direction === 'BUY'
+        ? 'rgba(16, 185, 129, 0.18)'
+        : outlook.direction === 'SELL'
+        ? 'rgba(244, 63, 94, 0.18)'
+        : 'rgba(100, 116, 139, 0.12)';
+    const botCol =
+      outlook.direction === 'BUY'
+        ? 'rgba(16, 185, 129, 0.01)'
+        : outlook.direction === 'SELL'
+        ? 'rgba(244, 63, 94, 0.01)'
+        : 'rgba(100, 116, 139, 0.01)';
+
+    forwardAreaSeriesRef.current.applyOptions({
+      topColor: topCol,
+      bottomColor: botCol,
+      lineColor: lineColor,
+      lineWidth: 1,
+      lineStyle: 2,
+    });
+
+    const forwardPoints: { time: any; value: number }[] = [];
+    forwardPoints.push({
+      time: startDateStr,
+      value: lastClose,
+    });
+
+    const forwardDays = 8;
+    for (let i = 1; i <= forwardDays; i++) {
+      curDate.setUTCDate(curDate.getUTCDate() + 1);
+      while (curDate.getUTCDay() === 0 || curDate.getUTCDay() === 6) {
+        curDate.setUTCDate(curDate.getUTCDate() + 1);
+      }
+      const fDateStr = curDate.toISOString().split('T')[0];
+      const alpha = i / forwardDays;
+      const rampValue = Number((lastClose + (targetCost - lastClose) * alpha).toFixed(2));
+      forwardPoints.push({
+        time: fDateStr,
+        value: rampValue,
+      });
+    }
+
+    forwardAreaSeriesRef.current.setData(forwardPoints as any);
+  }, [outlook, showOutlookZone, timeseries, brokerId]);
 
   return (
     <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
@@ -547,6 +701,26 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
               Fit All
             </button>
           </div>
+
+          {/* Action Zone Toggle Button */}
+          {tertipData && (
+            <button
+              onClick={() => setShowOutlookZone(!showOutlookZone)}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center space-x-1 border transition-colors ${
+                showOutlookZone
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+              }`}
+              title="Toggle Institutional Forward Action Zone in whitespace"
+            >
+              {showOutlookZone ? (
+                <Eye className="w-3 h-3 text-cyan-400" />
+              ) : (
+                <EyeOff className="w-3 h-3 text-slate-500" />
+              )}
+              <span>Action Zone</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -610,8 +784,274 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
         </div>
       )}
 
-      {/* Chart Canvas */}
-      <div ref={chartContainerRef} className="w-full relative min-h-[520px]">
+      {/* Chart Canvas & Action Zone Overlay */}
+      <div className="w-full relative min-h-[520px]">
+        {/* Floating Institutional Forward Action Card (Positioned in 15-Bar Forward Whitespace) */}
+        {showOutlookZone && outlook && (
+          <div className="absolute top-4 right-14 z-20 w-[390px] glass-panel bg-slate-950/92 backdrop-blur-md border border-slate-700/80 p-3.5 rounded-xl shadow-2xl transition-all pointer-events-auto">
+            {/* Card Header & View Tabs */}
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2.5">
+              <div className="flex items-center space-x-1.5">
+                <Compass className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-xs text-white tracking-wide">
+                  {brokerId} Action Zone (T+1)
+                </span>
+              </div>
+
+              {/* View Mode Toggle: EWMA Table vs. Playbook Outlook */}
+              <div className="flex items-center space-x-1 bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-[10px] font-mono">
+                <button
+                  onClick={() => setActionZoneTab('table')}
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                    actionZoneTab === 'table'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="View multi-horizon EWMA inventory and cost table"
+                >
+                  <Table className="w-3 h-3" />
+                  <span>EWMA Table</span>
+                </button>
+                <button
+                  onClick={() => setActionZoneTab('outlook')}
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                    actionZoneTab === 'outlook'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="View executive action narrative and institutional playbook"
+                >
+                  <Target className="w-3 h-3" />
+                  <span>Playbook</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: EWMA Multi-Horizon Matrix Table */}
+            {actionZoneTab === 'table' && (
+              <div className="space-y-2">
+                {/* Confluence & Ribbon Status Bar */}
+                {confluence && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span
+                      className={`px-2 py-0.5 rounded font-bold border ${
+                        confluence.overallDirection === 'BUY'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : confluence.overallDirection === 'SELL'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      {confluence.confluenceLabel}
+                    </span>
+                    <span className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40 font-semibold truncate max-w-[150px]">
+                      {confluence.ribbonStatus}
+                    </span>
+                  </div>
+                )}
+
+                {/* Table of all Horizons */}
+                {confluence && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-800/90">
+                    <table className="w-full text-[10px] font-mono border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                          <th className="text-left px-2 py-1 font-sans">Horizon</th>
+                          <th className="text-right px-1.5 py-1 font-sans">EWMA Cost</th>
+                          <th className="text-right px-1.5 py-1 font-sans">Spread</th>
+                          <th className="text-right px-1.5 py-1 font-sans">Target</th>
+                          <th className="text-right px-2 py-1 font-sans">Stance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                        {confluence.rows.map((row) => {
+                          const isSelected = selectedHorizon === row.code;
+                          return (
+                            <tr
+                              key={row.code}
+                              onClick={() => handleSelectHorizon(row.code)}
+                              className={`cursor-pointer transition-colors ${
+                                isSelected
+                                  ? 'bg-cyan-500/20 text-white font-semibold'
+                                  : 'hover:bg-slate-800/50 text-slate-300'
+                              }`}
+                              title={`Click to set ${row.label} as active projection target and upper pane cost`}
+                            >
+                              <td className="px-2 py-1.5 flex items-center space-x-1.5">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    isSelected ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'
+                                  }`}
+                                />
+                                <span className={isSelected ? 'text-cyan-300 font-bold' : 'text-slate-300'}>
+                                  {row.code}
+                                </span>
+                              </td>
+                              <td className="text-right px-1.5 py-1.5 text-slate-200">
+                                ₺{row.ewmaCost.toFixed(2)}
+                              </td>
+                              <td
+                                className={`text-right px-1.5 py-1.5 font-semibold ${
+                                  row.spreadPct <= -3
+                                    ? 'text-cyan-300'
+                                    : row.spreadPct >= 3
+                                    ? 'text-rose-400'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {row.spreadPct >= 0 ? '+' : ''}{row.spreadPct.toFixed(1)}%
+                              </td>
+                              <td
+                                className={`text-right px-1.5 py-1.5 font-semibold ${
+                                  row.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                }`}
+                              >
+                                {row.potentialReturnPct >= 0 ? '+' : ''}
+                                {row.potentialReturnPct.toFixed(1)}%
+                              </td>
+                              <td className="text-right px-2 py-1.5">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                    row.direction === 'BUY'
+                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                      : row.direction === 'SELL'
+                                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                                  }`}
+                                >
+                                  {row.direction}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Active Target Projection Banner */}
+                <div className="flex items-center justify-between text-[10px] font-mono bg-slate-900/80 px-2.5 py-1.5 rounded border border-slate-800/80">
+                  <span className="text-slate-400">
+                    Target: <span className="text-cyan-300 font-bold">{selectedHorizon}</span> (₺{outlook.targetCost.toFixed(2)})
+                  </span>
+                  <span
+                    className={`font-semibold ${
+                      outlook.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    Return: {outlook.potentialReturnPct >= 0 ? '+' : ''}{outlook.potentialReturnPct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="text-[9px] text-slate-500 italic text-center">
+                  Click any row to project that horizon's target line & upper pane cost
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Executive Playbook Outlook */}
+            {actionZoneTab === 'outlook' && (
+              <div className="space-y-2">
+                {/* Horizon Selector Pills */}
+                <div className="flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-mono">Horizon:</span>
+                  <div className="flex items-center space-x-1">
+                    {(['1W', '2W', '1M', '3M', '6M', 'FIFO'] as const).map((hz) => (
+                      <button
+                        key={hz}
+                        onClick={() => handleSelectHorizon(hz)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-colors ${
+                          selectedHorizon === hz
+                            ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/50 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        title={`Target ${hz} Cost Horizon`}
+                      >
+                        {hz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Direction & Severity Badge */}
+                <div>
+                  <div
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-bold font-mono tracking-wider flex items-center justify-between ${
+                      outlook.direction === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 glow-green'
+                        : outlook.direction === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 glow-red'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-center space-x-1">
+                      {outlook.direction === 'BUY' ? (
+                        <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                      ) : outlook.direction === 'SELL' ? (
+                        <TrendingDown className="w-3.5 h-3.5 mr-1" />
+                      ) : (
+                        <Target className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                      )}
+                      <span>{outlook.badgeLabel}</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-1 rounded bg-slate-950/60">
+                      {outlook.playbook}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2x2 Quantitative Metrics Grid */}
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                  <div>
+                    <div className="text-slate-400 text-[10px]">Close vs Cost</div>
+                    <div className="text-slate-200 font-semibold">
+                      ₺{outlook.closePrice.toFixed(2)} / ₺{outlook.targetCost.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 text-[10px]">Cost Spread</div>
+                    <div
+                      className={`font-semibold ${
+                        outlook.spreadPct <= -3
+                          ? 'text-cyan-400'
+                          : outlook.spreadPct >= 3
+                          ? 'text-rose-400'
+                          : 'text-slate-300'
+                      }`}
+                    >
+                      {outlook.spreadPct >= 0 ? '+' : ''}{outlook.spreadPct.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 text-[10px]">Reversion Target</div>
+                    <div
+                      className={`font-semibold ${
+                        outlook.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {outlook.potentialReturnPct >= 0 ? '+' : ''}
+                      {outlook.potentialReturnPct.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 text-[10px]">Active Horizon</div>
+                    <div className="text-cyan-300 font-semibold">
+                      {outlook.horizonCode} ({outlook.horizonLabel.split(' ')[0]})
+                    </div>
+                  </div>
+                </div>
+
+                {/* Microstructure Rationale */}
+                <div className="text-[10px] text-slate-400 leading-tight border-t border-slate-800/60 pt-1.5">
+                  {outlook.rationale}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chart Canvas */}
+        <div ref={chartContainerRef} className="w-full min-h-[520px]" />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 z-10 text-cyan-400 text-xs font-mono">
             Loading Tertip EWMA time series...

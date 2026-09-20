@@ -450,7 +450,7 @@ export const TertipDashboard: React.FC<TertipDashboardProps> = ({
           )}
 
           {/* Zone 3: Interactive Dual-Scale TradingView Chart */}
-          <TertipEwmaChart symbol={activeSymbol} brokerId={brokerId} />
+          <TertipEwmaChart symbol={activeSymbol} brokerId={brokerId} tertipData={tertipData} />
         </div>
       )}
 
