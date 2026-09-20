@@ -224,8 +224,12 @@ export interface TertipTimeseriesPoint {
   trade_date: string;
   close_price: number;
   fifo_avg_cost: number;
+  ewma_cost_5d?: number;
+  ewma_cost_10d?: number;
+  ewma_cost_21d?: number;
   ewma_cost_63d: number;
   ewma_cost_126d: number;
+  ewma_cost_252d?: number;
   open_quantity: number;
   ewma_qty_5d: number;
   ewma_qty_10d: number;

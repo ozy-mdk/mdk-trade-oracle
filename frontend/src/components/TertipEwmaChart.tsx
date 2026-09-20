@@ -17,6 +17,24 @@ interface TertipEwmaChartProps {
   brokerId?: string;
 }
 
+type CostHorizonId = 'none' | '5d' | '10d' | '21d' | '63d' | '126d' | '252d';
+
+interface CostHorizonConfig {
+  id: CostHorizonId;
+  label: string;
+  shortLabel: string;
+  color: string;
+}
+
+const COST_HORIZONS: CostHorizonConfig[] = [
+  { id: '5d', label: '1W EWMA Cost', shortLabel: '1W', color: '#f59e0b' },
+  { id: '10d', label: '2W EWMA Cost', shortLabel: '2W', color: '#fb923c' },
+  { id: '21d', label: '1M EWMA Cost', shortLabel: '1M', color: '#06b6d4' },
+  { id: '63d', label: '3M EWMA Cost', shortLabel: '3M', color: '#a855f7' },
+  { id: '126d', label: '6M EWMA Cost', shortLabel: '6M', color: '#10b981' },
+  { id: '252d', label: '12M EWMA Cost', shortLabel: '12M', color: '#f43f5e' },
+];
+
 export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   symbol,
   brokerId = 'MLB',
@@ -27,7 +45,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   // Upper Pane Series (Price & Cost)
   const priceSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const costSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const cost63SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const costEwmaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   // Lower Sub-Pane Series (EWMA Ribbons)
   const qtySeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -39,7 +57,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
   // Visibility Toggles
   const [showCost, setShowCost] = useState(true);
-  const [showCost63, setShowCost63] = useState(true);
+  const [costHorizon, setCostHorizon] = useState<CostHorizonId>('63d');
   const [showEwma5, setShowEwma5] = useState(true);
   const [showEwma21, setShowEwma21] = useState(true);
   const [showEwma63, setShowEwma63] = useState(true);
@@ -112,15 +130,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     });
     costSeriesRef.current = costSeries;
 
-    // 3. 3M EWMA Unit Cost
-    const cost63Series = chart.addLineSeries({
-      color: '#a855f7', // Purple
-      lineWidth: 1,
+    // 3. EWMA Unit Cost (Dynamic Horizon)
+    const costEwmaSeries = chart.addLineSeries({
+      color: '#a855f7', // Purple default
+      lineWidth: 2,
       lineStyle: 3, // Dotted
       priceScaleId: 'right',
       title: '3M EWMA Cost',
     });
-    cost63SeriesRef.current = cost63Series;
+    costEwmaSeriesRef.current = costEwmaSeries;
 
     // ── Lower Pane: EWMA Inventory Ribbons (Dedicated Scale) ───────────────────
     // 4. Actual Open Inventory Quantity (Registers 'inventory_scale')
@@ -216,13 +234,22 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     };
   }, []);
 
+  function getPointCost(p: TertipTimeseriesPoint, horizon: CostHorizonId): number {
+    if (horizon === '5d') return p.ewma_cost_5d ?? p.fifo_avg_cost;
+    if (horizon === '10d') return p.ewma_cost_10d ?? p.fifo_avg_cost;
+    if (horizon === '21d') return p.ewma_cost_21d ?? p.fifo_avg_cost;
+    if (horizon === '63d') return p.ewma_cost_63d ?? p.fifo_avg_cost;
+    if (horizon === '126d') return p.ewma_cost_126d ?? p.fifo_avg_cost;
+    if (horizon === '252d') return p.ewma_cost_252d ?? p.fifo_avg_cost;
+    return p.fifo_avg_cost;
+  }
+
   // Update Data when timeseries loads
   useEffect(() => {
     if (!timeseries || timeseries.length === 0 || !chartRef.current) return;
 
     const priceData: LineData[] = [];
     const costData: LineData[] = [];
-    const cost63Data: LineData[] = [];
     const qtyData: LineData[] = [];
     const ewma5Data: LineData[] = [];
     const ewma21Data: LineData[] = [];
@@ -234,7 +261,6 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
       const t = p.time as UTCTimestamp;
       priceData.push({ time: t, value: p.close_price });
       costData.push({ time: t, value: p.fifo_avg_cost });
-      cost63Data.push({ time: t, value: p.ewma_cost_63d });
       qtyData.push({ time: t, value: p.open_quantity });
       ewma5Data.push({ time: t, value: p.ewma_qty_5d });
       ewma21Data.push({ time: t, value: p.ewma_qty_21d });
@@ -245,7 +271,6 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
     priceSeriesRef.current?.setData(priceData);
     costSeriesRef.current?.setData(costData);
-    cost63SeriesRef.current?.setData(cost63Data);
     qtySeriesRef.current?.setData(qtyData);
     ewma5SeriesRef.current?.setData(ewma5Data);
     ewma21SeriesRef.current?.setData(ewma21Data);
@@ -253,22 +278,64 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     ewma126SeriesRef.current?.setData(ewma126Data);
     ewma252SeriesRef.current?.setData(ewma252Data);
 
+    // Populate EWMA Cost Series
+    if (costEwmaSeriesRef.current) {
+      if (costHorizon === 'none') {
+        costEwmaSeriesRef.current.applyOptions({ visible: false });
+      } else {
+        const cfg = COST_HORIZONS.find((c) => c.id === costHorizon);
+        const ewmaCostData: LineData[] = timeseries.map((p) => ({
+          time: p.time as UTCTimestamp,
+          value: getPointCost(p, costHorizon),
+        }));
+        costEwmaSeriesRef.current.setData(ewmaCostData);
+        costEwmaSeriesRef.current.applyOptions({
+          visible: true,
+          color: cfg?.color || '#a855f7',
+          title: cfg?.label || 'EWMA Cost',
+        });
+      }
+    }
+
     chartRef.current.timeScale().fitContent();
 
     // Set latest point for inspector
     setHoveredPoint(timeseries[timeseries.length - 1]);
   }, [timeseries]);
 
+  // Handle EWMA Cost Horizon switch
+  useEffect(() => {
+    if (!timeseries || timeseries.length === 0 || !costEwmaSeriesRef.current) return;
+
+    if (costHorizon === 'none') {
+      costEwmaSeriesRef.current.applyOptions({ visible: false });
+      return;
+    }
+
+    const cfg = COST_HORIZONS.find((c) => c.id === costHorizon);
+    const ewmaCostData: LineData[] = timeseries.map((p) => ({
+      time: p.time as UTCTimestamp,
+      value: getPointCost(p, costHorizon),
+    }));
+    costEwmaSeriesRef.current.setData(ewmaCostData);
+    costEwmaSeriesRef.current.applyOptions({
+      visible: true,
+      color: cfg?.color || '#a855f7',
+      title: cfg?.label || 'EWMA Cost',
+    });
+  }, [costHorizon, timeseries]);
+
   // Handle visibility toggles
   useEffect(() => {
     costSeriesRef.current?.applyOptions({ visible: showCost });
-    cost63SeriesRef.current?.applyOptions({ visible: showCost63 });
     ewma5SeriesRef.current?.applyOptions({ visible: showEwma5 });
     ewma21SeriesRef.current?.applyOptions({ visible: showEwma21 });
     ewma63SeriesRef.current?.applyOptions({ visible: showEwma63 });
     ewma126SeriesRef.current?.applyOptions({ visible: showEwma126 });
     ewma252SeriesRef.current?.applyOptions({ visible: showEwma252 });
-  }, [showCost, showCost63, showEwma5, showEwma21, showEwma63, showEwma126, showEwma252]);
+  }, [showCost, showEwma5, showEwma21, showEwma63, showEwma126, showEwma252]);
+
+  const activeCostCfg = COST_HORIZONS.find((c) => c.id === costHorizon);
 
   return (
     <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
@@ -278,108 +345,141 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
           <span className="font-bold text-white tracking-wide">{symbol}</span>
           <span className="text-slate-400">•</span>
           <span className="text-slate-300 font-mono text-[11px]">
-            Price vs. {brokerId} Tertip EWMA Ribbons
+            Price & Costs (Top) vs. {brokerId} Inventory Ribbons (Bottom)
           </span>
         </div>
 
         {/* Interactive Legend Toggles */}
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
-          <button
-            onClick={() => setShowCost(!showCost)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showCost
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-amber-400 inline-block" />
-            <span>FIFO Cost</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+          {/* Upper Pane Cost Controls */}
+          <div className="flex items-center space-x-1 bg-slate-950/70 px-2 py-1 rounded-lg border border-slate-800">
+            <span className="text-[10px] text-slate-400 mr-1 font-sans">Cost Line:</span>
+            <button
+              onClick={() => setShowCost(!showCost)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showCost
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="Toggle FIFO Actual Unit Cost"
+            >
+              <span className="w-2 h-0.5 bg-amber-400 inline-block" />
+              <span>FIFO</span>
+            </button>
 
-          <button
-            onClick={() => setShowCost63(!showCost63)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showCost63
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-purple-400 inline-block" />
-            <span>3M Cost</span>
-          </button>
+            {COST_HORIZONS.map((h) => {
+              const isActive = costHorizon === h.id;
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => setCostHorizon(isActive ? 'none' : h.id)}
+                  className={`px-1.5 py-0.5 rounded border transition-all ${
+                    isActive
+                      ? 'border-transparent font-bold text-slate-950 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                  }`}
+                  style={{
+                    backgroundColor: isActive ? h.color : undefined,
+                  }}
+                  title={`Show ${h.label} on upper price pane`}
+                >
+                  {h.shortLabel}
+                </button>
+              );
+            })}
+          </div>
 
-          <span className="text-slate-700">|</span>
+          <span className="text-slate-700 hidden sm:inline">|</span>
 
-          <button
-            onClick={() => setShowEwma5(!showEwma5)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showEwma5
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-amber-400 inline-block" />
-            <span>1W EWMA</span>
-          </button>
+          {/* Lower Pane Ribbons Controls */}
+          <div className="flex items-center space-x-1 bg-slate-950/70 px-2 py-1 rounded-lg border border-slate-800">
+            <span className="text-[10px] text-slate-400 mr-1 font-sans">Ribbons:</span>
+            <button
+              onClick={() => setShowEwma5(!showEwma5)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showEwma5
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="1-Week EWMA Quantity"
+            >
+              <span className="w-2 h-0.5 bg-amber-400 inline-block" />
+              <span>1W</span>
+            </button>
 
-          <button
-            onClick={() => setShowEwma21(!showEwma21)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showEwma21
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-cyan-400 inline-block" />
-            <span>1M EWMA</span>
-          </button>
+            <button
+              onClick={() => setShowEwma21(!showEwma21)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showEwma21
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="1-Month EWMA Quantity"
+            >
+              <span className="w-2 h-0.5 bg-cyan-400 inline-block" />
+              <span>1M</span>
+            </button>
 
-          <button
-            onClick={() => setShowEwma63(!showEwma63)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showEwma63
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-purple-400 inline-block" />
-            <span>3M EWMA</span>
-          </button>
+            <button
+              onClick={() => setShowEwma63(!showEwma63)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showEwma63
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="3-Month EWMA Quantity"
+            >
+              <span className="w-2 h-0.5 bg-purple-400 inline-block" />
+              <span>3M</span>
+            </button>
 
-          <button
-            onClick={() => setShowEwma126(!showEwma126)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showEwma126
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-emerald-400 inline-block" />
-            <span>6M EWMA</span>
-          </button>
+            <button
+              onClick={() => setShowEwma126(!showEwma126)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showEwma126
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="6-Month EWMA Quantity"
+            >
+              <span className="w-2 h-0.5 bg-emerald-400 inline-block" />
+              <span>6M</span>
+            </button>
 
-          <button
-            onClick={() => setShowEwma252(!showEwma252)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition-colors ${
-              showEwma252
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                : 'bg-slate-900 text-slate-500 border-slate-800'
-            }`}
-          >
-            <span className="w-2 h-0.5 bg-rose-400 inline-block" />
-            <span>12M EWMA</span>
-          </button>
+            <button
+              onClick={() => setShowEwma252(!showEwma252)}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border transition-colors ${
+                showEwma252
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  : 'bg-slate-900 text-slate-500 border-slate-800'
+              }`}
+              title="12-Month EWMA Quantity"
+            >
+              <span className="w-2 h-0.5 bg-rose-400 inline-block" />
+              <span>12M</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Point Inspector Strip */}
       {hoveredPoint && (
-        <div className="px-4 py-1.5 bg-slate-950/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="px-4 py-1.5 bg-slate-950/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 gap-2">
           <div className="flex items-center space-x-3">
             <span>Date: <span className="text-white font-semibold">{hoveredPoint.trade_date}</span></span>
             <span>Close: <span className="text-sky-300 font-semibold">₺{hoveredPoint.close_price.toFixed(2)}</span></span>
             <span>FIFO Cost: <span className="text-amber-300 font-semibold">₺{hoveredPoint.fifo_avg_cost.toFixed(2)}</span></span>
-            <span>3M Cost: <span className="text-purple-300 font-semibold">₺{hoveredPoint.ewma_cost_63d.toFixed(2)}</span></span>
+            {costHorizon !== 'none' && (
+              <span>
+                {activeCostCfg?.shortLabel} Cost:{' '}
+                <span
+                  className="font-semibold"
+                  style={{ color: activeCostCfg?.color || '#a855f7' }}
+                >
+                  ₺{getPointCost(hoveredPoint, costHorizon).toFixed(2)}
+                </span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">
@@ -409,7 +509,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
       {/* Footer Guidance */}
       <div className="px-4 py-1.5 bg-slate-900/60 border-t border-slate-800 text-[10px] text-slate-500 flex items-center justify-between">
-        <span>Upper Pane: Price & FIFO Costs • Lower Pane: BofA Open Inventory & Multi-Horizon EWMA Ribbons</span>
+        <span>Upper Pane: Price & Selectable EWMA Costs (₺/sh) • Lower Pane: BofA Open Inventory & EWMA Ribbons (Shares)</span>
         <span>Scroll to Zoom • Drag to Pan</span>
       </div>
     </div>

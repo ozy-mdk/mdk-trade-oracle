@@ -187,8 +187,12 @@ class TertipTimeseriesPoint(BaseModel):
     trade_date: str
     close_price: float
     fifo_avg_cost: float
+    ewma_cost_5d: float = 0.0
+    ewma_cost_10d: float = 0.0
+    ewma_cost_21d: float = 0.0
     ewma_cost_63d: float
     ewma_cost_126d: float
+    ewma_cost_252d: float = 0.0
     open_quantity: float
     ewma_qty_5d: float
     ewma_qty_10d: float
