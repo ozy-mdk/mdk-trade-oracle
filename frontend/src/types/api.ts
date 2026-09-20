@@ -247,3 +247,47 @@ export interface TertipTimeseriesPoint {
   unrealized_pnl_tl: number;
 }
 
+export type ForwardSignalSeverity = 'NEUTRAL' | 'MODERATE' | 'STRONG';
+export type ForwardSignalDirection = 'BUY' | 'SELL' | 'NEUTRAL';
+export type ForwardHorizonCode = '1W' | '2W' | '1M' | '3M' | '6M' | 'FIFO';
+
+export interface ForwardOpportunityOutlook {
+  horizonCode: ForwardHorizonCode;
+  horizonLabel: string;
+  closePrice: number;
+  targetCost: number;
+  spreadPct: number;
+  potentialReturnPct: number;
+  direction: ForwardSignalDirection;
+  severity: ForwardSignalSeverity;
+  badgeLabel: string;
+  badgeColor: string;
+  playbook: string;
+  rationale: string;
+}
+
+export interface EwmaHorizonSummaryRow {
+  code: ForwardHorizonCode;
+  label: string;
+  ewmaCost: number;
+  spreadPct: number;
+  potentialReturnPct: number;
+  direction: ForwardSignalDirection;
+  severity: ForwardSignalSeverity;
+  netFlowTl: number;
+  stance: string;
+  inventoryQty: number;
+}
+
+export interface EwmaConfluenceSummary {
+  buyCount: number;
+  sellCount: number;
+  neutralCount: number;
+  totalHorizons: number;
+  overallDirection: ForwardSignalDirection;
+  confluenceLabel: string;
+  ribbonStatus: string;
+  rows: EwmaHorizonSummaryRow[];
+}
+
+

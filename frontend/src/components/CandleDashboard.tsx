@@ -270,6 +270,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
         brokerId={brokerId}
         fifoAvgCost={costBasis}
         showCostLine={showCostLine}
+        tertipData={tertipData}
       />
     </div>
   );

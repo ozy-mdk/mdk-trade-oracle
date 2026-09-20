@@ -8,7 +8,9 @@ import {
   UTCTimestamp,
   ColorType,
 } from 'lightweight-charts';
-import { CandleBar } from '../types/api';
+import { CandleBar, TertipHorizonsResponse, ForwardHorizonCode } from '../types/api';
+import { calculateForwardOpportunity, calculateEwmaConfluence } from '../utils/forwardOpportunity';
+import { Compass, Target, TrendingUp, TrendingDown, Eye, EyeOff, Table } from 'lucide-react';
 
 interface TradingViewChartProps {
   symbol: string;
@@ -16,6 +18,7 @@ interface TradingViewChartProps {
   brokerId?: string;
   fifoAvgCost?: number | null;
   showCostLine?: boolean;
+  tertipData?: TertipHorizonsResponse | null;
   onHoverData?: (data: CandleBar | null) => void;
 }
 
@@ -25,18 +28,28 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   brokerId = 'MLB',
   fifoAvgCost,
   showCostLine = false,
+  tertipData,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const bofaSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const forwardAreaSeriesRef = useRef<ISeriesApi<'Area'> | null>(null);
   const costLineRef = useRef<any>(null);
+  const outlookTargetLineRef = useRef<any>(null);
   const totalBarsRef = useRef<number>(0);
   const latestCandleRef = useRef<CandleBar | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCandle, setActiveCandle] = useState<CandleBar | null>(null);
+  const [selectedHorizon, setSelectedHorizon] = useState<ForwardHorizonCode>('1M');
+  const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
+  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook'>('table');
+
+  const currentPrice = activeCandle?.close || latestCandleRef.current?.close || 0;
+  const outlook = calculateForwardOpportunity(currentPrice, tertipData, selectedHorizon);
+  const confluence = calculateEwmaConfluence(currentPrice, tertipData);
 
   // Initialize TradingView Chart Canvas
   useEffect(() => {
@@ -112,6 +125,15 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
       },
     });
     bofaSeriesRef.current = bofaSeries;
+
+    // 3. Forward Opportunity Ribbon (Upper Pane overlay in forward whitespace)
+    const forwardAreaSeries = chart.addAreaSeries({
+      priceScaleId: 'right',
+      crosshairMarkerVisible: false,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    forwardAreaSeriesRef.current = forwardAreaSeries;
 
     // Crosshair move handler
     chart.subscribeCrosshairMove((param: any) => {
@@ -267,6 +289,100 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     }
   }, [fifoAvgCost, showCostLine, brokerId]);
 
+  // Update Forward Opportunity Projection (Target Line & Forward Shaded Ribbon)
+  useEffect(() => {
+    if (!candleSeriesRef.current || !chartRef.current) return;
+
+    if (outlookTargetLineRef.current) {
+      try {
+        candleSeriesRef.current.removePriceLine(outlookTargetLineRef.current);
+      } catch (e) {
+        // Ignore removal error
+      }
+      outlookTargetLineRef.current = null;
+    }
+
+    if (!showOutlookZone || !outlook || !forwardAreaSeriesRef.current) {
+      forwardAreaSeriesRef.current?.setData([]);
+      return;
+    }
+
+    // 1. Create Target Price Line extending into the right scale
+    const lineColor =
+      outlook.direction === 'BUY'
+        ? '#10b981'
+        : outlook.direction === 'SELL'
+        ? '#f43f5e'
+        : '#64748b';
+    const returnPrefix = outlook.potentialReturnPct >= 0 ? '+' : '';
+
+    outlookTargetLineRef.current = candleSeriesRef.current.createPriceLine({
+      price: outlook.targetCost,
+      color: lineColor,
+      lineWidth: 2,
+      lineStyle: 2, // Dashed
+      axisLabelVisible: true,
+      title: `${brokerId} ${outlook.horizonCode} Target: ₺${outlook.targetCost.toFixed(2)} (${returnPrefix}${outlook.potentialReturnPct.toFixed(1)}%)`,
+    });
+
+    // 2. Populate Forward Area Ribbon across the 15-bar margin
+    if (latestCandleRef.current) {
+      const lastEpoch = latestCandleRef.current.time;
+      const lastClose = latestCandleRef.current.close;
+      const targetCost = outlook.targetCost;
+
+      const topCol =
+        outlook.direction === 'BUY'
+          ? 'rgba(16, 185, 129, 0.18)'
+          : outlook.direction === 'SELL'
+          ? 'rgba(244, 63, 94, 0.18)'
+          : 'rgba(100, 116, 139, 0.12)';
+      const botCol =
+        outlook.direction === 'BUY'
+          ? 'rgba(16, 185, 129, 0.01)'
+          : outlook.direction === 'SELL'
+          ? 'rgba(244, 63, 94, 0.01)'
+          : 'rgba(100, 116, 139, 0.01)';
+
+      forwardAreaSeriesRef.current.applyOptions({
+        topColor: topCol,
+        bottomColor: botCol,
+        lineColor: lineColor,
+        lineWidth: 1,
+        lineStyle: 2,
+      });
+
+      const forwardPoints: { time: any; value: number }[] = [];
+      const startDateStr = new Date(lastEpoch * 1000).toISOString().split('T')[0];
+      const curDate = new Date(`${startDateStr}T00:00:00Z`);
+
+      // Anchor point on the latest candle
+      forwardPoints.push({
+        time: interval === '1d' ? startDateStr : (lastEpoch as any),
+        value: lastClose,
+      });
+
+      const forwardDays = 8;
+      for (let i = 1; i <= forwardDays; i++) {
+        curDate.setUTCDate(curDate.getUTCDate() + 1);
+        while (curDate.getUTCDay() === 0 || curDate.getUTCDay() === 6) {
+          curDate.setUTCDate(curDate.getUTCDate() + 1);
+        }
+        const fDateStr = curDate.toISOString().split('T')[0];
+        const fEpoch = Math.floor(curDate.getTime() / 1000);
+        const alpha = i / forwardDays;
+        const rampValue = Number((lastClose + (targetCost - lastClose) * alpha).toFixed(2));
+
+        forwardPoints.push({
+          time: interval === '1d' ? fDateStr : (fEpoch as any),
+          value: rampValue,
+        });
+      }
+
+      forwardAreaSeriesRef.current.setData(forwardPoints as any);
+    }
+  }, [outlook, showOutlookZone, interval, brokerId]);
+
   return (
     <div className="relative w-full glass-panel rounded-xl overflow-hidden shadow-2xl border border-slate-800">
       {/* Sub-Header & Live Metric Inspector */}
@@ -342,10 +458,295 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
               Fit All
             </button>
           </div>
+
+          {/* Action Zone Toggle */}
+          {tertipData && (
+            <button
+              onClick={() => setShowOutlookZone(!showOutlookZone)}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center space-x-1 border transition-colors ${
+                showOutlookZone
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+              }`}
+              title="Toggle Institutional Forward Action Zone in whitespace"
+            >
+              {showOutlookZone ? (
+                <Eye className="w-3 h-3 text-cyan-400" />
+              ) : (
+                <EyeOff className="w-3 h-3 text-slate-500" />
+              )}
+              <span>Action Zone</span>
+            </button>
+          )}
+
           {loading && <span className="text-cyan-400 animate-pulse font-mono">Streaming...</span>}
           {error && <span className="text-rose-400 font-mono">{error}</span>}
         </div>
       </div>
+
+      {/* Floating Institutional Forward Action Card (Positioned in 15-Bar Forward Whitespace) */}
+      {showOutlookZone && outlook && (
+        <div className="absolute top-14 right-14 z-20 w-[390px] glass-panel bg-slate-950/92 backdrop-blur-md border border-slate-700/80 p-3.5 rounded-xl shadow-2xl transition-all pointer-events-auto">
+          {/* Card Header & View Tabs */}
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2.5">
+            <div className="flex items-center space-x-1.5">
+              <Compass className="w-4 h-4 text-cyan-400" />
+              <span className="font-bold text-xs text-white tracking-wide">
+                {brokerId} Action Zone (T+1)
+              </span>
+            </div>
+
+            {/* View Mode Toggle: EWMA Table vs. Playbook Outlook */}
+            <div className="flex items-center space-x-1 bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-[10px] font-mono">
+              <button
+                onClick={() => setActionZoneTab('table')}
+                className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                  actionZoneTab === 'table'
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="View multi-horizon EWMA inventory and cost table"
+              >
+                <Table className="w-3 h-3" />
+                <span>EWMA Table</span>
+              </button>
+              <button
+                onClick={() => setActionZoneTab('outlook')}
+                className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                  actionZoneTab === 'outlook'
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="View executive action narrative and institutional playbook"
+              >
+                <Target className="w-3 h-3" />
+                <span>Playbook</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 1: EWMA Multi-Horizon Matrix Table */}
+          {actionZoneTab === 'table' && (
+            <div className="space-y-2">
+              {/* Confluence & Ribbon Status Bar */}
+              {confluence && (
+                <div className="flex items-center justify-between text-[10px] font-mono">
+                  <span
+                    className={`px-2 py-0.5 rounded font-bold border ${
+                      confluence.overallDirection === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : confluence.overallDirection === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {confluence.confluenceLabel}
+                  </span>
+                  <span className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40 font-semibold truncate max-w-[150px]">
+                    {confluence.ribbonStatus}
+                  </span>
+                </div>
+              )}
+
+              {/* Table of all Horizons */}
+              {confluence && (
+                <div className="overflow-x-auto rounded-lg border border-slate-800/90">
+                  <table className="w-full text-[10px] font-mono border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                        <th className="text-left px-2 py-1 font-sans">Horizon</th>
+                        <th className="text-right px-1.5 py-1 font-sans">EWMA Cost</th>
+                        <th className="text-right px-1.5 py-1 font-sans">Spread</th>
+                        <th className="text-right px-1.5 py-1 font-sans">Target</th>
+                        <th className="text-right px-2 py-1 font-sans">Stance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                      {confluence.rows.map((row) => {
+                        const isSelected = selectedHorizon === row.code;
+                        return (
+                          <tr
+                            key={row.code}
+                            onClick={() => setSelectedHorizon(row.code)}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-cyan-500/20 text-white font-semibold'
+                                : 'hover:bg-slate-800/50 text-slate-300'
+                            }`}
+                            title={`Click to set ${row.label} as active projection target`}
+                          >
+                            <td className="px-2 py-1.5 flex items-center space-x-1.5">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isSelected ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'
+                                }`}
+                              />
+                              <span className={isSelected ? 'text-cyan-300 font-bold' : 'text-slate-300'}>
+                                {row.code}
+                              </span>
+                            </td>
+                            <td className="text-right px-1.5 py-1.5 text-slate-200">
+                              ₺{row.ewmaCost.toFixed(2)}
+                            </td>
+                            <td
+                              className={`text-right px-1.5 py-1.5 font-semibold ${
+                                row.spreadPct <= -3
+                                  ? 'text-cyan-300'
+                                  : row.spreadPct >= 3
+                                  ? 'text-rose-400'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {row.spreadPct >= 0 ? '+' : ''}{row.spreadPct.toFixed(1)}%
+                            </td>
+                            <td
+                              className={`text-right px-1.5 py-1.5 font-semibold ${
+                                row.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {row.potentialReturnPct >= 0 ? '+' : ''}
+                              {row.potentialReturnPct.toFixed(1)}%
+                            </td>
+                            <td className="text-right px-2 py-1.5">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                  row.direction === 'BUY'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                    : row.direction === 'SELL'
+                                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}
+                              >
+                                {row.direction}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Active Target Projection Banner */}
+              <div className="flex items-center justify-between text-[10px] font-mono bg-slate-900/80 px-2.5 py-1.5 rounded border border-slate-800/80">
+                <span className="text-slate-400">
+                  Target: <span className="text-cyan-300 font-bold">{selectedHorizon}</span> (₺{outlook.targetCost.toFixed(2)})
+                </span>
+                <span
+                  className={`font-semibold ${
+                    outlook.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  Return: {outlook.potentialReturnPct >= 0 ? '+' : ''}{outlook.potentialReturnPct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-[9px] text-slate-500 italic text-center">
+                Click any row to project that horizon's target line onto the chart
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: Executive Playbook Outlook */}
+          {actionZoneTab === 'outlook' && (
+            <div className="space-y-2">
+              {/* Horizon Selector Pills */}
+              <div className="flex items-center justify-between bg-slate-900/80 px-2 py-1 rounded border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-mono">Horizon:</span>
+                <div className="flex items-center space-x-1">
+                  {(['1W', '2W', '1M', '3M', '6M', 'FIFO'] as const).map((hz) => (
+                    <button
+                      key={hz}
+                      onClick={() => setSelectedHorizon(hz)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-colors ${
+                        selectedHorizon === hz
+                          ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/50 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title={`Target ${hz} Cost Horizon`}
+                    >
+                      {hz}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Direction & Severity Badge */}
+              <div>
+                <div
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-bold font-mono tracking-wider flex items-center justify-between ${
+                    outlook.direction === 'BUY'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 glow-green'
+                      : outlook.direction === 'SELL'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 glow-red'
+                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1">
+                    {outlook.direction === 'BUY' ? (
+                      <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                    ) : outlook.direction === 'SELL' ? (
+                      <TrendingDown className="w-3.5 h-3.5 mr-1" />
+                    ) : (
+                      <Target className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                    )}
+                    <span>{outlook.badgeLabel}</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-1 rounded bg-slate-950/60">
+                    {outlook.playbook}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2x2 Quantitative Metrics Grid */}
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                <div>
+                  <div className="text-slate-400 text-[10px]">Close vs Cost</div>
+                  <div className="text-slate-200 font-semibold">
+                    ₺{outlook.closePrice.toFixed(2)} / ₺{outlook.targetCost.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-[10px]">Cost Spread</div>
+                  <div
+                    className={`font-semibold ${
+                      outlook.spreadPct <= -3
+                        ? 'text-cyan-400'
+                        : outlook.spreadPct >= 3
+                        ? 'text-rose-400'
+                        : 'text-slate-300'
+                    }`}
+                  >
+                    {outlook.spreadPct >= 0 ? '+' : ''}{outlook.spreadPct.toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-[10px]">Reversion Target</div>
+                  <div
+                    className={`font-semibold ${
+                      outlook.potentialReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}
+                  >
+                    {outlook.potentialReturnPct >= 0 ? '+' : ''}
+                    {outlook.potentialReturnPct.toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400 text-[10px]">Active Horizon</div>
+                  <div className="text-cyan-300 font-semibold">
+                    {outlook.horizonCode} ({outlook.horizonLabel.split(' ')[0]})
+                  </div>
+                </div>
+              </div>
+
+              {/* Microstructure Rationale */}
+              <div className="text-[10px] text-slate-400 leading-tight border-t border-slate-800/60 pt-1.5">
+                {outlook.rationale}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Chart Canvas */}
       <div ref={chartContainerRef} className="w-full h-[560px]" />

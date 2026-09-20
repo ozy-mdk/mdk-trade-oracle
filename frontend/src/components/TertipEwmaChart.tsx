@@ -379,6 +379,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   }, [showCost, showEwma5, showEwma21, showEwma63, showEwma126, showEwma252]);
 
   const activeCostCfg = COST_HORIZONS.find((c) => c.id === costHorizon);
+  const targetCostForOpp = hoveredPoint
+    ? (costHorizon !== 'none' ? getPointCost(hoveredPoint, costHorizon) : hoveredPoint.fifo_avg_cost)
+    : 0;
+  const costSpreadPct = hoveredPoint && targetCostForOpp > 0
+    ? ((hoveredPoint.close_price - targetCostForOpp) / targetCostForOpp) * 100
+    : 0;
+  const potentialReturnPct = hoveredPoint && targetCostForOpp > 0
+    ? ((targetCostForOpp - hoveredPoint.close_price) / hoveredPoint.close_price) * 100
+    : 0;
 
   return (
     <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
@@ -565,6 +574,27 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                 >
                   ₺{getPointCost(hoveredPoint, costHorizon).toFixed(2)}
                 </span>
+              </span>
+            )}
+            {targetCostForOpp > 0 && Math.abs(costSpreadPct) >= 3.0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border tracking-wider uppercase ${
+                  costSpreadPct <= -5.0
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : costSpreadPct <= -3.0
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    : costSpreadPct >= 5.0
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}
+              >
+                {costSpreadPct <= -5.0
+                  ? `STRONG BUY (+${potentialReturnPct.toFixed(1)}% to Cost)`
+                  : costSpreadPct <= -3.0
+                  ? `MODERATE BUY (+${potentialReturnPct.toFixed(1)}% to Cost)`
+                  : costSpreadPct >= 5.0
+                  ? `STRONG SELL (${potentialReturnPct.toFixed(1)}% vs Cost)`
+                  : `MODERATE SELL (${potentialReturnPct.toFixed(1)}% vs Cost)`}
               </span>
             )}
           </div>
