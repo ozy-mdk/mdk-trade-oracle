@@ -7,7 +7,7 @@ services:
       - "${PG_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${PG_DATABASE:-mdk_oracle}
-      POSTGRES_USER: ${PG_USER:-ozkanyildirim}
+      POSTGRES_USER: ${PG_USER:-postgres}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
       POSTGRES_HOST_AUTH_METHOD: "trust"
     volumes:

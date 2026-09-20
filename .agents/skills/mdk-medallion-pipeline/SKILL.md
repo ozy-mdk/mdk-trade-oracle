@@ -3,7 +3,7 @@ name: mdk-medallion-pipeline
 description: >-
   Orchestrate and execute the Medallion Data Lakehouse pipeline (Bronze, Silver, Gold layers)
   for MDK Trading Oracle. Use when ingesting tick data, computing daily broker turnarounds/VWAP,
-  generating institutional rolling flow signals, executing predictive Gold models, or troubleshooting DuckDB transformations.
+  generating institutional rolling flow signals, executing predictive Gold models, or troubleshooting TimescaleDB / PostgreSQL transformations.
 ---
 
 # MDK Medallion Lakehouse Pipeline Skill

@@ -4,7 +4,7 @@ Supports:
 - Incremental file discovery & ingestion (only ingest new or modified files)
 - Ingestion tracking log (`bronze_ingestion_log`)
 - Selective partition updates (by single date `YYYY-MM-DD`, month `YYYY-MM`, or individual file)
-- Multi-threaded DuckDB bulk ingestion
+- Multi-threaded Polars bulk ingestion & PostgreSQL/TimescaleDB streaming COPY
 """
 
 import re
@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+import polars as pl
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.bronze.schema import initialize_bronze_schema
 
@@ -23,9 +24,9 @@ logger = get_logger("mdk_oracle.data.bronze.ingestor")
 
 
 class BronzeIngestor:
-    """Ingests raw trade CSV and Parquet files into the DuckDB `bronze_raw_trades` table with tracking."""
+    """Ingests raw trade CSV and Parquet files into the PostgreSQL/TimescaleDB `bronze_raw_trades` table with tracking."""
 
-    def __init__(self, db: DuckDBManager):
+    def __init__(self, db: PostgresManager):
         self.db = db
         self.settings = get_settings()
 
@@ -153,91 +154,129 @@ class BronzeIngestor:
 
         return pending
 
+    def _parse_trade_file(self, meta: Dict[str, Any]) -> pl.DataFrame:
+        """Parse raw CSV or Parquet file into standardized bronze_raw_trades Polars DataFrame."""
+        fpath = Path(meta["file_path"])
+        ext = meta.get("extension", fpath.suffix).lower()
+
+        if ext == ".parquet":
+            try:
+                df = pl.read_parquet(fpath)
+                if "raw_source" not in df.columns:
+                    df = df.with_columns(pl.lit(meta["file_name"]).alias("raw_source"))
+                if "trade_id" not in df.columns:
+                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("trade_id"))
+                if "buyer_broker_id" not in df.columns:
+                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"))
+                if "seller_broker_id" not in df.columns:
+                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"))
+
+                return df.select([
+                    pl.col("trade_id").cast(pl.Utf8),
+                    pl.col("timestamp").cast(pl.Datetime),
+                    pl.col("symbol").cast(pl.Utf8),
+                    pl.col("price").cast(pl.Float64),
+                    pl.col("volume").cast(pl.Float64),
+                    pl.col("buyer_broker_id").cast(pl.Utf8),
+                    pl.col("seller_broker_id").cast(pl.Utf8),
+                    pl.col("raw_source").cast(pl.Utf8),
+                ])
+            except Exception as e:
+                logger.error(f"Failed to read Parquet file {fpath}: {e}")
+                return pl.DataFrame()
+
+        # Handle CSV / TXT files
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                first_line = f.readline().strip()
+            sep = ";" if ";" in first_line else ","
+            has_header = any(k in first_line.lower() for k in ["symbol", "price", "buyer", "quantity"])
+
+            if has_header:
+                df = pl.read_csv(fpath, separator=sep, ignore_errors=True)
+                cols_map = {c.lower(): c for c in df.columns}
+                sym_col = cols_map.get("symbol")
+                time_col = cols_map.get("signal_time_text") or cols_map.get("timestamp") or cols_map.get("time")
+                price_col = cols_map.get("price")
+                vol_col = cols_map.get("quantity") or cols_map.get("volume")
+                buyer_col = cols_map.get("buyer") or cols_map.get("buyer_broker_id")
+                seller_col = cols_map.get("seller") or cols_map.get("seller_broker_id")
+
+                df = df.filter(pl.col(sym_col).is_not_null())
+                df = df.select([
+                    pl.col(sym_col).cast(pl.Utf8).alias("symbol"),
+                    pl.col(time_col).str.to_datetime(strict=False).alias("timestamp"),
+                    pl.col(price_col).cast(pl.Float64).alias("price"),
+                    pl.col(vol_col).cast(pl.Float64).alias("volume"),
+                    pl.col(buyer_col).cast(pl.Utf8).alias("buyer_broker_id") if buyer_col else pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"),
+                    pl.col(seller_col).cast(pl.Utf8).alias("seller_broker_id") if seller_col else pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"),
+                    pl.lit(meta["file_name"]).alias("raw_source"),
+                ])
+            else:
+                # Semicolon delimited without header: time;symbol;price;quantity;turnover;buyer;seller;flag
+                date_match = re.search(r"(\d{4})(\d{2})(\d{2})", meta["file_name"])
+                date_prefix = (
+                    f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+                    if date_match
+                    else (meta.get("trade_date") or "2026-01-01")
+                )
+                df = pl.read_csv(
+                    fpath,
+                    has_header=False,
+                    separator=sep,
+                    schema_overrides={f"column_{i}": pl.Utf8 for i in range(1, 9)},
+                    ignore_errors=True,
+                )
+                price_expr = pl.col("column_3").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+                vol_expr = pl.col("column_4").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+                ts_expr = (pl.lit(date_prefix + " ") + pl.col("column_1")).str.to_datetime(strict=False)
+
+                df = df.select([
+                    pl.col("column_2").alias("symbol"),
+                    ts_expr.alias("timestamp"),
+                    price_expr.alias("price"),
+                    vol_expr.alias("volume"),
+                    pl.col("column_6").alias("buyer_broker_id"),
+                    pl.col("column_7").alias("seller_broker_id"),
+                    pl.lit(meta["file_name"]).alias("raw_source"),
+                ])
+
+            df = df.filter(pl.col("symbol").is_not_null() & (pl.col("price") > 0) & (pl.col("timestamp").is_not_null()))
+
+            # Compute trade_id
+            trade_id_expr = (
+                pl.col("symbol").fill_null("") + pl.lit("_")
+                + pl.col("timestamp").cast(pl.Utf8).fill_null("") + pl.lit("_")
+                + pl.col("price").cast(pl.Utf8).fill_null("") + pl.lit("_")
+                + pl.col("volume").cast(pl.Utf8).fill_null("") + pl.lit("_")
+                + pl.col("buyer_broker_id").fill_null("") + pl.lit("_")
+                + pl.col("seller_broker_id").fill_null("")
+            ).hash().cast(pl.Utf8)
+            df = df.with_columns(trade_id_expr.alias("trade_id"))
+
+            return df.select([
+                "trade_id", "timestamp", "symbol", "price", "volume",
+                "buyer_broker_id", "seller_broker_id", "raw_source"
+            ])
+        except Exception as e:
+            logger.error(f"Failed to parse CSV file {fpath}: {e}")
+            return pl.DataFrame()
+
     def _ingest_file_batch(self, file_metas: List[Dict[str, Any]], batch_size: int = 50) -> int:
-        """Ingest a batch of files in parallel via DuckDB multi-file parser and log entries."""
+        """Ingest a batch of files via Polars bulk reader and PostgreSQL binary COPY streaming."""
         if not file_metas:
             return 0
 
         conn = self.db.get_connection()
         total_rows_inserted = 0
 
-        # Group by extension
-        csv_metas = [m for m in file_metas if m["extension"] in [".csv", ".txt"]]
-        parquet_metas = [m for m in file_metas if m["extension"] == ".parquet"]
-
-        # 1. Process CSV files in chunks
-        for i in range(0, len(csv_metas), batch_size):
-            chunk = csv_metas[i : i + batch_size]
-            paths = [m["file_path"] for m in chunk]
-
-            # Ingest chunk into bronze_raw_trades
-            query = f"""
-                INSERT INTO bronze_raw_trades (
-                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                )
-                SELECT 
-                    md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
-                    TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
-                    CAST(symbol AS VARCHAR) AS symbol,
-                    CAST(price AS DOUBLE) AS price,
-                    CAST(quantity AS DOUBLE) AS volume,
-                    CAST(buyer AS VARCHAR) AS buyer_broker_id,
-                    CAST(seller AS VARCHAR) AS seller_broker_id,
-                    filename AS raw_source
-                FROM read_csv_auto({paths}, union_by_name=true, header=true, filename=true)
-                WHERE symbol IS NOT NULL AND price > 0;
-            """
-            conn.execute(query)
-
-            # Record each ingested file in bronze_ingestion_log
-            for meta in chunk:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO bronze_ingestion_log (
-                        file_path, file_name, file_size_bytes, file_mtime_epoch, trade_date, year_month, rows_ingested, raw_source_label
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                    [
-                        meta["file_path"],
-                        meta["file_name"],
-                        meta["file_size_bytes"],
-                        meta["file_mtime_epoch"],
-                        meta["trade_date"],
-                        meta["year_month"],
-                        0,
-                        meta["file_name"],
-                    ],
-                )
-
-            total_rows_inserted += len(chunk)
-            logger.debug(
-                f"Ingested CSV chunk {i // batch_size + 1}/{(len(csv_metas) - 1) // batch_size + 1} ({len(chunk)} files)"
-            )
-
-        # 2. Process Parquet files
-        for idx, meta in enumerate(parquet_metas, start=1):
-            p = meta["file_path"]
-            logger.info(f"Ingesting Parquet file {idx}/{len(parquet_metas)}: {meta['file_name']}...")
-            query = f"""
-                INSERT INTO bronze_raw_trades (
-                    trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-                )
-                SELECT 
-                    CAST(trade_id AS VARCHAR),
-                    CAST(timestamp AS TIMESTAMP),
-                    CAST(symbol AS VARCHAR),
-                    CAST(price AS DOUBLE),
-                    CAST(volume AS DOUBLE),
-                    CAST(buyer_broker_id AS VARCHAR),
-                    CAST(seller_broker_id AS VARCHAR),
-                    '{meta["file_name"]}' AS raw_source
-                FROM read_parquet('{p}');
-            """
-            conn.execute(query)
-            try:
-                parquet_rows = conn.execute(f"SELECT count(*) FROM read_parquet('{p}');").fetchone()[0]
-            except Exception:
-                parquet_rows = 0
+        for idx, meta in enumerate(file_metas, start=1):
+            logger.info(f"Ingesting trade file {idx}/{len(file_metas)}: {meta['file_name']}...")
+            df = self._parse_trade_file(meta)
+            if not df.is_empty():
+                rows_count = self.db.copy_df_to_table(df, "bronze_raw_trades")
+            else:
+                rows_count = 0
 
             conn.execute(
                 """
@@ -252,11 +291,11 @@ class BronzeIngestor:
                     meta["file_mtime_epoch"],
                     meta["trade_date"],
                     meta["year_month"],
-                    parquet_rows,
+                    rows_count,
                     meta["file_name"],
                 ],
             )
-            total_rows_inserted += 1
+            total_rows_inserted += rows_count
 
         return total_rows_inserted
 
@@ -431,35 +470,27 @@ class BronzeIngestor:
                 "status": "already_ingested",
             }
 
-        logger.info(f"Ingesting BIST trade CSVs matching glob: {glob_pattern}")
+        import glob
 
-        query = f"""
-            INSERT INTO bronze_raw_trades (
-                trade_id, timestamp, symbol, price, volume, buyer_broker_id, seller_broker_id, raw_source
-            )
-            SELECT 
-                md5(symbol || '_' || signal_time_text || '_' || CAST(price AS VARCHAR) || '_' || CAST(quantity AS VARCHAR) || '_' || buyer || '_' || seller) AS trade_id,
-                TRY_CAST(signal_time_text AS TIMESTAMP) AS timestamp,
-                CAST(symbol AS VARCHAR) AS symbol,
-                CAST(price AS DOUBLE) AS price,
-                CAST(quantity AS DOUBLE) AS volume,
-                CAST(buyer AS VARCHAR) AS buyer_broker_id,
-                CAST(seller AS VARCHAR) AS seller_broker_id,
-                '{raw_source_label}' AS raw_source
-            FROM read_csv_auto('{glob_pattern}', union_by_name=true, header=true)
-            WHERE symbol IS NOT NULL AND price > 0;
-        """
-        conn.execute(query)
+        matching_paths = [Path(p) for p in glob.glob(glob_pattern, recursive=True)]
+        if not matching_paths:
+            logger.warning(f"No files matched glob pattern: {glob_pattern}")
+            return {"glob_pattern": glob_pattern, "rows_ingested": 0, "status": "no_files_found"}
 
-        count_res = conn.execute(
-            "SELECT COUNT(*) FROM bronze_raw_trades WHERE raw_source = ?", [raw_source_label]
-        ).fetchone()
-        row_count = count_res[0] if count_res else 0
+        logger.info(f"Ingesting {len(matching_paths)} BIST trade files matching glob: {glob_pattern}")
+        total_rows = 0
+        for p in matching_paths:
+            meta = self._extract_file_metadata(p)
+            df = self._parse_trade_file(meta)
+            if not df.is_empty():
+                if raw_source_label:
+                    df = df.with_columns(pl.lit(raw_source_label).alias("raw_source"))
+                total_rows += self.db.copy_df_to_table(df, "bronze_raw_trades")
 
-        logger.info(f"Successfully ingested {row_count:,} rows into Bronze via glob.")
+        logger.info(f"Successfully ingested {total_rows:,} rows into Bronze via glob.")
         return {
             "glob_pattern": glob_pattern,
-            "rows_ingested": row_count,
+            "rows_ingested": total_rows,
             "status": "success",
         }
 
@@ -1005,7 +1036,7 @@ class BronzeIngestor:
         csv_path: Optional[Union[str, Path]] = None,
         force: bool = False,
     ) -> Dict[str, Any]:
-        """Ingest corporate actions (bonus issues, splits, ticker changes, rights notes) into DuckDB.
+        """Ingest corporate actions (bonus issues, splits, ticker changes, rights notes) into PostgreSQL / TimescaleDB.
 
         Args:
             csv_path: Optional explicit path to corporate_actions.csv. If None, checks raw_data_dir/corporate_actions/
@@ -1410,6 +1441,6 @@ class BronzeIngestor:
                     return [r[0] for r in rows]
 
         except Exception as exc:
-            logger.debug(f"Could not load BIST 30 symbols from DuckDB: {exc}")
+            logger.debug(f"Could not load BIST 30 symbols from database: {exc}")
 
         return fallback_30

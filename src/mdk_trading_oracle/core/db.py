@@ -354,16 +354,16 @@ class PostgresManager:
         if df.is_empty():
             return 0
 
+        cols = df.columns
+        cols_str = ", ".join([f'"{c}"' for c in cols])
+
         conn = self.get_connection()
         if self._fallback_conn is not None:
             # Fallback insertion
             self._fallback_conn.register("temp_df", df.to_arrow())
-            self._fallback_conn.execute(f"INSERT INTO {table_name} SELECT * FROM temp_df;")
+            self._fallback_conn.execute(f"INSERT INTO {table_name} ({cols_str}) SELECT * FROM temp_df;")
             self._fallback_conn.unregister("temp_df")
             return df.height
-
-        cols = df.columns
-        cols_str = ", ".join([f'"{c}"' for c in cols])
         copy_sql = f"COPY {table_name} ({cols_str}) FROM STDIN WITH (FORMAT CSV, HEADER FALSE)"
 
         buf = io.BytesIO()

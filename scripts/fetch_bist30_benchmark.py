@@ -9,7 +9,7 @@ import yfinance as yf
 from rich.console import Console
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.scripts.fetch_bist30")
@@ -24,7 +24,7 @@ def fetch_bist30_data(
     save_db: bool = False,
     output_dir: Path = None,
 ) -> pd.DataFrame:
-    """Download historical index data, format columns, and optionally save to CSV/Excel/DuckDB."""
+    """Download historical index data, format columns, and optionally save to CSV/Excel/PostgreSQL."""
     settings = get_settings()
     out_dir = output_dir or settings.data_dir / "00_raw_data" / "benchmarks"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -75,9 +75,9 @@ def fetch_bist30_data(
         df.to_excel(excel_file, index=False)
         console.print(f"[green]Saved Excel to:[/green] `{excel_file}`")
 
-    # Optionally persist to DuckDB
+    # Optionally persist to PostgreSQL / TimescaleDB
     if save_db:
-        db = DuckDBManager()
+        db = PostgresManager()
         conn = db.get_connection()
         conn.execute("""
             CREATE TABLE IF NOT EXISTS bronze_bist_index_benchmarks (
@@ -120,7 +120,7 @@ def fetch_bist30_data(
             records_to_insert,
         )
         console.print(
-            f"[green]Synced {len(records_to_insert)} records into DuckDB table `bronze_bist_index_benchmarks`[/green]"
+            f"[green]Synced {len(records_to_insert)} records into PostgreSQL table `bronze_bist_index_benchmarks`[/green]"
         )
 
     console.print(f"\n[bold green]Success! Downloaded {len(df)} trading days of data.[/bold green]")
@@ -137,7 +137,7 @@ if __name__ == "__main__":
         "--ticker", type=str, default="XU030.IS", help="Yahoo Finance ticker symbol (default: XU030.IS)"
     )
     parser.add_argument(
-        "--save-db", action="store_true", help="Sync data into DuckDB table `bronze_bist_index_benchmarks`"
+        "--save-db", action="store_true", help="Sync data into PostgreSQL table `bronze_bist_index_benchmarks`"
     )
     args = parser.parse_args()
 

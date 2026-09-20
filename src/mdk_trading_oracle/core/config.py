@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     pg_host: str = Field(default="127.0.0.1", alias="PG_HOST")
     pg_port: int = Field(default=5432, alias="PG_PORT")
     pg_database: str = Field(default="mdk_oracle", alias="PG_DATABASE")
-    pg_user: str = Field(default="ozkanyildirim", alias="PG_USER")
+    pg_user: str = Field(default="postgres", alias="PG_USER")
     pg_password: str = Field(default="", alias="PG_PASSWORD")
     pg_sslmode: str = Field(default="prefer", alias="PG_SSLMODE")
 
