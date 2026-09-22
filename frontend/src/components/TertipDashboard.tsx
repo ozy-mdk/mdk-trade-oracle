@@ -116,7 +116,7 @@ export const TertipDashboard: React.FC<TertipDashboardProps> = ({
             {portfolio ? formatTL(portfolio.total_market_value_tl) : '—'}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Institution: <span className="text-slate-300 font-semibold">{brokerId === 'BIG5' ? 'BIG FIVE (Bundle)' : brokerId}</span> | Positions:{' '}
+            Institution: <span className="text-slate-300 font-semibold">{brokerId === 'BIG5' ? 'BIG FIVE (Bundle)' : brokerId === 'KAMU' ? 'KAMU (State Bundle)' : brokerId}</span> | Positions:{' '}
             {portfolio?.positions.length || 0}
           </div>
         </div>

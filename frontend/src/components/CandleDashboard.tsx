@@ -59,6 +59,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
       : 'bg-slate-800 text-slate-300 border-slate-700';
 
   const costBasis = summary?.fifo_avg_cost || tertipData?.fifo_avg_cost || 0;
+  const brokerLabel = brokerId === 'BIG5' ? 'Big Five' : brokerId === 'KAMU' ? 'Kamu' : brokerId;
 
   return (
     <div className="space-y-4">
@@ -104,14 +105,14 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
             {summary ? formatTL(summary.total_turnover_tl) : '—'}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            {brokerId === 'BIG5' ? 'Big Five' : brokerId} Share: {summary ? `${summary.broker_share_pct.toFixed(1)}%` : '0%'}
+            {brokerLabel} Share: {summary ? `${summary.broker_share_pct.toFixed(1)}%` : '0%'}
           </div>
         </div>
 
         {/* KPI 3: Institutional Net Flow */}
         <div className="glass-panel p-3.5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>{brokerId === 'BIG5' ? 'Big Five' : brokerId} Net Order Flow</span>
+            <span>{brokerLabel} Net Order Flow</span>
             <span
               className={`w-2 h-2 rounded-full ${
                 isNetPositive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400 animate-pulse'
@@ -226,7 +227,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
                 ) : (
                   <Square className="w-3.5 h-3.5 text-slate-500" />
                 )}
-                <span>{brokerId === 'BIG5' ? 'Big Five' : brokerId} Cost: ₺{costBasis.toFixed(2)}</span>
+                <span>{brokerLabel} Cost: ₺{costBasis.toFixed(2)}</span>
               </button>
             )}
           </div>

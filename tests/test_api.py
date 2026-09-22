@@ -34,10 +34,12 @@ def test_metadata_brokers(client):
     assert response.status_code == 200
     brokers = response.json()
     assert len(brokers) > 0
-    # Primary target MLB must be at the top, followed by BIG5 bundle
+    # Primary target MLB must be at the top, followed by BIG5 and KAMU bundles
     assert brokers[0]["broker_id"] == "MLB"
     assert brokers[1]["broker_id"] == "BIG5"
     assert brokers[1]["category"] == "Institutional Bundle"
+    assert brokers[2]["broker_id"] == "KAMU"
+    assert brokers[2]["category"] == "Institutional Bundle"
 
 
 def test_big5_all_endpoints(client):
@@ -82,6 +84,52 @@ def test_big5_all_endpoints(client):
 
     # 7. Event Study Scanner
     res = client.get("/api/v1/event-study/scan?broker_id=BIG5&symbol=THYAO&limit=10")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+
+def test_kamu_all_endpoints(client):
+    # 1. Market Summary
+    res = client.get("/api/v1/market/summary?symbol=THYAO&broker_id=KAMU&trade_date=2026-09-16")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["broker_id"] == "KAMU"
+    assert data["fifo_avg_cost"] > 0
+    assert data["broker_buy_turnover_tl"] > 0
+
+    # 2. Daily Candlesticks with KAMU flow
+    res = client.get("/api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=KAMU&limit=10")
+    assert res.status_code == 200
+    candles = res.json()
+    assert len(candles) > 0
+    assert "bofa_net_flow_tl" in candles[0]
+
+    # 3. Tertip Portfolio
+    res = client.get("/api/v1/tertip/portfolio?broker_id=KAMU&trade_date=2026-09-16")
+    assert res.status_code == 200
+    port = res.json()
+    assert port["broker_id"] == "KAMU"
+    assert len(port["positions"]) > 0
+
+    # 4. Open Lots
+    res = client.get("/api/v1/tertip/lots?broker_id=KAMU&symbol=THYAO&limit=10")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+    # 5. Daily History
+    res = client.get("/api/v1/tertip/history?broker_id=KAMU&symbol=THYAO&limit=10")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+
+    # 6. Time Window Terminal
+    res = client.get("/api/v1/time-window/analyze?symbol=THYAO&broker_id=KAMU&trade_date=2026-09-16")
+    assert res.status_code == 200
+    tw = res.json()
+    assert tw["broker_id"] == "KAMU"
+    assert len(tw["windows"]) == 5
+
+    # 7. Event Study Scanner
+    res = client.get("/api/v1/event-study/scan?broker_id=KAMU&symbol=THYAO&limit=10")
     assert res.status_code == 200
     assert isinstance(res.json(), list)
 

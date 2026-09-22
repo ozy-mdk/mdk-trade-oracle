@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_analytics import (
-    BIG_FIVE_BROKERS,
+    INSTITUTIONAL_BUNDLES,
     get_tertip_horizons_analysis,
     get_tertip_timeseries_chart,
 )
@@ -348,8 +348,10 @@ def get_brokers() -> List[BrokerItem]:
                  WHEN broker_id = 'AKM' THEN 3
                  WHEN broker_id = 'GRM' THEN 4
                  WHEN broker_id = 'ZRY' THEN 5
-                 WHEN is_primary_target = TRUE THEN 6
-                 ELSE 7 END ASC,
+                 WHEN broker_id = 'VKY' THEN 6
+                 WHEN broker_id = 'HLY' THEN 7
+                 WHEN is_primary_target = TRUE THEN 8
+                 ELSE 9 END ASC,
             broker_id ASC;
     """
     rows = db.execute(query).fetchall()
@@ -362,18 +364,26 @@ def get_brokers() -> List[BrokerItem]:
         )
         for r in rows
     ]
-    # Insert BIG5 directly after MLB (index 1)
+    # Insert bundles directly after MLB
     big5_item = BrokerItem(
         broker_id="BIG5",
         broker_name="BIG FIVE (YKR, IYM, AKM, GRM, ZRY)",
         category="Institutional Bundle",
         is_primary_target=True,
     )
+    kamu_item = BrokerItem(
+        broker_id="KAMU",
+        broker_name="KAMU (ZRY, VKY, HLY)",
+        category="Institutional Bundle",
+        is_primary_target=True,
+    )
     mlb_idx = next((i for i, b in enumerate(brokers) if b.broker_id == "MLB"), -1)
     if mlb_idx >= 0:
         brokers.insert(mlb_idx + 1, big5_item)
+        brokers.insert(mlb_idx + 2, kamu_item)
     else:
         brokers.insert(0, big5_item)
+        brokers.insert(1, kamu_item)
     return brokers
 
 
@@ -481,7 +491,7 @@ def get_candlesticks(
             params.append(to_time[:10])
         where_sql = " AND ".join(where_clauses)
 
-        if bid == "BIG5":
+        if bid in INSTITUTIONAL_BUNDLES:
             flow_col = "COALESCE(b.net_flow_tl, 0.0)"
             broker_join = """
                 LEFT JOIN (
@@ -491,7 +501,7 @@ def get_candlesticks(
                     GROUP BY trade_date, symbol
                 ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
             """
-            join_params = [sym, list(BIG_FIVE_BROKERS)]
+            join_params = [sym, list(INSTITUTIONAL_BUNDLES[bid])]
         elif bid != "MLB":
             flow_col = "COALESCE(b.net_flow_tl, 0.0)"
             broker_join = """
@@ -668,7 +678,7 @@ def get_market_summary(
     """
     stock_r = db.execute(stock_q, [sym, trade_date]).fetchone()
 
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
         fifo_q = """
             SELECT 
                 SUM(buy_turnover_tl) AS buy_turnover_tl,
@@ -685,7 +695,7 @@ def get_market_summary(
             FROM silver_broker_fifo_daily
             WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date = %s;
         """
-        fifo_r = db.execute(fifo_q, [sym, list(BIG_FIVE_BROKERS), trade_date]).fetchone()
+        fifo_r = db.execute(fifo_q, [sym, list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchone()
     else:
         fifo_q = """
             SELECT 
@@ -787,10 +797,10 @@ def get_tertip_portfolio(
     bid = broker_id.upper()
 
     if not trade_date:
-        if bid == "BIG5":
+        if bid in INSTITUTIONAL_BUNDLES:
             d_row = db.execute(
                 "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE broker_id = ANY(%s);",
-                [list(BIG_FIVE_BROKERS)],
+                [list(INSTITUTIONAL_BUNDLES[bid])],
             ).fetchone()
         else:
             d_row = db.execute(
@@ -799,7 +809,7 @@ def get_tertip_portfolio(
             ).fetchone()
         trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
 
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
         query = """
             SELECT 
                 symbol,
@@ -821,7 +831,7 @@ def get_tertip_portfolio(
             HAVING ABS(SUM(open_stock_quantity)) > 0
             ORDER BY ABS(SUM(market_value_tl)) DESC;
         """
-        rows = db.execute(query, [list(BIG_FIVE_BROKERS), trade_date]).fetchall()
+        rows = db.execute(query, [list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchall()
     else:
         query = """
             SELECT 
@@ -901,9 +911,9 @@ def get_tertip_lots(
 ) -> List[TertipLotItem]:
     """Return audited open FIFO inventory lots."""
     bid = broker_id.upper()
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
         where_broker = "broker_id = ANY(%s)"
-        params: List[Any] = [list(BIG_FIVE_BROKERS)]
+        params: List[Any] = [list(INSTITUTIONAL_BUNDLES[bid])]
     else:
         where_broker = "broker_id = %s"
         params: List[Any] = [bid]
@@ -952,7 +962,8 @@ def get_tertip_history(
 ) -> List[TertipHistoryPoint]:
     """Return daily realized PnL, intraday vs carry split, and cumulative performance."""
     bid = broker_id.upper()
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
+        bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
         if symbol:
             query = """
                 SELECT 
@@ -968,7 +979,7 @@ def get_tertip_history(
                 GROUP BY trade_date
                 ORDER BY trade_date DESC LIMIT %s;
             """
-            rows = db.execute(query, [list(BIG_FIVE_BROKERS), symbol.upper(), limit]).fetchall()
+            rows = db.execute(query, [bundle_list, symbol.upper(), limit]).fetchall()
         else:
             query = """
                 SELECT 
@@ -984,7 +995,7 @@ def get_tertip_history(
                 GROUP BY trade_date
                 ORDER BY trade_date DESC LIMIT %s;
             """
-            rows = db.execute(query, [list(BIG_FIVE_BROKERS), limit]).fetchall()
+            rows = db.execute(query, [bundle_list, limit]).fetchall()
     elif symbol:
         query = """
             SELECT 
@@ -1084,7 +1095,7 @@ def scan_event_study(
     conditions = ["1=1"]
     params: List[Any] = []
 
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
         flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
         broker_join = """
             LEFT JOIN (
@@ -1094,7 +1105,7 @@ def scan_event_study(
                 GROUP BY trade_date, symbol
             ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
         """
-        join_params = [list(BIG_FIVE_BROKERS)]
+        join_params = [list(INSTITUTIONAL_BUNDLES[bid])]
     elif bid != "MLB":
         flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
         broker_join = """
@@ -1205,10 +1216,10 @@ def analyze_time_windows(
     bid = broker_id.upper()
 
     if not trade_date:
-        if bid == "BIG5":
+        if bid in INSTITUTIONAL_BUNDLES:
             d_row = db.execute(
                 "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = ANY(%s);",
-                [sym, list(BIG_FIVE_BROKERS)],
+                [sym, list(INSTITUTIONAL_BUNDLES[bid])],
             ).fetchone()
         else:
             d_row = db.execute(
@@ -1217,7 +1228,7 @@ def analyze_time_windows(
             ).fetchone()
         trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
 
-    if bid == "BIG5":
+    if bid in INSTITUTIONAL_BUNDLES:
         query = """
             SELECT 
                 window_name,
@@ -1236,7 +1247,7 @@ def analyze_time_windows(
             GROUP BY window_name, window_order, window_start_time, window_end_time
             ORDER BY window_order ASC;
         """
-        rows = db.execute(query, [sym, list(BIG_FIVE_BROKERS), trade_date]).fetchall()
+        rows = db.execute(query, [sym, list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchall()
     else:
         query = """
             SELECT 

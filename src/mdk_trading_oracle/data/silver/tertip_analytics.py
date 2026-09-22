@@ -24,6 +24,15 @@ logger = get_logger("mdk_oracle.tertip_analytics")
 # Big Five Institutional Bundle (Next 5 largest players excluding Bank of America)
 BIG_FIVE_BROKERS = ("YKR", "IYM", "AKM", "GRM", "ZRY")
 
+# State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits)
+KAMU_BROKERS = ("ZRY", "VKY", "HLY")
+
+# Registry of Institutional Bundles
+INSTITUTIONAL_BUNDLES = {
+    "BIG5": BIG_FIVE_BROKERS,
+    "KAMU": KAMU_BROKERS,
+}
+
 # Canonical 6 Horizons + 1D Today
 HORIZON_DEFINITIONS = [
     {"code": "1W", "label": "1 Week", "days": 5, "desc": "Tactical Inventory Impulse"},
@@ -185,10 +194,10 @@ def get_tertip_horizons_analysis(
 
     # Determine latest available trade date if not specified
     if not trade_date:
-        if bid == "BIG5":
+        if bid in INSTITUTIONAL_BUNDLES:
             d_row = db.execute(
                 "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s AND broker_id = ANY(%s);",
-                [sym, list(BIG_FIVE_BROKERS)],
+                [sym, list(INSTITUTIONAL_BUNDLES[bid])],
             ).fetchone()
         else:
             d_row = db.execute(
@@ -201,12 +210,13 @@ def get_tertip_horizons_analysis(
             trade_date = str(d_row[0])
 
     # Fetch chronological history up to trade_date
-    if bid == "BIG5":
-        query = """
+    if bid in INSTITUTIONAL_BUNDLES:
+        bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
+        query = f"""
             SELECT 
                 trade_date,
                 symbol,
-                'BIG5' AS broker_id,
+                '{bid}' AS broker_id,
                 SUM(buy_volume) AS buy_volume,
                 SUM(buy_turnover_tl) AS buy_turnover_tl,
                 SUM(sell_volume) AS sell_volume,
@@ -232,7 +242,7 @@ def get_tertip_horizons_analysis(
             GROUP BY trade_date, symbol
             ORDER BY trade_date ASC;
         """
-        df = db.query_pl(query, params=[sym, list(BIG_FIVE_BROKERS), trade_date])
+        df = db.query_pl(query, params=[sym, bundle_list, trade_date])
     else:
         query = """
             SELECT 
@@ -446,12 +456,13 @@ def get_tertip_timeseries_chart(
     sym = symbol.upper()
     bid = broker_id.upper()
 
-    if bid == "BIG5":
-        query = """
+    if bid in INSTITUTIONAL_BUNDLES:
+        bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
+        query = f"""
             SELECT 
                 trade_date,
                 symbol,
-                'BIG5' AS broker_id,
+                '{bid}' AS broker_id,
                 SUM(open_stock_quantity) AS open_stock_quantity,
                 SUM(open_fifo_cost_tl) / NULLIF(SUM(open_stock_quantity), 0) AS fifo_avg_cost,
                 MAX(market_close_price) AS market_close_price,
@@ -466,7 +477,7 @@ def get_tertip_timeseries_chart(
             GROUP BY trade_date, symbol
             ORDER BY trade_date ASC;
         """
-        df = db.query_pl(query, params=[sym, list(BIG_FIVE_BROKERS)])
+        df = db.query_pl(query, params=[sym, bundle_list])
     else:
         query = """
             SELECT 

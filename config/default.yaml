@@ -80,6 +80,12 @@ models:
       - GRM   # Garanti BBVA (institutional liquidity provider)
       - ZRY   # Ziraat (state/public institutional flow desk)
 
+    # State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits)
+    kamu_brokers:
+      - ZRY   # Ziraat Yatirim (TVF conduit & price stability fund)
+      - VKY   # Vakif Yatirim (public liquidity absorption & index defense)
+      - HLY   # Halk Yatirim (public enterprise & banking flow support)
+
 # Historical Performance Ledger & Point-in-Time Backfill Configuration
 backfill:
   default_lookback_months: 2         # Default window when running --backfill-missing (2 months)

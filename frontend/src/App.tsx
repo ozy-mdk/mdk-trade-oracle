@@ -123,6 +123,8 @@ export const App: React.FC = () => {
                 className={`bg-slate-900 border ${
                   selectedBroker === 'BIG5'
                     ? 'border-indigo-500/80 text-cyan-300 shadow-sm shadow-indigo-500/20'
+                    : selectedBroker === 'KAMU'
+                    ? 'border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-500/20'
                     : 'border-slate-700/80 text-slate-200'
                 } hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-semibold focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner`}
               >
@@ -143,10 +145,26 @@ export const App: React.FC = () => {
                         BIG FIVE — (Bundle: YKR, IYM, AKM, GRM, ZRY)
                       </option>
                     ))}
+                  {(brokers || [])
+                    .filter((b) => b.broker_id === 'KAMU')
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-emerald-300 font-bold">
+                        KAMU — (State: ZRY, VKY, HLY)
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="State Desks (Individual)" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(brokers || [])
+                    .filter((b) => ['ZRY', 'VKY', 'HLY'].includes(b.broker_id))
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-100 font-medium">
+                        {b.broker_id} — {b.broker_name}
+                      </option>
+                    ))}
                 </optgroup>
                 <optgroup label="Big Five Participants (Individual)" className="bg-slate-900 text-slate-400 font-semibold">
                   {(brokers || [])
-                    .filter((b) => ['YKR', 'IYM', 'AKM', 'GRM', 'ZRY'].includes(b.broker_id))
+                    .filter((b) => ['YKR', 'IYM', 'AKM', 'GRM'].includes(b.broker_id))
                     .map((b) => (
                       <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-100 font-medium">
                         {b.broker_id} — {b.broker_name}
@@ -155,7 +173,7 @@ export const App: React.FC = () => {
                 </optgroup>
                 <optgroup label="Other Market Brokers" className="bg-slate-900 text-slate-400 font-semibold">
                   {(brokers || [])
-                    .filter((b) => !['MLB', 'BIG5', 'YKR', 'IYM', 'AKM', 'GRM', 'ZRY'].includes(b.broker_id))
+                    .filter((b) => !['MLB', 'BIG5', 'KAMU', 'YKR', 'IYM', 'AKM', 'GRM', 'ZRY', 'VKY', 'HLY'].includes(b.broker_id))
                     .map((b) => (
                       <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-300">
                         {b.broker_id} — {b.broker_name}
@@ -286,7 +304,7 @@ export const App: React.FC = () => {
           MDK Trading Oracle • Zero-Lookahead Institutional Order Flow Analytics • PostgreSQL 16 + TimescaleDB + React 18
         </div>
         <div className="font-mono text-slate-400">
-          Selected: <span className="text-white font-semibold">{selectedSymbol}</span> | Broker: <span className={`font-semibold ${selectedBroker === 'BIG5' ? 'text-cyan-300' : 'text-white'}`}>{selectedBroker === 'BIG5' ? 'BIG FIVE (Bundle)' : selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
+          Selected: <span className="text-white font-semibold">{selectedSymbol}</span> | Broker: <span className={`font-semibold ${selectedBroker === 'BIG5' ? 'text-cyan-300' : selectedBroker === 'KAMU' ? 'text-emerald-300' : 'text-white'}`}>{selectedBroker === 'BIG5' ? 'BIG FIVE (Bundle)' : selectedBroker === 'KAMU' ? 'KAMU (State Bundle)' : selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
         </div>
       </footer>
     </div>
