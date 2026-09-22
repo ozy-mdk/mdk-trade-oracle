@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_analytics import (
+    BIG_FIVE_BROKERS,
     get_tertip_horizons_analysis,
     get_tertip_timeseries_chart,
 )
@@ -347,7 +348,7 @@ def get_brokers() -> List[BrokerItem]:
             broker_id ASC;
     """
     rows = db.execute(query).fetchall()
-    return [
+    brokers = [
         BrokerItem(
             broker_id=r[0],
             broker_name=r[1] or r[0],
@@ -356,6 +357,19 @@ def get_brokers() -> List[BrokerItem]:
         )
         for r in rows
     ]
+    # Insert BIG5 directly after MLB (index 1)
+    big5_item = BrokerItem(
+        broker_id="BIG5",
+        broker_name="BIG FIVE (YKR, IYM, AKM, GRM, ZRY)",
+        category="Institutional Bundle",
+        is_primary_target=True,
+    )
+    mlb_idx = next((i for i, b in enumerate(brokers) if b.broker_id == "MLB"), -1)
+    if mlb_idx >= 0:
+        brokers.insert(mlb_idx + 1, big5_item)
+    else:
+        brokers.insert(0, big5_item)
+    return brokers
 
 
 @app.get("/api/v1/meta/date-range", response_model=DateRangeResponse)
@@ -389,6 +403,7 @@ def get_date_range(
 def get_candlesticks(
     symbol: str = Query(..., description="BIST Equity Symbol (e.g. THYAO, AKBNK, XU030)"),
     interval: str = Query("5m", description="Candle interval: 1m, 5m, 1d"),
+    broker_id: str = Query("MLB", description="Broker clearing code (e.g. MLB, BIG5, YKR)"),
     from_time: Optional[str] = Query(None, description="Start time ISO string"),
     to_time: Optional[str] = Query(None, description="End time ISO string"),
     limit: int = Query(1500, le=5000, description="Max candle bars to return"),
@@ -398,6 +413,7 @@ def get_candlesticks(
     Supports synthetic XU030 benchmark and individual equities.
     """
     sym = symbol.upper()
+    bid = broker_id.upper()
     interval_clean = interval.lower()
 
     if sym == "XU030" and interval_clean == "1d":
@@ -451,52 +467,82 @@ def get_candlesticks(
 
     elif interval_clean == "1d":
         params = [sym]
-        where_clauses = ["symbol = %s"]
+        where_clauses = ["s.symbol = %s"]
         if from_time:
-            where_clauses.append("trade_date >= %s")
+            where_clauses.append("s.trade_date >= %s")
             params.append(from_time[:10])
         if to_time:
-            where_clauses.append("trade_date <= %s")
+            where_clauses.append("s.trade_date <= %s")
             params.append(to_time[:10])
         where_sql = " AND ".join(where_clauses)
+
+        if bid == "BIG5":
+            flow_col = "COALESCE(b.net_flow_tl, 0.0)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT trade_date, symbol, SUM(net_flow_tl) AS net_flow_tl
+                    FROM silver_daily_broker_summary
+                    WHERE symbol = %s AND broker_id = ANY(%s)
+                    GROUP BY trade_date, symbol
+                ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+            """
+            join_params = [sym, list(BIG_FIVE_BROKERS)]
+        elif bid != "MLB":
+            flow_col = "COALESCE(b.net_flow_tl, 0.0)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT trade_date, symbol, net_flow_tl
+                    FROM silver_daily_broker_summary
+                    WHERE symbol = %s AND broker_id = %s
+                ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+            """
+            join_params = [sym, bid]
+        else:
+            flow_col = "COALESCE(s.bofa_net_flow_tl, 0.0)"
+            broker_join = ""
+            join_params = []
+
+        query_params = join_params + params
 
         if from_time:
             query = f"""
                 SELECT 
-                    trade_date AS candle_time,
-                    open_price AS open,
-                    high_price AS high,
-                    low_price AS low,
-                    close_price AS close,
-                    total_volume AS volume,
-                    total_turnover_tl AS turnover_tl,
-                    total_trades AS trade_count,
-                    COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
-                FROM silver_daily_stock_summary
+                    s.trade_date AS candle_time,
+                    s.open_price AS open,
+                    s.high_price AS high,
+                    s.low_price AS low,
+                    s.close_price AS close,
+                    s.total_volume AS volume,
+                    s.total_turnover_tl AS turnover_tl,
+                    s.total_trades AS trade_count,
+                    {flow_col} AS bofa_net_flow_tl
+                FROM silver_daily_stock_summary s
+                {broker_join}
                 WHERE {where_sql}
-                ORDER BY trade_date ASC LIMIT %s
+                ORDER BY s.trade_date ASC LIMIT %s
             """
-            params.append(limit)
+            params = query_params + [limit]
         else:
             query = f"""
                 SELECT * FROM (
                     SELECT 
-                        trade_date AS candle_time,
-                        open_price AS open,
-                        high_price AS high,
-                        low_price AS low,
-                        close_price AS close,
-                        total_volume AS volume,
-                        total_turnover_tl AS turnover_tl,
-                        total_trades AS trade_count,
-                        COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl
-                    FROM silver_daily_stock_summary
+                        s.trade_date AS candle_time,
+                        s.open_price AS open,
+                        s.high_price AS high,
+                        s.low_price AS low,
+                        s.close_price AS close,
+                        s.total_volume AS volume,
+                        s.total_turnover_tl AS turnover_tl,
+                        s.total_trades AS trade_count,
+                        {flow_col} AS bofa_net_flow_tl
+                    FROM silver_daily_stock_summary s
+                    {broker_join}
                     WHERE {where_sql}
-                    ORDER BY trade_date DESC LIMIT %s
+                    ORDER BY s.trade_date DESC LIMIT %s
                 ) sub
                 ORDER BY candle_time ASC
             """
-            params.append(limit)
+            params = query_params + [limit]
 
     else:
         tbl = "silver_candles_1m" if interval_clean == "1m" else "silver_candles_5m"
@@ -617,23 +663,42 @@ def get_market_summary(
     """
     stock_r = db.execute(stock_q, [sym, trade_date]).fetchone()
 
-    fifo_q = """
-        SELECT 
-            buy_turnover_tl,
-            sell_turnover_tl,
-            matched_volume,
-            intraday_realized_pnl_tl,
-            carry_fifo_realized_pnl_tl,
-            daily_realized_pnl_tl,
-            cumulative_realized_pnl_tl,
-            open_stock_quantity,
-            fifo_avg_cost,
-            market_value_tl,
-            unrealized_pnl_tl
-        FROM silver_broker_fifo_daily
-        WHERE symbol = %s AND broker_id = %s AND trade_date = %s;
-    """
-    fifo_r = db.execute(fifo_q, [sym, bid, trade_date]).fetchone()
+    if bid == "BIG5":
+        fifo_q = """
+            SELECT 
+                SUM(buy_turnover_tl) AS buy_turnover_tl,
+                SUM(sell_turnover_tl) AS sell_turnover_tl,
+                SUM(matched_volume) AS matched_volume,
+                SUM(intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                SUM(carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                SUM(daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                SUM(cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl,
+                SUM(open_stock_quantity) AS open_stock_quantity,
+                SUM(open_fifo_cost_tl) / NULLIF(SUM(open_stock_quantity), 0) AS fifo_avg_cost,
+                SUM(market_value_tl) AS market_value_tl,
+                SUM(unrealized_pnl_tl) AS unrealized_pnl_tl
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date = %s;
+        """
+        fifo_r = db.execute(fifo_q, [sym, list(BIG_FIVE_BROKERS), trade_date]).fetchone()
+    else:
+        fifo_q = """
+            SELECT 
+                buy_turnover_tl,
+                sell_turnover_tl,
+                matched_volume,
+                intraday_realized_pnl_tl,
+                carry_fifo_realized_pnl_tl,
+                daily_realized_pnl_tl,
+                cumulative_realized_pnl_tl,
+                open_stock_quantity,
+                fifo_avg_cost,
+                market_value_tl,
+                unrealized_pnl_tl
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = %s AND trade_date = %s;
+        """
+        fifo_r = db.execute(fifo_q, [sym, bid, trade_date]).fetchone()
 
     close_p = float(stock_r[0] or 0.0) if stock_r else 0.0
     daily_ret = float(stock_r[1] or 0.0) * 100.0 if stock_r else 0.0
@@ -717,30 +782,60 @@ def get_tertip_portfolio(
     bid = broker_id.upper()
 
     if not trade_date:
-        d_row = db.execute(
-            "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE broker_id = %s;",
-            [bid],
-        ).fetchone()
+        if bid == "BIG5":
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE broker_id = ANY(%s);",
+                [list(BIG_FIVE_BROKERS)],
+            ).fetchone()
+        else:
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE broker_id = %s;",
+                [bid],
+            ).fetchone()
         trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
 
-    query = """
-        SELECT 
-            symbol,
-            COALESCE(symbol_name, symbol),
-            COALESCE(sector, 'General'),
-            open_stock_quantity,
-            fifo_avg_cost,
-            market_close_price,
-            market_value_tl,
-            unrealized_pnl_tl,
-            daily_realized_pnl_tl,
-            cumulative_realized_pnl_tl,
-            position_side
-        FROM silver_broker_fifo_daily
-        WHERE broker_id = %s AND trade_date = %s AND position_side != 'FLAT'
-        ORDER BY ABS(market_value_tl) DESC;
-    """
-    rows = db.execute(query, [bid, trade_date]).fetchall()
+    if bid == "BIG5":
+        query = """
+            SELECT 
+                symbol,
+                MAX(COALESCE(symbol_name, symbol)) AS symbol_name,
+                MAX(COALESCE(sector, 'General')) AS sector,
+                SUM(open_stock_quantity) AS open_stock_quantity,
+                SUM(open_fifo_cost_tl) / NULLIF(SUM(open_stock_quantity), 0) AS fifo_avg_cost,
+                MAX(market_close_price) AS market_close_price,
+                SUM(market_value_tl) AS market_value_tl,
+                SUM(unrealized_pnl_tl) AS unrealized_pnl_tl,
+                SUM(daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                SUM(cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl,
+                CASE WHEN SUM(open_stock_quantity) > 0 THEN 'LONG'
+                     WHEN SUM(open_stock_quantity) < 0 THEN 'SHORT'
+                     ELSE 'FLAT' END AS position_side
+            FROM silver_broker_fifo_daily
+            WHERE broker_id = ANY(%s) AND trade_date = %s
+            GROUP BY symbol
+            HAVING ABS(SUM(open_stock_quantity)) > 0
+            ORDER BY ABS(SUM(market_value_tl)) DESC;
+        """
+        rows = db.execute(query, [list(BIG_FIVE_BROKERS), trade_date]).fetchall()
+    else:
+        query = """
+            SELECT 
+                symbol,
+                COALESCE(symbol_name, symbol),
+                COALESCE(sector, 'General'),
+                open_stock_quantity,
+                fifo_avg_cost,
+                market_close_price,
+                market_value_tl,
+                unrealized_pnl_tl,
+                daily_realized_pnl_tl,
+                cumulative_realized_pnl_tl,
+                position_side
+            FROM silver_broker_fifo_daily
+            WHERE broker_id = %s AND trade_date = %s AND position_side != 'FLAT'
+            ORDER BY ABS(market_value_tl) DESC;
+        """
+        rows = db.execute(query, [bid, trade_date]).fetchall()
 
     positions: List[TertipPosition] = []
     tot_mtm = 0.0
@@ -801,7 +896,14 @@ def get_tertip_lots(
 ) -> List[TertipLotItem]:
     """Return audited open FIFO inventory lots."""
     bid = broker_id.upper()
-    query = """
+    if bid == "BIG5":
+        where_broker = "broker_id = ANY(%s)"
+        params: List[Any] = [list(BIG_FIVE_BROKERS)]
+    else:
+        where_broker = "broker_id = %s"
+        params: List[Any] = [bid]
+
+    query = f"""
         SELECT 
             lot_id,
             symbol,
@@ -812,9 +914,8 @@ def get_tertip_lots(
             remaining_value_tl,
             (CURRENT_DATE - open_date) AS days_held
         FROM silver_broker_fifo_lots
-        WHERE broker_id = %s AND remaining_quantity > 0
+        WHERE {where_broker} AND remaining_quantity > 0
     """
-    params: List[Any] = [bid]
     if symbol:
         query += " AND symbol = %s"
         params.append(symbol.upper())
@@ -846,7 +947,40 @@ def get_tertip_history(
 ) -> List[TertipHistoryPoint]:
     """Return daily realized PnL, intraday vs carry split, and cumulative performance."""
     bid = broker_id.upper()
-    if symbol:
+    if bid == "BIG5":
+        if symbol:
+            query = """
+                SELECT 
+                    trade_date,
+                    SUM(daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                    SUM(intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                    SUM(carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                    SUM(buy_turnover_tl - sell_turnover_tl) AS net_flow_tl,
+                    SUM(market_value_tl) AS market_value_tl,
+                    SUM(cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl
+                FROM silver_broker_fifo_daily
+                WHERE broker_id = ANY(%s) AND symbol = %s
+                GROUP BY trade_date
+                ORDER BY trade_date DESC LIMIT %s;
+            """
+            rows = db.execute(query, [list(BIG_FIVE_BROKERS), symbol.upper(), limit]).fetchall()
+        else:
+            query = """
+                SELECT 
+                    trade_date,
+                    SUM(daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                    SUM(intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                    SUM(carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                    SUM(buy_turnover_tl - sell_turnover_tl) AS net_flow_tl,
+                    SUM(market_value_tl) AS market_value_tl,
+                    SUM(cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl
+                FROM silver_broker_fifo_daily
+                WHERE broker_id = ANY(%s)
+                GROUP BY trade_date
+                ORDER BY trade_date DESC LIMIT %s;
+            """
+            rows = db.execute(query, [list(BIG_FIVE_BROKERS), limit]).fetchall()
+    elif symbol:
         query = """
             SELECT 
                 trade_date,
@@ -941,19 +1075,46 @@ def scan_event_study(
     limit: int = Query(100, le=1000, description="Max event study rows"),
 ) -> List[EventStudyScanItem]:
     """Scan historical sessions for institutional order flow triggers and forward returns."""
+    bid = broker_id.upper()
     conditions = ["1=1"]
     params: List[Any] = []
+
+    if bid == "BIG5":
+        flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
+        broker_join = """
+            LEFT JOIN (
+                SELECT trade_date, symbol, SUM(net_flow_tl) AS net_flow_tl
+                FROM silver_daily_broker_summary
+                WHERE broker_id = ANY(%s)
+                GROUP BY trade_date, symbol
+            ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+        """
+        join_params = [list(BIG_FIVE_BROKERS)]
+    elif bid != "MLB":
+        flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
+        broker_join = """
+            LEFT JOIN (
+                SELECT trade_date, symbol, net_flow_tl
+                FROM silver_daily_broker_summary
+                WHERE broker_id = %s
+            ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+        """
+        join_params = [bid]
+    else:
+        flow_expr = "s.bofa_net_flow_tl"
+        broker_join = ""
+        join_params = []
 
     if symbol:
         conditions.append("s.symbol = %s")
         params.append(symbol.upper())
 
     if min_flow_tl is not None:
-        conditions.append("s.bofa_net_flow_tl >= %s")
+        conditions.append(f"{flow_expr} >= %s")
         params.append(min_flow_tl)
 
     if max_flow_tl is not None:
-        conditions.append("s.bofa_net_flow_tl <= %s")
+        conditions.append(f"{flow_expr} <= %s")
         params.append(max_flow_tl)
 
     where_clause = " AND ".join(conditions)
@@ -961,19 +1122,20 @@ def scan_event_study(
     query = f"""
         WITH ranked_stock AS (
             SELECT 
-                trade_date,
-                symbol,
-                adj_close_price,
-                (adj_daily_return_pct * 100.0) AS daily_return_pct,
-                (LAG(adj_daily_return_pct, 1) OVER (PARTITION BY symbol ORDER BY trade_date) * 100.0) AS d1_return_pct,
-                bofa_net_flow_tl,
-                total_turnover_tl,
-                LEAD(adj_close_price, 1) OVER (PARTITION BY symbol ORDER BY trade_date) AS lead_p1,
-                LEAD(adj_close_price, 2) OVER (PARTITION BY symbol ORDER BY trade_date) AS lead_p2,
-                LEAD(adj_close_price, 3) OVER (PARTITION BY symbol ORDER BY trade_date) AS lead_p3,
-                LEAD(adj_close_price, 5) OVER (PARTITION BY symbol ORDER BY trade_date) AS lead_p5,
-                LEAD(adj_close_price, 10) OVER (PARTITION BY symbol ORDER BY trade_date) AS lead_p10
+                s.trade_date,
+                s.symbol,
+                s.adj_close_price,
+                (s.adj_daily_return_pct * 100.0) AS daily_return_pct,
+                (LAG(s.adj_daily_return_pct, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) * 100.0) AS d1_return_pct,
+                {flow_expr} AS bofa_net_flow_tl,
+                s.total_turnover_tl,
+                LEAD(s.adj_close_price, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p1,
+                LEAD(s.adj_close_price, 2) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p2,
+                LEAD(s.adj_close_price, 3) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p3,
+                LEAD(s.adj_close_price, 5) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p5,
+                LEAD(s.adj_close_price, 10) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p10
             FROM silver_daily_stock_summary s
+            {broker_join}
             WHERE {where_clause}
         )
         SELECT 
@@ -993,18 +1155,19 @@ def scan_event_study(
         WHERE 1=1
     """
 
+    all_params = join_params + params
     if min_d1_return is not None:
         query += " AND d1_return_pct >= %s"
-        params.append(min_d1_return)
+        all_params.append(min_d1_return)
 
     if max_d1_return is not None:
         query += " AND d1_return_pct <= %s"
-        params.append(max_d1_return)
+        all_params.append(max_d1_return)
 
     query += " ORDER BY trade_date DESC, ABS(bofa_net_flow_tl) DESC LIMIT %s;"
-    params.append(limit)
+    all_params.append(limit)
 
-    rows = db.execute(query, params).fetchall()
+    rows = db.execute(query, all_params).fetchall()
     return [
         EventStudyScanItem(
             trade_date=str(r[0]),
@@ -1037,30 +1200,57 @@ def analyze_time_windows(
     bid = broker_id.upper()
 
     if not trade_date:
-        d_row = db.execute(
-            "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s;",
-            [sym],
-        ).fetchone()
+        if bid == "BIG5":
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = ANY(%s);",
+                [sym, list(BIG_FIVE_BROKERS)],
+            ).fetchone()
+        else:
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = %s;",
+                [sym, bid],
+            ).fetchone()
         trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
 
-    query = """
-        SELECT 
-            window_name,
-            window_order,
-            window_start_time,
-            window_end_time,
-            buy_turnover_tl,
-            sell_turnover_tl,
-            net_flow_tl,
-            total_turnover_tl,
-            buy_volume,
-            sell_volume,
-            net_volume
-        FROM silver_intraday_broker_window_summary
-        WHERE symbol = %s AND broker_id = %s AND trade_date = %s
-        ORDER BY window_order ASC;
-    """
-    rows = db.execute(query, [sym, bid, trade_date]).fetchall()
+    if bid == "BIG5":
+        query = """
+            SELECT 
+                window_name,
+                window_order,
+                window_start_time,
+                window_end_time,
+                SUM(buy_turnover_tl) AS buy_turnover_tl,
+                SUM(sell_turnover_tl) AS sell_turnover_tl,
+                SUM(net_flow_tl) AS net_flow_tl,
+                SUM(total_turnover_tl) AS total_turnover_tl,
+                SUM(buy_volume) AS buy_volume,
+                SUM(sell_volume) AS sell_volume,
+                SUM(net_volume) AS net_volume
+            FROM silver_intraday_broker_window_summary
+            WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date = %s
+            GROUP BY window_name, window_order, window_start_time, window_end_time
+            ORDER BY window_order ASC;
+        """
+        rows = db.execute(query, [sym, list(BIG_FIVE_BROKERS), trade_date]).fetchall()
+    else:
+        query = """
+            SELECT 
+                window_name,
+                window_order,
+                window_start_time,
+                window_end_time,
+                buy_turnover_tl,
+                sell_turnover_tl,
+                net_flow_tl,
+                total_turnover_tl,
+                buy_volume,
+                sell_volume,
+                net_volume
+            FROM silver_intraday_broker_window_summary
+            WHERE symbol = %s AND broker_id = %s AND trade_date = %s
+            ORDER BY window_order ASC;
+        """
+        rows = db.execute(query, [sym, bid, trade_date]).fetchall()
 
     windows = [
         TimeWindowItem(

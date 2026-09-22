@@ -120,11 +120,19 @@ export const App: React.FC = () => {
                 value={selectedBroker}
                 onChange={(e) => setSelectedBroker(e.target.value)}
                 aria-label="Broker Institution"
-                className="bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-semibold text-slate-200 focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner"
+                className={`bg-slate-900 border ${
+                  selectedBroker === 'BIG5'
+                    ? 'border-indigo-500/80 text-cyan-300 shadow-sm shadow-indigo-500/20'
+                    : 'border-slate-700/80 text-slate-200'
+                } hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-semibold focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner`}
               >
                 {(brokers || []).map((b) => (
-                  <option key={b.broker_id} value={b.broker_id}>
-                    {b.broker_id} — {b.broker_name}
+                  <option
+                    key={b.broker_id}
+                    value={b.broker_id}
+                    className={b.broker_id === 'BIG5' ? 'font-bold text-cyan-300 bg-slate-900' : 'bg-slate-900'}
+                  >
+                    {b.broker_id === 'BIG5' ? 'BIG FIVE — (Bundle: YKR, IYM, AKM, GRM, ZRY)' : `${b.broker_id} — ${b.broker_name}`}
                   </option>
                 ))}
               </select>
@@ -251,7 +259,7 @@ export const App: React.FC = () => {
           MDK Trading Oracle • Zero-Lookahead Institutional Order Flow Analytics • PostgreSQL 16 + TimescaleDB + React 18
         </div>
         <div className="font-mono text-slate-400">
-          Selected: <span className="text-white font-semibold">{selectedSymbol}</span> | Broker: <span className="text-white font-semibold">{selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
+          Selected: <span className="text-white font-semibold">{selectedSymbol}</span> | Broker: <span className={`font-semibold ${selectedBroker === 'BIG5' ? 'text-cyan-300' : 'text-white'}`}>{selectedBroker === 'BIG5' ? 'BIG FIVE (Bundle)' : selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
         </div>
       </footer>
     </div>

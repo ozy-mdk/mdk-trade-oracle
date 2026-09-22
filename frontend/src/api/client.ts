@@ -39,10 +39,11 @@ export async function fetchDateRange(symbol?: string): Promise<DateRangeResponse
 export async function fetchCandles(
   symbol: string,
   interval: string = '5m',
-  limit: number = 1500
+  limit: number = 1500,
+  brokerId: string = 'MLB'
 ): Promise<CandleBar[]> {
   const res = await fetch(
-    `${BASE_URL}/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`
+    `${BASE_URL}/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&broker_id=${encodeURIComponent(brokerId)}&limit=${limit}`
   );
   if (!res.ok) throw new Error('Failed to fetch candlesticks');
   return res.json();

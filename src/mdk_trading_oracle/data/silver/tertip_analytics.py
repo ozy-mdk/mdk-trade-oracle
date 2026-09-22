@@ -21,6 +21,9 @@ from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.tertip_analytics")
 
+# Big Five Institutional Bundle (Next 5 largest players excluding Bank of America)
+BIG_FIVE_BROKERS = ("YKR", "IYM", "AKM", "GRM", "ZRY")
+
 # Canonical 6 Horizons + 1D Today
 HORIZON_DEFINITIONS = [
     {"code": "1W", "label": "1 Week", "days": 5, "desc": "Tactical Inventory Impulse"},
@@ -182,44 +185,83 @@ def get_tertip_horizons_analysis(
 
     # Determine latest available trade date if not specified
     if not trade_date:
-        d_row = db.execute(
-            "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s AND broker_id = %s;",
-            [sym, bid],
-        ).fetchone()
+        if bid == "BIG5":
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s AND broker_id = ANY(%s);",
+                [sym, list(BIG_FIVE_BROKERS)],
+            ).fetchone()
+        else:
+            d_row = db.execute(
+                "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s AND broker_id = %s;",
+                [sym, bid],
+            ).fetchone()
         if not d_row or not d_row[0]:
             trade_date = "2026-09-16"
         else:
             trade_date = str(d_row[0])
 
     # Fetch chronological history up to trade_date
-    query = """
-        SELECT 
-            trade_date,
-            symbol,
-            broker_id,
-            buy_volume,
-            buy_turnover_tl,
-            sell_volume,
-            sell_turnover_tl,
-            buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
-            buy_volume - sell_volume AS net_volume,
-            buy_vwap,
-            matched_volume,
-            intraday_realized_pnl_tl,
-            carry_fifo_realized_pnl_tl,
-            daily_realized_pnl_tl,
-            cumulative_realized_pnl_tl,
-            position_side,
-            open_stock_quantity,
-            fifo_avg_cost,
-            market_close_price,
-            market_value_tl,
-            unrealized_pnl_tl
-        FROM silver_broker_fifo_daily
-        WHERE symbol = %s AND broker_id = %s AND trade_date <= %s
-        ORDER BY trade_date ASC;
-    """
-    df = db.query_pl(query, params=[sym, bid, trade_date])
+    if bid == "BIG5":
+        query = """
+            SELECT 
+                trade_date,
+                symbol,
+                'BIG5' AS broker_id,
+                SUM(buy_volume) AS buy_volume,
+                SUM(buy_turnover_tl) AS buy_turnover_tl,
+                SUM(sell_volume) AS sell_volume,
+                SUM(sell_turnover_tl) AS sell_turnover_tl,
+                SUM(buy_turnover_tl) - SUM(sell_turnover_tl) AS net_flow_tl,
+                SUM(buy_volume) - SUM(sell_volume) AS net_volume,
+                SUM(buy_turnover_tl) / NULLIF(SUM(buy_volume), 0) AS buy_vwap,
+                SUM(matched_volume) AS matched_volume,
+                SUM(intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                SUM(carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                SUM(daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                SUM(cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl,
+                CASE WHEN SUM(open_stock_quantity) > 0 THEN 'LONG'
+                     WHEN SUM(open_stock_quantity) < 0 THEN 'SHORT'
+                     ELSE 'FLAT' END AS position_side,
+                SUM(open_stock_quantity) AS open_stock_quantity,
+                SUM(open_fifo_cost_tl) / NULLIF(SUM(open_stock_quantity), 0) AS fifo_avg_cost,
+                MAX(market_close_price) AS market_close_price,
+                SUM(market_value_tl) AS market_value_tl,
+                SUM(unrealized_pnl_tl) AS unrealized_pnl_tl
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date <= %s
+            GROUP BY trade_date, symbol
+            ORDER BY trade_date ASC;
+        """
+        df = db.query_pl(query, params=[sym, list(BIG_FIVE_BROKERS), trade_date])
+    else:
+        query = """
+            SELECT 
+                trade_date,
+                symbol,
+                broker_id,
+                buy_volume,
+                buy_turnover_tl,
+                sell_volume,
+                sell_turnover_tl,
+                buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
+                buy_volume - sell_volume AS net_volume,
+                buy_vwap,
+                matched_volume,
+                intraday_realized_pnl_tl,
+                carry_fifo_realized_pnl_tl,
+                daily_realized_pnl_tl,
+                cumulative_realized_pnl_tl,
+                position_side,
+                open_stock_quantity,
+                fifo_avg_cost,
+                market_close_price,
+                market_value_tl,
+                unrealized_pnl_tl
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = %s AND trade_date <= %s
+            ORDER BY trade_date ASC;
+        """
+        df = db.query_pl(query, params=[sym, bid, trade_date])
 
     if df.is_empty():
         return {
@@ -404,25 +446,47 @@ def get_tertip_timeseries_chart(
     sym = symbol.upper()
     bid = broker_id.upper()
 
-    query = """
-        SELECT 
-            trade_date,
-            symbol,
-            broker_id,
-            open_stock_quantity,
-            fifo_avg_cost,
-            market_close_price,
-            market_value_tl,
-            unrealized_pnl_tl,
-            buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
-            buy_turnover_tl,
-            sell_turnover_tl,
-            buy_vwap
-        FROM silver_broker_fifo_daily
-        WHERE symbol = %s AND broker_id = %s
-        ORDER BY trade_date ASC;
-    """
-    df = db.query_pl(query, params=[sym, bid])
+    if bid == "BIG5":
+        query = """
+            SELECT 
+                trade_date,
+                symbol,
+                'BIG5' AS broker_id,
+                SUM(open_stock_quantity) AS open_stock_quantity,
+                SUM(open_fifo_cost_tl) / NULLIF(SUM(open_stock_quantity), 0) AS fifo_avg_cost,
+                MAX(market_close_price) AS market_close_price,
+                SUM(market_value_tl) AS market_value_tl,
+                SUM(unrealized_pnl_tl) AS unrealized_pnl_tl,
+                SUM(buy_turnover_tl) - SUM(sell_turnover_tl) AS net_flow_tl,
+                SUM(buy_turnover_tl) AS buy_turnover_tl,
+                SUM(sell_turnover_tl) AS sell_turnover_tl,
+                SUM(buy_turnover_tl) / NULLIF(SUM(buy_volume), 0) AS buy_vwap
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = ANY(%s)
+            GROUP BY trade_date, symbol
+            ORDER BY trade_date ASC;
+        """
+        df = db.query_pl(query, params=[sym, list(BIG_FIVE_BROKERS)])
+    else:
+        query = """
+            SELECT 
+                trade_date,
+                symbol,
+                broker_id,
+                open_stock_quantity,
+                fifo_avg_cost,
+                market_close_price,
+                market_value_tl,
+                unrealized_pnl_tl,
+                buy_turnover_tl - sell_turnover_tl AS net_flow_tl,
+                buy_turnover_tl,
+                sell_turnover_tl,
+                buy_vwap
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s AND broker_id = %s
+            ORDER BY trade_date ASC;
+        """
+        df = db.query_pl(query, params=[sym, bid])
 
     if df.is_empty():
         return []

@@ -190,7 +190,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     const fetchCandleData = async () => {
       try {
         const response = await fetch(
-          `/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=1000`
+          `/api/v1/market/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&broker_id=${encodeURIComponent(brokerId)}&limit=1000`
         );
         if (!response.ok) {
           throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
@@ -254,7 +254,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
         setLoading(false);
       } catch (err: any) {
         if (!isMounted) return;
-        setError(err.message || 'Failed to fetch candle data');
+        setError(err.message || 'Failed to load candlesticks');
         setLoading(false);
       }
     };
@@ -264,7 +264,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, brokerId]);
 
   // Update BofA FIFO Cost Price Line
   useEffect(() => {

@@ -72,6 +72,14 @@ models:
       - ZRY   # Ziraat (public/state institution flow)
       - TRA   # Tera Yatirim (retail aggregator — contra-side signal)
 
+    # Big Five Institutional Bundle (5 largest institutional players other than Bank of America)
+    big_five_brokers:
+      - YKR   # Yapi Kredi (institutional & active prop desk)
+      - IYM   # Is Yatirim (largest domestic aggregator)
+      - AKM   # Ak Yatirim (high-volume domestic major bank)
+      - GRM   # Garanti BBVA (institutional liquidity provider)
+      - ZRY   # Ziraat (state/public institutional flow desk)
+
 # Historical Performance Ledger & Point-in-Time Backfill Configuration
 backfill:
   default_lookback_months: 2         # Default window when running --backfill-missing (2 months)
