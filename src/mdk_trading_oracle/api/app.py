@@ -343,8 +343,13 @@ def get_brokers() -> List[BrokerItem]:
         FROM bronze_brokers 
         ORDER BY 
             CASE WHEN broker_id = 'MLB' THEN 0 
-                 WHEN is_primary_target = TRUE THEN 1 
-                 ELSE 2 END ASC,
+                 WHEN broker_id = 'YKR' THEN 1
+                 WHEN broker_id = 'IYM' THEN 2
+                 WHEN broker_id = 'AKM' THEN 3
+                 WHEN broker_id = 'GRM' THEN 4
+                 WHEN broker_id = 'ZRY' THEN 5
+                 WHEN is_primary_target = TRUE THEN 6
+                 ELSE 7 END ASC,
             broker_id ASC;
     """
     rows = db.execute(query).fetchall()

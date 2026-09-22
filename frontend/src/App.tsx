@@ -126,15 +126,42 @@ export const App: React.FC = () => {
                     : 'border-slate-700/80 text-slate-200'
                 } hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-semibold focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner`}
               >
-                {(brokers || []).map((b) => (
-                  <option
-                    key={b.broker_id}
-                    value={b.broker_id}
-                    className={b.broker_id === 'BIG5' ? 'font-bold text-cyan-300 bg-slate-900' : 'bg-slate-900'}
-                  >
-                    {b.broker_id === 'BIG5' ? 'BIG FIVE — (Bundle: YKR, IYM, AKM, GRM, ZRY)' : `${b.broker_id} — ${b.broker_name}`}
-                  </option>
-                ))}
+                <optgroup label="Primary Institutional Target" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(brokers || [])
+                    .filter((b) => b.broker_id === 'MLB')
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-100 font-bold">
+                        {b.broker_id} — {b.broker_name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Institutional Bundles" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(brokers || [])
+                    .filter((b) => b.broker_id === 'BIG5')
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-cyan-300 font-bold">
+                        BIG FIVE — (Bundle: YKR, IYM, AKM, GRM, ZRY)
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Big Five Participants (Individual)" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(brokers || [])
+                    .filter((b) => ['YKR', 'IYM', 'AKM', 'GRM', 'ZRY'].includes(b.broker_id))
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-100 font-medium">
+                        {b.broker_id} — {b.broker_name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Other Market Brokers" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(brokers || [])
+                    .filter((b) => !['MLB', 'BIG5', 'YKR', 'IYM', 'AKM', 'GRM', 'ZRY'].includes(b.broker_id))
+                    .map((b) => (
+                      <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-300">
+                        {b.broker_id} — {b.broker_name}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             </div>
