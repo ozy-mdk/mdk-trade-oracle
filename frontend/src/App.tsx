@@ -21,7 +21,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
-  const [selectedDate, setSelectedDate] = useState<string>('2026-09-16');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-09-23');
   const [currentTimeTRT, setCurrentTimeTRT] = useState<string>('');
 
   // Fetch Instruments and Brokers metadata
@@ -42,10 +42,10 @@ export const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (dateRange?.latest_date && selectedDate === '2026-09-16') {
+    if (dateRange?.latest_date && (selectedDate === '2026-09-16' || !selectedDate)) {
       setSelectedDate(dateRange.latest_date);
     }
-  }, [dateRange]);
+  }, [dateRange, selectedDate]);
 
   // Live TRT Clock (Turkish Time / Europe/Istanbul / UTC+3)
   useEffect(() => {
