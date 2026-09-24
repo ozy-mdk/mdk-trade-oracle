@@ -341,7 +341,7 @@ def get_instruments() -> List[InstrumentItem]:
             0,
             InstrumentItem(
                 symbol="XU030",
-                name="BIST 30 Benchmark Index",
+                name="BIST 30 Index (Basket Total)",
                 sector="Benchmark Index",
                 index_name="BENCHMARK",
             ),
@@ -408,10 +408,19 @@ def get_date_range(
     """Return earliest and latest trade dates available in the lakehouse."""
     if symbol:
         sym = symbol.upper()
-        row = db.execute(
-            "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_stock_summary WHERE symbol = %s;",
-            [sym],
-        ).fetchone()
+        if sym == "XU030":
+            row = db.execute(
+                "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_benchmark_index;"
+            ).fetchone()
+            if not row or not row[0]:
+                row = db.execute(
+                    "SELECT MIN(trade_date), MAX(trade_date) FROM bronze_bist_index_benchmarks WHERE index_code = 'XU030';"
+                ).fetchone()
+        else:
+            row = db.execute(
+                "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_stock_summary WHERE symbol = %s;",
+                [sym],
+            ).fetchone()
     else:
         row = db.execute(
             "SELECT MIN(trade_date), MAX(trade_date) FROM silver_daily_stock_summary;"
@@ -446,49 +455,137 @@ def get_candlesticks(
     interval_clean = interval.lower()
 
     if sym == "XU030" and interval_clean == "1d":
+        where_clauses = ["b.index_code = 'XU030'"]
         params: List[Any] = []
-        where_clauses = ["index_code = 'XU030'"]
         if from_time:
-            where_clauses.append("trade_date >= %s")
+            where_clauses.append("b.trade_date >= %s")
             params.append(from_time[:10])
         if to_time:
-            where_clauses.append("trade_date <= %s")
+            where_clauses.append("b.trade_date <= %s")
             params.append(to_time[:10])
+        where_sql = " AND ".join(where_clauses)
+
+        # Broker institutional net flow join across BIST 30 basket
+        if bid in INSTITUTIONAL_BUNDLES:
+            flow_col = "COALESCE(fl.net_flow_tl, 0.0)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT bs.trade_date, SUM(bs.net_flow_tl) AS net_flow_tl
+                    FROM silver_daily_broker_summary bs
+                    JOIN silver_daily_stock_summary ss ON bs.trade_date = ss.trade_date AND bs.symbol = ss.symbol
+                    WHERE ss.index_name = 'BIST30' AND bs.broker_id = ANY(%s)
+                    GROUP BY bs.trade_date
+                ) fl ON b.trade_date = fl.trade_date
+            """
+            join_params = [list(INSTITUTIONAL_BUNDLES[bid])]
+        elif bid != "MLB":
+            flow_col = "COALESCE(fl.net_flow_tl, 0.0)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT bs.trade_date, SUM(bs.net_flow_tl) AS net_flow_tl
+                    FROM silver_daily_broker_summary bs
+                    JOIN silver_daily_stock_summary ss ON bs.trade_date = ss.trade_date AND bs.symbol = ss.symbol
+                    WHERE ss.index_name = 'BIST30' AND bs.broker_id = %s
+                    GROUP BY bs.trade_date
+                ) fl ON b.trade_date = fl.trade_date
+            """
+            join_params = [bid]
+        else:
+            flow_col = "COALESCE(b.bofa_net_flow_tl, 0.0)"
+            broker_join = ""
+            join_params = []
+
+        query_params = join_params + params
+
+        if from_time:
+            query = f"""
+                SELECT 
+                    b.trade_date AS candle_time,
+                    b.open_price AS open,
+                    b.high_price AS high,
+                    b.low_price AS low,
+                    b.close_price AS close,
+                    COALESCE(b.volume, 0.0) AS volume,
+                    COALESCE(b.total_turnover_tl, b.volume * b.close_price, 0.0) AS turnover_tl,
+                    0 AS trade_count,
+                    {flow_col} AS bofa_net_flow_tl
+                FROM silver_daily_benchmark_index b
+                {broker_join}
+                WHERE {where_sql}
+                ORDER BY b.trade_date ASC LIMIT %s
+            """
+            params = query_params + [limit]
+        else:
+            query = f"""
+                SELECT * FROM (
+                    SELECT 
+                        b.trade_date AS candle_time,
+                        b.open_price AS open,
+                        b.high_price AS high,
+                        b.low_price AS low,
+                        b.close_price AS close,
+                        COALESCE(b.volume, 0.0) AS volume,
+                        COALESCE(b.total_turnover_tl, b.volume * b.close_price, 0.0) AS turnover_tl,
+                        0 AS trade_count,
+                        {flow_col} AS bofa_net_flow_tl
+                    FROM silver_daily_benchmark_index b
+                    {broker_join}
+                    WHERE {where_sql}
+                    ORDER BY b.trade_date DESC LIMIT %s
+                ) sub
+                ORDER BY candle_time ASC
+            """
+            params = query_params + [limit]
+
+    elif sym == "XU030":
+        tbl = "silver_candles_1m" if interval_clean == "1m" else "silver_candles_5m"
+        params = []
+        where_clauses = ["i.index_name = 'BIST30'"]
+        if from_time:
+            where_clauses.append("c.candle_time >= %s")
+            params.append(from_time)
+        if to_time:
+            where_clauses.append("c.candle_time <= %s")
+            params.append(to_time)
         where_sql = " AND ".join(where_clauses)
 
         if from_time:
             query = f"""
                 SELECT 
-                    trade_date AS candle_time,
-                    open_price AS open,
-                    high_price AS high,
-                    low_price AS low,
-                    close_price AS close,
-                    volume,
-                    (volume * close_price) AS turnover_tl,
-                    0 AS trade_count,
-                    0.0 AS bofa_net_flow_tl
-                FROM bronze_bist_index_benchmarks
+                    c.candle_time,
+                    SUM(c.open_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS open,
+                    SUM(c.high_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS high,
+                    SUM(c.low_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS low,
+                    SUM(c.close_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS close,
+                    SUM(c.total_volume) AS volume,
+                    SUM(c.total_turnover_tl) AS turnover_tl,
+                    SUM(c.trade_count) AS trade_count,
+                    SUM(c.bofa_net_flow_tl) AS bofa_net_flow_tl
+                FROM {tbl} c
+                JOIN bronze_instruments i ON c.symbol = i.symbol
                 WHERE {where_sql}
-                ORDER BY trade_date ASC LIMIT %s
+                GROUP BY c.candle_time
+                ORDER BY c.candle_time ASC LIMIT %s
             """
             params.append(limit)
         else:
             query = f"""
                 SELECT * FROM (
                     SELECT 
-                        trade_date AS candle_time,
-                        open_price AS open,
-                        high_price AS high,
-                        low_price AS low,
-                        close_price AS close,
-                        volume,
-                        (volume * close_price) AS turnover_tl,
-                        0 AS trade_count,
-                        0.0 AS bofa_net_flow_tl
-                    FROM bronze_bist_index_benchmarks
+                        c.candle_time,
+                        SUM(c.open_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS open,
+                        SUM(c.high_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS high,
+                        SUM(c.low_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS low,
+                        SUM(c.close_price * c.total_volume) / NULLIF(SUM(c.total_volume), 0) AS close,
+                        SUM(c.total_volume) AS volume,
+                        SUM(c.total_turnover_tl) AS turnover_tl,
+                        SUM(c.trade_count) AS trade_count,
+                        SUM(c.bofa_net_flow_tl) AS bofa_net_flow_tl
+                    FROM {tbl} c
+                    JOIN bronze_instruments i ON c.symbol = i.symbol
                     WHERE {where_sql}
-                    ORDER BY trade_date DESC LIMIT %s
+                    GROUP BY c.candle_time
+                    ORDER BY c.candle_time DESC LIMIT %s
                 ) sub
                 ORDER BY candle_time ASC
             """
@@ -666,6 +763,128 @@ def get_market_summary(
     """Return 5 core trader KPIs and institutional order flow metrics."""
     sym = symbol.upper()
     bid = broker_id.upper()
+
+    if sym == "XU030":
+        if not trade_date:
+            d_row = db.execute("SELECT MAX(trade_date) FROM silver_daily_benchmark_index;").fetchone()
+            trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
+
+        bench_q = """
+            SELECT close_price, COALESCE(basket_return_pct, daily_return_pct) * 100.0, total_turnover_tl, bofa_net_flow_tl
+            FROM silver_daily_benchmark_index
+            WHERE trade_date = %s;
+        """
+        bench_r = db.execute(bench_q, [trade_date]).fetchone()
+
+        close_p = float(bench_r[0] or 0.0) if bench_r else 0.0
+        daily_ret = float(bench_r[1] or 0.0) if bench_r else 0.0
+        turnover = float(bench_r[2] or 0.0) if bench_r else 0.0
+
+        if bid in INSTITUTIONAL_BUNDLES:
+            b_list = list(INSTITUTIONAL_BUNDLES[bid])
+            flow_q = """
+                SELECT 
+                    COALESCE(SUM(b.buy_turnover_tl), 0.0) AS buy_tl,
+                    COALESCE(SUM(b.sell_turnover_tl), 0.0) AS sell_tl,
+                    COALESCE(SUM(b.net_flow_tl), 0.0) AS net_flow
+                FROM silver_daily_broker_summary b
+                JOIN silver_daily_stock_summary s ON b.trade_date = s.trade_date AND b.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND b.trade_date = %s AND b.broker_id = ANY(%s);
+            """
+            flow_r = db.execute(flow_q, [trade_date, b_list]).fetchone()
+
+            fifo_q = """
+                SELECT 
+                    COALESCE(SUM(matched_volume), 0.0),
+                    COALESCE(SUM(intraday_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(carry_fifo_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(daily_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(cumulative_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(open_stock_quantity), 0.0),
+                    COALESCE(SUM(market_value_tl), 0.0),
+                    COALESCE(SUM(unrealized_pnl_tl), 0.0)
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND f.trade_date = %s AND f.broker_id = ANY(%s);
+            """
+            fifo_r = db.execute(fifo_q, [trade_date, b_list]).fetchone()
+        else:
+            flow_q = """
+                SELECT 
+                    COALESCE(SUM(b.buy_turnover_tl), 0.0) AS buy_tl,
+                    COALESCE(SUM(b.sell_turnover_tl), 0.0) AS sell_tl,
+                    COALESCE(SUM(b.net_flow_tl), 0.0) AS net_flow
+                FROM silver_daily_broker_summary b
+                JOIN silver_daily_stock_summary s ON b.trade_date = s.trade_date AND b.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND b.trade_date = %s AND b.broker_id = %s;
+            """
+            flow_r = db.execute(flow_q, [trade_date, bid]).fetchone()
+
+            fifo_q = """
+                SELECT 
+                    COALESCE(SUM(matched_volume), 0.0),
+                    COALESCE(SUM(intraday_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(carry_fifo_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(daily_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(cumulative_realized_pnl_tl), 0.0),
+                    COALESCE(SUM(open_stock_quantity), 0.0),
+                    COALESCE(SUM(market_value_tl), 0.0),
+                    COALESCE(SUM(unrealized_pnl_tl), 0.0)
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND f.trade_date = %s AND f.broker_id = %s;
+            """
+            fifo_r = db.execute(fifo_q, [trade_date, bid]).fetchone()
+
+        b_buy = float(flow_r[0] or 0.0) if flow_r else 0.0
+        b_sell = float(flow_r[1] or 0.0) if flow_r else 0.0
+        net_flow = float(flow_r[2] or 0.0) if flow_r else (float(bench_r[3] or 0.0) if (bench_r and bid == "MLB") else 0.0)
+
+        share_pct = ((b_buy + b_sell) / turnover * 100.0) if turnover > 0 else 0.0
+
+        matched_vol = float(fifo_r[0] or 0.0) if fifo_r else 0.0
+        intra_pnl = float(fifo_r[1] or 0.0) if fifo_r else 0.0
+        carry_pnl = float(fifo_r[2] or 0.0) if fifo_r else 0.0
+        daily_pnl = float(fifo_r[3] or 0.0) if fifo_r else 0.0
+        cum_pnl = float(fifo_r[4] or 0.0) if fifo_r else 0.0
+        open_qty = float(fifo_r[5] or 0.0) if fifo_r else 0.0
+        mkt_val = float(fifo_r[6] or 0.0) if fifo_r else 0.0
+        unreal_pnl = float(fifo_r[7] or 0.0) if fifo_r else 0.0
+        avg_cost = 0.0
+
+        if net_flow >= 100_000_000:
+            bias_badge = "AGGRESSIVE_BUYER"
+        elif net_flow >= 25_000_000:
+            bias_badge = "MODERATE_BUYER"
+        elif net_flow <= -100_000_000:
+            bias_badge = "AGGRESSIVE_SELLER"
+        elif net_flow <= -25_000_000:
+            bias_badge = "MODERATE_SELLER"
+        else:
+            bias_badge = "NEUTRAL"
+
+        return MarketSummaryResponse(
+            symbol="XU030",
+            broker_id=bid,
+            trade_date=trade_date,
+            close_price=round(close_p, 2),
+            daily_return_pct=round(daily_ret, 2),
+            total_turnover_tl=round(turnover, 2),
+            broker_buy_turnover_tl=round(b_buy, 2),
+            broker_sell_turnover_tl=round(b_sell, 2),
+            broker_net_flow_tl=round(net_flow, 2),
+            broker_share_pct=round(share_pct, 2),
+            matched_volume=round(matched_vol, 2),
+            intraday_realized_pnl_tl=round(intra_pnl, 2),
+            carry_fifo_realized_pnl_tl=round(carry_pnl, 2),
+            daily_realized_pnl_tl=round(daily_pnl, 2),
+            cumulative_realized_pnl_tl=round(cum_pnl, 2),
+            open_stock_quantity=round(open_qty, 2),
+            fifo_avg_cost=0.0,
+            market_value_tl=round(mkt_val, 2),
+            unrealized_pnl_tl=round(unreal_pnl, 2),
+            bias_badge=bias_badge,
+        )
 
     # Determine latest available trade date if not specified
     if not trade_date:
@@ -1303,58 +1522,107 @@ def analyze_time_windows(
     sym = symbol.upper()
     bid = broker_id.upper()
 
-    if not trade_date:
-        if bid in INSTITUTIONAL_BUNDLES:
-            d_row = db.execute(
-                "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = ANY(%s);",
-                [sym, list(INSTITUTIONAL_BUNDLES[bid])],
-            ).fetchone()
-        else:
-            d_row = db.execute(
-                "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = %s;",
-                [sym, bid],
-            ).fetchone()
-        trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
+    if sym == "XU030":
+        if not trade_date:
+            d_row = db.execute("SELECT MAX(trade_date) FROM silver_daily_benchmark_index;").fetchone()
+            trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
 
-    if bid in INSTITUTIONAL_BUNDLES:
-        query = """
-            SELECT 
-                window_name,
-                window_order,
-                window_start_time,
-                window_end_time,
-                SUM(buy_turnover_tl) AS buy_turnover_tl,
-                SUM(sell_turnover_tl) AS sell_turnover_tl,
-                SUM(net_flow_tl) AS net_flow_tl,
-                SUM(total_turnover_tl) AS total_turnover_tl,
-                SUM(buy_volume) AS buy_volume,
-                SUM(sell_volume) AS sell_volume,
-                SUM(net_volume) AS net_volume
-            FROM silver_intraday_broker_window_summary
-            WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date = %s
-            GROUP BY window_name, window_order, window_start_time, window_end_time
-            ORDER BY window_order ASC;
-        """
-        rows = db.execute(query, [sym, list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchall()
+        if bid in INSTITUTIONAL_BUNDLES:
+            query = """
+                SELECT 
+                    w.window_name,
+                    w.window_order,
+                    w.window_start_time,
+                    w.window_end_time,
+                    SUM(w.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(w.sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(w.net_flow_tl) AS net_flow_tl,
+                    SUM(w.total_turnover_tl) AS total_turnover_tl,
+                    SUM(w.buy_volume) AS buy_volume,
+                    SUM(w.sell_volume) AS sell_volume,
+                    SUM(w.net_volume) AS net_volume
+                FROM silver_intraday_broker_window_summary w
+                JOIN silver_daily_stock_summary s ON w.trade_date = s.trade_date AND w.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND w.broker_id = ANY(%s) AND w.trade_date = %s
+                GROUP BY w.window_name, w.window_order, w.window_start_time, w.window_end_time
+                ORDER BY w.window_order ASC;
+            """
+            rows = db.execute(query, [list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchall()
+        else:
+            query = """
+                SELECT 
+                    w.window_name,
+                    w.window_order,
+                    w.window_start_time,
+                    w.window_end_time,
+                    SUM(w.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(w.sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(w.net_flow_tl) AS net_flow_tl,
+                    SUM(w.total_turnover_tl) AS total_turnover_tl,
+                    SUM(w.buy_volume) AS buy_volume,
+                    SUM(w.sell_volume) AS sell_volume,
+                    SUM(w.net_volume) AS net_volume
+                FROM silver_intraday_broker_window_summary w
+                JOIN silver_daily_stock_summary s ON w.trade_date = s.trade_date AND w.symbol = s.symbol
+                WHERE s.index_name = 'BIST30' AND w.broker_id = %s AND w.trade_date = %s
+                GROUP BY w.window_name, w.window_order, w.window_start_time, w.window_end_time
+                ORDER BY w.window_order ASC;
+            """
+            rows = db.execute(query, [bid, trade_date]).fetchall()
+
     else:
-        query = """
-            SELECT 
-                window_name,
-                window_order,
-                window_start_time,
-                window_end_time,
-                buy_turnover_tl,
-                sell_turnover_tl,
-                net_flow_tl,
-                total_turnover_tl,
-                buy_volume,
-                sell_volume,
-                net_volume
-            FROM silver_intraday_broker_window_summary
-            WHERE symbol = %s AND broker_id = %s AND trade_date = %s
-            ORDER BY window_order ASC;
-        """
-        rows = db.execute(query, [sym, bid, trade_date]).fetchall()
+        if not trade_date:
+            if bid in INSTITUTIONAL_BUNDLES:
+                d_row = db.execute(
+                    "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = ANY(%s);",
+                    [sym, list(INSTITUTIONAL_BUNDLES[bid])],
+                ).fetchone()
+            else:
+                d_row = db.execute(
+                    "SELECT MAX(trade_date) FROM silver_intraday_broker_window_summary WHERE symbol = %s AND broker_id = %s;",
+                    [sym, bid],
+                ).fetchone()
+            trade_date = str(d_row[0]) if (d_row and d_row[0]) else "2026-09-16"
+
+        if bid in INSTITUTIONAL_BUNDLES:
+            query = """
+                SELECT 
+                    window_name,
+                    window_order,
+                    window_start_time,
+                    window_end_time,
+                    SUM(buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(net_flow_tl) AS net_flow_tl,
+                    SUM(total_turnover_tl) AS total_turnover_tl,
+                    SUM(buy_volume) AS buy_volume,
+                    SUM(sell_volume) AS sell_volume,
+                    SUM(net_volume) AS net_volume
+                FROM silver_intraday_broker_window_summary
+                WHERE symbol = %s AND broker_id = ANY(%s) AND trade_date = %s
+                GROUP BY window_name, window_order, window_start_time, window_end_time
+                ORDER BY window_order ASC;
+            """
+            rows = db.execute(query, [sym, list(INSTITUTIONAL_BUNDLES[bid]), trade_date]).fetchall()
+        else:
+            query = """
+                SELECT 
+                    window_name,
+                    window_order,
+                    window_start_time,
+                    window_end_time,
+                    buy_turnover_tl,
+                    sell_turnover_tl,
+                    net_flow_tl,
+                    total_turnover_tl,
+                    buy_volume,
+                    sell_volume,
+                    net_volume
+                FROM silver_intraday_broker_window_summary
+                WHERE symbol = %s AND broker_id = %s AND trade_date = %s
+                ORDER BY window_order ASC;
+            """
+            rows = db.execute(query, [sym, bid, trade_date]).fetchall()
 
     windows = [
         TimeWindowItem(

@@ -194,7 +194,9 @@ def get_tertip_horizons_analysis(
 
     # Determine latest available trade date if not specified
     if not trade_date:
-        if bid in INSTITUTIONAL_BUNDLES:
+        if sym == "XU030":
+            d_row = db.execute("SELECT MAX(trade_date) FROM silver_daily_benchmark_index;").fetchone()
+        elif bid in INSTITUTIONAL_BUNDLES:
             d_row = db.execute(
                 "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s AND broker_id = ANY(%s);",
                 [sym, list(INSTITUTIONAL_BUNDLES[bid])],
@@ -210,7 +212,77 @@ def get_tertip_horizons_analysis(
             trade_date = str(d_row[0])
 
     # Fetch chronological history up to trade_date
-    if bid in INSTITUTIONAL_BUNDLES:
+    if sym == "XU030":
+        if bid in INSTITUTIONAL_BUNDLES:
+            bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
+            query = """
+                SELECT 
+                    f.trade_date,
+                    'XU030' AS symbol,
+                    %s AS broker_id,
+                    SUM(f.buy_volume) AS buy_volume,
+                    SUM(f.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(f.sell_volume) AS sell_volume,
+                    SUM(f.sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(f.buy_turnover_tl) - SUM(f.sell_turnover_tl) AS net_flow_tl,
+                    SUM(f.buy_volume) - SUM(f.sell_volume) AS net_volume,
+                    SUM(f.buy_turnover_tl) / NULLIF(SUM(f.buy_volume), 0) AS buy_vwap,
+                    SUM(f.matched_volume) AS matched_volume,
+                    SUM(f.intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                    SUM(f.carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                    SUM(f.daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                    SUM(f.cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl,
+                    CASE WHEN SUM(f.open_stock_quantity) > 0 THEN 'LONG'
+                         WHEN SUM(f.open_stock_quantity) < 0 THEN 'SHORT'
+                         ELSE 'FLAT' END AS position_side,
+                    SUM(f.open_stock_quantity) AS open_stock_quantity,
+                    0.0 AS fifo_avg_cost,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS market_close_price,
+                    SUM(f.market_value_tl) AS market_value_tl,
+                    SUM(f.unrealized_pnl_tl) AS unrealized_pnl_tl
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                LEFT JOIN silver_daily_benchmark_index b ON f.trade_date = b.trade_date
+                WHERE s.index_name = 'BIST30' AND f.broker_id = ANY(%s) AND f.trade_date <= %s
+                GROUP BY f.trade_date
+                ORDER BY f.trade_date ASC;
+            """
+            df = db.query_pl(query, params=[bid, bundle_list, trade_date])
+        else:
+            query = """
+                SELECT 
+                    f.trade_date,
+                    'XU030' AS symbol,
+                    %s AS broker_id,
+                    SUM(f.buy_volume) AS buy_volume,
+                    SUM(f.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(f.sell_volume) AS sell_volume,
+                    SUM(f.sell_turnover_tl) AS sell_turnover_tl,
+                    SUM(f.buy_turnover_tl) - SUM(f.sell_turnover_tl) AS net_flow_tl,
+                    SUM(f.buy_volume) - SUM(f.sell_volume) AS net_volume,
+                    SUM(f.buy_turnover_tl) / NULLIF(SUM(f.buy_volume), 0) AS buy_vwap,
+                    SUM(f.matched_volume) AS matched_volume,
+                    SUM(f.intraday_realized_pnl_tl) AS intraday_realized_pnl_tl,
+                    SUM(f.carry_fifo_realized_pnl_tl) AS carry_fifo_realized_pnl_tl,
+                    SUM(f.daily_realized_pnl_tl) AS daily_realized_pnl_tl,
+                    SUM(f.cumulative_realized_pnl_tl) AS cumulative_realized_pnl_tl,
+                    CASE WHEN SUM(f.open_stock_quantity) > 0 THEN 'LONG'
+                         WHEN SUM(f.open_stock_quantity) < 0 THEN 'SHORT'
+                         ELSE 'FLAT' END AS position_side,
+                    SUM(f.open_stock_quantity) AS open_stock_quantity,
+                    0.0 AS fifo_avg_cost,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS market_close_price,
+                    SUM(f.market_value_tl) AS market_value_tl,
+                    SUM(f.unrealized_pnl_tl) AS unrealized_pnl_tl
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                LEFT JOIN silver_daily_benchmark_index b ON f.trade_date = b.trade_date
+                WHERE s.index_name = 'BIST30' AND f.broker_id = %s AND f.trade_date <= %s
+                GROUP BY f.trade_date
+                ORDER BY f.trade_date ASC;
+            """
+            df = db.query_pl(query, params=[bid, bid, trade_date])
+    elif bid in INSTITUTIONAL_BUNDLES:
         bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
         query = f"""
             SELECT 
@@ -456,7 +528,55 @@ def get_tertip_timeseries_chart(
     sym = symbol.upper()
     bid = broker_id.upper()
 
-    if bid in INSTITUTIONAL_BUNDLES:
+    if sym == "XU030":
+        if bid in INSTITUTIONAL_BUNDLES:
+            bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
+            query = """
+                SELECT 
+                    f.trade_date,
+                    'XU030' AS symbol,
+                    %s AS broker_id,
+                    SUM(f.open_stock_quantity) AS open_stock_quantity,
+                    0.0 AS fifo_avg_cost,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS market_close_price,
+                    SUM(f.market_value_tl) AS market_value_tl,
+                    SUM(f.unrealized_pnl_tl) AS unrealized_pnl_tl,
+                    SUM(f.buy_turnover_tl) - SUM(f.sell_turnover_tl) AS net_flow_tl,
+                    SUM(f.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(f.sell_turnover_tl) AS sell_turnover_tl,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS buy_vwap
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                LEFT JOIN silver_daily_benchmark_index b ON f.trade_date = b.trade_date
+                WHERE s.index_name = 'BIST30' AND f.broker_id = ANY(%s)
+                GROUP BY f.trade_date
+                ORDER BY f.trade_date ASC;
+            """
+            df = db.query_pl(query, params=[bid, bundle_list])
+        else:
+            query = """
+                SELECT 
+                    f.trade_date,
+                    'XU030' AS symbol,
+                    %s AS broker_id,
+                    SUM(f.open_stock_quantity) AS open_stock_quantity,
+                    0.0 AS fifo_avg_cost,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS market_close_price,
+                    SUM(f.market_value_tl) AS market_value_tl,
+                    SUM(f.unrealized_pnl_tl) AS unrealized_pnl_tl,
+                    SUM(f.buy_turnover_tl) - SUM(f.sell_turnover_tl) AS net_flow_tl,
+                    SUM(f.buy_turnover_tl) AS buy_turnover_tl,
+                    SUM(f.sell_turnover_tl) AS sell_turnover_tl,
+                    MAX(COALESCE(b.close_price, 10000.0)) AS buy_vwap
+                FROM silver_broker_fifo_daily f
+                JOIN silver_daily_stock_summary s ON f.trade_date = s.trade_date AND f.symbol = s.symbol
+                LEFT JOIN silver_daily_benchmark_index b ON f.trade_date = b.trade_date
+                WHERE s.index_name = 'BIST30' AND f.broker_id = %s
+                GROUP BY f.trade_date
+                ORDER BY f.trade_date ASC;
+            """
+            df = db.query_pl(query, params=[bid, bid])
+    elif bid in INSTITUTIONAL_BUNDLES:
         bundle_list = list(INSTITUTIONAL_BUNDLES[bid])
         query = f"""
             SELECT 

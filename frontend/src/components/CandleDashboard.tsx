@@ -68,7 +68,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
         {/* KPI 1: Last Price & Return */}
         <div className="glass-panel p-3.5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Close Price & Return</span>
+            <span>{symbol === 'XU030' ? 'BIST 30 Index & Return' : 'Close Price & Return'}</span>
             <Activity className="w-3.5 h-3.5 text-cyan-400" />
           </div>
           <div className="flex items-baseline space-x-2">
@@ -98,7 +98,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
         {/* KPI 2: Total Market Turnover */}
         <div className="glass-panel p-3.5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>Total Turnover</span>
+            <span>{symbol === 'XU030' ? 'BIST 30 Basket Turnover' : 'Total Turnover'}</span>
             <DollarSign className="w-3.5 h-3.5 text-indigo-400" />
           </div>
           <div className="text-xl font-bold font-mono text-white">
@@ -112,7 +112,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
         {/* KPI 3: Institutional Net Flow */}
         <div className="glass-panel p-3.5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>{brokerLabel} Net Order Flow</span>
+            <span>{brokerLabel} {symbol === 'XU030' ? 'BIST 30 Net Flow' : 'Net Order Flow'}</span>
             <span
               className={`w-2 h-2 rounded-full ${
                 isNetPositive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400 animate-pulse'
@@ -135,7 +135,7 @@ export const CandleDashboard: React.FC<CandleDashboardProps> = ({
         {/* KPI 4: Daily Realized PnL */}
         <div className="glass-panel p-3.5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-            <span>FIFO Realized PnL</span>
+            <span>{symbol === 'XU030' ? 'BIST 30 Realized PnL' : 'FIFO Realized PnL'}</span>
             <Layers className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div

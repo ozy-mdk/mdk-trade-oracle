@@ -239,6 +239,17 @@ def _patched_cur_execute(self, query, params=None, **kwargs):
 
 psycopg.Cursor.execute = _patched_cur_execute
 
+_orig_cur_executemany = psycopg.Cursor.executemany
+
+
+def _patched_cur_executemany(self, query, params_seq, **kwargs):
+    if isinstance(query, str):
+        query = normalize_pg_query(query)
+    return _orig_cur_executemany(self, query, params_seq, **kwargs)
+
+
+psycopg.Cursor.executemany = _patched_cur_executemany
+
 _orig_conn_execute = psycopg.Connection.execute
 
 
@@ -249,6 +260,16 @@ def _patched_conn_execute(self, query, params=None, **kwargs):
 
 
 psycopg.Connection.execute = _patched_conn_execute
+
+
+def _conn_executemany(self, query, params_seq, **kwargs):
+    if isinstance(query, str):
+        query = normalize_pg_query(query)
+    with self.cursor() as cur:
+        return cur.executemany(query, params_seq, **kwargs)
+
+
+psycopg.Connection.executemany = _conn_executemany
 
 
 class PostgresManager:

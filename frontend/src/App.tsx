@@ -103,13 +103,39 @@ export const App: React.FC = () => {
                 value={selectedSymbol}
                 onChange={(e) => setSelectedSymbol(e.target.value)}
                 aria-label="Stock Symbol"
-                className="bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-white focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner"
+                className={`bg-slate-900 border ${
+                  selectedSymbol === 'XU030'
+                    ? 'border-cyan-500/80 text-cyan-300 shadow-sm shadow-cyan-500/20'
+                    : 'border-slate-700/80 text-white'
+                } hover:border-cyan-500/50 rounded-lg px-3 py-1.5 text-xs font-mono font-bold focus:outline-none appearance-none pr-8 cursor-pointer transition-colors shadow-inner`}
               >
-                {(instruments || []).map((inst) => (
-                  <option key={inst.symbol} value={inst.symbol}>
-                    {inst.symbol} — {inst.name.length > 24 ? inst.name.substring(0, 24) + '...' : inst.name}
-                  </option>
-                ))}
+                <optgroup label="Index Benchmark / Total Basket" className="bg-slate-900 text-cyan-400 font-semibold">
+                  {(instruments || [])
+                    .filter((inst) => inst.symbol === 'XU030')
+                    .map((inst) => (
+                      <option key={inst.symbol} value={inst.symbol} className="bg-slate-900 text-cyan-300 font-bold">
+                        {inst.symbol} — BIST 30 (Total Basket Sum)
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="BIST 30 Constituent Equities" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(instruments || [])
+                    .filter((inst) => inst.symbol !== 'XU030' && (inst.index_name === 'BIST30' || inst.index_name === 'BENCHMARK'))
+                    .map((inst) => (
+                      <option key={inst.symbol} value={inst.symbol} className="bg-slate-900 text-slate-100 font-medium">
+                        {inst.symbol} — {inst.name.length > 24 ? inst.name.substring(0, 24) + '...' : inst.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Other Tracked Equities" className="bg-slate-900 text-slate-400 font-semibold">
+                  {(instruments || [])
+                    .filter((inst) => inst.symbol !== 'XU030' && inst.index_name !== 'BIST30' && inst.index_name !== 'BENCHMARK')
+                    .map((inst) => (
+                      <option key={inst.symbol} value={inst.symbol} className="bg-slate-900 text-slate-300">
+                        {inst.symbol} — {inst.name.length > 24 ? inst.name.substring(0, 24) + '...' : inst.name}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             </div>
@@ -304,7 +330,7 @@ export const App: React.FC = () => {
           MDK Trading Oracle • Zero-Lookahead Institutional Order Flow Analytics • PostgreSQL 16 + TimescaleDB + React 18
         </div>
         <div className="font-mono text-slate-400">
-          Selected: <span className="text-white font-semibold">{selectedSymbol}</span> | Broker: <span className={`font-semibold ${selectedBroker === 'BIG5' ? 'text-cyan-300' : selectedBroker === 'KAMU' ? 'text-emerald-300' : 'text-white'}`}>{selectedBroker === 'BIG5' ? 'BIG FIVE (Bundle)' : selectedBroker === 'KAMU' ? 'KAMU (State Bundle)' : selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
+          Selected: <span className="text-white font-semibold">{selectedSymbol === 'XU030' ? 'XU030 (BIST 30 Basket Total)' : selectedSymbol}</span> | Broker: <span className={`font-semibold ${selectedBroker === 'BIG5' ? 'text-cyan-300' : selectedBroker === 'KAMU' ? 'text-emerald-300' : 'text-white'}`}>{selectedBroker === 'BIG5' ? 'BIG FIVE (Bundle)' : selectedBroker === 'KAMU' ? 'KAMU (State Bundle)' : selectedBroker}</span> | Date: <span className="text-white font-semibold">{selectedDate}</span>
         </div>
       </footer>
     </div>

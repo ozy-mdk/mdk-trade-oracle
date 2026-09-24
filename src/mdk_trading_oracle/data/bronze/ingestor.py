@@ -911,31 +911,41 @@ class BronzeIngestor:
         initialize_bronze_schema(self.db)
         conn = self.db.get_connection()
 
-        # Check existing benchmark count
+        # Check existing benchmark count and latest real (non-forward-filled) date
         existing_count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
-        if existing_count > 0 and not force:
-            logger.info(f"Bronze BIST 30 benchmark table already populated ({existing_count:,} rows).")
-            sync_res = {}
-            if sync_market_dates:
-                sync_res = self.sync_bist30_benchmarks_to_market()
-            total_rows = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
-            return {
-                "status": "already_up_to_date",
-                "rows_in_table": total_rows,
-                "market_sync": sync_res,
-            }
+        max_bench_row = conn.execute(
+            "SELECT MAX(trade_date) FROM bronze_bist_index_benchmarks WHERE is_forward_filled = FALSE;"
+        ).fetchone()
+        max_real_date = max_bench_row[0] if (max_bench_row and max_bench_row[0]) else None
 
-        logger.info(f"Fetching {years}-year BIST 30 benchmark ({ticker_symbol}) for Bronze layer...")
+        end_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        if existing_count > 0 and not force and max_real_date:
+            if isinstance(max_real_date, str):
+                max_d = datetime.strptime(str(max_real_date)[:10], "%Y-%m-%d").date()
+            elif isinstance(max_real_date, datetime):
+                max_d = max_real_date.date()
+            elif isinstance(max_real_date, date):
+                max_d = max_real_date
+            else:
+                max_d = datetime.today().date()
+            start_date = (max_d - timedelta(days=7)).strftime("%Y-%m-%d")
+            logger.info(f"Incremental BIST 30 benchmark refresh ({ticker_symbol}) from {start_date} to {end_date}...")
+        else:
+            start_date = (datetime.today() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+            logger.info(f"Fetching {years}-year BIST 30 benchmark ({ticker_symbol}) for Bronze layer from {start_date} to {end_date}...")
+
         try:
             import yfinance as yf
 
-            end_date = datetime.today().strftime("%Y-%m-%d")
-            start_date = (datetime.today() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
             df = yf.download(ticker_symbol, start=start_date, end=end_date, progress=False)
 
             if df.empty:
                 logger.warning(f"No benchmark data received from Yahoo Finance for {ticker_symbol}.")
-                return {"status": "no_data_received", "rows_ingested": 0, "rows_in_table": existing_count}
+                sync_res = {}
+                if sync_market_dates:
+                    sync_res = self.sync_bist30_benchmarks_to_market()
+                return {"status": "no_data_received", "rows_ingested": 0, "rows_in_table": existing_count, "market_sync": sync_res}
 
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)

@@ -207,6 +207,26 @@ def test_candlesticks_xu030(client):
     candles = response.json()
     assert len(candles) > 0
     assert "open" in candles[0]
+    assert "turnover_tl" in candles[0]
+
+
+def test_market_summary_xu030(client):
+    response = client.get("/api/v1/market/summary?symbol=XU030&broker_id=MLB")
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["symbol"] == "XU030"
+    assert "close_price" in summary
+    assert "total_turnover_tl" in summary
+    assert "broker_net_flow_tl" in summary
+    assert "bias_badge" in summary
+
+
+def test_time_window_xu030(client):
+    response = client.get("/api/v1/time-window/analyze?symbol=XU030&broker_id=MLB")
+    assert response.status_code == 200
+    tw = response.json()
+    assert tw["symbol"] == "XU030"
+    assert "windows" in tw
 
 
 def test_metadata_date_range(client):
