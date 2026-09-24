@@ -341,7 +341,13 @@ class BronzeIngestor:
 
         for idx, meta in enumerate(file_metas, start=1):
             logger.info(f"Ingesting trade file {idx}/{len(file_metas)}: {meta['file_name']}...")
-            conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = %s;", [meta["file_name"]])
+            if meta.get("trade_date"):
+                conn.execute(
+                    "DELETE FROM bronze_raw_trades WHERE raw_source = %s AND CAST(timestamp AS DATE) = %s;",
+                    [meta["file_name"], meta["trade_date"]],
+                )
+            else:
+                conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = %s;", [meta["file_name"]])
             df = self._parse_trade_file(meta)
             if not df.is_empty():
                 rows_count = self.db.copy_df_to_table(df, "bronze_raw_trades")
