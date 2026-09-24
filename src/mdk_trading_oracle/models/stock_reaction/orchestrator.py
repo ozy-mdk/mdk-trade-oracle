@@ -23,7 +23,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Union
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.registry import ModelRegistry
 from mdk_trading_oracle.models.stock_reaction.forecaster import (
@@ -49,7 +49,7 @@ class StockReactionOrchestrator:
 
     def __init__(
         self,
-        db: Optional[DuckDBManager] = None,
+        db: Optional[PostgresManager] = None,
         symbols: Optional[List[str]] = None,
         windows: Optional[List[str]] = None,
         lookback_months: Optional[int] = None,
@@ -57,7 +57,7 @@ class StockReactionOrchestrator:
         include_pymc: bool = False,
         filter_weak_regimes: Optional[bool] = None,
     ):
-        self.db = db or DuckDBManager()
+        self.db = db or PostgresManager()
         self.settings = get_settings()
         self.lookback_months = lookback_months
         self.model_type = model_type

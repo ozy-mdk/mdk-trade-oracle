@@ -63,30 +63,14 @@ class Settings(BaseSettings):
 
     @property
     def raw_data_dir(self) -> Path:
-        """Raw data landing zone (CSV, MySQL dumps)."""
+        """Raw data landing zone (CSV, Parquet, MySQL dumps)."""
         return self.data_dir / "00_raw_data"
-
-    @property
-    def database_dir(self) -> Path:
-        """Directory for DuckDB database files."""
-        return self.data_dir / "database"
-
-    @property
-    def database_path(self) -> Path:
-        """Full path to DuckDB database file."""
-        return self.database_dir / "mdk_oracle.duckdb"
-
-    @property
-    def duckdb_path(self) -> Path:
-        """Alias for database_path."""
-        return self.database_path
 
     def ensure_directories(self) -> None:
         """Ensure all data storage directories exist."""
         for path in [
             self.data_dir,
             self.raw_data_dir,
-            self.database_dir,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 

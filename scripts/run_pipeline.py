@@ -31,7 +31,7 @@ from pathlib import Path
 # Add project root to sys.path if invoked directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.pipeline import MedallionPipeline
 
@@ -165,7 +165,7 @@ def main():
 
     args = parser.parse_args()
 
-    db = DuckDBManager()
+    db = PostgresManager()
     pipeline = MedallionPipeline(db)
 
     backfill_dates_list = [d.strip() for d in args.backfill_dates.split(",")] if args.backfill_dates else None

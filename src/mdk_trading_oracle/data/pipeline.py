@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.bronze import BronzeIngestor, initialize_bronze_schema
 from mdk_trading_oracle.data.discovery import RawDataInspector
@@ -24,8 +24,8 @@ class MedallionPipeline:
 
     VALID_LAYERS = ["catalog", "bronze", "silver", "gold", "all"]
 
-    def __init__(self, db: Optional[DuckDBManager] = None):
-        self.db = db or DuckDBManager()
+    def __init__(self, db: Optional[PostgresManager] = None):
+        self.db = db or PostgresManager()
         self.settings = get_settings()
         self.bronze_ingestor = BronzeIngestor(self.db)
         self.silver_transformer = SilverTransformer(self.db)

@@ -30,33 +30,56 @@ class BronzeIngestor:
         self.db = db
         self.settings = get_settings()
 
+    def _is_parquet_file(self, file_path: Path) -> bool:
+        """Check if file is Apache Parquet by suffix or magic bytes."""
+        if file_path.suffix.lower() == ".parquet":
+            return True
+        try:
+            with open(file_path, "rb") as f:
+                return f.read(4) == b"PAR1"
+        except Exception:
+            return False
+
     def _extract_file_metadata(self, file_path: Path) -> Dict[str, Any]:
         """Extract partition information, size, mtime, and trade date from a raw file path."""
         path_str = file_path.resolve().as_posix()
+        name = file_path.stem
         stat = file_path.stat()
         file_size = stat.st_size
         file_mtime = stat.st_mtime
 
-        # Extract date (e.g. '2026-03-09' or '20260309')
-        date_match = re.search(r"(\d{4}-\d{2}-\d{2})", path_str)
-        if date_match:
-            trade_date_str = date_match.group(1)
+        trade_date_str = None
+        # 1. YYYY-MM-DD
+        m = re.search(r"(\d{4})-(\d{2})-(\d{2})", name) or re.search(r"(\d{4})-(\d{2})-(\d{2})", path_str)
+        if m:
+            trade_date_str = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
         else:
-            compact_date = re.search(r"/(\d{8})/", path_str)
-            if compact_date:
-                raw_d = compact_date.group(1)
-                trade_date_str = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
+            # 2. YYYYMMDD (2020-2035)
+            m = re.search(r"(202\d|203\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])", name)
+            if m:
+                trade_date_str = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
             else:
-                trade_date_str = None
+                # 3. DDMMYYYY (2020-2035) e.g. 07092026 -> 2026-09-07
+                m = re.search(r"(0[1-9]|[12]\d|3[01])(0[1-9]|1[0-2])(202\d|203\d)", name)
+                if m:
+                    trade_date_str = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+                else:
+                    # 4. DDMMYY (e.g. 010926 -> 2026-09-01)
+                    m = re.search(r"^(\d{2})(\d{2})(\d{2})$", name)
+                    if m:
+                        trade_date_str = f"20{m.group(3)}-{m.group(2)}-{m.group(1)}"
 
-        # Extract year_month (e.g. '2026-03' or '2026/03_march')
-        month_match = re.search(r"(\d{4})/(\d{2}[_\w]*)", path_str)
-        if month_match:
-            year_month = f"{month_match.group(1)}-{month_match.group(2)}"
-        elif trade_date_str:
+        # Extract year_month
+        if trade_date_str:
             year_month = trade_date_str[:7]
         else:
-            year_month = "unknown"
+            month_match = re.search(r"(\d{4})/(\d{2}[_\w]*)", path_str)
+            if month_match:
+                year_month = f"{month_match.group(1)}-{month_match.group(2)}"
+            else:
+                year_month = "unknown"
+
+        is_parquet = self._is_parquet_file(file_path)
 
         return {
             "file_path": path_str,
@@ -65,32 +88,42 @@ class BronzeIngestor:
             "file_mtime_epoch": file_mtime,
             "trade_date": trade_date_str,
             "year_month": year_month,
-            "extension": file_path.suffix.lower(),
+            "extension": file_path.suffix.lower() if file_path.suffix else (".parquet" if is_parquet else ".csv"),
+            "is_parquet": is_parquet,
         }
 
     def discover_raw_files(self, search_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
-        """Recursively scan directory for raw CSV and Parquet files and extract metadata."""
+        """Recursively scan directory for raw CSV, Parquet, and extensionless trade files."""
         base_dir = search_dir or self.settings.raw_data_dir
         if not base_dir.exists():
             logger.warning(f"Raw data directory does not exist: {base_dir}")
             return []
 
         discovered: List[Dict[str, Any]] = []
-        for ext in ["*.csv", "*.parquet", "*.txt"]:
-            for f in base_dir.rglob(ext):
-                # Ignore hidden files, temporary files, manifests, mysql dump directories, central bank rates, benchmarks, and corporate actions
-                path_str = f.as_posix()
-                if (
-                    f.name.startswith(".")
-                    or f.name.startswith("manifest")
-                    or f.name.startswith("batch_manifest")
-                    or "/mysql/" in path_str
-                    or "/central_bank_interest_rates/" in path_str
-                    or "/benchmarks/" in path_str
-                    or "/corporate_actions/" in path_str
-                ):
-                    continue
-                discovered.append(self._extract_file_metadata(f))
+        for f in base_dir.rglob("*"):
+            if not f.is_file():
+                continue
+            path_str = f.as_posix()
+            # Ignore hidden files, manifests, non-trade subdirectories, and non-data extensions
+            if (
+                f.name.startswith(".")
+                or f.name.startswith("manifest")
+                or f.name.startswith("batch_manifest")
+                or "/mysql/" in path_str
+                or "/central_bank_interest_rates/" in path_str
+                or "/benchmarks/" in path_str
+                or "/corporate_actions/" in path_str
+                or "/bist_30_list_with_changes/" in path_str
+                or f.name.endswith(".py")
+                or f.name.endswith(".yaml")
+                or f.name.endswith(".yml")
+                or f.name.endswith(".json")
+                or f.name.endswith(".md")
+                or f.name.endswith(".xlsx")
+                or f.name.endswith(".xls")
+            ):
+                continue
+            discovered.append(self._extract_file_metadata(f))
 
         logger.debug(f"Discovered {len(discovered)} raw trade files under {base_dir}")
         return sorted(discovered, key=lambda x: x["file_path"])
@@ -105,7 +138,6 @@ class BronzeIngestor:
 
         if log_count == 0 and trades_count > 0:
             logger.info("Syncing existing historical trades into `bronze_ingestion_log`...")
-            # Check if historical load was 'bist_2026_03_march'
             legacy_sources = [
                 r[0] for r in conn.execute("SELECT DISTINCT raw_source FROM bronze_raw_trades;").fetchall()
             ]
@@ -136,131 +168,161 @@ class BronzeIngestor:
 
         conn = self.db.get_connection()
         logged_rows = conn.execute(
-            "SELECT file_path, file_size_bytes, file_mtime_epoch FROM bronze_ingestion_log;"
+            "SELECT file_path, file_size_bytes, file_mtime_epoch, trade_date, rows_ingested FROM bronze_ingestion_log;"
         ).fetchall()
 
         logged_map: Dict[str, Tuple[int, float]] = {r[0]: (int(r[1]), float(r[2])) for r in logged_rows}
+        # Exact duplicate detection across aliases (same trade date and same size with successful rows)
+        logged_date_sizes = {(str(r[3]), int(r[1])) for r in logged_rows if r[3] is not None and int(r[4] or 0) > 0}
 
         pending: List[Dict[str, Any]] = []
         for meta in discovered_files:
             fp = meta["file_path"]
+            fsize = meta["file_size_bytes"]
+            tdate = meta["trade_date"]
+
             if fp not in logged_map:
+                # Check if this exact session data was already ingested under an alias filename
+                if tdate and (tdate, fsize) in logged_date_sizes:
+                    logger.debug(f"Skipping exact duplicate session file for {tdate} ({meta['file_name']}, {fsize:,} bytes).")
+                    continue
                 pending.append(meta)
             else:
                 log_size, log_mtime = logged_map[fp]
-                # Check if file size or mtime has changed
-                if meta["file_size_bytes"] != log_size or abs(meta["file_mtime_epoch"] - log_mtime) > 1e-2:
+                if fsize != log_size or abs(meta["file_mtime_epoch"] - log_mtime) > 1e-2:
                     pending.append(meta)
 
         return pending
 
-    def _parse_trade_file(self, meta: Dict[str, Any]) -> pl.DataFrame:
-        """Parse raw CSV or Parquet file into standardized bronze_raw_trades Polars DataFrame."""
-        fpath = Path(meta["file_path"])
-        ext = meta.get("extension", fpath.suffix).lower()
+    def _parse_parquet(self, fpath: Path, meta: Dict[str, Any]) -> pl.DataFrame:
+        """Parse Parquet trade file into standardized DataFrame."""
+        df = pl.read_parquet(fpath)
+        if "raw_source" not in df.columns:
+            df = df.with_columns(pl.lit(meta["file_name"]).alias("raw_source"))
+        if "trade_id" not in df.columns:
+            df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("trade_id"))
+        if "buyer_broker_id" not in df.columns:
+            df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"))
+        if "seller_broker_id" not in df.columns:
+            df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"))
 
-        if ext == ".parquet":
-            try:
-                df = pl.read_parquet(fpath)
-                if "raw_source" not in df.columns:
-                    df = df.with_columns(pl.lit(meta["file_name"]).alias("raw_source"))
-                if "trade_id" not in df.columns:
-                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("trade_id"))
-                if "buyer_broker_id" not in df.columns:
-                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"))
-                if "seller_broker_id" not in df.columns:
-                    df = df.with_columns(pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"))
+        return df.select([
+            pl.col("trade_id").cast(pl.Utf8),
+            pl.col("timestamp").cast(pl.Datetime),
+            pl.col("symbol").cast(pl.Utf8),
+            pl.col("price").cast(pl.Float64),
+            pl.col("volume").cast(pl.Float64),
+            pl.col("buyer_broker_id").cast(pl.Utf8),
+            pl.col("seller_broker_id").cast(pl.Utf8),
+            pl.col("raw_source").cast(pl.Utf8),
+        ])
 
-                return df.select([
-                    pl.col("trade_id").cast(pl.Utf8),
-                    pl.col("timestamp").cast(pl.Datetime),
-                    pl.col("symbol").cast(pl.Utf8),
-                    pl.col("price").cast(pl.Float64),
-                    pl.col("volume").cast(pl.Float64),
-                    pl.col("buyer_broker_id").cast(pl.Utf8),
-                    pl.col("seller_broker_id").cast(pl.Utf8),
-                    pl.col("raw_source").cast(pl.Utf8),
-                ])
-            except Exception as e:
-                logger.error(f"Failed to read Parquet file {fpath}: {e}")
-                return pl.DataFrame()
+    def _parse_csv(self, fpath: Path, meta: Dict[str, Any]) -> pl.DataFrame:
+        """Parse raw CSV or delimited trade file into standardized DataFrame."""
+        with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+            first_line = f.readline().strip()
+        sep = ";" if ";" in first_line else ","
+        has_header = any(k in first_line.lower() for k in ["symbol", "price", "buyer", "quantity"])
 
-        # Handle CSV / TXT files
-        try:
-            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                first_line = f.readline().strip()
-            sep = ";" if ";" in first_line else ","
-            has_header = any(k in first_line.lower() for k in ["symbol", "price", "buyer", "quantity"])
+        if has_header:
+            df = pl.read_csv(fpath, separator=sep, ignore_errors=True)
+            cols_map = {c.lower(): c for c in df.columns}
+            sym_col = cols_map.get("symbol")
+            time_col = cols_map.get("signal_time_text") or cols_map.get("timestamp") or cols_map.get("time")
+            price_col = cols_map.get("price")
+            vol_col = cols_map.get("quantity") or cols_map.get("volume")
+            buyer_col = cols_map.get("buyer") or cols_map.get("buyer_broker_id")
+            seller_col = cols_map.get("seller") or cols_map.get("seller_broker_id")
 
-            if has_header:
-                df = pl.read_csv(fpath, separator=sep, ignore_errors=True)
-                cols_map = {c.lower(): c for c in df.columns}
-                sym_col = cols_map.get("symbol")
-                time_col = cols_map.get("signal_time_text") or cols_map.get("timestamp") or cols_map.get("time")
-                price_col = cols_map.get("price")
-                vol_col = cols_map.get("quantity") or cols_map.get("volume")
-                buyer_col = cols_map.get("buyer") or cols_map.get("buyer_broker_id")
-                seller_col = cols_map.get("seller") or cols_map.get("seller_broker_id")
-
-                df = df.filter(pl.col(sym_col).is_not_null())
-                df = df.select([
-                    pl.col(sym_col).cast(pl.Utf8).alias("symbol"),
-                    pl.col(time_col).str.to_datetime(strict=False).alias("timestamp"),
-                    pl.col(price_col).cast(pl.Float64).alias("price"),
-                    pl.col(vol_col).cast(pl.Float64).alias("volume"),
-                    pl.col(buyer_col).cast(pl.Utf8).alias("buyer_broker_id") if buyer_col else pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"),
-                    pl.col(seller_col).cast(pl.Utf8).alias("seller_broker_id") if seller_col else pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"),
-                    pl.lit(meta["file_name"]).alias("raw_source"),
-                ])
-            else:
-                # Semicolon delimited without header: time;symbol;price;quantity;turnover;buyer;seller;flag
+            df = df.filter(pl.col(sym_col).is_not_null())
+            df = df.select([
+                pl.col(sym_col).cast(pl.Utf8).alias("symbol"),
+                pl.col(time_col).str.to_datetime(strict=False).alias("timestamp"),
+                pl.col(price_col).cast(pl.Float64).alias("price"),
+                pl.col(vol_col).cast(pl.Float64).alias("volume"),
+                pl.col(buyer_col).cast(pl.Utf8).alias("buyer_broker_id") if buyer_col else pl.lit(None).cast(pl.Utf8).alias("buyer_broker_id"),
+                pl.col(seller_col).cast(pl.Utf8).alias("seller_broker_id") if seller_col else pl.lit(None).cast(pl.Utf8).alias("seller_broker_id"),
+                pl.lit(meta["file_name"]).alias("raw_source"),
+            ])
+        else:
+            # Semicolon delimited without header: time;symbol;price;quantity;turnover;buyer;seller;flag
+            date_prefix = meta.get("trade_date")
+            if not date_prefix:
                 date_match = re.search(r"(\d{4})(\d{2})(\d{2})", meta["file_name"])
                 date_prefix = (
                     f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
                     if date_match
-                    else (meta.get("trade_date") or "2026-01-01")
+                    else "2026-01-01"
                 )
-                df = pl.read_csv(
-                    fpath,
-                    has_header=False,
-                    separator=sep,
-                    schema_overrides={f"column_{i}": pl.Utf8 for i in range(1, 9)},
-                    ignore_errors=True,
-                )
-                price_expr = pl.col("column_3").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
-                vol_expr = pl.col("column_4").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
-                ts_expr = (pl.lit(date_prefix + " ") + pl.col("column_1")).str.to_datetime(strict=False)
+            df = pl.read_csv(
+                fpath,
+                has_header=False,
+                separator=sep,
+                schema_overrides={f"column_{i}": pl.Utf8 for i in range(1, 9)},
+                ignore_errors=True,
+            )
+            price_expr = pl.col("column_3").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+            vol_expr = pl.col("column_4").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+            ts_expr = (pl.lit(date_prefix + " ") + pl.col("column_1")).str.to_datetime(strict=False)
 
-                df = df.select([
-                    pl.col("column_2").alias("symbol"),
-                    ts_expr.alias("timestamp"),
-                    price_expr.alias("price"),
-                    vol_expr.alias("volume"),
-                    pl.col("column_6").alias("buyer_broker_id"),
-                    pl.col("column_7").alias("seller_broker_id"),
-                    pl.lit(meta["file_name"]).alias("raw_source"),
-                ])
-
-            df = df.filter(pl.col("symbol").is_not_null() & (pl.col("price") > 0) & (pl.col("timestamp").is_not_null()))
-
-            # Compute trade_id
-            trade_id_expr = (
-                pl.col("symbol").fill_null("") + pl.lit("_")
-                + pl.col("timestamp").cast(pl.Utf8).fill_null("") + pl.lit("_")
-                + pl.col("price").cast(pl.Utf8).fill_null("") + pl.lit("_")
-                + pl.col("volume").cast(pl.Utf8).fill_null("") + pl.lit("_")
-                + pl.col("buyer_broker_id").fill_null("") + pl.lit("_")
-                + pl.col("seller_broker_id").fill_null("")
-            ).hash().cast(pl.Utf8)
-            df = df.with_columns(trade_id_expr.alias("trade_id"))
-
-            return df.select([
-                "trade_id", "timestamp", "symbol", "price", "volume",
-                "buyer_broker_id", "seller_broker_id", "raw_source"
+            df = df.select([
+                pl.col("column_2").alias("symbol"),
+                ts_expr.alias("timestamp"),
+                price_expr.alias("price"),
+                vol_expr.alias("volume"),
+                pl.col("column_6").alias("buyer_broker_id"),
+                pl.col("column_7").alias("seller_broker_id"),
+                pl.lit(meta["file_name"]).alias("raw_source"),
             ])
-        except Exception as e:
-            logger.error(f"Failed to parse CSV file {fpath}: {e}")
-            return pl.DataFrame()
+
+        df = df.filter(pl.col("symbol").is_not_null() & (pl.col("price") > 0) & (pl.col("timestamp").is_not_null()))
+
+        # Compute deterministic trade_id hash
+        trade_id_expr = (
+            pl.col("symbol").fill_null("") + pl.lit("_")
+            + pl.col("timestamp").cast(pl.Utf8).fill_null("") + pl.lit("_")
+            + pl.col("price").cast(pl.Utf8).fill_null("") + pl.lit("_")
+            + pl.col("volume").cast(pl.Utf8).fill_null("") + pl.lit("_")
+            + pl.col("buyer_broker_id").fill_null("") + pl.lit("_")
+            + pl.col("seller_broker_id").fill_null("")
+        ).hash().cast(pl.Utf8)
+        df = df.with_columns(trade_id_expr.alias("trade_id"))
+
+        return df.select([
+            "trade_id", "timestamp", "symbol", "price", "volume",
+            "buyer_broker_id", "seller_broker_id", "raw_source"
+        ])
+
+    def _parse_trade_file(self, meta: Dict[str, Any]) -> pl.DataFrame:
+        """Parse raw CSV or Parquet file into standardized bronze_raw_trades DataFrame with try-both fallback."""
+        fpath = Path(meta["file_path"])
+        is_parquet = meta.get("is_parquet", self._is_parquet_file(fpath))
+
+        # Try primary detected format first, then fall back to the other format
+        if is_parquet:
+            try:
+                df = self._parse_parquet(fpath, meta)
+                if not df.is_empty():
+                    return df
+            except Exception as e_parquet:
+                logger.debug(f"Parquet parse failed for {fpath.name} ({e_parquet}), attempting CSV parse...")
+            try:
+                return self._parse_csv(fpath, meta)
+            except Exception as e_csv:
+                logger.error(f"Both Parquet and CSV parsers failed for {fpath.name}: {e_csv}")
+                return pl.DataFrame()
+        else:
+            try:
+                df = self._parse_csv(fpath, meta)
+                if not df.is_empty():
+                    return df
+            except Exception as e_csv:
+                logger.debug(f"CSV parse failed for {fpath.name} ({e_csv}), attempting Parquet parse...")
+            try:
+                return self._parse_parquet(fpath, meta)
+            except Exception as e_parquet:
+                logger.error(f"Both CSV and Parquet parsers failed for {fpath.name}: {e_parquet}")
+                return pl.DataFrame()
 
     def _ingest_file_batch(self, file_metas: List[Dict[str, Any]], batch_size: int = 50) -> int:
         """Ingest a batch of files via Polars bulk reader and PostgreSQL binary COPY streaming."""
@@ -272,6 +334,7 @@ class BronzeIngestor:
 
         for idx, meta in enumerate(file_metas, start=1):
             logger.info(f"Ingesting trade file {idx}/{len(file_metas)}: {meta['file_name']}...")
+            conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = %s;", [meta["file_name"]])
             df = self._parse_trade_file(meta)
             if not df.is_empty():
                 rows_count = self.db.copy_df_to_table(df, "bronze_raw_trades")

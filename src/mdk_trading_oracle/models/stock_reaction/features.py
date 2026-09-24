@@ -14,7 +14,7 @@ from typing import List, Optional
 import polars as pl
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import BaseFeatureExtractor
 
@@ -59,12 +59,12 @@ class StockReactionFeatureExtractor(BaseFeatureExtractor):
     def __init__(
         self,
         symbol: str,
-        db: Optional[DuckDBManager] = None,
+        db: Optional[PostgresManager] = None,
         lookback_months: Optional[int] = None,
         tracked_brokers: Optional[List[str]] = None,
     ):
         self.symbol = symbol.upper()
-        self.db = db or DuckDBManager(read_only=True)
+        self.db = db or PostgresManager(read_only=True)
         self.settings = get_settings()
         cfg = self.settings.get_model_config("stock_reaction") or {}
         self.lookback_months = lookback_months if lookback_months is not None else cfg.get("lookback_months", 12)

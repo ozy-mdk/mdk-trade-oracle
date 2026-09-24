@@ -15,7 +15,7 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.explainability import (
@@ -166,7 +166,7 @@ class StockReactionForecaster:
         self,
         symbol: str,
         window: str,
-        db: Optional[DuckDBManager] = None,
+        db: Optional[PostgresManager] = None,
         lookback_months: Optional[int] = None,
         model_type: str = "auto",
         include_pymc: bool = False,
@@ -175,7 +175,7 @@ class StockReactionForecaster:
         self.symbol = symbol.upper()
         self.window = window
         self._table_key, self._window_name = WINDOW_MAP.get(window, ("w2", "first_reaction"))
-        self.db = db or DuckDBManager()
+        self.db = db or PostgresManager()
         self.settings = get_settings()
         cfg = self.settings.get_model_config("stock_reaction") or {}
         self.lookback_months = lookback_months or cfg.get("lookback_months", 12)

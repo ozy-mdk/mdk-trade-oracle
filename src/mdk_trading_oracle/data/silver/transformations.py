@@ -3,7 +3,7 @@ from typing import Any
 import polars as pl
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.schema import initialize_silver_schema
 from mdk_trading_oracle.data.silver.tertip_engine import (
@@ -16,9 +16,9 @@ logger = get_logger("mdk_oracle.data.silver.transformations")
 
 
 class SilverTransformer:
-    """Transforms raw Bronze tick data into clean, highly-aggregated Silver tables in DuckDB."""
+    """Transforms raw Bronze tick data into clean, highly-aggregated Silver tables in PostgreSQL / TimescaleDB."""
 
-    def __init__(self, db: DuckDBManager):
+    def __init__(self, db: PostgresManager):
         self.db = db
         self.settings = get_settings()
 
@@ -609,17 +609,17 @@ class SilverTransformer:
             conn.execute("""
                 CREATE OR REPLACE TABLE silver_daily_macro_rates (
                     trade_date DATE PRIMARY KEY,
-                    interest_rate DOUBLE NOT NULL,
-                    rate_change DOUBLE DEFAULT 0.0,
+                    interest_rate DOUBLE PRECISION NOT NULL,
+                    rate_change DOUBLE PRECISION DEFAULT 0.0,
                     is_rate_change_day BOOLEAN DEFAULT FALSE,
                     days_since_last_rate_change INTEGER,
                     days_since_last_hike INTEGER,
                     days_since_last_cut INTEGER,
-                    last_rate_change_bps DOUBLE DEFAULT 0.0,
-                    rate_change_decay_bps DOUBLE DEFAULT 0.0,
-                    rolling_30d_rate_mean DOUBLE,
-                    rate_spread_vs_30d_mean DOUBLE,
-                    daily_carry_cost_bps DOUBLE,
+                    last_rate_change_bps DOUBLE PRECISION DEFAULT 0.0,
+                    rate_change_decay_bps DOUBLE PRECISION DEFAULT 0.0,
+                    rolling_30d_rate_mean DOUBLE PRECISION,
+                    rate_spread_vs_30d_mean DOUBLE PRECISION,
+                    daily_carry_cost_bps DOUBLE PRECISION,
                     is_forward_filled BOOLEAN DEFAULT FALSE,
                     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );

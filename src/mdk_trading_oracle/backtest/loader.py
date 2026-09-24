@@ -1,4 +1,4 @@
-"""DuckDB reader and standardized loader for backtest and performance ledgers across all models."""
+"""PostgreSQL reader and standardized loader for backtest and performance ledgers across all models."""
 
 from datetime import date
 from typing import List, Optional, Union
@@ -7,18 +7,18 @@ import pandas as pd
 
 from mdk_trading_oracle.backtest.metrics import BacktestMetricsCalculator
 from mdk_trading_oracle.backtest.types import BacktestSummary, TargetUnit
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.backtest.loader")
 
 
 class BacktestLoader:
-    """Standardized loader extracting backtest and performance datasets directly from DuckDB."""
+    """Standardized loader extracting backtest and performance datasets directly from PostgreSQL."""
 
-    def __init__(self, db: Optional[DuckDBManager] = None):
-        """Initialize loader with a read-only DuckDB connection."""
-        self.db = db or DuckDBManager(read_only=True)
+    def __init__(self, db: Optional[PostgresManager] = None):
+        """Initialize loader with a read-only PostgreSQL connection."""
+        self.db = db or PostgresManager(read_only=True)
 
     def load_day_start(
         self,

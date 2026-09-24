@@ -8,7 +8,7 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.core.time import now_turkey_naive
 from mdk_trading_oracle.explainability import (
@@ -126,7 +126,7 @@ class SectorDayStartForecaster:
 
     def __init__(
         self,
-        db: Optional[DuckDBManager] = None,
+        db: Optional[PostgresManager] = None,
         model_type: Optional[str] = None,
         lookback_months: Optional[int] = None,
         eval_window_days: Optional[int] = None,
@@ -138,7 +138,7 @@ class SectorDayStartForecaster:
         include_features: Optional[List[str]] = None,
         exclude_features: Optional[List[str]] = None,
     ):
-        self.db = db or DuckDBManager()
+        self.db = db or PostgresManager()
         self.target_broker = "MLB"
         self.settings = get_settings()
         cfg = self.settings.get_model_config("sector_day_start")

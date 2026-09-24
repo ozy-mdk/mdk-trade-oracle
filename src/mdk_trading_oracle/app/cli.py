@@ -1,17 +1,14 @@
-"""Typer CLI interface for MDK Trading Oracle."""
-
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.bronze import BronzeIngestor
 from mdk_trading_oracle.data.discovery import RawDataInspector
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer
@@ -62,32 +59,36 @@ def info():
     table.add_row("Project Root (Code)", str(settings.project_root))
     table.add_row("External Data Lakehouse", str(settings.data_dir))
     table.add_row("Raw Landing Zone (00_raw_data)", str(settings.raw_data_dir))
-    table.add_row("DuckDB Database File", str(settings.database_path))
+    table.add_row("PostgreSQL / TimescaleDB Target", f"{settings.pg_host}:{settings.pg_port}/{settings.pg_database}")
     table.add_row("Config Directory", str(settings.config_dir))
     console.print(table)
 
     # Database Statistics Table
-    if settings.database_path.exists():
-        conn = duckdb.connect(str(settings.database_path), read_only=True)
-        tables = conn.execute("SHOW TABLES;").fetchall()
+    try:
+        pg = PostgresManager()
+        conn = pg.get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
+        )
+        tables = cur.fetchall()
 
-        db_table = Table(title="📊 DuckDB Lakehouse Tables", title_style="bold magenta")
+        db_table = Table(title="📊 TimescaleDB / PostgreSQL Lakehouse Tables", title_style="bold magenta")
         db_table.add_column("Table Name", style="bold")
         db_table.add_column("Row Count", style="cyan", justify="right")
         db_table.add_column("Layer", style="yellow")
 
         for (tbl_name,) in tables:
-            count = conn.execute(f"SELECT COUNT(*) FROM {tbl_name};").fetchone()[0]
+            cur.execute(f'SELECT COUNT(*) FROM "{tbl_name}";')
+            count = cur.fetchone()[0]
             layer = (
                 "Bronze" if tbl_name.startswith("bronze_") else ("Silver" if tbl_name.startswith("silver_") else "Gold")
             )
             db_table.add_row(tbl_name, f"{count:,}", layer)
 
         console.print(db_table)
-    else:
-        console.print(
-            "[bold red]⚠️ DuckDB database not yet initialized. Run 'mdk-oracle load-bronze' to initialize.[/bold red]"
-        )
+    except Exception as e:
+        console.print(f"[bold red]⚠️ Could not query PostgreSQL tables: {e}[/bold red]")
 
 
 @data_app.command("inspect")
@@ -142,7 +143,7 @@ def load_bronze(
     settings = get_settings()
 
     console.print("[bold cyan]🔄 Initializing DuckDB and Bronze Schemas...[/bold cyan]")
-    db = DuckDBManager()
+    db = PostgresManager()
     db.initialize_schema()
 
     ingestor = BronzeIngestor(db)
@@ -206,7 +207,7 @@ def load_rates(
     start_time = datetime.now()
     console.print("[bold cyan]🏛️ Ingesting Central Bank interest rates...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     ingestor = BronzeIngestor(db)
     res = ingestor.ingest_central_bank_rates(file_path=file_path, force=force, sync_market_dates=True)
 
@@ -245,7 +246,7 @@ def load_corporate_actions(
     start_time = datetime.now()
     console.print("[bold cyan]🔄 Ingesting Corporate Actions...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     ingestor = BronzeIngestor(db)
     res = ingestor.ingest_corporate_actions(csv_path=file_path, force=force)
 
@@ -284,7 +285,7 @@ def load_bist30(
     start_time = datetime.now()
     console.print("[bold cyan]📋 Ingesting BIST 30 Membership List & Historical Changes...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     ingestor = BronzeIngestor(db)
     res = ingestor.ingest_bist30_membership(file_path=file_path, force=force)
 
@@ -332,7 +333,7 @@ def load_benchmark(
     start_time = datetime.now()
     console.print(f"[bold cyan]📈 Ingesting {years}-Year BIST 30 Benchmark Data ({ticker})...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     ingestor = BronzeIngestor(db)
     res = ingestor.ingest_bist30_benchmarks(years=years, ticker_symbol=ticker, force=force, sync_market_dates=True)
 
@@ -359,7 +360,7 @@ def build_silver():
     start_time = datetime.now()
     console.print("[bold cyan]🚀 Building Silver Lakehouse Layer...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     transformer = SilverTransformer(db)
     transformer.run_all()
 
@@ -405,7 +406,7 @@ def build_gold(
     start_time = datetime.now()
     console.print("[bold cyan]🚀 Building Gold Lakehouse Layer (Models 1, 2, 3)...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     engineer = GoldFeatureEngineer(db)
     symbols_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
     windows_list = [w.strip() for w in windows.split(",") if w.strip()] if windows else None
@@ -464,7 +465,7 @@ def build_stock_reaction_gold(
     start_time = datetime.now()
     console.print("[bold cyan]🚀 Running Model 3: BIST30 Stock Intraday Reaction Forecaster...[/bold cyan]")
 
-    db = DuckDBManager()
+    db = PostgresManager()
     engineer = GoldFeatureEngineer(db)
     symbols_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
     windows_list = [w.strip() for w in windows.split(",") if w.strip()] if windows else None
@@ -505,7 +506,7 @@ def build_all(
     ),
 ):
     """Run end-to-end Medallion pipeline: Bronze Ingestion -> Silver Layer -> Gold Layer."""
-    db = DuckDBManager()
+    db = PostgresManager()
     pipeline = MedallionPipeline(db)
     pipeline.run(
         target="all",
@@ -542,7 +543,7 @@ def pipeline_run(
     ),
 ):
     """Execute the Medallion Pipeline with dependency DAG resolution."""
-    db = DuckDBManager()
+    db = PostgresManager()
     pipeline = MedallionPipeline(db)
     pipeline.run(
         target=target,
@@ -577,7 +578,7 @@ def audit_features(
     """Run out-of-sample permutation drop testing and collinearity screening for feature pruning."""
     console.print(f"[bold cyan]Running Feature Selection & Redundancy Audit for '{model}'...[/bold cyan]")
 
-    db = DuckDBManager(read_only=True)
+    db = PostgresManager(read_only=True)
 
     if model == "day_start":
         from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
@@ -663,7 +664,7 @@ def explain_forecast(
     ),
 ):
     """Explain upcoming live T+1 forecast via SHAP waterfall attribution."""
-    db = DuckDBManager(read_only=True)
+    db = PostgresManager(read_only=True)
 
     if model == "day_start":
         from mdk_trading_oracle.explainability import format_markdown_card

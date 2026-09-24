@@ -19,7 +19,7 @@ from typing import Any
 
 import polars as pl
 
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.data.silver.stock_reaction_thresholds")
@@ -40,7 +40,7 @@ class StockReactionThresholdEngine:
     where is the stock trading by window end?'
     """
 
-    def __init__(self, db: DuckDBManager) -> None:
+    def __init__(self, db: PostgresManager) -> None:
         self.db = db
 
     def compute_and_persist(self) -> dict[str, Any]:

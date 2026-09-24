@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import polars as pl
 
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.schema import initialize_silver_schema
 
@@ -51,8 +51,8 @@ class Period:
 class CorporateActionEngine:
     """Engine that resolves chained corporate actions into continuous point-in-time adjustment periods."""
 
-    def __init__(self, db: Optional[DuckDBManager] = None):
-        self.db = db or DuckDBManager()
+    def __init__(self, db: Optional[PostgresManager] = None):
+        self.db = db or PostgresManager()
 
     @staticmethod
     def resolve_adjustment_chain(

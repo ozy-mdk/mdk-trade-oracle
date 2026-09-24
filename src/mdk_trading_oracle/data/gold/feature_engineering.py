@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, List, Optional, Union
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.gold.schema import initialize_gold_schema
 from mdk_trading_oracle.models.day_start.forecaster import DayStartForecaster
@@ -14,7 +14,7 @@ logger = get_logger("mdk_oracle.data.gold.feature_engineering")
 class GoldFeatureEngineer:
     """Computes high-alpha feature representations and executes predictive Gold models."""
 
-    def __init__(self, db: DuckDBManager):
+    def __init__(self, db: PostgresManager):
         self.db = db
         self.settings = get_settings()
 

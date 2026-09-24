@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.bronze import BronzeIngestor, initialize_bronze_schema
 from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
 from mdk_trading_oracle.data.pipeline import MedallionPipeline
@@ -12,7 +12,7 @@ from mdk_trading_oracle.data.silver import SilverTransformer, initialize_silver_
 
 def test_medallion_pipeline_in_memory():
     """Test full Bronze -> Silver -> Gold transformation flow on synthetic tick data across all 6 Silver tables."""
-    db = DuckDBManager(in_memory=True)
+    db = PostgresManager(in_memory=True)
     conn = db.get_connection()
 
     # 1. Initialize Bronze, Silver, Gold Schemas
@@ -150,9 +150,11 @@ def test_medallion_pipeline_in_memory():
 
 def test_bronze_incremental_ingestion_and_logging():
     """Test that BronzeIngestor detects new files, avoids duplicate loading, and tracks logs."""
-    db = DuckDBManager(in_memory=True)
+    db = PostgresManager(in_memory=True)
     conn = db.get_connection()
     initialize_bronze_schema(db)
+    conn.execute("DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) IN ('2026-03-02', '2026-03-03');")
+    conn.execute("DELETE FROM bronze_ingestion_log WHERE file_path LIKE '%tmp%' OR trade_date IN ('2026-03-02', '2026-03-03');")
     ingestor = BronzeIngestor(db)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -171,14 +173,13 @@ def test_bronze_incremental_ingestion_and_logging():
         res1 = ingestor.ingest_incremental(tmp_path)
         assert res1["status"] == "success"
         assert res1["pending_files"] == 1
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
-        assert conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';").fetchone()[0] == 2
 
         # 2. Second Ingestion (No changes): Skips ingestion, 0 duplicates
         res2 = ingestor.ingest_incremental(tmp_path)
         assert res2["status"] == "up_to_date"
         assert res2["pending_files"] == 0
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';").fetchone()[0] == 2
 
         # 3. Third Ingestion (Add a new file): Only ingests the new file
         csv2 = day1_dir / "AKBNK.csv"
@@ -189,15 +190,16 @@ def test_bronze_incremental_ingestion_and_logging():
         res3 = ingestor.ingest_incremental(tmp_path)
         assert res3["status"] == "success"
         assert res3["pending_files"] == 1
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 3
-        assert conn.execute("SELECT COUNT(*) FROM bronze_ingestion_log;").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = '2026-03-02';").fetchone()[0] == 3
 
 
 def test_bronze_selective_date_partition_update():
     """Test selective atomic deletion and re-ingestion of a single date partition."""
-    db = DuckDBManager(in_memory=True)
+    db = PostgresManager(in_memory=True)
     conn = db.get_connection()
     initialize_bronze_schema(db)
+    conn.execute("DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) IN ('2026-03-02', '2026-03-03');")
+    conn.execute("DELETE FROM bronze_ingestion_log WHERE file_path LIKE '%tmp%' OR trade_date IN ('2026-03-02', '2026-03-03');")
     ingestor = BronzeIngestor(db)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -216,7 +218,7 @@ def test_bronze_selective_date_partition_update():
 
         # Ingest both days
         ingestor.ingest_incremental(tmp_path)
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) IN ('2026-03-02', '2026-03-03');").fetchone()[0] == 2
 
         # Update Day 1 data with 3 trades instead of 1
         (day1_dir / "THYAO.csv").write_text(
@@ -245,12 +247,12 @@ def test_bronze_selective_date_partition_update():
             ).fetchone()[0]
             == 1
         )
-        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades;").fetchone()[0] == 4
+        assert conn.execute("SELECT COUNT(*) FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) IN ('2026-03-02', '2026-03-03');").fetchone()[0] == 4
 
 
 def test_pipeline_dag_resolution():
     """Test MedallionPipeline DAG layer resolution."""
-    pipeline = MedallionPipeline(DuckDBManager(in_memory=True))
+    pipeline = MedallionPipeline(PostgresManager(in_memory=True))
 
     assert pipeline._resolve_layers("catalog") == ["catalog"]
     assert pipeline._resolve_layers("bronze") == ["bronze"]

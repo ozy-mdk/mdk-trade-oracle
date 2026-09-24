@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.types import (
     RawTradeRecord,
 )
@@ -17,19 +17,24 @@ def test_settings_load():
     assert settings.project_root.exists()
     assert settings.data_dir.exists()
     assert settings.raw_data_dir.exists()
-    assert settings.database_dir.exists()
-    assert settings.duckdb_path == settings.database_path
+    assert settings.pg_host is not None
+    assert settings.pg_port == 5432
     assert len(settings.get_brokers()) > 0
     assert len(settings.get_instruments()) > 0
 
 
-def test_duckdb_schema_initialization():
-    """Test DuckDB in-memory initialization and table creation for Bronze layer."""
-    db = DuckDBManager(in_memory=True)
+def test_postgres_schema_initialization():
+    """Test PostgreSQL initialization and table presence for Bronze layer."""
+    db = PostgresManager()
     db.initialize_schema()
 
     conn = db.get_connection()
-    tables = [row[0] for row in conn.execute("SHOW TABLES;").fetchall()]
+    tables = [
+        row[0]
+        for row in conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+        ).fetchall()
+    ]
 
     expected_tables = [
         "bronze_raw_trades",
@@ -70,8 +75,8 @@ def test_turkish_time_utilities():
     today = today_turkey()
     assert today == now_trt.date()
 
-    # Test DuckDB timezone setting
-    db = DuckDBManager(in_memory=True)
+    # Test PostgreSQL timezone setting
+    db = PostgresManager()
     conn = db.get_connection()
     tz_setting = conn.execute("SELECT current_setting('TimeZone');").fetchone()[0]
     assert tz_setting == "Europe/Istanbul"

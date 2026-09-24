@@ -122,6 +122,10 @@ def normalize_pg_query(q: str) -> str:
     if "DAYOFMONTH" in q.upper():
         q = re.sub(r"DAYOFMONTH\s*\(\s*(.*?)\s*\)", r"(CAST(EXTRACT(DAY FROM \1) AS INTEGER))", q, flags=re.IGNORECASE)
 
+    # Normalize standalone DOUBLE to DOUBLE PRECISION for PostgreSQL
+    if "DOUBLE" in q.upper():
+        q = re.sub(r"\bDOUBLE\b(?!\s+PRECISION)", "DOUBLE PRECISION", q, flags=re.IGNORECASE)
+
     if "CREATE OR REPLACE" in q.upper() and "TABLE" in q.upper():
         m = re.search(r"CREATE\s+OR\s+REPLACE\s+(TEMP\s+)?TABLE\s+(\w+)", q, re.IGNORECASE)
         if m:
@@ -256,72 +260,51 @@ class PostgresManager:
         db_url: Optional[str] = None,
         in_memory: bool = False,
         read_only: bool = False,
+        schema: Optional[str] = None,
     ):
         self.settings: Settings = get_settings()
         self.read_only = read_only
         self.in_memory = in_memory
         self.db_path = str(db_path) if db_path else None
         self.db_url = db_url or self.settings.postgres_uri
+        self.schema = schema or (f"test_sandbox_{id(self)}" if in_memory else None)
         self._conn: Optional[psycopg.Connection] = None
-        self._fallback_conn: Optional[Any] = None
 
-        # If in_memory or a specific file path is requested (e.g. test isolation fixtures)
-        if in_memory or self.db_path is not None:
-            import duckdb
-            p = ":memory:" if in_memory or not self.db_path else self.db_path
-            self._fallback_conn = duckdb.connect(p, read_only=read_only)
-            self._fallback_conn.execute(f"SET TimeZone = '{self.settings.timezone}';")
-
-    def get_connection(self) -> Any:
-        """Return an active database connection configured for analytical queries."""
-        if self._fallback_conn is not None:
-            return self._fallback_conn
-
+    def get_connection(self) -> psycopg.Connection:
+        """Return an active PostgreSQL connection configured for analytical queries."""
         if self._conn is None or self._conn.closed:
-            try:
-                self._conn = psycopg.connect(
-                    host=self.settings.pg_host,
-                    port=self.settings.pg_port,
-                    dbname=self.settings.pg_database,
-                    user=self.settings.pg_user,
-                    password=self.settings.pg_password or None,
-                    autocommit=True,
-                    connect_timeout=2,
-                )
-                with self._conn.cursor() as cur:
-                    cur.execute(f"SET timezone = '{self.settings.timezone}';")
-            except Exception as e:
-                # If PostgreSQL is not active (e.g. running offline unit tests), fallback to local engine
-                logger.debug(
-                    f"PostgreSQL connection to {self.settings.pg_host}:{self.settings.pg_port} unavailable ({e}). "
-                    f"Operating on local engine."
-                )
-                import duckdb
-                target_p = str(self.settings.database_path) if self.settings.database_path.exists() else ":memory:"
-                self._fallback_conn = duckdb.connect(target_p, read_only=self.read_only)
-                self._fallback_conn.execute(f"SET TimeZone = '{self.settings.timezone}';")
-                return self._fallback_conn
+            self._conn = psycopg.connect(
+                host=self.settings.pg_host,
+                port=self.settings.pg_port,
+                dbname=self.settings.pg_database,
+                user=self.settings.pg_user,
+                password=self.settings.pg_password or None,
+                autocommit=True,
+                connect_timeout=5,
+            )
+            with self._conn.cursor() as cur:
+                cur.execute(f"SET timezone = '{self.settings.timezone}';")
+                if self.schema:
+                    cur.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema};")
+                    cur.execute(f"SET search_path = {self.schema}, public;")
 
         return self._conn
 
     def close(self) -> None:
-        """Close database connection."""
+        """Close database connection and clean up temporary schema if in_memory."""
         if self._conn is not None and not self._conn.closed:
+            if self.schema and self.schema.startswith("test_sandbox_"):
+                try:
+                    with self._conn.cursor() as cur:
+                        cur.execute(f"DROP SCHEMA IF EXISTS {self.schema} CASCADE;")
+                except Exception:
+                    pass
             self._conn.close()
             self._conn = None
-        if self._fallback_conn is not None:
-            self._fallback_conn.close()
-            self._fallback_conn = None
 
     def execute(self, query: str, params: Optional[Union[list, tuple, dict]] = None) -> Any:
         """Execute a SQL statement and return cursor wrapped with .df() and .pl() capabilities."""
         conn = self.get_connection()
-        if self._fallback_conn is not None:
-            duck_query = query.replace("%s", "?")
-            if params:
-                return self._fallback_conn.execute(duck_query, params)
-            return self._fallback_conn.execute(duck_query)
-
         pg_query = normalize_pg_query(query)
         cur = conn.cursor()
         if params:
@@ -332,24 +315,10 @@ class PostgresManager:
 
     def query_pl(self, query: str, params: Optional[Union[list, tuple, dict]] = None) -> pl.DataFrame:
         """Execute query and return as a Polars DataFrame."""
-        if self._fallback_conn is not None:
-            duck_query = query.replace("%s", "?")
-            if params:
-                arrow_table = self._fallback_conn.execute(duck_query, params).fetch_arrow_table()
-            else:
-                arrow_table = self._fallback_conn.execute(duck_query).fetch_arrow_table()
-            return pl.from_arrow(arrow_table)
-
         return self.execute(query, params).pl()
 
     def query_df(self, query: str, params: Optional[Union[list, tuple, dict]] = None) -> pd.DataFrame:
         """Execute query and return as a pandas DataFrame."""
-        if self._fallback_conn is not None:
-            duck_query = query.replace("%s", "?")
-            if params:
-                return self._fallback_conn.execute(duck_query, params).df()
-            return self._fallback_conn.execute(duck_query).df()
-
         return self.execute(query, params).df()
 
     def copy_df_to_table(self, df: pl.DataFrame, table_name: str) -> int:
@@ -359,14 +328,7 @@ class PostgresManager:
 
         cols = df.columns
         cols_str = ", ".join([f'"{c}"' for c in cols])
-
         conn = self.get_connection()
-        if self._fallback_conn is not None:
-            # Fallback insertion
-            self._fallback_conn.register("temp_df", df.to_arrow())
-            self._fallback_conn.execute(f"INSERT INTO {table_name} ({cols_str}) SELECT * FROM temp_df;")
-            self._fallback_conn.unregister("temp_df")
-            return df.height
         copy_sql = f"COPY {table_name} ({cols_str}) FROM STDIN WITH (FORMAT CSV, HEADER FALSE)"
 
         buf = io.BytesIO()

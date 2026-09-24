@@ -6,7 +6,7 @@ from typing import List, Optional
 import polars as pl
 
 from mdk_trading_oracle.core.config import get_settings
-from mdk_trading_oracle.core.db import DuckDBManager
+from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.models.base import BaseFeatureExtractor
 from mdk_trading_oracle.models.day_start.features import get_next_trading_day
@@ -28,11 +28,11 @@ class SectorDayStartFeatureExtractor(BaseFeatureExtractor):
 
     def __init__(
         self,
-        db: Optional[DuckDBManager] = None,
+        db: Optional[PostgresManager] = None,
         target_broker_id: str = "MLB",
         lookback_months: Optional[int] = None,
     ):
-        self.db = db or DuckDBManager(read_only=True)
+        self.db = db or PostgresManager(read_only=True)
         self.target_broker = target_broker_id
         self.settings = get_settings()
         cfg = self.settings.get_model_config("sector_day_start")
