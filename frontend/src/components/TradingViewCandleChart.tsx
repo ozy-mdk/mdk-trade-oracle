@@ -8,9 +8,11 @@ import {
   UTCTimestamp,
   ColorType,
 } from 'lightweight-charts';
-import { CandleBar, TertipHorizonsResponse, ForwardHorizonCode } from '../types/api';
+import { useQuery } from '@tanstack/react-query';
+import { CandleBar, TertipHorizonsResponse, ForwardHorizonCode, ShockDayItem } from '../types/api';
+import { fetchShockDays } from '../api/client';
 import { calculateForwardOpportunity, calculateEwmaConfluence } from '../utils/forwardOpportunity';
-import { Compass, Target, TrendingUp, TrendingDown, Eye, EyeOff, Table } from 'lucide-react';
+import { Compass, Target, TrendingUp, TrendingDown, Eye, EyeOff, Table, Zap } from 'lucide-react';
 
 interface TradingViewChartProps {
   symbol: string;
@@ -46,6 +48,71 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   const [selectedHorizon, setSelectedHorizon] = useState<ForwardHorizonCode>('1M');
   const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
   const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook'>('table');
+  const [showShockDays, setShowShockDays] = useState<boolean>(true);
+  const [shockTypeFilter, setShockTypeFilter] = useState<'ALL' | 'POSITIVE' | 'NEGATIVE'>('ALL');
+  const [selectedShockDate, setSelectedShockDate] = useState<string | null>(null);
+  const candleBarsRef = useRef<CandleBar[]>([]);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Fetch BIST 30 Shock Days
+  const { data: shockDays } = useQuery({
+    queryKey: ['bist30ShockDays'],
+    queryFn: () => fetchShockDays(0.03),
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const filteredShockDays = React.useMemo(() => {
+    if (!shockDays) return [];
+    if (shockTypeFilter === 'POSITIVE') {
+      return shockDays.filter((s) => s.is_positive_shock);
+    }
+    if (shockTypeFilter === 'NEGATIVE') {
+      return shockDays.filter((s) => s.is_negative_shock);
+    }
+    return shockDays;
+  }, [shockDays, shockTypeFilter]);
+
+  const positiveShocksCount = React.useMemo(
+    () => (shockDays ? shockDays.filter((s) => s.is_positive_shock).length : 0),
+    [shockDays]
+  );
+  const negativeShocksCount = React.useMemo(
+    () => (shockDays ? shockDays.filter((s) => s.is_negative_shock).length : 0),
+    [shockDays]
+  );
+
+  const handleSelectShockDate = (dateStr: string) => {
+    setSelectedShockDate(dateStr || null);
+    if (!dateStr || !chartRef.current) return;
+    const candles = candleBarsRef.current;
+    if (!candles || candles.length === 0) return;
+
+    const idx = candles.findIndex(
+      (c) => new Date(c.time * 1000).toISOString().split('T')[0] === dateStr
+    );
+    if (idx >= 0) {
+      setActiveCandle(candles[idx]);
+      chartRef.current.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, idx - 15),
+        to: idx + (interval === '1d' ? 35 : 80),
+      });
+    }
+  };
+
+  const shockMap = React.useMemo(() => {
+    const map = new Map<string, ShockDayItem>();
+    if (shockDays) {
+      for (const s of shockDays) {
+        map.set(s.trade_date, s);
+      }
+    }
+    return map;
+  }, [shockDays]);
+
+  const activeDateStr = activeCandle?.time
+    ? new Date(activeCandle.time * 1000).toISOString().split('T')[0]
+    : null;
+  const hoveredShock = activeDateStr ? shockMap.get(activeDateStr) : null;
 
   const currentPrice = activeCandle?.close || latestCandleRef.current?.close || 0;
   const outlook = calculateForwardOpportunity(currentPrice, tertipData, selectedHorizon);
@@ -196,6 +263,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
           throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
         }
         const data: CandleBar[] = await response.json();
+        candleBarsRef.current = data;
 
         if (!isMounted) return;
 
@@ -383,6 +451,113 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
     }
   }, [outlook, showOutlookZone, interval, brokerId]);
 
+  // Render BIST 30 Shock Day Vertical Dashes on Overlay Canvas
+  useEffect(() => {
+    const canvas = overlayCanvasRef.current;
+    const chart = chartRef.current;
+    if (!canvas || !chart) return;
+
+    const redrawOverlay = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const width = parent.clientWidth;
+      const height = parent.clientHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!showShockDays || !filteredShockDays || filteredShockDays.length === 0) return;
+
+      const timeScale = chart.timeScale();
+
+      for (const shock of filteredShockDays) {
+        const isSelected = selectedShockDate === shock.trade_date;
+
+        let targetCoord: number | null = null;
+        if (interval === '1d') {
+          targetCoord = timeScale.timeToCoordinate(shock.trade_date as any);
+        } else {
+          const firstBar = candleBarsRef.current?.find(
+            (c) => new Date(c.time * 1000).toISOString().split('T')[0] === shock.trade_date
+          );
+          if (firstBar) {
+            targetCoord = timeScale.timeToCoordinate(firstBar.time as any);
+          }
+        }
+
+        if (targetCoord === null || targetCoord < 0 || targetCoord > width - 55) continue;
+        const x = targetCoord;
+
+        ctx.save();
+        if (isSelected) {
+          ctx.fillStyle = shock.is_positive_shock ? 'rgba(16, 185, 129, 0.16)' : 'rgba(244, 63, 94, 0.16)';
+          ctx.fillRect(x - 14, 0, 28, height);
+        }
+
+        ctx.beginPath();
+        ctx.setLineDash(isSelected ? [] : [4, 4]);
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        if (shock.is_positive_shock) {
+          ctx.strokeStyle = isSelected ? '#34d399' : 'rgba(16, 185, 129, 0.75)'; // Emerald
+        } else {
+          ctx.strokeStyle = isSelected ? '#fb7171' : 'rgba(244, 63, 94, 0.75)'; // Rose red
+        }
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+
+        // Header pill badge
+        const retSign = shock.daily_return_pct >= 0 ? '+' : '';
+        const text = `${retSign}${(shock.daily_return_pct * 100).toFixed(1)}%`;
+        ctx.font = isSelected ? 'bold 10px monospace' : 'bold 9px monospace';
+        const textWidth = ctx.measureText(text).width;
+        const pillWidth = textWidth + (isSelected ? 10 : 8);
+        const pillHeight = isSelected ? 17 : 15;
+        const pillY = 6;
+        const pillX = x - pillWidth / 2;
+
+        ctx.fillStyle = shock.is_positive_shock
+          ? isSelected ? 'rgba(6, 78, 59, 1.0)' : 'rgba(6, 78, 59, 0.92)'
+          : isSelected ? 'rgba(136, 19, 55, 1.0)' : 'rgba(136, 19, 55, 0.92)';
+        ctx.strokeStyle = shock.is_positive_shock
+          ? isSelected ? '#34d399' : 'rgba(52, 211, 153, 0.9)'
+          : isSelected ? '#fb7171' : 'rgba(251, 113, 133, 0.9)';
+        ctx.lineWidth = isSelected ? 1.5 : 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 3);
+        } else {
+          ctx.rect(pillX, pillY, pillWidth, pillHeight);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = shock.is_positive_shock ? '#a7f3d0' : '#fecdd3';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, pillY + pillHeight / 2);
+        ctx.restore();
+      }
+    };
+
+    redrawOverlay();
+
+    const timeScale = chart.timeScale();
+    timeScale.subscribeVisibleLogicalRangeChange(redrawOverlay);
+    window.addEventListener('resize', redrawOverlay);
+
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(redrawOverlay);
+      window.removeEventListener('resize', redrawOverlay);
+    };
+  }, [showShockDays, filteredShockDays, selectedShockDate, interval]);
+
   return (
     <div className="relative w-full glass-panel rounded-xl overflow-hidden shadow-2xl border border-slate-800">
       {/* Sub-Header & Live Metric Inspector */}
@@ -411,6 +586,18 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                     LATEST
                   </span>
                 )}
+                {hoveredShock && (
+                  <span
+                    className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold border tracking-wider font-mono ${
+                      hoveredShock.is_positive_shock
+                        ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50 shadow-sm'
+                        : 'bg-rose-500/25 text-rose-300 border-rose-500/50 shadow-sm'
+                    }`}
+                    title={`BIST 30 Official Benchmark Move: ${(hoveredShock.daily_return_pct * 100).toFixed(2)}%`}
+                  >
+                    ⚡ BIST 30: {hoveredShock.daily_return_pct >= 0 ? '+' : ''}${(hoveredShock.daily_return_pct * 100).toFixed(2)}% ({hoveredShock.is_positive_shock ? 'POSITIVE' : 'NEGATIVE'} SHOCK)
+                  </span>
+                )}
               </span>
             )}
             <span>O: <span className="text-white font-semibold">{activeCandle.open.toFixed(2)}</span></span>
@@ -428,6 +615,101 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
         )}
 
         <div className="flex items-center space-x-2">
+          {/* BIST 30 Shock Days Controls */}
+          <div className="flex items-center space-x-1.5 bg-slate-950/70 px-2 py-0.5 rounded border border-slate-800">
+            {/* Eye / EyeOff Toggle matching Action Zone */}
+            <button
+              onClick={() => setShowShockDays(!showShockDays)}
+              className={`flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                showShockDays
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+              }`}
+              title="Toggle BIST 30 Shock Days (±3%) vertical markers"
+            >
+              {showShockDays ? (
+                <Eye className="w-3 h-3 text-amber-400" />
+              ) : (
+                <EyeOff className="w-3 h-3 text-slate-500" />
+              )}
+              <Zap className={`w-3 h-3 ${showShockDays ? 'text-amber-400 fill-amber-400/30' : 'text-slate-500'}`} />
+              <span>Shock Days</span>
+              {shockDays && (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-slate-900 border border-slate-700/60 font-mono text-amber-300">
+                  {shockDays.length}
+                </span>
+              )}
+            </button>
+
+            {/* Selectable Direction Filters & Session Jump Dropdown */}
+            {showShockDays && (
+              <>
+                <div className="hidden lg:flex items-center space-x-1 border-l border-slate-800 pl-1.5 text-[9px] font-mono">
+                  <button
+                    onClick={() => setShockTypeFilter('ALL')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'ALL'
+                        ? 'bg-amber-500/30 text-amber-200 font-bold border border-amber-500/50'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                    title="Show all BIST 30 shock days"
+                  >
+                    All ({shockDays?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setShockTypeFilter('POSITIVE')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'POSITIVE'
+                        ? 'bg-emerald-500/30 text-emerald-200 font-bold border border-emerald-500/50'
+                        : 'text-emerald-400/70 hover:text-emerald-300 hover:bg-slate-800'
+                    }`}
+                    title="Filter to Positive Shock Days (≥ +3.0%)"
+                  >
+                    ≥+3% ({positiveShocksCount})
+                  </button>
+                  <button
+                    onClick={() => setShockTypeFilter('NEGATIVE')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'NEGATIVE'
+                        ? 'bg-rose-500/30 text-rose-200 font-bold border border-rose-500/50'
+                        : 'text-rose-400/70 hover:text-rose-300 hover:bg-slate-800'
+                    }`}
+                    title="Filter to Negative Shock Days (≤ -3.0%)"
+                  >
+                    ≤-3% ({negativeShocksCount})
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-1 border-l border-slate-800 pl-1.5">
+                  <select
+                    value={selectedShockDate || ''}
+                    onChange={(e) => handleSelectShockDate(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono focus:outline-none focus:border-amber-400 max-w-[160px] truncate"
+                    title="Select a shock day to center chart and inspect trader follow-through"
+                  >
+                    <option value="">Jump to Shock ({filteredShockDays.length})...</option>
+                    {filteredShockDays.map((s) => (
+                      <option key={s.trade_date} value={s.trade_date}>
+                        {s.trade_date} : {s.daily_return_pct >= 0 ? '+' : ''}
+                        {(s.daily_return_pct * 100).toFixed(1)}% {s.is_positive_shock ? '▲' : '▼'}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedShockDate && (
+                    <button
+                      onClick={() => handleSelectShockDate('')}
+                      className="px-1.5 py-0.5 text-[9px] font-mono text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-600 transition-colors"
+                      title="Clear selected shock date"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="flex items-center space-x-1 bg-slate-950/60 px-1.5 py-0.5 rounded border border-slate-800">
             <button
               onClick={() => {
@@ -750,6 +1032,8 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
       {/* Chart Canvas */}
       <div ref={chartContainerRef} className="w-full h-[560px]" />
+      {/* BIST 30 Shock Days Dashed Line Overlay Canvas */}
+      <canvas ref={overlayCanvasRef} className="absolute inset-0 pointer-events-none z-10" />
     </div>
   );
 };

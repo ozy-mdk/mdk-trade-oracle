@@ -361,6 +361,12 @@ def initialize_silver_schema(db: PostgresManager) -> None:
             rolling_20d_return_pct DOUBLE PRECISION,
             rolling_20d_volatility DOUBLE PRECISION,
             index_trend_vs_20d_sma DOUBLE PRECISION,
+            is_shock_day BOOLEAN DEFAULT FALSE,
+            shock_type VARCHAR DEFAULT 'NONE',
+            shock_magnitude_pct DOUBLE PRECISION,
+            days_since_last_shock INTEGER,
+            days_since_last_positive_shock INTEGER,
+            days_since_last_negative_shock INTEGER,
             is_forward_filled BOOLEAN DEFAULT FALSE,
             calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );

@@ -8,11 +8,12 @@ import {
   ColorType,
 } from 'lightweight-charts';
 import { useQuery } from '@tanstack/react-query';
-import { fetchTertipTimeseries, fetchTertipHorizons } from '../api/client';
+import { fetchTertipTimeseries, fetchTertipHorizons, fetchShockDays } from '../api/client';
 import {
   TertipTimeseriesPoint,
   TertipHorizonsResponse,
   ForwardHorizonCode,
+  ShockDayItem,
 } from '../types/api';
 import { formatVolume } from '../utils/formatters';
 import {
@@ -27,6 +28,7 @@ import {
   Eye,
   EyeOff,
   Table,
+  Zap,
 } from 'lucide-react';
 
 interface TertipEwmaChartProps {
@@ -84,6 +86,12 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   const [showEwma63, setShowEwma63] = useState(true);
   const [showEwma126, setShowEwma126] = useState(true);
   const [showEwma252, setShowEwma252] = useState(true);
+  const [showShockDays, setShowShockDays] = useState<boolean>(true);
+  const [shockTypeFilter, setShockTypeFilter] = useState<'ALL' | 'POSITIVE' | 'NEGATIVE'>('ALL');
+  const [selectedShockDate, setSelectedShockDate] = useState<string | null>(null);
+
+  // Overlay Canvas Ref for BIST 30 Shock Day Dashed Lines
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Action Zone State
   const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
@@ -100,6 +108,61 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     queryKey: ['tertipTimeseries', symbol, brokerId],
     queryFn: () => fetchTertipTimeseries(symbol, brokerId, 1500),
   });
+
+  // Fetch BIST 30 Shock Days (>= 3% drops and jumps)
+  const { data: shockDays } = useQuery({
+    queryKey: ['bist30ShockDays'],
+    queryFn: () => fetchShockDays(0.03),
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+
+  // Filtered shock days based on selectable filter (All / Positive only / Negative only)
+  const filteredShockDays = React.useMemo(() => {
+    if (!shockDays) return [];
+    if (shockTypeFilter === 'POSITIVE') {
+      return shockDays.filter((s) => s.is_positive_shock);
+    }
+    if (shockTypeFilter === 'NEGATIVE') {
+      return shockDays.filter((s) => s.is_negative_shock);
+    }
+    return shockDays;
+  }, [shockDays, shockTypeFilter]);
+
+  const positiveShocksCount = React.useMemo(
+    () => (shockDays ? shockDays.filter((s) => s.is_positive_shock).length : 0),
+    [shockDays]
+  );
+  const negativeShocksCount = React.useMemo(
+    () => (shockDays ? shockDays.filter((s) => s.is_negative_shock).length : 0),
+    [shockDays]
+  );
+
+  // Handle selecting a specific shock day to focus chart
+  const handleSelectShockDate = (dateStr: string) => {
+    setSelectedShockDate(dateStr || null);
+    if (!dateStr || !chartRef.current || !timeseries) return;
+    const idx = timeseries.findIndex((p) => p.trade_date === dateStr);
+    if (idx >= 0) {
+      setHoveredPoint(timeseries[idx]);
+      chartRef.current.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, idx - 15),
+        to: idx + 35,
+      });
+    }
+  };
+
+  // O(1) Shock Map indexed by trade_date
+  const shockMap = React.useMemo(() => {
+    const map = new Map<string, ShockDayItem>();
+    if (shockDays) {
+      for (const s of shockDays) {
+        map.set(s.trade_date, s);
+      }
+    }
+    return map;
+  }, [shockDays]);
+
+  const hoveredShock = hoveredPoint ? shockMap.get(hoveredPoint.trade_date) : null;
 
   // Fetch Horizons if not provided via props
   const { data: fetchedTertipData } = useQuery({
@@ -543,6 +606,101 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
     forwardAreaSeriesRef.current.setData(forwardPoints as any);
   }, [outlook, showOutlookZone, timeseries, brokerId]);
 
+  // Render BIST 30 Shock Day Vertical Dashes on Overlay Canvas
+  useEffect(() => {
+    const canvas = overlayCanvasRef.current;
+    const chart = chartRef.current;
+    if (!canvas || !chart) return;
+
+    const redrawOverlay = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const width = parent.clientWidth;
+      const height = parent.clientHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!showShockDays || !filteredShockDays || filteredShockDays.length === 0) return;
+
+      const timeScale = chart.timeScale();
+
+      for (const shock of filteredShockDays) {
+        const isSelected = selectedShockDate === shock.trade_date;
+        const x = timeScale.timeToCoordinate(shock.time as any);
+        if (x === null || x < 0 || x > width - 55) continue; // leave margin for price scale axis
+
+        ctx.save();
+        if (isSelected) {
+          // Highlight ambient background glow for selected shock day
+          ctx.fillStyle = shock.is_positive_shock ? 'rgba(16, 185, 129, 0.16)' : 'rgba(244, 63, 94, 0.16)';
+          ctx.fillRect(x - 14, 0, 28, height);
+        }
+
+        ctx.beginPath();
+        ctx.setLineDash(isSelected ? [] : [4, 4]); // Solid if selected
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        if (shock.is_positive_shock) {
+          ctx.strokeStyle = isSelected ? '#34d399' : 'rgba(16, 185, 129, 0.75)'; // Emerald green
+        } else {
+          ctx.strokeStyle = isSelected ? '#fb7171' : 'rgba(244, 63, 94, 0.75)'; // Rose red
+        }
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+
+        // Header pill badge
+        const retSign = shock.daily_return_pct >= 0 ? '+' : '';
+        const text = `${retSign}${(shock.daily_return_pct * 100).toFixed(1)}%`;
+        ctx.font = isSelected ? 'bold 10px monospace' : 'bold 9px monospace';
+        const textWidth = ctx.measureText(text).width;
+        const pillWidth = textWidth + (isSelected ? 10 : 8);
+        const pillHeight = isSelected ? 17 : 15;
+        const pillY = 6;
+        const pillX = x - pillWidth / 2;
+
+        ctx.fillStyle = shock.is_positive_shock
+          ? isSelected ? 'rgba(6, 78, 59, 1.0)' : 'rgba(6, 78, 59, 0.92)'
+          : isSelected ? 'rgba(136, 19, 55, 1.0)' : 'rgba(136, 19, 55, 0.92)';
+        ctx.strokeStyle = shock.is_positive_shock
+          ? isSelected ? '#34d399' : 'rgba(52, 211, 153, 0.9)'
+          : isSelected ? '#fb7171' : 'rgba(251, 113, 133, 0.9)';
+        ctx.lineWidth = isSelected ? 1.5 : 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 3);
+        } else {
+          ctx.rect(pillX, pillY, pillWidth, pillHeight);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = shock.is_positive_shock ? '#a7f3d0' : '#fecdd3';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, pillY + pillHeight / 2);
+        ctx.restore();
+      }
+    };
+
+    redrawOverlay();
+
+    const timeScale = chart.timeScale();
+    timeScale.subscribeVisibleLogicalRangeChange(redrawOverlay);
+    window.addEventListener('resize', redrawOverlay);
+
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(redrawOverlay);
+      window.removeEventListener('resize', redrawOverlay);
+    };
+  }, [showShockDays, filteredShockDays, selectedShockDate, timeseries]);
+
   return (
     <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
       {/* Chart Header & Ribbon Legend Controls */}
@@ -673,6 +831,103 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
           <span className="text-slate-700 hidden sm:inline">|</span>
 
+          {/* BIST 30 Shock Days Controls */}
+          <div className="flex items-center space-x-1.5 bg-slate-950/70 px-2 py-1 rounded-lg border border-slate-800">
+            {/* Eye / EyeOff Toggle matching Action Zone */}
+            <button
+              onClick={() => setShowShockDays(!showShockDays)}
+              className={`flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                showShockDays
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+              }`}
+              title="Toggle BIST 30 Shock Days (±3%) vertical markers"
+            >
+              {showShockDays ? (
+                <Eye className="w-3 h-3 text-amber-400" />
+              ) : (
+                <EyeOff className="w-3 h-3 text-slate-500" />
+              )}
+              <Zap className={`w-3 h-3 ${showShockDays ? 'text-amber-400 fill-amber-400/30' : 'text-slate-500'}`} />
+              <span>Shock Days</span>
+              {shockDays && (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-slate-900 border border-slate-700/60 font-mono text-amber-300">
+                  {shockDays.length}
+                </span>
+              )}
+            </button>
+
+            {/* Selectable Direction Filters & Session Jump Dropdown */}
+            {showShockDays && (
+              <>
+                <div className="flex items-center space-x-1 border-l border-slate-800 pl-1.5 text-[9px] font-mono">
+                  <button
+                    onClick={() => setShockTypeFilter('ALL')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'ALL'
+                        ? 'bg-amber-500/30 text-amber-200 font-bold border border-amber-500/50'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                    title="Show all BIST 30 shock days"
+                  >
+                    All ({shockDays?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setShockTypeFilter('POSITIVE')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'POSITIVE'
+                        ? 'bg-emerald-500/30 text-emerald-200 font-bold border border-emerald-500/50'
+                        : 'text-emerald-400/70 hover:text-emerald-300 hover:bg-slate-800'
+                    }`}
+                    title="Filter to Positive Shock Days (≥ +3.0%)"
+                  >
+                    ≥+3% ({positiveShocksCount})
+                  </button>
+                  <button
+                    onClick={() => setShockTypeFilter('NEGATIVE')}
+                    className={`px-1.5 py-0.5 rounded transition-colors ${
+                      shockTypeFilter === 'NEGATIVE'
+                        ? 'bg-rose-500/30 text-rose-200 font-bold border border-rose-500/50'
+                        : 'text-rose-400/70 hover:text-rose-300 hover:bg-slate-800'
+                    }`}
+                    title="Filter to Negative Shock Days (≤ -3.0%)"
+                  >
+                    ≤-3% ({negativeShocksCount})
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-1 border-l border-slate-800 pl-1.5">
+                  <select
+                    value={selectedShockDate || ''}
+                    onChange={(e) => handleSelectShockDate(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono focus:outline-none focus:border-amber-400 max-w-[170px] truncate"
+                    title="Select a shock day to center chart and inspect trader follow-through"
+                  >
+                    <option value="">Jump to Shock ({filteredShockDays.length})...</option>
+                    {filteredShockDays.map((s) => (
+                      <option key={s.trade_date} value={s.trade_date}>
+                        {s.trade_date} : {s.daily_return_pct >= 0 ? '+' : ''}
+                        {(s.daily_return_pct * 100).toFixed(1)}% {s.is_positive_shock ? '▲' : '▼'}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedShockDate && (
+                    <button
+                      onClick={() => handleSelectShockDate('')}
+                      className="px-1.5 py-0.5 text-[9px] font-mono text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-600 transition-colors"
+                      title="Clear selected shock date"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <span className="text-slate-700 hidden sm:inline">|</span>
+
           {/* View Range Controls */}
           <div className="flex items-center space-x-1 bg-slate-950/70 px-1.5 py-1 rounded-lg border border-slate-800">
             <button
@@ -734,6 +989,18 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
               {timeseries && hoveredPoint.trade_date === timeseries[timeseries.length - 1]?.trade_date && (
                 <span className="ml-1 px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
                   LATEST
+                </span>
+              )}
+              {hoveredShock && (
+                <span
+                  className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold border tracking-wider font-mono ${
+                    hoveredShock.is_positive_shock
+                      ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50 shadow-sm'
+                      : 'bg-rose-500/25 text-rose-300 border-rose-500/50 shadow-sm'
+                  }`}
+                  title={`BIST 30 Official Benchmark Move: ${(hoveredShock.daily_return_pct * 100).toFixed(2)}%`}
+                >
+                  ⚡ BIST 30: {hoveredShock.daily_return_pct >= 0 ? '+' : ''}${(hoveredShock.daily_return_pct * 100).toFixed(2)}% ({hoveredShock.is_positive_shock ? 'POSITIVE' : 'NEGATIVE'} SHOCK)
                 </span>
               )}
             </span>
@@ -1052,6 +1319,8 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
         {/* Chart Canvas */}
         <div ref={chartContainerRef} className="w-full min-h-[520px]" />
+        {/* BIST 30 Shock Days Dashed Line Overlay Canvas */}
+        <canvas ref={overlayCanvasRef} className="absolute inset-0 pointer-events-none z-10" />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 z-10 text-cyan-400 text-xs font-mono">
             Loading Tertip EWMA time series...

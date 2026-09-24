@@ -12,6 +12,7 @@ import {
   AllSignalsResponse,
   TertipHorizonsResponse,
   TertipTimeseriesPoint,
+  ShockDayItem,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -163,3 +164,17 @@ export async function fetchAllSignals(): Promise<AllSignalsResponse> {
   if (!res.ok) throw new Error('Failed to fetch predictive signals');
   return res.json();
 }
+
+export async function fetchShockDays(
+  thresholdPct: number = 0.03,
+  fromDate?: string,
+  toDate?: string
+): Promise<ShockDayItem[]> {
+  let url = `${BASE_URL}/api/v1/market/shock-days?threshold_pct=${thresholdPct}`;
+  if (fromDate) url += `&from_date=${encodeURIComponent(fromDate)}`;
+  if (toDate) url += `&to_date=${encodeURIComponent(toDate)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch shock days');
+  return res.json();
+}
+

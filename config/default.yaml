@@ -15,6 +15,10 @@ features:
   flow_acceleration_window: 5
   significant_share_threshold: 0.15  # 15% broker market share
 
+# Benchmark & Market Shock Parameters
+benchmark:
+  shock_threshold_pct: 0.03  # 3.0% daily return shock threshold for BIST 30 (XU030)
+
 # Oracle Signal Evaluation Parameters
 oracle:
   bofa_accumulation_zscore_threshold: 1.5

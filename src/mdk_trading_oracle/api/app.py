@@ -283,6 +283,17 @@ class AllSignalsResponse(BaseModel):
     stock_reactions: List[StockReactionForecastItem] = Field(default_factory=list)
 
 
+class ShockDayItem(BaseModel):
+    trade_date: str
+    time: int
+    close_price: float
+    daily_return_pct: float
+    shock_type: str
+    is_positive_shock: bool
+    is_negative_shock: bool
+    shock_magnitude_pct: float
+
+
 # ── Metadata Endpoints ────────────────────────────────────────────────────────
 
 @app.get("/api/v1/health")
@@ -784,6 +795,71 @@ def get_market_summary(
         unrealized_pnl_tl=round(unreal_pnl, 2),
         bias_badge=bias_badge,
     )
+
+
+@app.get("/api/v1/market/shock-days", response_model=List[ShockDayItem])
+def get_market_shock_days(
+    threshold_pct: float = Query(0.03, ge=0.01, le=0.10, description="Shock return threshold (default 0.03 for 3%)"),
+    from_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+) -> List[ShockDayItem]:
+    """Return historical BIST 30 shock days where daily return magnitude >= threshold_pct."""
+    where_clauses = ["index_code = 'XU030'", "ABS(daily_return_pct) >= ?"]
+    params: List[Any] = [threshold_pct]
+
+    if from_date:
+        where_clauses.append("trade_date >= ?")
+        params.append(from_date[:10])
+    if to_date:
+        where_clauses.append("trade_date <= ?")
+        params.append(to_date[:10])
+
+    where_sql = " AND ".join(where_clauses)
+    query = f"""
+        SELECT 
+            trade_date,
+            close_price,
+            daily_return_pct,
+            CASE 
+                WHEN daily_return_pct >= ? THEN 'POSITIVE_SHOCK'
+                WHEN daily_return_pct <= -? THEN 'NEGATIVE_SHOCK'
+                ELSE 'NONE'
+            END AS shock_type,
+            ABS(daily_return_pct) AS shock_magnitude_pct
+        FROM silver_daily_benchmark_index
+        WHERE {where_sql}
+        ORDER BY trade_date ASC;
+    """
+    params_final = [threshold_pct, threshold_pct] + params
+    rows = db.execute(query, params_final).fetchall()
+
+    results: List[ShockDayItem] = []
+    for r in rows:
+        td = r[0]
+        if hasattr(td, "timestamp"):
+            epoch_sec = int(td.replace(tzinfo=timezone.utc).timestamp()) if getattr(td, "tzinfo", None) is None else int(td.timestamp())
+        elif isinstance(td, date):
+            epoch_sec = int(datetime.combine(td, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+        else:
+            d_obj = date.fromisoformat(str(td)[:10])
+            epoch_sec = int(datetime.combine(d_obj, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+
+        ret = float(r[2] or 0.0)
+        st = str(r[3])
+        results.append(
+            ShockDayItem(
+                trade_date=str(td),
+                time=epoch_sec,
+                close_price=round(float(r[1] or 0.0), 2),
+                daily_return_pct=round(ret, 6),
+                shock_type=st,
+                is_positive_shock=(st == "POSITIVE_SHOCK"),
+                is_negative_shock=(st == "NEGATIVE_SHOCK"),
+                shock_magnitude_pct=round(float(r[4] or 0.0), 6),
+            )
+        )
+
+    return results
 
 
 # ── FIFO Tertip Inventory & Lot Tracking Endpoints ────────────────────────────

@@ -317,9 +317,10 @@ class PostgresManager:
         """Execute a SQL statement and return cursor wrapped with .df() and .pl() capabilities."""
         conn = self.get_connection()
         if self._fallback_conn is not None:
+            duck_query = query.replace("%s", "?")
             if params:
-                return self._fallback_conn.execute(query, params)
-            return self._fallback_conn.execute(query)
+                return self._fallback_conn.execute(duck_query, params)
+            return self._fallback_conn.execute(duck_query)
 
         pg_query = normalize_pg_query(query)
         cur = conn.cursor()
@@ -332,10 +333,11 @@ class PostgresManager:
     def query_pl(self, query: str, params: Optional[Union[list, tuple, dict]] = None) -> pl.DataFrame:
         """Execute query and return as a Polars DataFrame."""
         if self._fallback_conn is not None:
+            duck_query = query.replace("%s", "?")
             if params:
-                arrow_table = self._fallback_conn.execute(query, params).fetch_arrow_table()
+                arrow_table = self._fallback_conn.execute(duck_query, params).fetch_arrow_table()
             else:
-                arrow_table = self._fallback_conn.execute(query).fetch_arrow_table()
+                arrow_table = self._fallback_conn.execute(duck_query).fetch_arrow_table()
             return pl.from_arrow(arrow_table)
 
         return self.execute(query, params).pl()
@@ -343,9 +345,10 @@ class PostgresManager:
     def query_df(self, query: str, params: Optional[Union[list, tuple, dict]] = None) -> pd.DataFrame:
         """Execute query and return as a pandas DataFrame."""
         if self._fallback_conn is not None:
+            duck_query = query.replace("%s", "?")
             if params:
-                return self._fallback_conn.execute(query, params).df()
-            return self._fallback_conn.execute(query).df()
+                return self._fallback_conn.execute(duck_query, params).df()
+            return self._fallback_conn.execute(duck_query).df()
 
         return self.execute(query, params).df()
 

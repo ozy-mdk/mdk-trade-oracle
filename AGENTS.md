@@ -35,7 +35,7 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
   - Precision corporate action adjustment periods (`silver_corporate_action_adjustment_periods`) providing continuous `quantity_factor` and `canonical_symbol` mappings with zero monetary distortion ($\text{Turnover TL} = \text{Conserved}$).
   - Adjusted prices and returns enriched directly in `silver_daily_stock_summary` (`adj_close_price`, `adj_daily_return_pct`, `adj_market_vwap`, `adj_total_volume`, `adj_bofa_total_vwap`).
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
-  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, and trend relative to 20-day SMA.
+  - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, trend relative to 20-day SMA, and BIST 30 shock regimes (`is_shock_day`, `shock_type` POSITIVE/NEGATIVE >= 3%, `days_since_last_positive_shock`, `days_since_last_negative_shock`).
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
   - Empirical stock return percentile profiles (`silver_stock_reaction_thresholds` across BIST30 equities x W2/W3/W5) computing $P_{25}, P_{50}, P_{85}$ for rally and decline phases.
   - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1` across 7 institutions: `MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`):

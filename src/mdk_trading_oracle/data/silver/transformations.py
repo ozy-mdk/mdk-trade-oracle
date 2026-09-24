@@ -802,12 +802,12 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_bofa_historical_flow_thresholds`: {rows:,} distribution profiles.")
         return {"table": "silver_bofa_historical_flow_thresholds", "rows": rows, "status": "success"}
 
-    def transform_daily_benchmark_index(self) -> dict[str, Any]:
-        """Compute rolling momentum, volatility, and trend indicators for official BIST 30 benchmark."""
+    def transform_daily_benchmark_index(self, shock_threshold_pct: float = 0.03) -> dict[str, Any]:
+        """Compute rolling momentum, volatility, trend indicators, and shock regimes for official BIST 30 benchmark."""
         conn = self.db.get_connection()
-        logger.info("Computing `silver_daily_benchmark_index` rolling indicators...")
+        logger.info(f"Computing `silver_daily_benchmark_index` rolling indicators and shock days (threshold: ±{shock_threshold_pct * 100:.1f}%)...")
 
-        query = """
+        query = f"""
             CREATE OR REPLACE TABLE silver_daily_benchmark_index AS
             WITH ordered AS (
                 SELECT 
@@ -833,11 +833,77 @@ class SilverTransformer:
                     (close_price / NULLIF(AVG(close_price) OVER (
                         PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     ), 0.0)) - 1.0 AS index_trend_vs_20d_sma,
+                    -- Shock Day Metrics (>= 3% move)
+                    CASE 
+                        WHEN daily_return_pct >= {shock_threshold_pct} THEN 'POSITIVE_SHOCK'
+                        WHEN daily_return_pct <= -{shock_threshold_pct} THEN 'NEGATIVE_SHOCK'
+                        ELSE 'NONE'
+                    END AS shock_type,
+                    CASE 
+                        WHEN ABS(daily_return_pct) >= {shock_threshold_pct} THEN TRUE 
+                        ELSE FALSE 
+                    END AS is_shock_day,
+                    ABS(daily_return_pct) AS shock_magnitude_pct,
+                    ROW_NUMBER() OVER (PARTITION BY index_code ORDER BY trade_date) AS rn,
+                    is_forward_filled
+                FROM bronze_bist_index_benchmarks
+            ),
+            with_shock_intervals AS (
+                SELECT 
+                    trade_date,
+                    index_code,
+                    open_price,
+                    high_price,
+                    low_price,
+                    close_price,
+                    volume,
+                    daily_return_pct,
+                    intraday_return_pct,
+                    price_range_pct,
+                    rolling_5d_return_pct,
+                    rolling_20d_return_pct,
+                    rolling_20d_volatility,
+                    index_trend_vs_20d_sma,
+                    is_shock_day,
+                    shock_type,
+                    shock_magnitude_pct,
+                    rn - MAX(CASE WHEN is_shock_day THEN rn END) OVER (
+                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                    ) AS days_since_last_shock,
+                    rn - MAX(CASE WHEN shock_type = 'POSITIVE_SHOCK' THEN rn END) OVER (
+                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                    ) AS days_since_last_positive_shock,
+                    rn - MAX(CASE WHEN shock_type = 'NEGATIVE_SHOCK' THEN rn END) OVER (
+                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                    ) AS days_since_last_negative_shock,
                     is_forward_filled,
                     CURRENT_TIMESTAMP AS calculated_at
-                FROM bronze_bist_index_benchmarks
+                FROM ordered
             )
-            SELECT * FROM ordered;
+            SELECT 
+                trade_date,
+                index_code,
+                open_price,
+                high_price,
+                low_price,
+                close_price,
+                volume,
+                daily_return_pct,
+                intraday_return_pct,
+                price_range_pct,
+                rolling_5d_return_pct,
+                rolling_20d_return_pct,
+                rolling_20d_volatility,
+                index_trend_vs_20d_sma,
+                is_shock_day,
+                shock_type,
+                shock_magnitude_pct,
+                days_since_last_shock,
+                days_since_last_positive_shock,
+                days_since_last_negative_shock,
+                is_forward_filled,
+                calculated_at
+            FROM with_shock_intervals;
         """
         conn.execute(query)
         rows = conn.execute("SELECT COUNT(*) FROM silver_daily_benchmark_index;").fetchone()[0]

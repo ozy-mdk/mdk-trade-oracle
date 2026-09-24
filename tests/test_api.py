@@ -217,3 +217,32 @@ def test_metadata_date_range(client):
     assert "max_date" in data
     assert "latest_date" in data
     assert data["latest_date"] >= "2026-09-16"
+
+
+def test_market_shock_days(client):
+    """Test /api/v1/market/shock-days endpoint returns shock days with correct schema and filters."""
+    # 1. Default threshold (3%)
+    response = client.get("/api/v1/market/shock-days")
+    assert response.status_code == 200
+    shocks = response.json()
+    assert len(shocks) > 0
+    first = shocks[0]
+    assert "trade_date" in first
+    assert "time" in first
+    assert "close_price" in first
+    assert "daily_return_pct" in first
+    assert "shock_type" in first
+    assert first["shock_type"] in ("POSITIVE_SHOCK", "NEGATIVE_SHOCK")
+    assert "is_positive_shock" in first
+    assert "is_negative_shock" in first
+    assert "shock_magnitude_pct" in first
+    assert abs(first["daily_return_pct"]) >= 0.03
+
+    # 2. Dynamic threshold override (4%)
+    res_4pct = client.get("/api/v1/market/shock-days?threshold_pct=0.04")
+    assert res_4pct.status_code == 200
+    shocks_4pct = res_4pct.json()
+    assert len(shocks_4pct) <= len(shocks)
+    for s in shocks_4pct:
+        assert s["shock_magnitude_pct"] >= 0.04
+

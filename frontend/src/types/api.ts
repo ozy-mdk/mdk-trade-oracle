@@ -290,4 +290,16 @@ export interface EwmaConfluenceSummary {
   rows: EwmaHorizonSummaryRow[];
 }
 
+export interface ShockDayItem {
+  trade_date: string;
+  time: number; // Unix timestamp in seconds
+  close_price: number;
+  daily_return_pct: number;
+  shock_type: 'POSITIVE_SHOCK' | 'NEGATIVE_SHOCK';
+  is_positive_shock: boolean;
+  is_negative_shock: boolean;
+  shock_magnitude_pct: number;
+}
+
+
 
