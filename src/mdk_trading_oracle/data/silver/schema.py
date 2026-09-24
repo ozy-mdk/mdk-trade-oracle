@@ -367,6 +367,10 @@ def initialize_silver_schema(db: PostgresManager) -> None:
             days_since_last_shock INTEGER,
             days_since_last_positive_shock INTEGER,
             days_since_last_negative_shock INTEGER,
+            total_turnover_tl DOUBLE PRECISION,
+            bofa_net_flow_tl DOUBLE PRECISION,
+            basket_return_pct DOUBLE PRECISION,
+            turnover_change_pct DOUBLE PRECISION,
             is_forward_filled BOOLEAN DEFAULT FALSE,
             calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );

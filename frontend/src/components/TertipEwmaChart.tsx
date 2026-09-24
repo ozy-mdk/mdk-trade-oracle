@@ -656,7 +656,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
         // Header pill badge
         const retSign = shock.daily_return_pct >= 0 ? '+' : '';
-        const text = `${retSign}${(shock.daily_return_pct * 100).toFixed(1)}%`;
+        const text = `BIST30 ${retSign}${(shock.daily_return_pct * 100).toFixed(1)}%`;
         ctx.font = isSelected ? 'bold 10px monospace' : 'bold 9px monospace';
         const textWidth = ctx.measureText(text).width;
         const pillWidth = textWidth + (isSelected ? 10 : 8);
@@ -906,8 +906,9 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                     <option value="">Jump to Shock ({filteredShockDays.length})...</option>
                     {filteredShockDays.map((s) => (
                       <option key={s.trade_date} value={s.trade_date}>
-                        {s.trade_date} : {s.daily_return_pct >= 0 ? '+' : ''}
-                        {(s.daily_return_pct * 100).toFixed(1)}% {s.is_positive_shock ? '▲' : '▼'}
+                        {s.trade_date} : BIST 30 {s.daily_return_pct >= 0 ? '+' : ''}
+                        {(s.daily_return_pct * 100).toFixed(1)}% {s.is_positive_shock ? '▲' : '▼'}{' '}
+                        {s.total_turnover_tl > 0 ? `(₺${(s.total_turnover_tl / 1e9).toFixed(0)}B)` : ''}
                       </option>
                     ))}
                   </select>
@@ -998,9 +999,9 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                       ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50 shadow-sm'
                       : 'bg-rose-500/25 text-rose-300 border-rose-500/50 shadow-sm'
                   }`}
-                  title={`BIST 30 Official Benchmark Move: ${(hoveredShock.daily_return_pct * 100).toFixed(2)}%`}
+                  title={`Entire BIST 30 Basket Value Move: ${(hoveredShock.daily_return_pct * 100).toFixed(2)}% | Total Trading Value: ₺${(hoveredShock.total_turnover_tl / 1e9).toFixed(2)}B | BofA Flow: ₺${(hoveredShock.bofa_net_flow_tl / 1e6).toFixed(1)}M`}
                 >
-                  ⚡ BIST 30: {hoveredShock.daily_return_pct >= 0 ? '+' : ''}${(hoveredShock.daily_return_pct * 100).toFixed(2)}% ({hoveredShock.is_positive_shock ? 'POSITIVE' : 'NEGATIVE'} SHOCK)
+                  ⚡ BIST 30 Basket: {hoveredShock.daily_return_pct >= 0 ? '+' : ''}${(hoveredShock.daily_return_pct * 100).toFixed(2)}% ({hoveredShock.is_positive_shock ? 'POSITIVE' : 'NEGATIVE'} SHOCK){hoveredShock.total_turnover_tl > 0 ? ` | Turnover: ₺${(hoveredShock.total_turnover_tl / 1e9).toFixed(1)}B` : ''}{hoveredShock.bofa_net_flow_tl !== 0 ? ` | BofA: ${hoveredShock.bofa_net_flow_tl >= 0 ? '+' : ''}₺${(hoveredShock.bofa_net_flow_tl / 1e6).toFixed(0)}M` : ''}
                 </span>
               )}
             </span>

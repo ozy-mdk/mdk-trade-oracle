@@ -288,6 +288,9 @@ class ShockDayItem(BaseModel):
     time: int
     close_price: float
     daily_return_pct: float
+    total_turnover_tl: float = Field(0.0, description="Total aggregate trading value (turnover TL) of entire BIST 30 basket")
+    bofa_net_flow_tl: float = Field(0.0, description="Total Bank of America net flow across entire BIST 30 basket")
+    turnover_change_pct: float = Field(0.0, description="Day-over-day percentage change in BIST 30 aggregate turnover")
     shock_type: str
     is_positive_shock: bool
     is_negative_shock: bool
@@ -803,8 +806,8 @@ def get_market_shock_days(
     from_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
     to_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
 ) -> List[ShockDayItem]:
-    """Return historical BIST 30 shock days where daily return magnitude >= threshold_pct."""
-    where_clauses = ["index_code = 'XU030'", "ABS(daily_return_pct) >= ?"]
+    """Return historical BIST 30 shock days based on total aggregate trading value and basket return magnitude."""
+    where_clauses = ["index_code = 'XU030'", "ABS(COALESCE(basket_return_pct, daily_return_pct)) >= ?"]
     params: List[Any] = [threshold_pct]
 
     if from_date:
@@ -819,13 +822,16 @@ def get_market_shock_days(
         SELECT 
             trade_date,
             close_price,
-            daily_return_pct,
+            COALESCE(basket_return_pct, daily_return_pct) AS daily_return_pct,
+            COALESCE(total_turnover_tl, 0.0) AS total_turnover_tl,
+            COALESCE(bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl,
+            COALESCE(turnover_change_pct, 0.0) AS turnover_change_pct,
             CASE 
-                WHEN daily_return_pct >= ? THEN 'POSITIVE_SHOCK'
-                WHEN daily_return_pct <= -? THEN 'NEGATIVE_SHOCK'
+                WHEN COALESCE(basket_return_pct, daily_return_pct) >= ? THEN 'POSITIVE_SHOCK'
+                WHEN COALESCE(basket_return_pct, daily_return_pct) <= -? THEN 'NEGATIVE_SHOCK'
                 ELSE 'NONE'
             END AS shock_type,
-            ABS(daily_return_pct) AS shock_magnitude_pct
+            ABS(COALESCE(basket_return_pct, daily_return_pct)) AS shock_magnitude_pct
         FROM silver_daily_benchmark_index
         WHERE {where_sql}
         ORDER BY trade_date ASC;
@@ -845,17 +851,23 @@ def get_market_shock_days(
             epoch_sec = int(datetime.combine(d_obj, datetime.min.time(), tzinfo=timezone.utc).timestamp())
 
         ret = float(r[2] or 0.0)
-        st = str(r[3])
+        tot_turnover = float(r[3] or 0.0)
+        bofa_flow = float(r[4] or 0.0)
+        turnover_chg = float(r[5] or 0.0)
+        st = str(r[6])
         results.append(
             ShockDayItem(
                 trade_date=str(td),
                 time=epoch_sec,
                 close_price=round(float(r[1] or 0.0), 2),
                 daily_return_pct=round(ret, 6),
+                total_turnover_tl=round(tot_turnover, 2),
+                bofa_net_flow_tl=round(bofa_flow, 2),
+                turnover_change_pct=round(turnover_chg, 6),
                 shock_type=st,
                 is_positive_shock=(st == "POSITIVE_SHOCK"),
                 is_negative_shock=(st == "NEGATIVE_SHOCK"),
-                shock_magnitude_pct=round(float(r[4] or 0.0), 6),
+                shock_magnitude_pct=round(float(r[7] or 0.0), 6),
             )
         )
 

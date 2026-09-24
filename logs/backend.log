@@ -219,3 +219,46 @@ INFO:     127.0.0.1:50759 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=M
 INFO:     127.0.0.1:50761 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54409 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54422 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54426 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54433 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54435 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54437 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54441 - "GET /api/v1/market/candles?symbol=SASA&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54443 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54444 - "GET /api/v1/tertip/horizons?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54447 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54451 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54458 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54460 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54470 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54476 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54482 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54487 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54491 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54493 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54495 - "GET /api/v1/metadata/instruments HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54496 - "GET /api/v1/metadata/instruments HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54498 - "GET /api/v1/metadata/instruments HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54501 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54502 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54505 - "GET /api/v1/market/candles?symbol=XU030&interval=1d&broker_id=MLB&limit=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54507 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54509 - "GET /api/v1/market/summary?symbol=XU030&broker_id=MLB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54515 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54518 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54524 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54539 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54549 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54554 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54560 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54564 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54570 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54578 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54580 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54582 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54583 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3113]

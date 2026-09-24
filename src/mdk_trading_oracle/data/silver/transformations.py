@@ -809,44 +809,62 @@ class SilverTransformer:
 
         query = f"""
             CREATE OR REPLACE TABLE silver_daily_benchmark_index AS
-            WITH ordered AS (
+            WITH bist30_basket AS (
                 SELECT 
                     trade_date,
-                    index_code,
-                    open_price,
-                    high_price,
-                    low_price,
-                    close_price,
-                    volume,
-                    daily_return_pct,
-                    (close_price - open_price) / NULLIF(open_price, 0.0) AS intraday_return_pct,
-                    (high_price - low_price) / NULLIF(low_price, 0.0) AS price_range_pct,
+                    COUNT(DISTINCT symbol) AS bist30_stocks_count,
+                    SUM(total_turnover_tl) AS total_turnover_tl,
+                    SUM(bofa_net_flow_tl) AS bofa_net_flow_tl,
+                    SUM(adj_daily_return_pct * total_turnover_tl) / NULLIF(SUM(total_turnover_tl), 0) AS basket_return_pct
+                FROM silver_daily_stock_summary
+                WHERE index_name = 'BIST30'
+                GROUP BY trade_date
+            ),
+            ordered AS (
+                SELECT 
+                    b.trade_date,
+                    b.index_code,
+                    b.open_price,
+                    b.high_price,
+                    b.low_price,
+                    b.close_price,
+                    b.volume,
+                    b.daily_return_pct,
+                    (b.close_price - b.open_price) / NULLIF(b.open_price, 0.0) AS intraday_return_pct,
+                    (b.high_price - b.low_price) / NULLIF(b.low_price, 0.0) AS price_range_pct,
                     -- Rolling 5-day return
-                    (close_price / NULLIF(LAG(close_price, 5) OVER (PARTITION BY index_code ORDER BY trade_date), 0.0)) - 1.0 AS rolling_5d_return_pct,
+                    (b.close_price / NULLIF(LAG(b.close_price, 5) OVER (PARTITION BY b.index_code ORDER BY b.trade_date), 0.0)) - 1.0 AS rolling_5d_return_pct,
                     -- Rolling 20-day return
-                    (close_price / NULLIF(LAG(close_price, 20) OVER (PARTITION BY index_code ORDER BY trade_date), 0.0)) - 1.0 AS rolling_20d_return_pct,
+                    (b.close_price / NULLIF(LAG(b.close_price, 20) OVER (PARTITION BY b.index_code ORDER BY b.trade_date), 0.0)) - 1.0 AS rolling_20d_return_pct,
                     -- Rolling 20-day volatility (std dev of daily returns)
-                    STDDEV(daily_return_pct) OVER (
-                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    STDDEV(b.daily_return_pct) OVER (
+                        PARTITION BY b.index_code ORDER BY b.trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     ) AS rolling_20d_volatility,
                     -- Trend vs 20-day SMA
-                    (close_price / NULLIF(AVG(close_price) OVER (
-                        PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    (b.close_price / NULLIF(AVG(b.close_price) OVER (
+                        PARTITION BY b.index_code ORDER BY b.trade_date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
                     ), 0.0)) - 1.0 AS index_trend_vs_20d_sma,
-                    -- Shock Day Metrics (>= 3% move)
+                    -- Entire BIST 30 Basket Aggregates
+                    COALESCE(bb.total_turnover_tl, b.volume) AS total_turnover_tl,
+                    COALESCE(bb.bofa_net_flow_tl, 0.0) AS bofa_net_flow_tl,
+                    COALESCE(bb.basket_return_pct, b.daily_return_pct) AS basket_return_pct,
+                    (COALESCE(bb.total_turnover_tl, b.volume) - LAG(COALESCE(bb.total_turnover_tl, b.volume)) OVER (ORDER BY b.trade_date)) / 
+                        NULLIF(LAG(COALESCE(bb.total_turnover_tl, b.volume)) OVER (ORDER BY b.trade_date), 0.0) AS turnover_change_pct,
+                    -- Shock Day Metrics (>= 3% move on entire BIST 30 basket value)
                     CASE 
-                        WHEN daily_return_pct >= {shock_threshold_pct} THEN 'POSITIVE_SHOCK'
-                        WHEN daily_return_pct <= -{shock_threshold_pct} THEN 'NEGATIVE_SHOCK'
+                        WHEN COALESCE(bb.basket_return_pct, b.daily_return_pct) >= {shock_threshold_pct} THEN 'POSITIVE_SHOCK'
+                        WHEN COALESCE(bb.basket_return_pct, b.daily_return_pct) <= -{shock_threshold_pct} THEN 'NEGATIVE_SHOCK'
                         ELSE 'NONE'
                     END AS shock_type,
                     CASE 
-                        WHEN ABS(daily_return_pct) >= {shock_threshold_pct} THEN TRUE 
+                        WHEN ABS(COALESCE(bb.basket_return_pct, b.daily_return_pct)) >= {shock_threshold_pct} THEN TRUE 
                         ELSE FALSE 
                     END AS is_shock_day,
-                    ABS(daily_return_pct) AS shock_magnitude_pct,
-                    ROW_NUMBER() OVER (PARTITION BY index_code ORDER BY trade_date) AS rn,
-                    is_forward_filled
-                FROM bronze_bist_index_benchmarks
+                    ABS(COALESCE(bb.basket_return_pct, b.daily_return_pct)) AS shock_magnitude_pct,
+                    ROW_NUMBER() OVER (PARTITION BY b.index_code ORDER BY b.trade_date) AS rn,
+                    b.is_forward_filled
+                FROM bronze_bist_index_benchmarks b
+                LEFT JOIN bist30_basket bb ON b.trade_date = bb.trade_date
             ),
             with_shock_intervals AS (
                 SELECT 
@@ -876,6 +894,10 @@ class SilverTransformer:
                     rn - MAX(CASE WHEN shock_type = 'NEGATIVE_SHOCK' THEN rn END) OVER (
                         PARTITION BY index_code ORDER BY trade_date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                     ) AS days_since_last_negative_shock,
+                    total_turnover_tl,
+                    bofa_net_flow_tl,
+                    basket_return_pct,
+                    turnover_change_pct,
                     is_forward_filled,
                     CURRENT_TIMESTAMP AS calculated_at
                 FROM ordered
@@ -901,6 +923,10 @@ class SilverTransformer:
                 days_since_last_shock,
                 days_since_last_positive_shock,
                 days_since_last_negative_shock,
+                total_turnover_tl,
+                bofa_net_flow_tl,
+                basket_return_pct,
+                turnover_change_pct,
                 is_forward_filled,
                 calculated_at
             FROM with_shock_intervals;

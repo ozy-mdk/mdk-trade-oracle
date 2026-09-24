@@ -295,6 +295,9 @@ export interface ShockDayItem {
   time: number; // Unix timestamp in seconds
   close_price: number;
   daily_return_pct: number;
+  total_turnover_tl: number;
+  bofa_net_flow_tl: number;
+  turnover_change_pct: number;
   shock_type: 'POSITIVE_SHOCK' | 'NEGATIVE_SHOCK';
   is_positive_shock: boolean;
   is_negative_shock: boolean;
