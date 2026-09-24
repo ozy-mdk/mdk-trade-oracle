@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import polars as pl
 
@@ -54,13 +54,43 @@ class SilverTransformer:
 
         return case_name, case_order, case_start
 
-    def transform_daily_broker_summary(self) -> dict[str, Any]:
+    def transform_daily_broker_summary(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate buy/sell volume, turnover, and buy/sell VWAP per (trade_date, symbol, broker_id)."""
         conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
         logger.info("Computing `silver_daily_broker_summary` from `bronze_raw_trades`...")
 
-        query = """
-            CREATE OR REPLACE TABLE silver_daily_broker_summary AS
+        date_filter = ""
+        delete_sql = None
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter = f"AND CAST(timestamp AS DATE) IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_daily_broker_summary WHERE trade_date IN ({dates_in});"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_summary;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter = f"AND CAST(timestamp AS DATE) IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_daily_broker_summary WHERE trade_date IN ({dates_in});"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
+        query = f"""
+            INSERT INTO silver_daily_broker_summary (
+                trade_date, symbol, symbol_name, sector, broker_id, broker_name, broker_category, is_primary_target,
+                buy_volume, buy_turnover_tl, buy_vwap, buy_trade_count,
+                sell_volume, sell_turnover_tl, sell_vwap, sell_trade_count,
+                total_volume, total_turnover_tl, total_vwap, net_volume, net_flow_tl,
+                broker_symbol_turnover_share, calculated_at
+            )
             WITH buys AS (
                 SELECT 
                     CAST(timestamp AS DATE) AS trade_date,
@@ -71,7 +101,7 @@ class SilverTransformer:
                     SUM(price * volume) / NULLIF(SUM(volume), 0) AS buy_vwap,
                     COUNT(*) AS buy_trade_count
                 FROM bronze_raw_trades
-                WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != ''
+                WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != '' {date_filter}
                 GROUP BY CAST(timestamp AS DATE), symbol, buyer_broker_id
             ),
             sells AS (
@@ -84,7 +114,7 @@ class SilverTransformer:
                     SUM(price * volume) / NULLIF(SUM(volume), 0) AS sell_vwap,
                     COUNT(*) AS sell_trade_count
                 FROM bronze_raw_trades
-                WHERE seller_broker_id IS NOT NULL AND seller_broker_id != ''
+                WHERE seller_broker_id IS NOT NULL AND seller_broker_id != '' {date_filter}
                 GROUP BY CAST(timestamp AS DATE), symbol, seller_broker_id
             ),
             combined AS (
@@ -146,13 +176,44 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_daily_broker_summary`: {rows:,} rows.")
         return {"table": "silver_daily_broker_summary", "rows": rows, "status": "success"}
 
-    def transform_daily_broker_overview(self) -> dict[str, Any]:
+    def transform_daily_broker_overview(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate whole-market daily broker footprint, market share %, rankings, and Top-5 flags."""
         conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
         logger.info("Computing `silver_daily_broker_overview` macro market shares...")
 
-        query = """
-            CREATE OR REPLACE TABLE silver_daily_broker_overview AS
+        date_filter = ""
+        delete_sql = None
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter = f"WHERE trade_date IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_daily_broker_overview WHERE trade_date IN ({dates_in});"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_broker_overview;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter = f"WHERE trade_date IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_daily_broker_overview WHERE trade_date IN ({dates_in});"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
+        query = f"""
+            INSERT INTO silver_daily_broker_overview (
+                trade_date, day_of_week, is_monday, is_friday, broker_id, broker_name, broker_category,
+                is_primary_target, total_buy_turnover_tl, total_sell_turnover_tl, net_flow_tl,
+                total_turnover_tl, total_buy_volume, total_sell_volume, total_volume,
+                total_trades, active_symbols_traded, market_turnover_share,
+                market_turnover_rank, market_net_flow_rank, is_top_5_broker,
+                top_bought_symbol, top_sold_symbol, top_sector_name, top_sector_share, calculated_at
+            )
             WITH broker_totals AS (
                 SELECT 
                     trade_date,
@@ -172,6 +233,7 @@ class SilverTransformer:
                     ARG_MAX(symbol, buy_turnover_tl) AS top_bought_symbol,
                     ARG_MAX(symbol, sell_turnover_tl) AS top_sold_symbol
                 FROM silver_daily_broker_summary
+                {date_filter}
                 GROUP BY trade_date, broker_id, broker_name, broker_category, is_primary_target
             ),
             sector_allocation AS (
@@ -187,6 +249,7 @@ class SilverTransformer:
                         sector,
                         SUM(total_turnover_tl) AS sector_turnover
                     FROM silver_daily_broker_summary
+                    {date_filter}
                     GROUP BY trade_date, broker_id, sector
                 )
                 GROUP BY trade_date, broker_id
@@ -235,13 +298,59 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_daily_broker_overview`: {rows:,} rows.")
         return {"table": "silver_daily_broker_overview", "rows": rows, "status": "success"}
 
-    def transform_daily_stock_summary(self) -> dict[str, Any]:
+    def transform_daily_stock_summary(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Compute Daily Stock Summary with OHLCV, VWAPs, CR5 concentration, and BofA price levels."""
         conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
         logger.info("Computing `silver_daily_stock_summary` (and syncing `silver_market_daily`)...")
 
-        query = """
-            CREATE OR REPLACE TABLE silver_daily_stock_summary AS
+        date_filter_raw = ""
+        date_filter_broker = ""
+        delete_sql = None
+        sync_where = ""
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter_raw = f"WHERE CAST(timestamp AS DATE) IN ({dates_in})"
+            date_filter_broker = f"WHERE trade_date IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_daily_stock_summary WHERE trade_date IN ({dates_in}); DELETE FROM silver_market_daily WHERE trade_date IN ({dates_in});"
+            sync_where = f"WHERE trade_date IN ({dates_in})"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_stock_summary;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter_raw = f"WHERE CAST(timestamp AS DATE) IN ({dates_in})"
+                    date_filter_broker = f"WHERE trade_date IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_daily_stock_summary WHERE trade_date IN ({dates_in}); DELETE FROM silver_market_daily WHERE trade_date IN ({dates_in});"
+                    sync_where = f"WHERE trade_date IN ({dates_in})"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
+        query = f"""
+            INSERT INTO silver_daily_stock_summary (
+                trade_date, day_of_week, is_monday, is_friday, symbol, canonical_symbol,
+                symbol_name, sector, index_name, open_price, high_price, low_price,
+                close_price, market_vwap, daily_return_pct, price_range_pct,
+                total_volume, total_turnover_tl, total_trades, active_brokers_count,
+                quantity_factor, has_unresolved_paid_action, adj_open_price, adj_high_price,
+                adj_low_price, adj_close_price, adj_market_vwap, adj_total_volume,
+                adj_daily_return_pct, top_buyer_broker_id, top_buyer_turnover_tl,
+                top_buyer_share, top_seller_broker_id, top_seller_turnover_tl,
+                top_seller_share, top_5_buyers_net_flow_tl, top_5_sellers_net_flow_tl,
+                top_5_concentration_ratio, top_5_domestic_net_flow_tl,
+                bofa_buy_turnover_tl, bofa_sell_turnover_tl, bofa_net_flow_tl,
+                bofa_stock_turnover_share, bofa_buy_vwap, bofa_sell_vwap,
+                bofa_total_vwap, bofa_vwap_spread_pct, adj_bofa_buy_vwap,
+                adj_bofa_sell_vwap, adj_bofa_total_vwap, bofa_rank_in_stock,
+                calculated_at
+            )
             WITH daily_trades AS (
                 SELECT 
                     CAST(timestamp AS DATE) AS trade_date,
@@ -253,6 +362,7 @@ class SilverTransformer:
                     SUM(price * volume) / NULLIF(SUM(volume), 0) AS market_vwap,
                     COUNT(*) AS total_trades
                 FROM bronze_raw_trades
+                {date_filter_raw}
                 GROUP BY CAST(timestamp AS DATE), symbol
             ),
             first_last_prices AS (
@@ -268,6 +378,7 @@ class SilverTransformer:
                         price,
                         timestamp
                     FROM bronze_raw_trades
+                    {date_filter_raw}
                 )
                 GROUP BY trade_date, symbol
             ),
@@ -287,6 +398,7 @@ class SilverTransformer:
                     broker_category,
                     ROW_NUMBER() OVER (PARTITION BY trade_date, symbol ORDER BY total_turnover_tl DESC) AS rank_in_stock
                 FROM silver_daily_broker_summary
+                {date_filter_broker}
             ),
             stock_top_desks AS (
                 SELECT 
@@ -379,8 +491,12 @@ class SilverTransformer:
         conn.execute(query)
 
         # Sync backward-compatible silver_market_daily
-        conn.execute("""
-            CREATE OR REPLACE TABLE silver_market_daily AS
+        conn.execute(f"""
+            INSERT INTO silver_market_daily (
+                trade_date, symbol, open_price, high_price, low_price, close_price,
+                total_volume, total_turnover_tl, market_vwap, total_trades,
+                active_brokers, bofa_net_flow_tl, bofa_volume_share, calculated_at
+            )
             SELECT 
                 trade_date,
                 symbol,
@@ -396,20 +512,50 @@ class SilverTransformer:
                 bofa_net_flow_tl,
                 bofa_stock_turnover_share AS bofa_volume_share,
                 calculated_at
-            FROM silver_daily_stock_summary;
+            FROM silver_daily_stock_summary
+            {sync_where};
         """)
 
         rows = conn.execute("SELECT COUNT(*) FROM silver_daily_stock_summary;").fetchone()[0]
         logger.info(f"Successfully populated `silver_daily_stock_summary`: {rows:,} rows.")
         return {"table": "silver_daily_stock_summary", "rows": rows, "status": "success"}
 
-    def transform_daily_sector_summary(self) -> dict[str, Any]:
+    def transform_daily_sector_summary(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate daily broker flows per sector (trade_date, sector, broker_id)."""
         conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
         logger.info("Computing `silver_daily_sector_summary`...")
 
-        query = """
-            CREATE OR REPLACE TABLE silver_daily_sector_summary AS
+        date_filter = ""
+        delete_sql = None
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter = f"AND trade_date IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_daily_sector_summary WHERE trade_date IN ({dates_in});"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_daily_sector_summary;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter = f"AND trade_date IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_daily_sector_summary WHERE trade_date IN ({dates_in});"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
+        query = f"""
+            INSERT INTO silver_daily_sector_summary (
+                trade_date, sector, broker_id, broker_name, broker_category, is_primary_target,
+                buy_volume, buy_turnover_tl, sell_volume, sell_turnover_tl,
+                total_volume, total_turnover_tl, net_volume, net_flow_tl,
+                active_symbols_count, trade_count, sector_turnover_share, calculated_at
+            )
             WITH sector_totals AS (
                 SELECT 
                     trade_date,
@@ -429,7 +575,7 @@ class SilverTransformer:
                     COUNT(DISTINCT symbol) AS active_symbols_count,
                     SUM(buy_trade_count + sell_trade_count) AS trade_count
                 FROM silver_daily_broker_summary
-                WHERE sector IS NOT NULL AND sector != ''
+                WHERE sector IS NOT NULL AND sector != '' {date_filter}
                 GROUP BY trade_date, sector, broker_id, broker_name, broker_category, is_primary_target
             )
             SELECT 
@@ -459,15 +605,44 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_daily_sector_summary`: {rows:,} rows.")
         return {"table": "silver_daily_sector_summary", "rows": rows, "status": "success"}
 
-    def transform_intraday_broker_windows(self) -> dict[str, Any]:
+    def transform_intraday_broker_windows(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate parameterized intraday time windows (trade_date, symbol, broker_id, window_name)."""
         conn = self.db.get_connection()
-        logger.info("Computing `silver_intraday_broker_window_summary` across 4 time windows...")
+        initialize_silver_schema(self.db)
+        logger.info("Computing `silver_intraday_broker_window_summary` across parameterized time windows...")
 
         case_name, case_order, case_start = self._build_intraday_window_case_sql()
 
+        date_filter = ""
+        delete_sql = None
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter = f"AND CAST(timestamp AS DATE) IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_intraday_broker_window_summary WHERE trade_date IN ({dates_in});"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_intraday_broker_window_summary;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter = f"AND CAST(timestamp AS DATE) IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_intraday_broker_window_summary WHERE trade_date IN ({dates_in});"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
         query = f"""
-            CREATE OR REPLACE TABLE silver_intraday_broker_window_summary AS
+            INSERT INTO silver_intraday_broker_window_summary (
+                trade_date, symbol, sector, broker_id, broker_name, is_primary_target,
+                window_name, window_order, window_start_time, window_end_time,
+                buy_volume, buy_turnover_tl, buy_vwap, sell_volume, sell_turnover_tl, sell_vwap,
+                total_volume, total_turnover_tl, net_volume, net_flow_tl, trade_count, calculated_at
+            )
             WITH buys AS (
                 SELECT 
                     CAST(timestamp AS DATE) AS trade_date,
@@ -481,7 +656,7 @@ class SilverTransformer:
                     SUM(price * volume) / NULLIF(SUM(volume), 0.0) AS buy_vwap,
                     COUNT(*) AS buy_trades
                 FROM bronze_raw_trades
-                WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != ''
+                WHERE buyer_broker_id IS NOT NULL AND buyer_broker_id != '' {date_filter}
                 GROUP BY 1, 2, 3, 4, 5, 6
             ),
             sells AS (
@@ -497,7 +672,7 @@ class SilverTransformer:
                     SUM(price * volume) / NULLIF(SUM(volume), 0.0) AS sell_vwap,
                     COUNT(*) AS sell_trades
                 FROM bronze_raw_trades
-                WHERE seller_broker_id IS NOT NULL AND seller_broker_id != ''
+                WHERE seller_broker_id IS NOT NULL AND seller_broker_id != '' {date_filter}
                 GROUP BY 1, 2, 3, 4, 5, 6
             ),
             combined AS (
@@ -559,13 +734,42 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_intraday_broker_window_summary`: {rows:,} rows.")
         return {"table": "silver_intraday_broker_window_summary", "rows": rows, "status": "success"}
 
-    def transform_intraday_sector_windows(self) -> dict[str, Any]:
+    def transform_intraday_sector_windows(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate intraday sector windows (trade_date, sector, broker_id, window_name)."""
         conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
         logger.info("Computing `silver_intraday_sector_window_summary`...")
 
-        query = """
-            CREATE OR REPLACE TABLE silver_intraday_sector_window_summary AS
+        date_filter = ""
+        delete_sql = None
+        if target_dates:
+            dates_in = ", ".join([f"'{d}'" for d in target_dates])
+            date_filter = f"WHERE trade_date IN ({dates_in})"
+            delete_sql = f"DELETE FROM silver_intraday_sector_window_summary WHERE trade_date IN ({dates_in});"
+        else:
+            has_rows = conn.execute("SELECT COUNT(*) FROM silver_intraday_sector_window_summary;").fetchone()[0] > 0
+            if has_rows:
+                bronze_dates = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                    ).fetchall()
+                ]
+                if bronze_dates:
+                    dates_in = ", ".join([f"'{d}'" for d in bronze_dates])
+                    date_filter = f"WHERE trade_date IN ({dates_in})"
+                    delete_sql = f"DELETE FROM silver_intraday_sector_window_summary WHERE trade_date IN ({dates_in});"
+
+        if delete_sql:
+            conn.execute(delete_sql)
+
+        query = f"""
+            INSERT INTO silver_intraday_sector_window_summary (
+                trade_date, sector, broker_id, broker_name, is_primary_target,
+                window_name, window_order, buy_volume, buy_turnover_tl, sell_volume,
+                sell_turnover_tl, total_volume, total_turnover_tl, net_volume, net_flow_tl,
+                active_symbols_count, trade_count, calculated_at
+            )
             SELECT 
                 trade_date,
                 sector,
@@ -586,7 +790,7 @@ class SilverTransformer:
                 SUM(trade_count) AS trade_count,
                 CURRENT_TIMESTAMP AS calculated_at
             FROM silver_intraday_broker_window_summary
-            WHERE sector IS NOT NULL AND sector != ''
+            {date_filter}
             GROUP BY trade_date, sector, broker_id, broker_name, is_primary_target, window_name, window_order;
         """
         conn.execute(query)
@@ -1261,16 +1465,16 @@ class SilverTransformer:
         engine = StockReactionThresholdEngine(self.db)
         return engine.compute_and_persist()
 
-    def run_all(self) -> dict[str, Any]:
+    def run_all(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
         initialize_silver_schema(self.db)
         res_actions = self.transform_corporate_action_adjustment_periods()
-        res_broker = self.transform_daily_broker_summary()
-        res_overview = self.transform_daily_broker_overview()
-        res_stock = self.transform_daily_stock_summary()
-        res_sector = self.transform_daily_sector_summary()
-        res_win_broker = self.transform_intraday_broker_windows()
-        res_win_sector = self.transform_intraday_sector_windows()
+        res_broker = self.transform_daily_broker_summary(target_dates=target_dates)
+        res_overview = self.transform_daily_broker_overview(target_dates=target_dates)
+        res_stock = self.transform_daily_stock_summary(target_dates=target_dates)
+        res_sector = self.transform_daily_sector_summary(target_dates=target_dates)
+        res_win_broker = self.transform_intraday_broker_windows(target_dates=target_dates)
+        res_win_sector = self.transform_intraday_sector_windows(target_dates=target_dates)
         res_macro_rates = self.transform_daily_macro_rates()
         res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()

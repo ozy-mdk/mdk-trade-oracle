@@ -138,11 +138,11 @@ def load_bronze(
         help="Optional custom glob pattern for raw CSVs (defaults to settings.raw_data_dir/2026/03_march/raw_csv/**/*.csv)",
     ),
 ):
-    """Ingest raw BIST trade CSV feeds and Central Bank interest rates into the Bronze DuckDB layer."""
+    """Ingest raw BIST trade CSV feeds and Central Bank interest rates into the Bronze PostgreSQL layer."""
     start_time = datetime.now()
     settings = get_settings()
 
-    console.print("[bold cyan]🔄 Initializing DuckDB and Bronze Schemas...[/bold cyan]")
+    console.print("[bold cyan]🔄 Initializing PostgreSQL and Bronze Schemas...[/bold cyan]")
     db = PostgresManager()
     db.initialize_schema()
 
@@ -242,7 +242,7 @@ def load_corporate_actions(
         help="Force re-ingestion of corporate actions",
     ),
 ):
-    """Ingest corporate actions (bonus share issues, splits, ticker changes, rights notes) into DuckDB Bronze."""
+    """Ingest corporate actions (bonus share issues, splits, ticker changes, rights notes) into PostgreSQL Bronze."""
     start_time = datetime.now()
     console.print("[bold cyan]🔄 Ingesting Corporate Actions...[/bold cyan]")
 

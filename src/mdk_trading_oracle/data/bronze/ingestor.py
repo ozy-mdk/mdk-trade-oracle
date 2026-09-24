@@ -176,6 +176,7 @@ class BronzeIngestor:
         logged_date_sizes = {(str(r[3]), int(r[1])) for r in logged_rows if r[3] is not None and int(r[4] or 0) > 0}
 
         pending: List[Dict[str, Any]] = []
+        seen_in_batch = set()
         for meta in discovered_files:
             fp = meta["file_path"]
             fsize = meta["file_size_bytes"]
@@ -183,9 +184,15 @@ class BronzeIngestor:
 
             if fp not in logged_map:
                 # Check if this exact session data was already ingested under an alias filename
-                if tdate and (tdate, fsize) in logged_date_sizes:
+                if tdate and (str(tdate), fsize) in logged_date_sizes:
                     logger.debug(f"Skipping exact duplicate session file for {tdate} ({meta['file_name']}, {fsize:,} bytes).")
                     continue
+                # Check if this exact session data is already scheduled in this pending batch
+                if tdate and (str(tdate), fsize) in seen_in_batch:
+                    logger.debug(f"Skipping duplicate session file in batch for {tdate} ({meta['file_name']}, {fsize:,} bytes).")
+                    continue
+                if tdate:
+                    seen_in_batch.add((str(tdate), fsize))
                 pending.append(meta)
             else:
                 log_size, log_mtime = logged_map[fp]
@@ -389,6 +396,7 @@ class BronzeIngestor:
             "total_discovered": len(discovered),
             "pending_files": len(pending),
             "files_ingested": len(pending),
+            "ingested_dates": sorted(list({p["trade_date"] for p in pending if p.get("trade_date")})),
             "total_trades": total_trades,
         }
 

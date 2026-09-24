@@ -173,13 +173,13 @@ class MedallionPipeline:
             "status": "success",
         }
 
-    def run_silver(self) -> dict[str, Any]:
+    def run_silver(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Execute Silver layer aggregations (daily broker summaries, overview, stock summary, sector, and intraday windows)."""
-        logger.info("Starting Silver Layer Transformations...")
+        logger.info(f"Starting Silver Layer Transformations (target_dates={target_dates})...")
         start_time = datetime.now()
 
         initialize_silver_schema(self.db)
-        silver_res = self.silver_transformer.run_all()
+        silver_res = self.silver_transformer.run_all(target_dates=target_dates)
 
         conn = self.db.get_connection()
         adj_periods_count = conn.execute("SELECT COUNT(*) FROM silver_corporate_action_adjustment_periods;").fetchone()[
@@ -383,7 +383,12 @@ class MedallionPipeline:
                     force=force,
                 )
             elif layer == "silver":
-                results["silver"] = self.run_silver()
+                silver_target_dates = [target_date] if target_date else None
+                if not silver_target_dates and "bronze" in results:
+                    bronze_ingested = results["bronze"].get("details", {}).get("trades", {}).get("ingested_dates")
+                    if bronze_ingested:
+                        silver_target_dates = bronze_ingested
+                results["silver"] = self.run_silver(target_dates=silver_target_dates)
             elif layer == "gold":
                 results["gold"] = self.run_gold(
                     backfill_dates=backfill_dates,
