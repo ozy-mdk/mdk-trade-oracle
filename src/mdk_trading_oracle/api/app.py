@@ -1399,96 +1399,175 @@ def scan_event_study(
 ) -> List[EventStudyScanItem]:
     """Scan historical sessions for institutional order flow triggers and forward returns."""
     bid = broker_id.upper()
-    conditions = ["1=1"]
-    params: List[Any] = []
+    sym = symbol.strip().upper() if symbol and symbol.strip() else None
 
-    if bid in INSTITUTIONAL_BUNDLES:
-        flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
-        broker_join = """
-            LEFT JOIN (
-                SELECT trade_date, symbol, SUM(net_flow_tl) AS net_flow_tl
-                FROM silver_daily_broker_summary
-                WHERE broker_id = ANY(%s)
-                GROUP BY trade_date, symbol
-            ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
-        """
-        join_params = [list(INSTITUTIONAL_BUNDLES[bid])]
-    elif bid != "MLB":
-        flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
-        broker_join = """
-            LEFT JOIN (
-                SELECT trade_date, symbol, net_flow_tl
-                FROM silver_daily_broker_summary
-                WHERE broker_id = %s
-            ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
-        """
-        join_params = [bid]
-    else:
-        flow_expr = "s.bofa_net_flow_tl"
-        broker_join = ""
-        join_params = []
+    if sym == "XU030":
+        # BIST 30 Benchmark Index scan: prices from silver_daily_benchmark_index, flow from silver_daily_broker_overview
+        join_params: List[Any] = []
+        if bid in INSTITUTIONAL_BUNDLES:
+            b_where = "broker_id = ANY(%s)"
+            join_params.append(list(INSTITUTIONAL_BUNDLES[bid]))
+        elif bid != "MLB":
+            b_where = "broker_id = %s"
+            join_params.append(bid)
+        else:
+            b_where = "broker_id = 'MLB'"
 
-    if symbol:
-        conditions.append("s.symbol = %s")
-        params.append(symbol.upper())
+        outer_conditions = ["1=1"]
+        outer_params: List[Any] = []
 
-    if min_flow_tl is not None:
-        conditions.append(f"{flow_expr} >= %s")
-        params.append(min_flow_tl)
+        if min_flow_tl is not None:
+            outer_conditions.append("bofa_net_flow_tl >= %s")
+            outer_params.append(min_flow_tl)
+        if max_flow_tl is not None:
+            outer_conditions.append("bofa_net_flow_tl <= %s")
+            outer_params.append(max_flow_tl)
+        if min_d1_return is not None:
+            outer_conditions.append("d1_return_pct >= %s")
+            outer_params.append(min_d1_return)
+        if max_d1_return is not None:
+            outer_conditions.append("d1_return_pct <= %s")
+            outer_params.append(max_d1_return)
 
-    if max_flow_tl is not None:
-        conditions.append(f"{flow_expr} <= %s")
-        params.append(max_flow_tl)
+        outer_where = " AND ".join(outer_conditions)
 
-    where_clause = " AND ".join(conditions)
-
-    query = f"""
-        WITH ranked_stock AS (
+        query = f"""
+            WITH all_bench_days AS (
+                SELECT 
+                    b.trade_date,
+                    'XU030' AS symbol,
+                    b.close_price AS adj_close_price,
+                    (b.daily_return_pct * 100.0) AS daily_return_pct,
+                    (LAG(b.daily_return_pct, 1) OVER (ORDER BY b.trade_date) * 100.0) AS d1_return_pct,
+                    COALESCE(o.net_flow_tl, 0.0) AS bofa_net_flow_tl,
+                    COALESCE(o.total_turnover_tl, 0.0) AS total_turnover_tl,
+                    LEAD(b.close_price, 1) OVER (ORDER BY b.trade_date) AS lead_p1,
+                    LEAD(b.close_price, 2) OVER (ORDER BY b.trade_date) AS lead_p2,
+                    LEAD(b.close_price, 3) OVER (ORDER BY b.trade_date) AS lead_p3,
+                    LEAD(b.close_price, 5) OVER (ORDER BY b.trade_date) AS lead_p5,
+                    LEAD(b.close_price, 10) OVER (ORDER BY b.trade_date) AS lead_p10
+                FROM silver_daily_benchmark_index b
+                LEFT JOIN (
+                    SELECT trade_date, SUM(net_flow_tl) AS net_flow_tl, SUM(total_turnover_tl) AS total_turnover_tl
+                    FROM silver_daily_broker_overview
+                    WHERE {b_where}
+                    GROUP BY trade_date
+                ) o ON b.trade_date = o.trade_date
+            )
             SELECT 
-                s.trade_date,
-                s.symbol,
-                s.adj_close_price,
-                (s.adj_daily_return_pct * 100.0) AS daily_return_pct,
-                (LAG(s.adj_daily_return_pct, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) * 100.0) AS d1_return_pct,
-                {flow_expr} AS bofa_net_flow_tl,
-                s.total_turnover_tl,
-                LEAD(s.adj_close_price, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p1,
-                LEAD(s.adj_close_price, 2) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p2,
-                LEAD(s.adj_close_price, 3) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p3,
-                LEAD(s.adj_close_price, 5) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p5,
-                LEAD(s.adj_close_price, 10) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p10
-            FROM silver_daily_stock_summary s
-            {broker_join}
-            WHERE {where_clause}
-        )
-        SELECT 
-            trade_date,
-            symbol,
-            adj_close_price,
-            daily_return_pct,
-            d1_return_pct,
-            bofa_net_flow_tl,
-            total_turnover_tl,
-            ROUND(CAST((lead_p1 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t1,
-            ROUND(CAST((lead_p2 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t2,
-            ROUND(CAST((lead_p3 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t3,
-            ROUND(CAST((lead_p5 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t5,
-            ROUND(CAST((lead_p10 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t10
-        FROM ranked_stock
-        WHERE 1=1
-    """
+                trade_date,
+                symbol,
+                adj_close_price,
+                daily_return_pct,
+                d1_return_pct,
+                bofa_net_flow_tl,
+                total_turnover_tl,
+                ROUND(CAST((lead_p1 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t1,
+                ROUND(CAST((lead_p2 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t2,
+                ROUND(CAST((lead_p3 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t3,
+                ROUND(CAST((lead_p5 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t5,
+                ROUND(CAST((lead_p10 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t10
+            FROM all_bench_days
+            WHERE {outer_where}
+            ORDER BY trade_date DESC, ABS(bofa_net_flow_tl) DESC
+            LIMIT %s;
+        """
+        all_params = join_params + outer_params + [limit]
+    else:
+        # Equities scan from silver_daily_stock_summary
+        join_params = []
+        if bid in INSTITUTIONAL_BUNDLES:
+            flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
+            turnover_expr = "COALESCE(b.total_turnover_tl, s.total_turnover_tl)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT trade_date, symbol, SUM(net_flow_tl) AS net_flow_tl, SUM(total_turnover_tl) AS total_turnover_tl
+                    FROM silver_daily_broker_summary
+                    WHERE broker_id = ANY(%s)
+                    GROUP BY trade_date, symbol
+                ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+            """
+            join_params.append(list(INSTITUTIONAL_BUNDLES[bid]))
+        elif bid != "MLB":
+            flow_expr = "COALESCE(b.net_flow_tl, 0.0)"
+            turnover_expr = "COALESCE(b.total_turnover_tl, s.total_turnover_tl)"
+            broker_join = """
+                LEFT JOIN (
+                    SELECT trade_date, symbol, net_flow_tl, total_turnover_tl
+                    FROM silver_daily_broker_summary
+                    WHERE broker_id = %s
+                ) b ON s.trade_date = b.trade_date AND s.symbol = b.symbol
+            """
+            join_params.append(bid)
+        else:
+            flow_expr = "s.bofa_net_flow_tl"
+            turnover_expr = "s.total_turnover_tl"
+            broker_join = ""
 
-    all_params = join_params + params
-    if min_d1_return is not None:
-        query += " AND d1_return_pct >= %s"
-        all_params.append(min_d1_return)
+        cte_conditions = ["1=1"]
+        cte_params: List[Any] = []
+        if sym:
+            cte_conditions.append("s.symbol = %s")
+            cte_params.append(sym)
 
-    if max_d1_return is not None:
-        query += " AND d1_return_pct <= %s"
-        all_params.append(max_d1_return)
+        cte_where = " AND ".join(cte_conditions)
 
-    query += " ORDER BY trade_date DESC, ABS(bofa_net_flow_tl) DESC LIMIT %s;"
-    all_params.append(limit)
+        outer_conditions = ["1=1"]
+        outer_params: List[Any] = []
+
+        if min_flow_tl is not None:
+            outer_conditions.append("bofa_net_flow_tl >= %s")
+            outer_params.append(min_flow_tl)
+        if max_flow_tl is not None:
+            outer_conditions.append("bofa_net_flow_tl <= %s")
+            outer_params.append(max_flow_tl)
+        if min_d1_return is not None:
+            outer_conditions.append("d1_return_pct >= %s")
+            outer_params.append(min_d1_return)
+        if max_d1_return is not None:
+            outer_conditions.append("d1_return_pct <= %s")
+            outer_params.append(max_d1_return)
+
+        outer_where = " AND ".join(outer_conditions)
+
+        query = f"""
+            WITH all_stock_days AS (
+                SELECT 
+                    s.trade_date,
+                    s.symbol,
+                    s.adj_close_price,
+                    (s.adj_daily_return_pct * 100.0) AS daily_return_pct,
+                    (LAG(s.adj_daily_return_pct, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) * 100.0) AS d1_return_pct,
+                    {flow_expr} AS bofa_net_flow_tl,
+                    {turnover_expr} AS total_turnover_tl,
+                    LEAD(s.adj_close_price, 1) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p1,
+                    LEAD(s.adj_close_price, 2) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p2,
+                    LEAD(s.adj_close_price, 3) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p3,
+                    LEAD(s.adj_close_price, 5) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p5,
+                    LEAD(s.adj_close_price, 10) OVER (PARTITION BY s.symbol ORDER BY s.trade_date) AS lead_p10
+                FROM silver_daily_stock_summary s
+                {broker_join}
+                WHERE {cte_where}
+            )
+            SELECT 
+                trade_date,
+                symbol,
+                adj_close_price,
+                daily_return_pct,
+                d1_return_pct,
+                bofa_net_flow_tl,
+                total_turnover_tl,
+                ROUND(CAST((lead_p1 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t1,
+                ROUND(CAST((lead_p2 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t2,
+                ROUND(CAST((lead_p3 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t3,
+                ROUND(CAST((lead_p5 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t5,
+                ROUND(CAST((lead_p10 / NULLIF(adj_close_price, 0) - 1.0) * 100 AS numeric), 2) AS return_t10
+            FROM all_stock_days
+            WHERE {outer_where}
+            ORDER BY trade_date DESC, ABS(bofa_net_flow_tl) DESC
+            LIMIT %s;
+        """
+        all_params = join_params + cte_params + outer_params + [limit]
 
     rows = db.execute(query, all_params).fetchall()
     return [

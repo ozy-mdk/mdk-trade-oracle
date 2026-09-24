@@ -19,6 +19,13 @@ export const EventStudyDashboard: React.FC<EventStudyDashboardProps> = ({
   const [flowPreset, setFlowPreset] = useState<'any' | 'buy50m' | 'buy100m' | 'sell50m'>('buy50m');
   const [d1Preset, setD1Preset] = useState<'all' | 'dip' | 'rally'>('all');
 
+  // Keep symbol in sync if initialSymbol prop changes
+  React.useEffect(() => {
+    if (initialSymbol !== undefined) {
+      setSymbol(initialSymbol);
+    }
+  }, [initialSymbol]);
+
   // Compute query parameters based on presets
   const getQueryParams = () => {
     let minFlow: number | undefined;
@@ -79,12 +86,33 @@ export const EventStudyDashboard: React.FC<EventStudyDashboardProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Symbol (e.g. THYAO or empty for all)"
+                placeholder="Symbol (e.g. THYAO, XU030, or empty)"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value)}
                 className="bg-transparent text-slate-200 placeholder-slate-500 focus:outline-none w-48 font-mono text-xs"
               />
+              {symbol && (
+                <button
+                  onClick={() => setSymbol('')}
+                  title="Clear symbol to scan all equities"
+                  className="text-slate-500 hover:text-slate-300 text-xs px-1"
+                >
+                  ×
+                </button>
+              )}
             </div>
+
+            {/* Quick Toggle All Equities */}
+            <button
+              onClick={() => setSymbol('')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                !symbol.trim()
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All Equities
+            </button>
 
             {/* Institutional Flow Threshold Preset */}
             <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
