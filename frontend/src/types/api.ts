@@ -191,6 +191,25 @@ export interface TertipDiagnostic {
   rationale: string;
 }
 
+export interface HorizonRealization12M {
+  active_stance: string;
+  total_occurrences: number;
+  realized_count: number;
+  opposite_count: number;
+  neutral_count: number;
+  realized_pct: number;
+  opposite_pct: number;
+  neutral_pct: number;
+  next_day_buy_count: number;
+  next_day_sell_count: number;
+  next_day_buy_pct: number;
+  next_day_sell_pct: number;
+  avg_next_day_flow_tl: number;
+  price_up_count: number;
+  price_down_count: number;
+  price_up_pct: number;
+}
+
 export interface TertipHorizonItem {
   code: string;
   label: string;
@@ -203,6 +222,7 @@ export interface TertipHorizonItem {
   saturation_pct: number;
   stance: string;
   description: string;
+  realization_12m?: HorizonRealization12M | null;
 }
 
 export interface TertipHorizonsResponse {
@@ -223,6 +243,8 @@ export interface TertipHorizonsResponse {
   ribbon_status: string;
   diagnostic: TertipDiagnostic;
   horizons: TertipHorizonItem[];
+  fifo_realization_12m?: HorizonRealization12M | null;
+  confluence_realization_12m?: HorizonRealization12M | null;
 }
 
 export interface TertipTimeseriesPoint {
@@ -277,6 +299,7 @@ export interface EwmaHorizonSummaryRow {
   netFlowTl: number;
   stance: string;
   inventoryQty: number;
+  realization_12m?: HorizonRealization12M | null;
 }
 
 export interface EwmaConfluenceSummary {
@@ -287,6 +310,7 @@ export interface EwmaConfluenceSummary {
   overallDirection: ForwardSignalDirection;
   confluenceLabel: string;
   ribbonStatus: string;
+  confluenceRealization?: HorizonRealization12M | null;
   rows: EwmaHorizonSummaryRow[];
 }
 

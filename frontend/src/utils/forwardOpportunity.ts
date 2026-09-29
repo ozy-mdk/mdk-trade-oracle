@@ -160,11 +160,14 @@ export function calculateEwmaConfluence(
     let stance = 'STABLE_CORE_HOLD';
     let inventoryQty = 0;
 
+    let realization_12m = null;
+
     if (item.code === 'FIFO') {
       ewmaCost = tertipData.fifo_avg_cost;
       netFlowTl = tertipData.day_net_flow_tl;
       stance = tertipData.diagnostic.diagnostic_badge;
       inventoryQty = tertipData.open_stock_quantity;
+      realization_12m = tertipData.fifo_realization_12m || null;
     } else {
       const h = (tertipData.horizons || []).find((hItem) => hItem.code === item.code);
       if (h) {
@@ -172,6 +175,7 @@ export function calculateEwmaConfluence(
         netFlowTl = h.cum_net_flow_tl;
         stance = h.stance;
         inventoryQty = h.ewma_inventory_qty;
+        realization_12m = h.realization_12m || null;
       } else {
         ewmaCost = tertipData.fifo_avg_cost;
         netFlowTl = 0;
@@ -213,6 +217,7 @@ export function calculateEwmaConfluence(
       netFlowTl,
       stance,
       inventoryQty,
+      realization_12m,
     });
   }
 
@@ -252,6 +257,7 @@ export function calculateEwmaConfluence(
     overallDirection,
     confluenceLabel,
     ribbonStatus: tertipData.ribbon_status || 'STABLE_CORE_HOLD',
+    confluenceRealization: tertipData.confluence_realization_12m || null,
     rows,
   };
 }

@@ -75,3 +75,46 @@ def test_classify_de_grossing():
         matched_volume_pct=20.0,
     )
     assert diag["diagnostic_badge"] == "DE_GROSSING_UNWIND"
+
+
+def test_compute_12m_horizon_realizations():
+    import polars as pl
+
+    from mdk_trading_oracle.data.silver.tertip_analytics import compute_12m_horizon_realizations
+
+    # Create synthetic DataFrame with 10 sessions
+    dates = [f"2026-01-{i+1:02d}" for i in range(10)]
+    closes = [100.0, 102.0, 95.0, 93.0, 90.0, 94.0, 96.0, 98.0, 105.0, 108.0]
+    flows = [10e6, -5e6, -15e6, 20e6, 25e6, -10e6, 30e6, 15e6, -20e6, 5e6]
+    fifo_costs = [100.0] * 10
+
+    df = pl.DataFrame({
+        "trade_date": dates,
+        "market_close_price": closes,
+        "net_flow_tl": flows,
+        "fifo_avg_cost": fifo_costs,
+        "buy_vwap": closes,
+        "buy_turnover_tl": [50e6] * 10,
+        "entry_price": closes,
+        "entry_size": [50e6] * 10,
+    })
+
+    horizons_data = [
+        {"code": "1D", "label": "Today", "ewma_unit_cost": 100.0},
+        {"code": "1W", "label": "1 Week", "ewma_unit_cost": 100.0},
+    ]
+
+    horizons_res, fifo_res, confluence_res = compute_12m_horizon_realizations(
+        df=df,
+        horizons_data=horizons_data,
+        close_p=108.0,
+        fifo_cost=100.0,
+    )
+
+    assert "1D" in horizons_res
+    assert "1W" in horizons_res
+    assert "total_occurrences" in fifo_res
+    assert "realized_pct" in confluence_res
+    assert isinstance(confluence_res["realized_count"], int)
+    assert isinstance(confluence_res["opposite_count"], int)
+

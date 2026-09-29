@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CandleBar, TertipHorizonsResponse, ForwardHorizonCode, ShockDayItem } from '../types/api';
 import { fetchShockDays } from '../api/client';
 import { calculateForwardOpportunity, calculateEwmaConfluence } from '../utils/forwardOpportunity';
-import { Compass, Target, TrendingUp, TrendingDown, Eye, EyeOff, Table, Zap } from 'lucide-react';
+import { Compass, Target, TrendingUp, TrendingDown, Eye, EyeOff, Table, Zap, BarChart3, History } from 'lucide-react';
 
 interface TradingViewChartProps {
   symbol: string;
@@ -47,7 +47,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
   const [activeCandle, setActiveCandle] = useState<CandleBar | null>(null);
   const [selectedHorizon, setSelectedHorizon] = useState<ForwardHorizonCode>('1M');
   const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
-  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook'>('table');
+  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook' | 'realization'>('table');
   const [showShockDays, setShowShockDays] = useState<boolean>(true);
   const [shockTypeFilter, setShockTypeFilter] = useState<'ALL' | 'POSITIVE' | 'NEGATIVE'>('ALL');
   const [selectedShockDate, setSelectedShockDate] = useState<string | null>(null);
@@ -769,7 +769,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
       {/* Floating Institutional Forward Action Card (Positioned in 15-Bar Forward Whitespace) */}
       {showOutlookZone && outlook && (
-        <div className="absolute top-14 right-14 z-20 w-[390px] glass-panel bg-slate-950/92 backdrop-blur-md border border-slate-700/80 p-3.5 rounded-xl shadow-2xl transition-all pointer-events-auto">
+        <div className="absolute top-14 right-14 z-20 w-[440px] glass-panel bg-slate-950/92 backdrop-blur-md border border-slate-700/80 p-3.5 rounded-xl shadow-2xl transition-all pointer-events-auto">
           {/* Card Header & View Tabs */}
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2.5">
             <div className="flex items-center space-x-1.5">
@@ -779,11 +779,11 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
               </span>
             </div>
 
-            {/* View Mode Toggle: EWMA Table vs. Playbook Outlook */}
+            {/* View Mode Toggle: EWMA Table vs. Playbook Outlook vs. 12M Realizations */}
             <div className="flex items-center space-x-1 bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-[10px] font-mono">
               <button
                 onClick={() => setActionZoneTab('table')}
-                className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors ${
                   actionZoneTab === 'table'
                     ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-white'
@@ -791,11 +791,11 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                 title="View multi-horizon EWMA inventory and cost table"
               >
                 <Table className="w-3 h-3" />
-                <span>EWMA Table</span>
+                <span>EWMA</span>
               </button>
               <button
                 onClick={() => setActionZoneTab('outlook')}
-                className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors ${
                   actionZoneTab === 'outlook'
                     ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-white'
@@ -805,48 +805,83 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                 <Target className="w-3 h-3" />
                 <span>Playbook</span>
               </button>
+              <button
+                onClick={() => setActionZoneTab('realization')}
+                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors ${
+                  actionZoneTab === 'realization'
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="View 12-month historical execution realizations and follow-through track record"
+              >
+                <BarChart3 className="w-3 h-3" />
+                <span>12M Track</span>
+              </button>
             </div>
           </div>
 
           {/* TAB 1: EWMA Multi-Horizon Matrix Table */}
           {actionZoneTab === 'table' && (
             <div className="space-y-2">
-              {/* Confluence & Ribbon Status Bar */}
+              {/* Confluence & Ribbon Status Bar with 12M Realization Summary */}
               {confluence && (
-                <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span
-                    className={`px-2 py-0.5 rounded font-bold border ${
-                      confluence.overallDirection === 'BUY'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : confluence.overallDirection === 'SELL'
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                        : 'bg-slate-800 text-slate-300 border-slate-700'
-                    }`}
-                  >
-                    {confluence.confluenceLabel}
-                  </span>
-                  <span className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40 font-semibold truncate max-w-[150px]">
-                    {confluence.ribbonStatus}
-                  </span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span
+                      className={`px-2 py-0.5 rounded font-bold border ${
+                        confluence.overallDirection === 'BUY'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : confluence.overallDirection === 'SELL'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      {confluence.confluenceLabel}
+                    </span>
+                    <span className="text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40 font-semibold truncate max-w-[150px]">
+                      {confluence.ribbonStatus}
+                    </span>
+                  </div>
+
+                  {confluence.confluenceRealization && confluence.confluenceRealization.total_occurrences > 0 && (
+                    <div className="flex items-center justify-between text-[9.5px] font-mono bg-slate-900/90 px-2 py-1 rounded border border-slate-800">
+                      <span className="text-slate-400 flex items-center space-x-1">
+                        <History className="w-3 h-3 text-cyan-400" />
+                        <span>12M Realization ({confluence.confluenceRealization.total_occurrences}d):</span>
+                      </span>
+                      <span className="font-semibold text-white space-x-1.5">
+                        <span className="text-emerald-400" title="Sessions broker followed through next day in indicated direction">
+                          {confluence.confluenceRealization.realized_pct.toFixed(0)}% Realized ({confluence.confluenceRealization.realized_count}d)
+                        </span>
+                        <span className="text-slate-600">|</span>
+                        <span className="text-rose-400" title="Sessions broker executed in exact opposite direction">
+                          {confluence.confluenceRealization.opposite_pct.toFixed(0)}% Opp ({confluence.confluenceRealization.opposite_count}d)
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Table of all Horizons */}
+              {/* Table of all Horizons with 12M Realization Columns */}
               {confluence && (
                 <div className="overflow-x-auto rounded-lg border border-slate-800/90">
-                  <table className="w-full text-[10px] font-mono border-collapse">
+                  <table className="w-full text-[9.5px] font-mono border-collapse">
                     <thead>
                       <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
                         <th className="text-left px-2 py-1 font-sans">Horizon</th>
-                        <th className="text-right px-1.5 py-1 font-sans">EWMA Cost</th>
+                        <th className="text-right px-1.5 py-1 font-sans">Cost</th>
                         <th className="text-right px-1.5 py-1 font-sans">Spread</th>
                         <th className="text-right px-1.5 py-1 font-sans">Target</th>
-                        <th className="text-right px-2 py-1 font-sans">Stance</th>
+                        <th className="text-center px-1.5 py-1 font-sans">Stance</th>
+                        <th className="text-right px-1.5 py-1 font-sans text-emerald-400" title="Next-day execution in indicated direction (Follow-Through)">Realized</th>
+                        <th className="text-right px-2 py-1 font-sans text-rose-400" title="Next-day execution in exact opposite direction (Adverse Fade)">Opposite</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
                       {confluence.rows.map((row) => {
                         const isSelected = selectedHorizon === row.code;
+                        const r = row.realization_12m;
                         return (
                           <tr
                             key={row.code}
@@ -890,9 +925,9 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                               {row.potentialReturnPct >= 0 ? '+' : ''}
                               {row.potentialReturnPct.toFixed(1)}%
                             </td>
-                            <td className="text-right px-2 py-1.5">
+                            <td className="text-center px-1.5 py-1.5">
                               <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                className={`px-1 py-0.2 rounded text-[8.5px] font-bold border ${
                                   row.direction === 'BUY'
                                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                                     : row.direction === 'SELL'
@@ -902,6 +937,24 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                               >
                                 {row.direction}
                               </span>
+                            </td>
+                            <td className="text-right px-1.5 py-1.5 font-semibold text-emerald-400">
+                              {r && r.total_occurrences > 0 ? (
+                                <span title={`Follow-through: ${r.realized_count} of ${r.total_occurrences} sessions (${r.total_occurrences}d total)`}>
+                                  {r.realized_pct.toFixed(0)}%
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="text-right px-2 py-1.5 font-semibold text-rose-400">
+                              {r && r.total_occurrences > 0 ? (
+                                <span title={`Opposite fade: ${r.opposite_count} of ${r.total_occurrences} sessions (${r.total_occurrences}d total)`}>
+                                  {r.opposite_pct.toFixed(0)}%
+                                </span>
+                              ) : (
+                                '—'
+                              )}
                             </td>
                           </tr>
                         );
@@ -926,6 +979,186 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
               </div>
               <div className="text-[9px] text-slate-500 italic text-center">
                 Click any row to project that horizon's target line onto the chart
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: 12-Month Historical Realizations & Track Record */}
+          {actionZoneTab === 'realization' && confluence && (
+            <div className="space-y-2.5">
+              {/* Confluence 12M Follow-Through Header Card */}
+              <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <History className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-[11px] font-bold text-white tracking-wide">
+                      12-Month Confluence Realization
+                    </span>
+                  </div>
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                      confluence.overallDirection === 'BUY'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : confluence.overallDirection === 'SELL'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {confluence.overallDirection} STANCE
+                  </span>
+                </div>
+
+                {confluence.confluenceRealization && confluence.confluenceRealization.total_occurrences > 0 ? (
+                  <>
+                    {/* Key Metrics 4-Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-mono text-[10px]">
+                      <div className="bg-slate-950/70 p-2 rounded border border-slate-800/80">
+                        <div className="text-slate-400 text-[9px]">12M Occurrences</div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          {confluence.confluenceRealization.total_occurrences} <span className="text-[10px] text-slate-400 font-normal">sessions</span>
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 mt-0.5">Prior ~252 trading days</div>
+                      </div>
+
+                      <div className="bg-slate-950/70 p-2 rounded border border-slate-800/80">
+                        <div className="text-slate-400 text-[9px]">Realized Follow-Through</div>
+                        <div className="text-sm font-bold text-emerald-400 mt-0.5">
+                          {confluence.confluenceRealization.realized_pct.toFixed(1)}%
+                        </div>
+                        <div className="text-[8.5px] text-emerald-500/80 mt-0.5">
+                          {confluence.confluenceRealization.realized_count} of {confluence.confluenceRealization.total_occurrences} next-day follow-through
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-950/70 p-2 rounded border border-slate-800/80">
+                        <div className="text-slate-400 text-[9px]">Adverse Opposite (Fade)</div>
+                        <div className="text-sm font-bold text-rose-400 mt-0.5">
+                          {confluence.confluenceRealization.opposite_pct.toFixed(1)}%
+                        </div>
+                        <div className="text-[8.5px] text-rose-500/80 mt-0.5">
+                          {confluence.confluenceRealization.opposite_count} of {confluence.confluenceRealization.total_occurrences} executed exact opposite
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-950/70 p-2 rounded border border-slate-800/80">
+                        <div className="text-slate-400 text-[9px]">Avg Next-Day Flow</div>
+                        <div className={`text-sm font-bold mt-0.5 ${
+                          confluence.confluenceRealization.avg_next_day_flow_tl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {confluence.confluenceRealization.avg_next_day_flow_tl >= 0 ? '+' : ''}
+                          ₺{(confluence.confluenceRealization.avg_next_day_flow_tl / 1e6).toFixed(1)}M
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 mt-0.5">
+                          Stock Price Up: {confluence.confluenceRealization.price_up_pct.toFixed(0)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Visual Follow-Through Ratio Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] font-mono">
+                        <span className="text-emerald-400 font-semibold">
+                          Follow-Through: {confluence.confluenceRealization.realized_pct.toFixed(1)}%
+                        </span>
+                        <span className="text-rose-400 font-semibold">
+                          Opposite: {confluence.confluenceRealization.opposite_pct.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-300"
+                          style={{ width: `${confluence.confluenceRealization.realized_pct}%` }}
+                        />
+                        <div
+                          className="bg-rose-500 h-full transition-all duration-300"
+                          style={{ width: `${confluence.confluenceRealization.opposite_pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[10px] text-slate-400 py-2 text-center italic">
+                    No historical occurrences matching this exact confluence in the past 12 months.
+                  </div>
+                )}
+              </div>
+
+              {/* Horizon Breakdown Table */}
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold text-slate-300 tracking-wide flex items-center justify-between">
+                  <span>Horizon Realization Matrix</span>
+                  <span className="text-[9px] text-slate-500 font-mono">Prior ~252 Sessions</span>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-slate-800/90">
+                  <table className="w-full text-[9.5px] font-mono border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                        <th className="text-left px-2 py-1 font-sans">Horizon</th>
+                        <th className="text-center px-1.5 py-1 font-sans">Stance</th>
+                        <th className="text-right px-1.5 py-1 font-sans">12M Days</th>
+                        <th className="text-right px-1.5 py-1 font-sans text-emerald-400">Realized</th>
+                        <th className="text-right px-1.5 py-1 font-sans text-rose-400">Opposite</th>
+                        <th className="text-right px-2 py-1 font-sans">Avg Flow</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                      {confluence.rows.map((row) => {
+                        const r = row.realization_12m;
+                        return (
+                          <tr key={row.code} className="hover:bg-slate-800/40 text-slate-300">
+                            <td className="px-2 py-1.5 font-bold text-white">{row.code}</td>
+                            <td className="text-center px-1.5 py-1.5">
+                              <span
+                                className={`px-1 py-0.2 rounded text-[8.5px] font-bold border ${
+                                  row.direction === 'BUY'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                    : row.direction === 'SELL'
+                                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}
+                              >
+                                {row.direction}
+                              </span>
+                            </td>
+                            <td className="text-right px-1.5 py-1.5 text-slate-300">
+                              {r ? `${r.total_occurrences}d` : '—'}
+                            </td>
+                            <td className="text-right px-1.5 py-1.5 font-semibold text-emerald-400">
+                              {r && r.total_occurrences > 0 ? (
+                                <span title={`${r.realized_count}/${r.total_occurrences} sessions`}>
+                                  {r.realized_pct.toFixed(0)}%
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="text-right px-1.5 py-1.5 font-semibold text-rose-400">
+                              {r && r.total_occurrences > 0 ? (
+                                <span title={`${r.opposite_count}/${r.total_occurrences} sessions`}>
+                                  {r.opposite_pct.toFixed(0)}%
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className={`text-right px-2 py-1.5 ${
+                              (r?.avg_next_day_flow_tl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}>
+                              {r && r.total_occurrences > 0 ? (
+                                `${((r.avg_next_day_flow_tl) / 1e6).toFixed(0)}M`
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-[8.5px] text-slate-500 italic text-center pt-0.5">
+                  Realized = broker executed in expected direction on T+1 | Opposite = executed adverse flow
+                </div>
               </div>
             </div>
           )}

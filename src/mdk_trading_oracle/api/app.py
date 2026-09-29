@@ -155,6 +155,25 @@ class TertipDiagnostic(BaseModel):
     rationale: str
 
 
+class HorizonRealization12M(BaseModel):
+    active_stance: str
+    total_occurrences: int
+    realized_count: int
+    opposite_count: int
+    neutral_count: int
+    realized_pct: float
+    opposite_pct: float
+    neutral_pct: float
+    next_day_buy_count: int = 0
+    next_day_sell_count: int = 0
+    next_day_buy_pct: float = 0.0
+    next_day_sell_pct: float = 0.0
+    avg_next_day_flow_tl: float = 0.0
+    price_up_count: int = 0
+    price_down_count: int = 0
+    price_up_pct: float = 0.0
+
+
 class TertipHorizonItem(BaseModel):
     code: str
     label: str
@@ -167,6 +186,7 @@ class TertipHorizonItem(BaseModel):
     saturation_pct: float
     stance: str
     description: str
+    realization_12m: Optional[HorizonRealization12M] = None
 
 
 class TertipHorizonsResponse(BaseModel):
@@ -187,6 +207,8 @@ class TertipHorizonsResponse(BaseModel):
     ribbon_status: str
     diagnostic: TertipDiagnostic
     horizons: List[TertipHorizonItem]
+    fifo_realization_12m: Optional[HorizonRealization12M] = None
+    confluence_realization_12m: Optional[HorizonRealization12M] = None
 
 
 class TertipTimeseriesPoint(BaseModel):
