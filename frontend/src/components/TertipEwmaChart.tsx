@@ -8,12 +8,13 @@ import {
   ColorType,
 } from 'lightweight-charts';
 import { useQuery } from '@tanstack/react-query';
-import { fetchTertipTimeseries, fetchTertipHorizons, fetchShockDays } from '../api/client';
+import { fetchTertipTimeseries, fetchTertipHorizons, fetchShockDays, fetchTertipMlForecast } from '../api/client';
 import {
   TertipTimeseriesPoint,
   TertipHorizonsResponse,
   ForwardHorizonCode,
   ShockDayItem,
+  TertipMlForecastResponse,
 } from '../types/api';
 import { formatVolume } from '../utils/formatters';
 import {
@@ -31,6 +32,7 @@ import {
   Zap,
   BarChart3,
   History,
+  Award,
 } from 'lucide-react';
 
 interface TertipEwmaChartProps {
@@ -97,13 +99,20 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
   // Action Zone State
   const [showOutlookZone, setShowOutlookZone] = useState<boolean>(true);
-  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook' | 'realization'>('table');
+  const [actionZoneTab, setActionZoneTab] = useState<'table' | 'outlook' | 'realization' | 'forecast' | 'track30d'>('forecast');
   const [selectedHorizon, setSelectedHorizon] = useState<ForwardHorizonCode>('3M');
 
   // Hover inspector state
   const [hoveredPoint, setHoveredPoint] = useState<TertipTimeseriesPoint | null>(null);
   const timeseriesRef = useRef<TertipTimeseriesPoint[]>([]);
   const timeMapRef = useRef<Map<string | number, TertipTimeseriesPoint>>(new Map());
+
+  // Fetch Tertip 3-Pillar ML Forecast & 30-Day Walk-Forward Track
+  const { data: mlForecast } = useQuery<TertipMlForecastResponse>({
+    queryKey: ['tertipMlForecast', symbol],
+    queryFn: () => fetchTertipMlForecast(symbol),
+    staleTime: 1000 * 60 * 5,
+  });
 
   // Fetch Time Series Data (all available history up to latest date)
   const { data: timeseries, isLoading, error } = useQuery({
@@ -1106,6 +1115,30 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                   <BarChart3 className="w-3 h-3" />
                   <span>12M Track</span>
                 </button>
+                <button
+                  onClick={() => setActionZoneTab('forecast')}
+                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors ${
+                    actionZoneTab === 'forecast'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="View live tomorrow (T+1) forecast and 3-Pillar institutional matrix"
+                >
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>Forecast</span>
+                </button>
+                <button
+                  onClick={() => setActionZoneTab('track30d')}
+                  className={`flex items-center space-x-1 px-1.5 py-0.5 rounded transition-colors ${
+                    actionZoneTab === 'track30d'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/50 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="View 30-day zero-lookahead walk-forward reality ledger and realized actions"
+                >
+                  <Award className="w-3 h-3 text-cyan-400" />
+                  <span>30D Track</span>
+                </button>
               </div>
             </div>
 
@@ -1548,6 +1581,333 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                 <div className="text-[10px] text-slate-400 leading-tight border-t border-slate-800/60 pt-1.5">
                   {outlook.rationale}
                 </div>
+              </div>
+            )}
+
+            {/* TAB 4: Live Tomorrow (T+1) ML Forecaster & 3-Pillar Synthesis */}
+            {actionZoneTab === 'forecast' && (
+              <div className="space-y-2.5">
+                {mlForecast ? (
+                  <>
+                    {/* Champion & Stance Header Banner */}
+                    <div className="flex flex-wrap items-center justify-between gap-1 bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          <Award className="w-3 h-3 text-amber-400" />
+                          <span>CHAMPION: {mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? 'TERTIP ML' : 'PROPHET BASE'}</span>
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          ({mlForecast.tournament_summary.ml_wins}/{mlForecast.tournament_summary.total_sessions}d won)
+                        </span>
+                      </div>
+
+                      <span
+                        className={`px-2 py-0.5 rounded text-[9.5px] font-bold border tracking-wider font-mono ${
+                          mlForecast.stance.includes('BUY')
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : mlForecast.stance.includes('SELL')
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {mlForecast.stance_badge}
+                      </span>
+                    </div>
+
+                    {/* Price Projection 3-Card Summary */}
+                    <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                      <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+                        <div className="text-[9px] text-slate-400">ML Target (T+1)</div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          ₺{mlForecast.target_price.toFixed(2)}
+                        </div>
+                        <div className={`text-[9px] font-semibold ${
+                          mlForecast.expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {mlForecast.expected_return_pct >= 0 ? '+' : ''}{mlForecast.expected_return_pct.toFixed(2)}%
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+                        <div className="text-[9px] text-slate-400">90% Range Envelope</div>
+                        <div className="text-[11px] font-semibold text-slate-200 mt-1">
+                          ₺{mlForecast.price_low.toFixed(1)} – ₺{mlForecast.price_high.toFixed(1)}
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 mt-0.5">
+                          As of {mlForecast.as_of_date}
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+                        <div className="text-[9px] text-slate-400">Prophet Baseline</div>
+                        <div className="text-[11.5px] font-bold text-slate-300 mt-0.5">
+                          ₺{mlForecast.prophet_target_price.toFixed(2)}
+                        </div>
+                        <div className={`text-[9px] ${
+                          mlForecast.prophet_expected_return_pct >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'
+                        }`}>
+                          {mlForecast.prophet_expected_return_pct >= 0 ? '+' : ''}{mlForecast.prophet_expected_return_pct.toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3-Pillar Institutional Balance Matrix */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-300 tracking-wide flex items-center justify-between">
+                        <span className="flex items-center space-x-1">
+                          <Zap className="w-3 h-3 text-cyan-400" />
+                          <span>3-Pillar Institutional Market Forces</span>
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">MLB + BIG5 + KAMU</span>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-lg border border-slate-800/90">
+                        <table className="w-full text-[9.5px] font-mono border-collapse">
+                          <thead>
+                            <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                              <th className="text-left px-2 py-1 font-sans">Pillar</th>
+                              <th className="text-center px-1.5 py-1 font-sans">Potential</th>
+                              <th className="text-right px-1.5 py-1 font-sans text-emerald-400" title="Historical follow-through rate on T+1">Realized</th>
+                              <th className="text-right px-1.5 py-1 font-sans text-rose-400" title="Historical opposite adverse execution rate on T+1">Opposite</th>
+                              <th className="text-left px-2 py-1 font-sans">Expected Action</th>
+                              <th className="text-right px-2 py-1 font-sans" title="Market share of total stock turnover">Volume %</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                            {mlForecast.pillar_matrix.map((p) => (
+                              <tr key={p.pillar} className="hover:bg-slate-800/40 text-slate-300">
+                                <td className="px-2 py-1.5 font-bold text-white">
+                                  <div>{p.pillar}</div>
+                                  <div className="text-[8px] text-slate-500 font-sans font-normal truncate max-w-[80px]">
+                                    {p.desc}
+                                  </div>
+                                </td>
+                                <td className="text-center px-1.5 py-1.5">
+                                  <span
+                                    className={`px-1 py-0.2 rounded text-[8.5px] font-bold border ${
+                                      p.stance === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                        : p.stance === 'SELL'
+                                        ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                                    }`}
+                                  >
+                                    {p.stance}
+                                  </span>
+                                </td>
+                                <td className="text-right px-1.5 py-1.5 text-emerald-400 font-semibold">
+                                  {p.realized_pct.toFixed(0)}%
+                                </td>
+                                <td className="text-right px-1.5 py-1.5 text-rose-400 font-semibold">
+                                  {p.opposite_pct.toFixed(0)}%
+                                </td>
+                                <td className="px-2 py-1.5 font-semibold text-slate-200">
+                                  <div>{p.expected_action}</div>
+                                  <div className={`text-[8.5px] ${
+                                    p.expected_flow_tl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                  }`}>
+                                    {p.expected_flow_tl >= 0 ? '+' : ''}₺{(p.expected_flow_tl / 1e6).toFixed(0)}M
+                                  </div>
+                                </td>
+                                <td className="text-right px-2 py-1.5 text-cyan-300 font-semibold">
+                                  {p.turnover_share_pct.toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Playbook Rationale */}
+                    <div className="text-[10px] text-slate-400 leading-tight bg-slate-900/60 p-2 rounded border border-slate-800/80">
+                      <span className="font-semibold text-slate-300 font-sans">Tactical Assessment: </span>
+                      {mlForecast.playbook_rationale}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-xs font-mono">
+                    Loading 3-Pillar Machine Learning forecast...
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: 30-Day Walk-Forward Reality Ledger & Realized Pillar Actions */}
+            {actionZoneTab === 'track30d' && (
+              <div className="space-y-2.5">
+                {mlForecast ? (
+                  <>
+                    {/* 30-Day Scorecard */}
+                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-300">
+                        <span>30-Day Zero-Lookahead Arena</span>
+                        <span className="text-cyan-400 font-mono">Prior 30 Trading Sessions</span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
+                        <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
+                          <div className="text-[8.5px] text-slate-400">ML Hit Rate</div>
+                          <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                            {mlForecast.tournament_summary.ml_hit_rate_pct.toFixed(1)}%
+                          </div>
+                          <div className="text-[8px] text-slate-500">
+                            {mlForecast.tournament_summary.ml_wins} days won
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
+                          <div className="text-[8.5px] text-slate-400">Prophet Hit Rate</div>
+                          <div className="text-xs font-bold text-slate-300 mt-0.5">
+                            {mlForecast.tournament_summary.prophet_hit_rate_pct.toFixed(1)}%
+                          </div>
+                          <div className="text-[8px] text-slate-500">
+                            {mlForecast.tournament_summary.prophet_wins} days won
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
+                          <div className="text-[8.5px] text-slate-400">ML MAE</div>
+                          <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                            {mlForecast.tournament_summary.ml_mae_pct.toFixed(2)}%
+                          </div>
+                          <div className="text-[8px] text-emerald-500/80">Lower Error</div>
+                        </div>
+
+                        <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
+                          <div className="text-[8.5px] text-slate-400">Prophet MAE</div>
+                          <div className="text-xs font-bold text-rose-400 mt-0.5">
+                            {mlForecast.tournament_summary.prophet_mae_pct.toFixed(2)}%
+                          </div>
+                          <div className="text-[8px] text-rose-500/80">Higher Error</div>
+                        </div>
+                      </div>
+
+                      {/* Win Ratio Visual Bar */}
+                      <div className="space-y-0.5">
+                        <div className="flex justify-between text-[8.5px] font-mono">
+                          <span className="text-emerald-400 font-semibold">
+                            ML Wins: {mlForecast.tournament_summary.ml_wins}d
+                          </span>
+                          <span className="text-cyan-400 font-semibold">
+                            Prophet Wins: {mlForecast.tournament_summary.prophet_wins}d
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex">
+                          <div
+                            className="bg-emerald-500 h-full transition-all duration-300"
+                            style={{
+                              width: `${(mlForecast.tournament_summary.ml_wins / mlForecast.tournament_summary.total_sessions) * 100}%`,
+                            }}
+                          />
+                          <div
+                            className="bg-cyan-500 h-full transition-all duration-300"
+                            style={{
+                              width: `${(mlForecast.tournament_summary.prophet_wins / mlForecast.tournament_summary.total_sessions) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 30-Day Walk-Forward Reality Ledger Table */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-300 tracking-wide flex items-center justify-between">
+                        <span>Out-of-Sample Walk-Forward Reality Ledger</span>
+                        <span className="text-[8.5px] text-slate-500 font-mono">Ground-Truth Pillar Actions</span>
+                      </div>
+
+                      <div className="overflow-x-auto max-h-56 overflow-y-auto rounded-lg border border-slate-800/90">
+                        <table className="w-full text-[9px] font-mono border-collapse">
+                          <thead className="sticky top-0 bg-slate-900 border-b border-slate-800 z-10">
+                            <tr className="text-slate-400">
+                              <th className="text-left px-2 py-1 font-sans">Date</th>
+                              <th className="text-right px-1.5 py-1 font-sans">Actual</th>
+                              <th className="text-right px-1.5 py-1 font-sans text-cyan-300">ML Pred</th>
+                              <th className="text-right px-1.5 py-1 font-sans">Prophet</th>
+                              <th className="text-center px-1.5 py-1 font-sans">MLB Did</th>
+                              <th className="text-center px-1.5 py-1 font-sans">BIG5 Did</th>
+                              <th className="text-center px-1.5 py-1 font-sans">KAMU Did</th>
+                              <th className="text-center px-1.5 py-1 font-sans">Winner</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
+                            {mlForecast.walk_forward_ledger.map((row) => (
+                              <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
+                                <td className="px-2 py-1 text-slate-400 font-bold">
+                                  {row.date.slice(5)}
+                                </td>
+                                <td className="text-right px-1.5 py-1 text-white font-semibold">
+                                  <div>₺{row.actual_price.toFixed(2)}</div>
+                                  <div className={`text-[8px] ${
+                                    row.actual_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                  }`}>
+                                    {row.actual_return_pct >= 0 ? '+' : ''}{row.actual_return_pct.toFixed(1)}%
+                                  </div>
+                                </td>
+                                <td className="text-right px-1.5 py-1 text-cyan-300">
+                                  <div>₺{row.ml_pred_price.toFixed(2)}</div>
+                                  <div className="text-[8px] text-slate-400">
+                                    {row.ml_err_pct.toFixed(1)}% {row.ml_is_hit ? '✓' : '✗'}
+                                  </div>
+                                </td>
+                                <td className="text-right px-1.5 py-1 text-slate-300">
+                                  <div>₺{row.prophet_pred_price.toFixed(2)}</div>
+                                  <div className="text-[8px] text-slate-500">
+                                    {row.prophet_err_pct.toFixed(1)}% {row.prophet_is_hit ? '✓' : '✗'}
+                                  </div>
+                                </td>
+                                <td className="text-center px-1.5 py-1">
+                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                    row.mlb_action === 'BUY'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : 'bg-rose-500/20 text-rose-400'
+                                  }`}>
+                                    {row.mlb_action} {row.mlb_flow_tl >= 0 ? '+' : ''}{(row.mlb_flow_tl / 1e6).toFixed(0)}M
+                                  </span>
+                                </td>
+                                <td className="text-center px-1.5 py-1">
+                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                    row.big5_action === 'BUY'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : 'bg-rose-500/20 text-rose-400'
+                                  }`}>
+                                    {row.big5_action} {row.big5_flow_tl >= 0 ? '+' : ''}{(row.big5_flow_tl / 1e6).toFixed(0)}M
+                                  </span>
+                                </td>
+                                <td className="text-center px-1.5 py-1">
+                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                    row.kamu_action === 'BUY'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : 'bg-rose-500/20 text-rose-400'
+                                  }`}>
+                                    {row.kamu_action} {row.kamu_flow_tl >= 0 ? '+' : ''}{(row.kamu_flow_tl / 1e6).toFixed(0)}M
+                                  </span>
+                                </td>
+                                <td className="text-center px-1.5 py-1 font-bold">
+                                  <span className={`px-1.5 py-0.2 rounded text-[8px] border ${
+                                    row.winner === 'CHALLENGER'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                      : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  }`}>
+                                    {row.winner === 'CHALLENGER' ? 'ML' : 'PROPHET'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="text-[8px] text-slate-500 italic text-center pt-0.5">
+                        Ground truth actions logged from daily broker clearing records (silver_daily_broker_summary)
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-xs font-mono">
+                    Loading 30-day walk-forward ledger...
+                  </div>
+                )}
               </div>
             )}
           </div>

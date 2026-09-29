@@ -328,5 +328,71 @@ export interface ShockDayItem {
   shock_magnitude_pct: number;
 }
 
+export interface PillarMatrixItem {
+  pillar: string;
+  name: string;
+  desc: string;
+  stance: string;
+  realized_pct: number;
+  opposite_pct: number;
+  expected_action: string;
+  expected_flow_tl: number;
+  turnover_share_pct: number;
+  price_up_pct: number;
+}
+
+export interface WalkForwardLedgerItem {
+  date: string;
+  actual_price: number;
+  actual_return_pct: number;
+  ml_pred_price: number;
+  ml_err_pct: number;
+  ml_is_hit: boolean;
+  prophet_pred_price: number;
+  prophet_err_pct: number;
+  prophet_is_hit: boolean;
+  winner: 'CHALLENGER' | 'BASE';
+  mlb_action: string;
+  mlb_flow_tl: number;
+  big5_action: string;
+  big5_flow_tl: number;
+  kamu_action: string;
+  kamu_flow_tl: number;
+}
+
+export interface TournamentSummary {
+  champion: string;
+  champion_label: string;
+  ml_hit_rate_pct: number;
+  ml_mae_pct: number;
+  ml_wins: number;
+  prophet_hit_rate_pct: number;
+  prophet_mae_pct: number;
+  prophet_wins: number;
+  total_sessions: number;
+}
+
+export interface TertipMlForecastResponse {
+  symbol: string;
+  as_of_date: string;
+  latest_close_price: number;
+  target_price: number;
+  expected_return_pct: number;
+  price_low: number;
+  price_high: number;
+  stance: string;
+  stance_badge: string;
+  stance_color: string;
+  prophet_target_price: number;
+  prophet_expected_return_pct: number;
+  playbook_headline: string;
+  playbook_rationale: string;
+  tournament_summary: TournamentSummary;
+  pillar_matrix: PillarMatrixItem[];
+  walk_forward_ledger: WalkForwardLedgerItem[];
+  calculated_at: string;
+}
+
+
 
 

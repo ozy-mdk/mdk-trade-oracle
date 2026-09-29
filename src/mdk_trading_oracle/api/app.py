@@ -23,6 +23,7 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
     get_tertip_horizons_analysis,
     get_tertip_timeseries_chart,
 )
+from mdk_trading_oracle.data.silver.tertip_ml_forecaster import get_tertip_ml_forecast
 
 logger = get_logger("mdk_oracle.api")
 
@@ -209,6 +210,71 @@ class TertipHorizonsResponse(BaseModel):
     horizons: List[TertipHorizonItem]
     fifo_realization_12m: Optional[HorizonRealization12M] = None
     confluence_realization_12m: Optional[HorizonRealization12M] = None
+
+
+class PillarMatrixItem(BaseModel):
+    pillar: str
+    name: str
+    desc: str
+    stance: str
+    realized_pct: float
+    opposite_pct: float
+    expected_action: str
+    expected_flow_tl: float
+    turnover_share_pct: float
+    price_up_pct: float
+
+
+class WalkForwardLedgerItem(BaseModel):
+    date: str
+    actual_price: float
+    actual_return_pct: float
+    ml_pred_price: float
+    ml_err_pct: float
+    ml_is_hit: bool
+    prophet_pred_price: float
+    prophet_err_pct: float
+    prophet_is_hit: bool
+    winner: str
+    mlb_action: str
+    mlb_flow_tl: float
+    big5_action: str
+    big5_flow_tl: float
+    kamu_action: str
+    kamu_flow_tl: float
+
+
+class TournamentSummary(BaseModel):
+    champion: str
+    champion_label: str
+    ml_hit_rate_pct: float
+    ml_mae_pct: float
+    ml_wins: int
+    prophet_hit_rate_pct: float
+    prophet_mae_pct: float
+    prophet_wins: int
+    total_sessions: int
+
+
+class TertipMlForecastResponse(BaseModel):
+    symbol: str
+    as_of_date: str
+    latest_close_price: float
+    target_price: float
+    expected_return_pct: float
+    price_low: float
+    price_high: float
+    stance: str
+    stance_badge: str
+    stance_color: str
+    prophet_target_price: float
+    prophet_expected_return_pct: float
+    playbook_headline: str
+    playbook_rationale: str
+    tournament_summary: TournamentSummary
+    pillar_matrix: List[PillarMatrixItem]
+    walk_forward_ledger: List[WalkForwardLedgerItem]
+    calculated_at: str
 
 
 class TertipTimeseriesPoint(BaseModel):
@@ -1404,6 +1470,23 @@ def get_tertip_timeseries(
         return [TertipTimeseriesPoint(**r) for r in rows]
     except Exception as e:
         logger.error(f"Error computing tertip timeseries for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tertip/ml-forecast", response_model=TertipMlForecastResponse)
+def get_tertip_ml_forecast_endpoint(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+) -> TertipMlForecastResponse:
+    """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
+    try:
+        data = get_tertip_ml_forecast(db, symbol)
+        if "error" in data:
+            raise HTTPException(status_code=404, detail=data["error"])
+        return TertipMlForecastResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing ML forecast for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
