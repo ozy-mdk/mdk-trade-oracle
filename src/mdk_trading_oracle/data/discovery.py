@@ -136,6 +136,8 @@ KNOWN_BROKERS_META: Dict[str, Dict[str, Any]] = {
     "FBY": {"name": "Fibabanka Yatırım Menkul Değerler", "type": "Domestic Broker", "is_primary_target": False},
     "IAZ": {"name": "İnteraktif Yatırım Menkul Değerler", "type": "Domestic Broker", "is_primary_target": False},
     "ICT": {"name": "ICBC Turkey Yatırım Menkul Değerler", "type": "Institutional / Bank", "is_primary_target": False},
+    "AXM": {"name": "Aktif Yatırım Menkul Değerler", "type": "Domestic Broker", "is_primary_target": False},
+    "XXX": {"name": "Borsa İstanbul Eşleşme / Özel İşlem", "type": "Exchange System", "is_primary_target": False},
 }
 
 
