@@ -829,24 +829,24 @@ class BronzeIngestor:
             else:
                 eff_target_date = target_end_date
         else:
+            candidates = []
             has_stock_sum = conn.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'silver_daily_stock_summary';"
             ).fetchone()[0]
-            max_mkt_date = None
             if has_stock_sum > 0:
                 mkt_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
                 if mkt_res and mkt_res[0]:
-                    max_mkt_date = mkt_res[0]
-            if max_mkt_date is None:
-                has_trades = conn.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
-                ).fetchone()[0]
-                if has_trades > 0:
-                    trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
-                    if trade_res and trade_res[0]:
-                        max_mkt_date = trade_res[0]
+                    candidates.append(mkt_res[0] if isinstance(mkt_res[0], date) else datetime.strptime(str(mkt_res[0])[:10], "%Y-%m-%d").date())
 
-            eff_target_date = max_mkt_date
+            has_trades = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
+            ).fetchone()[0]
+            if has_trades > 0:
+                trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
+                if trade_res and trade_res[0]:
+                    candidates.append(trade_res[0] if isinstance(trade_res[0], date) else datetime.strptime(str(trade_res[0])[:10], "%Y-%m-%d").date())
+
+            eff_target_date = max(candidates) if candidates else None
 
         if eff_target_date is None or eff_target_date <= max_cbrt_date:
             logger.debug(
@@ -1045,24 +1045,24 @@ class BronzeIngestor:
             else:
                 eff_target_date = target_end_date
         else:
+            candidates = []
             has_stock_sum = conn.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'silver_daily_stock_summary';"
             ).fetchone()[0]
-            max_mkt_date = None
             if has_stock_sum > 0:
                 mkt_res = conn.execute("SELECT MAX(trade_date) FROM silver_daily_stock_summary;").fetchone()
                 if mkt_res and mkt_res[0]:
-                    max_mkt_date = mkt_res[0]
-            if max_mkt_date is None:
-                has_trades = conn.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
-                ).fetchone()[0]
-                if has_trades > 0:
-                    trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
-                    if trade_res and trade_res[0]:
-                        max_mkt_date = trade_res[0]
+                    candidates.append(mkt_res[0] if isinstance(mkt_res[0], date) else datetime.strptime(str(mkt_res[0])[:10], "%Y-%m-%d").date())
 
-            eff_target_date = max_mkt_date
+            has_trades = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_raw_trades';"
+            ).fetchone()[0]
+            if has_trades > 0:
+                trade_res = conn.execute("SELECT CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;").fetchone()
+                if trade_res and trade_res[0]:
+                    candidates.append(trade_res[0] if isinstance(trade_res[0], date) else datetime.strptime(str(trade_res[0])[:10], "%Y-%m-%d").date())
+
+            eff_target_date = max(candidates) if candidates else None
 
         if eff_target_date is None or eff_target_date <= max_bench_date:
             return {"forward_filled_count": 0, "max_bench_date": str(max_bench_date), "status": "already_synced"}
