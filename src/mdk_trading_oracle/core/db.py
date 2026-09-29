@@ -100,6 +100,21 @@ TABLE_PKS = {
 
 def normalize_pg_query(q: str) -> str:
     """Normalize query placeholders and dialect constructs for standard PostgreSQL execution."""
+    q_stripped = q.strip()
+    # Rewrite DuckDB/MySQL SHOW TABLES to PostgreSQL information_schema query
+    if re.match(r"^SHOW\s+TABLES\s*;?$", q_stripped, re.IGNORECASE):
+        return "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
+
+    # Rewrite DuckDB PRAGMA table_info('...') to PostgreSQL information_schema query
+    m_pragma = re.match(r"^PRAGMA\s+table_info\s*\(\s*['\"]?(\w+)['\"]?\s*\)\s*;?$", q_stripped, re.IGNORECASE)
+    if m_pragma:
+        tbl_name = m_pragma.group(1).lower()
+        return (
+            f"SELECT ordinal_position - 1 AS cid, column_name AS name, data_type AS type, "
+            f"CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END AS notnull, column_default AS dflt_value, 0 AS pk "
+            f"FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '{tbl_name}' ORDER BY ordinal_position;"
+        )
+
     q = q.replace("?", "%s")
 
     # Rewrite DuckDB QUANTILE_CONT to PostgreSQL percentile_cont WITHIN GROUP (ORDER BY ...)
