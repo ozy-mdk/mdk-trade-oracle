@@ -167,7 +167,7 @@ def test_tertip_history(client):
     assert isinstance(points, list)
 
 
-def test_event_study_scan(client):
+def test_event_study_scan_simple(client):
     response = client.get("/api/v1/event-study/scan?symbol=THYAO&limit=10")
     assert response.status_code == 200
     items = response.json()
