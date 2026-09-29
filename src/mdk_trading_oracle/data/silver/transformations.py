@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import polars as pl
@@ -1465,6 +1466,45 @@ class SilverTransformer:
         engine = StockReactionThresholdEngine(self.db)
         return engine.compute_and_persist()
 
+    def refresh_candlestick_aggregates(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
+        """Refresh TimescaleDB continuous aggregate views for candlesticks."""
+        conn = self.db.get_connection()
+        try:
+            caggs = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT view_name FROM timescaledb_information.continuous_aggregates;"
+                ).fetchall()
+            ]
+            if not caggs:
+                return {"status": "skipped", "reason": "no_continuous_aggregates"}
+
+            if target_dates:
+                min_d = min(target_dates)
+                max_d_dt = datetime.strptime(max(target_dates), "%Y-%m-%d").date() + timedelta(days=1)
+                max_d = str(max_d_dt)
+            else:
+                m_row = conn.execute(
+                    "SELECT CAST(MIN(timestamp) AS DATE), CAST(MAX(timestamp) AS DATE) FROM bronze_raw_trades;"
+                ).fetchone()
+                if not m_row or not m_row[0]:
+                    return {"status": "skipped", "reason": "no_raw_trades"}
+                min_d = str(m_row[0])
+                max_d = str(m_row[1] + timedelta(days=1))
+
+            start_ts = f"{min_d} 00:00:00"
+            end_ts = f"{max_d} 00:00:00"
+
+            for cagg in ["silver_candles_5m", "silver_candles_1m"]:
+                if cagg in caggs:
+                    logger.info(f"Refreshing Timescale continuous aggregate `{cagg}` from {start_ts} to {end_ts}...")
+                    conn.execute(f"CALL refresh_continuous_aggregate('{cagg}', '{start_ts}', '{end_ts}');")
+
+            return {"status": "success", "start_time": start_ts, "end_time": end_ts}
+        except Exception as e:
+            logger.warning(f"Continuous aggregate refresh notice: {e}")
+            return {"status": "warning", "error": str(e)}
+
     def run_all(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Run full Silver transformation pipeline in dependency order."""
         initialize_silver_schema(self.db)
@@ -1482,6 +1522,8 @@ class SilverTransformer:
         # Model 3: compute per-stock per-window return percentile thresholds
         # Must run after intraday broker windows and stock summary are populated
         res_stock_rxn_thresh = self.transform_stock_reaction_thresholds()
+        # Refresh TimescaleDB continuous aggregates (1m and 5m candles)
+        res_candlesticks = self.refresh_candlestick_aggregates(target_dates=target_dates)
 
         return {
             "silver_corporate_action_adjustment_periods": res_actions,
@@ -1496,5 +1538,6 @@ class SilverTransformer:
             "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
             "silver_broker_fifo_daily": res_fifo,
             "silver_stock_reaction_thresholds": res_stock_rxn_thresh,
+            "silver_candles_aggregates": res_candlesticks,
             "status": "success",
         }

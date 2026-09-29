@@ -21,7 +21,8 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
-  const [selectedDate, setSelectedDate] = useState<string>('2026-09-23');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-09-28');
+  const [userSelectedManually, setUserSelectedManually] = useState<boolean>(false);
   const [currentTimeTRT, setCurrentTimeTRT] = useState<string>('');
 
   // Fetch Instruments and Brokers metadata
@@ -42,10 +43,10 @@ export const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (dateRange?.latest_date && (selectedDate === '2026-09-16' || !selectedDate)) {
+    if (dateRange?.latest_date && !userSelectedManually) {
       setSelectedDate(dateRange.latest_date);
     }
-  }, [dateRange, selectedDate]);
+  }, [dateRange?.latest_date, userSelectedManually]);
 
   // Live TRT Clock (Turkish Time / Europe/Istanbul / UTC+3)
   useEffect(() => {
@@ -218,13 +219,19 @@ export const App: React.FC = () => {
                 value={selectedDate}
                 min={dateRange?.min_date}
                 max={dateRange?.max_date}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setUserSelectedManually(true);
+                }}
                 aria-label="Trading Session Date"
                 className="bg-transparent text-slate-200 text-xs font-mono focus:outline-none cursor-pointer"
               />
               {dateRange && selectedDate !== dateRange.latest_date ? (
                 <button
-                  onClick={() => setSelectedDate(dateRange.latest_date)}
+                  onClick={() => {
+                    setSelectedDate(dateRange.latest_date);
+                    setUserSelectedManually(false);
+                  }}
                   className="ml-1 px-1.5 py-0.5 text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 rounded border border-cyan-500/40 transition-colors"
                   title={`Jump to latest session (${dateRange.latest_date})`}
                 >
