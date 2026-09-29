@@ -137,6 +137,11 @@ def normalize_pg_query(q: str) -> str:
     if "DAYOFMONTH" in q.upper():
         q = re.sub(r"DAYOFMONTH\s*\(\s*(.*?)\s*\)", r"(CAST(EXTRACT(DAY FROM \1) AS INTEGER))", q, flags=re.IGNORECASE)
 
+    if "table_schema = 'main'" in q:
+        q = q.replace("table_schema = 'main'", "table_schema = 'public'")
+    if 'table_schema = "main"' in q:
+        q = q.replace('table_schema = "main"', "table_schema = 'public'")
+
     # Normalize standalone DOUBLE to DOUBLE PRECISION for PostgreSQL
     if "DOUBLE" in q.upper():
         q = re.sub(r"\bDOUBLE\b(?!\s+PRECISION)", "DOUBLE PRECISION", q, flags=re.IGNORECASE)
