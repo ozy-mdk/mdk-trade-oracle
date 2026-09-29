@@ -21,7 +21,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
-  const [selectedDate, setSelectedDate] = useState<string>('2026-09-28');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
   const [userSelectedManually, setUserSelectedManually] = useState<boolean>(false);
   const [currentTimeTRT, setCurrentTimeTRT] = useState<string>('');
 
