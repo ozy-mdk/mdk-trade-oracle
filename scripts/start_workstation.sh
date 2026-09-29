@@ -64,3 +64,7 @@ echo " Workstation is fully operational!"
 echo " 👉 Frontend: http://localhost:5173/"
 echo " 👉 Backend API Docs: http://127.0.0.1:8000/docs"
 echo "=========================================================="
+
+# Automatically open frontend in default browser
+open http://localhost:5173 2>/dev/null || true
+
