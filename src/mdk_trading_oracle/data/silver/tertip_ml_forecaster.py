@@ -513,7 +513,11 @@ def run_30d_walk_forward_arena(
     xgb_hit_rate = (xgb_hits / n_total) * 100.0 if n_total > 0 else 0.0
     xgb_mae = sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0
 
-    # Dynamic Champion Selection
+    prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
+    prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
+    prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
+
+    # Dynamic ML Challenger Selection (Primary: Directional Hit Rate, Secondary: Error size MAE)
     m_choice = model_type.lower()
     if m_choice == "ridge":
         ml_champion_type = "Ridge"
@@ -532,8 +536,15 @@ def run_30d_walk_forward_arena(
         step_records[-1]["xgb_model"] if ml_champion_type == "XGBoost" else step_records[-1]["ridge_model"]
     )
 
-    # Build the 30-Day Reality Ledger using the crowned ML champion
+    ml_candidate_hits = xgb_hits if ml_champion_type == "XGBoost" else ridge_hits
+    ml_candidate_hit_rate = xgb_hit_rate if ml_champion_type == "XGBoost" else ridge_hit_rate
+    ml_candidate_mae = xgb_mae if ml_champion_type == "XGBoost" else ridge_mae
+
+    # Build the 30-Day Reality Ledger using the crowned ML challenger
     ledger: list[dict[str, Any]] = []
+    ml_error_wins = 0
+    prophet_error_wins = 0
+
     for s in step_records:
         test_row = s["test_row"]
         prev_row = s["prev_row"]
@@ -555,7 +566,22 @@ def run_30d_walk_forward_arena(
             ml_err = s["ridge_err"]
             ml_hit = s["ridge_hit"]
 
-        winner = "CHALLENGER" if ml_err < prophet_err else "BASE"
+        # Track error wins
+        if ml_err <= prophet_err:
+            ml_error_wins += 1
+        else:
+            prophet_error_wins += 1
+
+        # Daily Session Winner: Directional Hit first!
+        # If one hit and other missed -> hitter wins
+        # If both hit or both missed -> lower error wins
+        if ml_hit and not prophet_hit:
+            winner = "CHALLENGER"
+        elif prophet_hit and not ml_hit:
+            winner = "BASE"
+        else:
+            winner = "CHALLENGER" if ml_err <= prophet_err else "BASE"
+
         ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
         prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
 
@@ -596,38 +622,69 @@ def run_30d_walk_forward_arena(
             "kamu_pnl_tl": round(float(test_row["kamu_daily_pnl_tl"]) if ("kamu_daily_pnl_tl" in test_row and pd.notna(test_row["kamu_daily_pnl_tl"])) else 0.0, 1),
         })
 
-    # Summary Statistics
-    res_df = pd.DataFrame(ledger)
-    ml_hit_rate = float(res_df["ml_is_hit"].mean() * 100.0)
-    ml_mae = float(res_df["ml_err_pct"].mean())
-    prophet_hit_rate = float(res_df["prophet_is_hit"].mean() * 100.0)
-    prophet_mae = float(res_df["prophet_err_pct"].mean())
-    ml_wins = int((res_df["winner"] == "CHALLENGER").sum())
-    prophet_wins = int((res_df["winner"] == "BASE").sum())
-
-    # Champion designation
-    if ml_wins >= prophet_wins or ml_mae < prophet_mae:
+    # Grand Tournament Champion Designation:
+    # 1. Primary: Directional Hit Rate (dir_hits)
+    # 2. Secondary: Error size (MAE)
+    if ml_candidate_hits > prophet_hits:
         champion = "TERTIP_ML_CHALLENGER"
         champion_label = f"Tertip ML Challenger ({ml_champion_type})"
-    else:
+        champion_dir_hits = ml_candidate_hits
+        champion_dir_hit_rate_pct = ml_candidate_hit_rate
+        runner_up_dir_hit_rate_pct = prophet_hit_rate
+        champion_mae_pct = ml_candidate_mae
+    elif prophet_hits > ml_candidate_hits:
         champion = "PROPHET_BASE"
         champion_label = "Prophet Base Model"
+        champion_dir_hits = prophet_hits
+        champion_dir_hit_rate_pct = prophet_hit_rate
+        runner_up_dir_hit_rate_pct = ml_candidate_hit_rate
+        champion_mae_pct = prophet_mae
+    else:
+        # Tie on directional hit rate -> use lower MAE
+        if ml_candidate_mae <= prophet_mae:
+            champion = "TERTIP_ML_CHALLENGER"
+            champion_label = f"Tertip ML Challenger ({ml_champion_type})"
+            champion_dir_hits = ml_candidate_hits
+            champion_dir_hit_rate_pct = ml_candidate_hit_rate
+            runner_up_dir_hit_rate_pct = prophet_hit_rate
+            champion_mae_pct = ml_candidate_mae
+        else:
+            champion = "PROPHET_BASE"
+            champion_label = "Prophet Base Model"
+            champion_dir_hits = prophet_hits
+            champion_dir_hit_rate_pct = prophet_hit_rate
+            runner_up_dir_hit_rate_pct = ml_candidate_hit_rate
+            champion_mae_pct = prophet_mae
 
     tournament_summary = {
         "champion": champion,
         "champion_label": champion_label,
         "ml_champion_type": ml_champion_type,
-        "ml_hit_rate_pct": round(ml_hit_rate, 1),
-        "ml_mae_pct": round(ml_mae, 2),
-        "ml_wins": ml_wins,
+        "champion_dir_hits": champion_dir_hits,
+        "champion_dir_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
+        "runner_up_dir_hit_rate_pct": round(runner_up_dir_hit_rate_pct, 1),
+        "champion_mae_pct": round(champion_mae_pct, 2),
+        "ml_dir_hits": ml_candidate_hits,
+        "ml_dir_hit_rate_pct": round(ml_candidate_hit_rate, 1),
+        "ml_hit_rate_pct": round(ml_candidate_hit_rate, 1),
+        "prophet_dir_hits": prophet_hits,
+        "prophet_dir_hit_rate_pct": round(prophet_hit_rate, 1),
         "prophet_hit_rate_pct": round(prophet_hit_rate, 1),
-        "prophet_mae_pct": round(prophet_mae, 2),
-        "prophet_wins": prophet_wins,
-        "total_sessions": len(ledger),
+        "ridge_dir_hits": ridge_hits,
+        "ridge_dir_hit_rate_pct": round(ridge_hit_rate, 1),
         "ridge_hit_rate_pct": round(ridge_hit_rate, 1),
-        "ridge_mae_pct": round(ridge_mae, 2),
+        "xgboost_dir_hits": xgb_hits,
+        "xgboost_dir_hit_rate_pct": round(xgb_hit_rate, 1),
         "xgboost_hit_rate_pct": round(xgb_hit_rate, 1),
+        "ml_mae_pct": round(ml_candidate_mae, 2),
+        "prophet_mae_pct": round(prophet_mae, 2),
+        "ridge_mae_pct": round(ridge_mae, 2),
         "xgboost_mae_pct": round(xgb_mae, 2),
+        "ml_error_wins": ml_error_wins,
+        "prophet_error_wins": prophet_error_wins,
+        "ml_wins": ml_error_wins,
+        "prophet_wins": prophet_error_wins,
+        "total_sessions": len(ledger),
     }
 
     return ledger, tournament_summary, champion_ml_model
@@ -718,25 +775,35 @@ def get_tertip_ml_forecast(
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
+    # Determine Active Champion Forecast for Tomorrow
+    champion = tournament.get("champion", "TERTIP_ML_CHALLENGER")
+    champion_label = tournament.get("champion_label", "Tertip ML")
+    if champion == "PROPHET_BASE":
+        champion_target_price = prophet_target_price
+        champion_pred_ret = prophet_ret_pct
+    else:
+        champion_target_price = ml_target_price
+        champion_pred_ret = pred_ret_ml
+
     # Range envelope (using 20-day historical volatility)
     vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
-    price_low = ml_target_price * (1.0 - (1.645 * vol_20d / 100.0))
-    price_high = ml_target_price * (1.0 + (1.645 * vol_20d / 100.0))
+    price_low = champion_target_price * (1.0 - (1.645 * vol_20d / 100.0))
+    price_high = champion_target_price * (1.0 + (1.645 * vol_20d / 100.0))
 
-    # Stance derivation
-    if pred_ret_ml >= 2.0:
+    # Stance derivation based on Champion
+    if champion_pred_ret >= 2.0:
         stance = "STRONG_BUY"
         stance_badge = "STRONG BUY ACCUMULATION"
         stance_color = "emerald"
-    elif pred_ret_ml > 0.02:
+    elif champion_pred_ret > 0.02:
         stance = "BUY"
         stance_badge = "BUY ABSORPTION REBOUND"
         stance_color = "teal"
-    elif pred_ret_ml <= -2.0:
+    elif champion_pred_ret <= -2.0:
         stance = "STRONG_SELL"
         stance_badge = "STRONG SELL PRESSURE"
         stance_color = "rose"
-    elif pred_ret_ml < -0.02:
+    elif champion_pred_ret < -0.02:
         stance = "SELL"
         stance_badge = "DISTRIBUTION FADE"
         stance_color = "orange"
@@ -747,13 +814,13 @@ def get_tertip_ml_forecast(
 
     # Actionable Blueprint
     playbook_headline = (
-        f"Projecting {stance_badge} towards ₺{ml_target_price:.2f} ({pred_ret_ml:+.2f}%)"
+        f"Projecting {stance_badge} towards ₺{champion_target_price:.2f} ({champion_pred_ret:+.2f}%)"
     )
     playbook_rationale = (
         f"As of {latest_date_str}, {sym} closed at ₺{latest_price:.2f}. "
-        f"The 30-day walk-forward arena crowns {tournament.get('champion_label', 'Tertip ML')} "
-        f"with {tournament.get('ml_wins', 0)} of {tournament.get('total_sessions', 30)} daily wins "
-        f"(MAE: {tournament.get('ml_mae_pct', 0.0):.2f}% vs Prophet: {tournament.get('prophet_mae_pct', 0.0):.2f}%). "
+        f"The 30-day walk-forward arena crowns {champion_label} "
+        f"based on superior directional accuracy ({tournament.get('champion_dir_hits', 0)} of {tournament.get('total_sessions', 30)} sessions directionally correct, "
+        f"{tournament.get('champion_dir_hit_rate_pct', 0.0):.1f}% vs runner-up {tournament.get('runner_up_dir_hit_rate_pct', 0.0):.1f}%, MAE: {tournament.get('champion_mae_pct', 0.0):.2f}%). "
         f"Institutional synthesis projects next session trading between ₺{price_low:.2f} and ₺{price_high:.2f}."
     )
 
@@ -834,8 +901,10 @@ def get_tertip_ml_forecast(
         "symbol": sym,
         "as_of_date": latest_date_str,
         "latest_close_price": round(latest_price, 2),
-        "target_price": round(ml_target_price, 2),
-        "expected_return_pct": round(pred_ret_ml, 2),
+        "target_price": round(champion_target_price, 2),
+        "expected_return_pct": round(champion_pred_ret, 2),
+        "ml_target_price": round(ml_target_price, 2),
+        "ml_expected_return_pct": round(pred_ret_ml, 2),
         "price_low": round(price_low, 2),
         "price_high": round(price_high, 2),
         "stance": stance,

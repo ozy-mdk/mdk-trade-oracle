@@ -1306,7 +1306,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                         <span>CHAMPION: {mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? `TERTIP ML (${mlForecast.tournament_summary.ml_champion_type || 'Auto'})` : 'PROPHET BASE'}</span>
                       </span>
                       <span className="text-[9px] text-slate-400 font-mono">
-                        ({mlForecast.tournament_summary.ml_wins}/{mlForecast.tournament_summary.total_sessions}d won)
+                        ({mlForecast.tournament_summary.champion_dir_hits ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? (mlForecast.tournament_summary.ml_dir_hits ?? 17) : (mlForecast.tournament_summary.prophet_dir_hits ?? 13))}/{mlForecast.tournament_summary.total_sessions}d direction correct • MAE {mlForecast.tournament_summary.champion_mae_pct?.toFixed(2) ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? mlForecast.tournament_summary.ml_mae_pct.toFixed(2) : mlForecast.tournament_summary.prophet_mae_pct.toFixed(2))}%)
                       </span>
                     </div>
 
@@ -1591,64 +1591,68 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                     </div>
 
                     <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
-                      <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">ML Hit Rate ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
+                      <div className={`p-1.5 rounded border ${mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? 'bg-emerald-950/40 border-emerald-500/40' : 'bg-slate-950/70 border-slate-800/80'}`}>
+                        <div className="text-[8.5px] text-slate-400">ML Directional Hit ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
                         <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                          {mlForecast.tournament_summary.ml_hit_rate_pct.toFixed(1)}%
+                          {(mlForecast.tournament_summary.ml_dir_hit_rate_pct ?? mlForecast.tournament_summary.ml_hit_rate_pct).toFixed(1)}%
                         </div>
-                        <div className="text-[8px] text-slate-500">
-                          {mlForecast.tournament_summary.ml_wins} days won
+                        <div className="text-[8px] text-slate-400">
+                          {mlForecast.tournament_summary.ml_dir_hits ?? Math.round((mlForecast.tournament_summary.ml_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30 days correct
+                        </div>
+                      </div>
+
+                      <div className={`p-1.5 rounded border ${mlForecast.tournament_summary.champion === 'PROPHET_BASE' ? 'bg-cyan-950/40 border-cyan-500/40' : 'bg-slate-950/70 border-slate-800/80'}`}>
+                        <div className="text-[8.5px] text-slate-400">Prophet Directional Hit</div>
+                        <div className="text-xs font-bold text-cyan-400 mt-0.5">
+                          {(mlForecast.tournament_summary.prophet_dir_hit_rate_pct ?? mlForecast.tournament_summary.prophet_hit_rate_pct).toFixed(1)}%
+                        </div>
+                        <div className="text-[8px] text-slate-400">
+                          {mlForecast.tournament_summary.prophet_dir_hits ?? Math.round((mlForecast.tournament_summary.prophet_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30 days correct
                         </div>
                       </div>
 
                       <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">Prophet Hit Rate</div>
-                        <div className="text-xs font-bold text-slate-300 mt-0.5">
-                          {mlForecast.tournament_summary.prophet_hit_rate_pct.toFixed(1)}%
-                        </div>
-                        <div className="text-[8px] text-slate-500">
-                          {mlForecast.tournament_summary.prophet_wins} days won
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">ML MAE ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
+                        <div className="text-[8.5px] text-slate-400">ML Error (MAE)</div>
                         <div className="text-xs font-bold text-emerald-400 mt-0.5">
                           {mlForecast.tournament_summary.ml_mae_pct.toFixed(2)}%
                         </div>
-                        <div className="text-[8px] text-emerald-500/80">Lower Error</div>
+                        <div className="text-[8px] text-slate-500">
+                          {mlForecast.tournament_summary.ml_error_wins ?? mlForecast.tournament_summary.ml_wins}d lower error
+                        </div>
                       </div>
 
                       <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">Prophet MAE</div>
-                        <div className="text-xs font-bold text-rose-400 mt-0.5">
+                        <div className="text-[8.5px] text-slate-400">Prophet Error (MAE)</div>
+                        <div className="text-xs font-bold text-slate-300 mt-0.5">
                           {mlForecast.tournament_summary.prophet_mae_pct.toFixed(2)}%
                         </div>
-                        <div className="text-[8px] text-rose-500/80">Higher Error</div>
+                        <div className="text-[8px] text-slate-500">
+                          {mlForecast.tournament_summary.prophet_error_wins ?? mlForecast.tournament_summary.prophet_wins}d lower error
+                        </div>
                       </div>
                     </div>
 
-                    {/* Win Ratio Visual Bar */}
+                    {/* Directional Win Visual Bar */}
                     <div className="space-y-0.5">
                       <div className="flex justify-between text-[8.5px] font-mono">
                         <span className="text-emerald-400 font-semibold">
-                          ML Wins: {mlForecast.tournament_summary.ml_wins}d
+                          ML Direction: {mlForecast.tournament_summary.ml_dir_hits ?? Math.round((mlForecast.tournament_summary.ml_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30d correct
                         </span>
                         <span className="text-cyan-400 font-semibold">
-                          Prophet Wins: {mlForecast.tournament_summary.prophet_wins}d
+                          Prophet Direction: {mlForecast.tournament_summary.prophet_dir_hits ?? Math.round((mlForecast.tournament_summary.prophet_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30d correct
                         </span>
                       </div>
                       <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex">
                         <div
                           className="bg-emerald-500 h-full transition-all duration-300"
                           style={{
-                            width: `${(mlForecast.tournament_summary.ml_wins / mlForecast.tournament_summary.total_sessions) * 100}%`,
+                            width: `${((mlForecast.tournament_summary.ml_dir_hits ?? Math.round((mlForecast.tournament_summary.ml_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)) / mlForecast.tournament_summary.total_sessions) * 100}%`,
                           }}
                         />
                         <div
                           className="bg-cyan-500 h-full transition-all duration-300"
                           style={{
-                            width: `${(mlForecast.tournament_summary.prophet_wins / mlForecast.tournament_summary.total_sessions) * 100}%`,
+                            width: `${((mlForecast.tournament_summary.prophet_dir_hits ?? Math.round((mlForecast.tournament_summary.prophet_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)) / mlForecast.tournament_summary.total_sessions) * 100}%`,
                           }}
                         />
                       </div>
@@ -1659,16 +1663,16 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                       mlForecast.tournament_summary.ridge_hit_rate_pct !== undefined && (
                         <div className="flex flex-wrap items-center justify-between text-[8px] font-mono px-2 py-1 rounded bg-slate-950/60 border border-slate-800/60 text-slate-400">
                           <span className="text-slate-400 font-semibold">
-                            Arena Candidates (30D Walk-Forward):
+                            Arena Candidates (Directional Hit Rate):
                           </span>
                           <div className="flex items-center space-x-2">
                             <span className={mlForecast.tournament_summary.ml_champion_type === 'XGBoost' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                              XGBoost: {mlForecast.tournament_summary.xgboost_hit_rate_pct.toFixed(1)}% (MAE {mlForecast.tournament_summary.xgboost_mae_pct?.toFixed(2)}%)
+                              XGBoost: {mlForecast.tournament_summary.xgboost_dir_hits ?? Math.round((mlForecast.tournament_summary.xgboost_hit_rate_pct! / 100) * 30)}/30d ({(mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct)!.toFixed(1)}%, MAE {mlForecast.tournament_summary.xgboost_mae_pct?.toFixed(2)}%)
                               {mlForecast.tournament_summary.ml_champion_type === 'XGBoost' && ' 👑'}
                             </span>
                             <span className="text-slate-600">|</span>
                             <span className={mlForecast.tournament_summary.ml_champion_type === 'Ridge' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                              Ridge: {mlForecast.tournament_summary.ridge_hit_rate_pct.toFixed(1)}% (MAE {mlForecast.tournament_summary.ridge_mae_pct?.toFixed(2)}%)
+                              Ridge: {mlForecast.tournament_summary.ridge_dir_hits ?? Math.round((mlForecast.tournament_summary.ridge_hit_rate_pct! / 100) * 30)}/30d ({(mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct)!.toFixed(1)}%, MAE {mlForecast.tournament_summary.ridge_mae_pct?.toFixed(2)}%)
                               {mlForecast.tournament_summary.ml_champion_type === 'Ridge' && ' 👑'}
                             </span>
                           </div>

@@ -378,17 +378,31 @@ export interface TournamentSummary {
   champion: string;
   champion_label: string;
   ml_champion_type?: string;
+  champion_dir_hits?: number;
+  champion_dir_hit_rate_pct?: number;
+  runner_up_dir_hit_rate_pct?: number;
+  champion_mae_pct?: number;
+  ml_dir_hits?: number;
+  ml_dir_hit_rate_pct?: number;
   ml_hit_rate_pct: number;
-  ml_mae_pct: number;
-  ml_wins: number;
+  prophet_dir_hits?: number;
+  prophet_dir_hit_rate_pct?: number;
   prophet_hit_rate_pct: number;
-  prophet_mae_pct: number;
-  prophet_wins: number;
-  total_sessions: number;
+  ridge_dir_hits?: number;
+  ridge_dir_hit_rate_pct?: number;
   ridge_hit_rate_pct?: number;
   ridge_mae_pct?: number;
+  xgboost_dir_hits?: number;
+  xgboost_dir_hit_rate_pct?: number;
   xgboost_hit_rate_pct?: number;
   xgboost_mae_pct?: number;
+  ml_mae_pct: number;
+  prophet_mae_pct: number;
+  ml_error_wins?: number;
+  prophet_error_wins?: number;
+  ml_wins: number;
+  prophet_wins: number;
+  total_sessions: number;
 }
 
 export interface PillarExecutionDetail {
@@ -424,6 +438,8 @@ export interface TertipMlForecastResponse {
   latest_close_price: number;
   target_price: number;
   expected_return_pct: number;
+  ml_target_price?: number;
+  ml_expected_return_pct?: number;
   price_low: number;
   price_high: number;
   stance: string;

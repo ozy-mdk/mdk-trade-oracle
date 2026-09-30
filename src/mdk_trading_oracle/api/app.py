@@ -266,17 +266,31 @@ class TournamentSummary(BaseModel):
     champion: str
     champion_label: str
     ml_champion_type: Optional[str] = "XGBoost"
+    champion_dir_hits: Optional[int] = None
+    champion_dir_hit_rate_pct: Optional[float] = None
+    runner_up_dir_hit_rate_pct: Optional[float] = None
+    champion_mae_pct: Optional[float] = None
+    ml_dir_hits: Optional[int] = None
+    ml_dir_hit_rate_pct: Optional[float] = None
     ml_hit_rate_pct: float
-    ml_mae_pct: float
-    ml_wins: int
+    prophet_dir_hits: Optional[int] = None
+    prophet_dir_hit_rate_pct: Optional[float] = None
     prophet_hit_rate_pct: float
-    prophet_mae_pct: float
-    prophet_wins: int
-    total_sessions: int
+    ridge_dir_hits: Optional[int] = None
+    ridge_dir_hit_rate_pct: Optional[float] = None
     ridge_hit_rate_pct: Optional[float] = None
     ridge_mae_pct: Optional[float] = None
+    xgboost_dir_hits: Optional[int] = None
+    xgboost_dir_hit_rate_pct: Optional[float] = None
     xgboost_hit_rate_pct: Optional[float] = None
     xgboost_mae_pct: Optional[float] = None
+    ml_mae_pct: float
+    prophet_mae_pct: float
+    ml_error_wins: Optional[int] = None
+    prophet_error_wins: Optional[int] = None
+    ml_wins: int
+    prophet_wins: int
+    total_sessions: int
 
 
 class PillarExecutionDetail(BaseModel):
@@ -312,6 +326,8 @@ class TertipMlForecastResponse(BaseModel):
     latest_close_price: float
     target_price: float
     expected_return_pct: float
+    ml_target_price: Optional[float] = None
+    ml_expected_return_pct: Optional[float] = None
     price_low: float
     price_high: float
     stance: str
