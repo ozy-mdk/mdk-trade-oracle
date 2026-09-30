@@ -37,7 +37,6 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
   - Daily macroeconomic interest rates enriched with days elapsed since last MPC rate hike/cut, rate change deltas, rate spreads vs 30-day mean, and daily carry costs.
   - Daily BIST 30 benchmark metrics including rolling 5-day / 20-day returns, 20-day historical volatility, trend relative to 20-day SMA, and BIST 30 shock regimes (`is_shock_day`, `shock_type` POSITIVE/NEGATIVE >= 3%, `days_since_last_positive_shock`, `days_since_last_negative_shock`).
   - Empirical flow percentile profiles (`silver_bofa_historical_flow_thresholds` across 27 scopes: 1 Macro ALL + 26 BIST sectors) computing $P_{25}, P_{50}, P_{85}$ for positive buy flows and negative sell flows.
-  - Empirical stock return percentile profiles (`silver_stock_reaction_thresholds` across BIST30 equities x W2/W3/W5) computing $P_{25}, P_{50}, P_{85}$ for rally and decline phases.
   - Institutional FIFO Tertip Mechanism (`INTRADAY_MATCHED_FIFO_V1` across 7 institutions: `MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`):
     - `silver_broker_fifo_daily`: Historical point-in-time time-series logging daily matched flow, intraday PnL, residual flow, carry FIFO realized PnL, open stock inventory, average unit cost, and MTM valuation for every session $T$.
     - `silver_broker_fifo_lot_entries`: Permanent immutable lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`).
@@ -46,77 +45,45 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
     - `silver_broker_fifo_lot_lifecycle`: Open-to-close lifecycle summary view.
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
-- **Gold Layer (`gold_institutional_daily_signals`, `gold_bofa_*_forecasts`, `gold_bofa_*_performance`, `gold_bofa_*_backtests`)**:
-
-  - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
-  - Three distinct Gold table categories per predictive model:
-    1. **Live Upcoming Forecasts (`gold_bofa_*_forecasts`)**: Strictly holds only active live predictions for upcoming session $T+1$.
-    2. **Historical Performance Ledgers (`gold_bofa_*_performance`)**: Permanent audited tracking ledgers recording past forecasts matched against actual realized Window 1 market data from Silver.
-    3. **Simulation Backtests (`gold_bofa_*_backtests`)**: Full historical walk-forward simulation ledgers for calibration, residual diagnostics, and tournament benchmarking.
-  - Extensible quantitative predictive models designed to host **10+ Gold models**:
-    - **Model 1: Macro Day-Start Forecaster (`DayStartForecaster`)**: Forecasts exchange-wide BofA opening net flow ($TL$), directional conviction, 90% credible intervals, and macro execution playbooks.
-    - **Model 2: Sector Day-Start Forecaster (`SectorDayStartForecaster`)**: Forecasts BofA's capital allocation and sector rotation across all 26 tracked BIST sectors at the open.
-    - **Model 3: Stock Intraday Reaction Forecaster (`StockReactionForecaster`)**: Forecasts execution-aware intraday stock return percentages for individual BIST30 equities across reaction windows `W2` (first reaction), `W3` (midday followup), and `W5` (closing session).
+- **Gold Layer (`gold_institutional_daily_signals`) & Institutional Predictive Hub**:
+  - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores persisted to `gold_institutional_daily_signals`.
+  - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 17 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, and benchmark index momentum.
+  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (with MAE tie-breaker).
+  - **Trader Workstation Integration**: Real-time signal cards for upcoming session $T+1$ with forecasted flow, credible ranges, directional badges, institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`), and 30-Day performance track records.
 
 ---
 
-## 4. Gold Layer Quantitative Modeling Blueprint & Standards
+## 4. Institutional Machine Learning Forecasting Blueprint & Standards
 
-The Gold Layer is designed as an extensible multi-model suite hosting **10+ distinct institutional models** (e.g. Model 1: Macro Day-Start Flow, Model 2: Sector Day-Start Allocation, Model 3: Intraday Flow Expansion, etc.). 
+The predictive architecture is centered around the **Tertip Machine Learning Forecaster**, translating microstructural order flow into high-conviction decision items:
 
-Every new model adheres to this **Universal Modeling Blueprint**:
-
-1. **Modular Extensible Framework**:
-   - Every model inherits from `BaseForecaster`, extracts features via a dedicated `FeatureExtractor`, and registers in `ModelRegistry` (`@ModelRegistry.register("model_name")`).
-   - Predictions produce structured `ForecastResult` instances containing continuous predictions, direction classifications, conviction probabilities, 90% credible ranges, and institutional execution playbooks.
-2. **Zero Data Leakage & Retrospective Anchoring**:
-   - Predictive features must be computed **strictly from prior completed windows / $T-1$ Close data**. Future session information must never leak into training or feature sets.
-   - When evaluating any historical date retrospectively, the 12-month training lookback window dynamically and strictly anchors backwards from that exact reference date ($[T - 12\text{ months}, T-1]$).
-3. **Rigorous & Clean Target Variables**:
-   - Target formulation is strictly mathematically grounded: continuous regression target $y = \text{target\_open\_net\_flow\_tl}$ and derived binary/conviction direction $\text{target\_open\_direction}$.
-4. **Problem-Specific Quantitative Feature Clusters**:
-   - **Model 1 (9 Macro Clusters)**: Closing Momentum, Multi-Day Inventory Saturation, Cost Basis PnL, Competitor Deltas, Hegemony, Sector Breadth, Calendar Dynamics, Macro Interest Rate Dynamics (`silver_daily_macro_rates`), Benchmark Index Dynamics (`silver_daily_benchmark_index` with strict $T-1$ lag).
-   - **Model 2 (6 Sector Clusters)**: Sector Closing Momentum, Sector Competitor Imbalance, Sector Dominance & Wallet Share, Sector Multi-Day Accumulation, Macro Context & Rates, Sector Relative Alpha & Benchmark Interaction (`feat_sector_rel_return_vs_bist30_1d`, `feat_sector_rel_return_vs_bist30_5d`, `feat_sector_beta_x_bist30_momentum`).
-5. **Candidate Model Arena & Baselines**:
-   - Every modeling objective benchmarks 6 candidate paradigms:
-     - `Baselines`: Naive Persistence (prior W4 flow), Historical Moving Averages (5-day rolling mean).
-     - `Machine Learning`: Non-linear tree ensembles (LightGBM, XGBoost).
-     - `Probabilistic Bayesian`: Analytical Bayesian Ridge & Full Bayesian GLM / MCMC (PyMC).
-6. **Three-Table Persistence Architecture ($T+1$ Forecasts vs Performance Ledgers vs Simulation Backtests)**:
-   - Every predictive Gold model strictly separates live predictions, audited performance tracking, and simulation ledgers:
-     - `forecast_next_day()`: Generates live inference for upcoming trading session $T+1$. Persisted to `gold_bofa_*_forecasts` with `replace_active=True` (strictly holds only $T+1$).
-     - `reconcile_and_update_performance_ledger()`: Reconciles past forecasts against realized actual Window 1 market data, logging `actual_open_net_flow_tl`, `error_open_net_flow_tl`, `absolute_error_tl`, `is_direction_hit`, and `is_inside_90_ci` into `gold_bofa_*_performance`.
-     - `backtest_all_history()`: Out-of-sample historical walk-forward simulation across past sessions persisted to dedicated `gold_bofa_*_backtests` tables.
-7. **Zero-Lookahead Point-In-Time Historical Backfill Engine**:
-   - Allows running retrospective point-in-time forecasts for past missed sessions (`--backfill-dates` or `--backfill-missing`).
-   - For every target date $T_{target}$, data cutoff is strictly $T_{as\_of} = \max(\text{dates} < T_{target})$, hiding all subsequent data.
-   - Configurable discovery lookback window (`default_lookback_months: 2` in `config/default.yaml`, overridable via `--backfill-lookback-months` or `--backfill-lookback-days`).
-   - Upserts into `gold_bofa_*_performance` for only the targeted dates while preserving all other historical performance records.
-8. **Automated On-The-Fly Champion Selection (`model_type="auto"`) & No Hardcoding**:
-   - In both the production pipeline and interactive research notebooks, models are never hardcoded. A dedicated `ModelArena` runs tournaments on the fly across candidate paradigms, crowning and tagging the champion model based on multi-criteria metrics (Out-of-sample Hit Rate %, 90% PICP %, and RMSE).
-9. **Interactive Research Notebook Standards & Clean Presentation**:
-   - Every modeling notebook (`notebooks/03_*.ipynb`, `notebooks/04_*.ipynb`, etc.) must provide:
-     1. **Live Upcoming Session Signal Card ($T+1$)**: Prominent executive card with forecasted net flow ($TL$), 90% credible ranges, directional badges, institutional playbooks, and sector rotation allocations.
-     2. **Performance Ledger & Historical Backtest View**: Actual vs. predicted track record with 90% confidence interval ribbons and interactive dropdown session inspectors.
-     3. **PostgreSQL / TimescaleDB Table Verification**: Direct queries inspecting persisted production records (live forecasts, performance ledgers, and backtest simulations).
-   - **Clean & Professional Typography (No Excessive Emojis)**:
-     - Keep documentation, markdown cells, headers, section titles, comments, and card templates clean, crisp, and professional.
-     - **Do NOT use excessive emojis** in headers, text blocks, or notebooks. Use standard structured markdown headers, clean typography, tables, and minimal functional status badges (`[PASS]`, `[FAIL]`, `HIT`, `MISS`).
-10. **Actionable Trader Decision Outputs & Dynamic Empirical Quantiles**:
-    - Nominal values (e.g. 50M TL) are strictly avoided; direction is classified dynamically from empirical quantiles ($P_{25}, P_{50}, P_{85}$) computed in `silver_bofa_historical_flow_thresholds`:
-      - **Directional Conviction Levels**: `STRONG_BUY` ($\ge P_{85}$), `BUY` ($P_{50} \le \hat{y} < P_{85}$), `WEAK_BUY` ($P_{25} \le \hat{y} < P_{50}$), `NEUTRAL`, `WEAK_SELL`, `SELL`, `STRONG_SELL`.
-      - **Institutional Playbooks**: Dynamic context blueprints (`SQUEEZE_LONG`, `LIQUIDITY_FADE`, `MOMENTUM_EXPANSION`, `DEFENSE_SUPPORT`, `SECTOR_ROTATION`, `NEUTRAL_WAIT`).
-      - **Actionable Guidance**: Top predicted buy/sell sectors or equities.
-11. **Column-Granular Feature Selection & Ablation Architecture**:
-    - Complete transparency down to individual feature column names and semantic microstructure clusters cataloged in `config/features.yaml`.
-    - `FeatureSelector` resolves active feature subsets with zero lookahead leakage.
-    - Automated Leave-One-Cluster-Out (LOCO) ablation studies (`forecaster.run_ablation_study()`) benchmark the predictive alpha contribution of each feature cluster.
-    - Full CLI override support via `--exclude-features`, `--include-features`, `--disabled-clusters`, and `--enabled-clusters`.
-12. **Mandatory Documentation Synchronization for Features (`FEATURES.md`)**:
-    - Whenever feature definitions, semantic clusters, or engineered columns are added, modified, or ablated:
-      1. Update `config/features.yaml` with accurate column lists and cluster descriptions.
-      2. Update the model's dedicated feature documentation (`src/mdk_trading_oracle/models/<model_name>/FEATURES.md`) with mathematical formulations, microstructure hypotheses, default coalesce values, and updated cluster/feature count matrices.
-      3. Synchronize skill references (`.agents/skills/mdk-institutional-flow-analysis/SKILL.md`) and unit test count assertions (`tests/test_feature_selection.py`).
+1. **Tertip Microstructure & Inventory Foundation**:
+   - Volume alone does not disclose institutional intent. By tracking the **`INTRADAY_MATCHED_FIFO_V1`** mechanism across institutions (`MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`), the model distinguishes between intraday scalping/market making and strategic carry inventory accumulation/liquidation.
+   - Captures inventory saturation, cost basis spread, and carried unrealized PnL to forecast liquidation pressure, short squeezes, and defense accumulation.
+2. **17 Lean Zero-Leakage Features**:
+   - All predictive features are computed **strictly from prior completed windows / $T-1$ Close data**. Future session information never leaks into training or feature sets.
+   - The training lookback dynamically and strictly anchors backwards 12 months from the evaluation date ($[T - 12\text{ months}, T-1]$).
+   - Core lean feature set:
+     - *Tertip Inventory Dynamics*: `feat_tertip_inventory_flow_yesterday_tl`, `feat_tertip_unrealized_pnl_yesterday_tl`, `feat_tertip_carry_pnl_yesterday_tl`, `feat_tertip_intraday_pnl_yesterday_tl`.
+     - *Macro Rates & Carry Costs*: `feat_macro_repo_rate_pct`, `feat_macro_daily_carry_cost_bps`, `feat_days_since_last_cbrt_decision`.
+     - *Benchmark Index Posture*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`.
+     - *Calendar Dynamics*: `feat_day_of_week`, `feat_is_monday`, `feat_is_friday`.
+3. **Walk-Forward Model Tournament & Directional Champion Selection**:
+   - Walk-forward candidate arena benchmarks:
+     - `Baselines`: Historical Moving Averages (5-day rolling mean).
+     - `Machine Learning`: Non-linear gradient boosting (LightGBM).
+     - `Probabilistic Bayesian`: Analytical Bayesian Ridge Regression.
+   - **Primary Champion Criterion**: Out-of-sample **Directional Hit Rate %** (percentage of sessions where the predicted sign correctly matched the actual realized market flow direction), using Mean Absolute Error (MAE) as the secondary tie-breaker.
+4. **Actionable Trader Playbooks & Dynamic Thresholds**:
+   - Translates predicted flows into actionable context blueprints:
+     - **`SQUEEZE_LONG`**: Strong positive flow expectation with heavy competitor delta — follow aggressive opening accumulation.
+     - **`MOMENTUM_EXPANSION`**: Extreme opening accumulation — institutional momentum continuation.
+     - **`LIQUIDITY_FADE`**: High negative flow with deep unrealized gains — expect profit-taking and fade intraday dips.
+     - **`DEFENSE_SUPPORT`**: Underwater carried inventory with positive flow — institutional defense accumulation.
+     - **`NEUTRAL_WAIT`**: Sub-threshold flow — wait for intraday confirmation.
+5. **Interactive Research & Serving Standards**:
+   - Clean, professional presentation with zero excessive emojis.
+   - Frontend Predictive Hub displays 30-Day performance ledger, directional hit tally pills, backtest visualizer, and live $T+1$ signal cards.
 
 ---
 
@@ -177,21 +144,9 @@ To allow seamless portability across different team members' local machines:
   ```bash
   .venv/bin/mdk-oracle load-bist30
   ```
-- **Daily Gold Layer Execution & Live Inference ($T+1$)**:
+- **Daily Gold Layer Execution (Institutional Signals)**:
   ```bash
   .venv/bin/python scripts/run_pipeline.py --target gold
-  ```
-- **Historical Point-in-Time Performance Backfilling**:
-  ```bash
-  # Backfill missing sessions within default 2-month window:
-  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing
-
-  # Custom lookback window (e.g., 3 months or 45 days):
-  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-months 3
-  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-days 45
-
-  # Backfill specific missed dates:
-  .venv/bin/python scripts/run_pipeline.py --target gold --backfill-dates 2026-03-10,2026-03-18
   ```
 - **Inspect & Sync Data Catalogs**:
   ```bash

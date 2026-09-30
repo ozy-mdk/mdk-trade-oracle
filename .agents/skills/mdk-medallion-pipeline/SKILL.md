@@ -51,14 +51,9 @@ flowchart TD
         S_MKT["silver_market_daily<br/>(Backward-compatibility OHLCV)"]
     end
 
-    subgraph Gold["Gold Layer (Features & Predictive Models)"]
+    subgraph Gold["Gold Layer (Features & Predictive Intelligence)"]
         G_SIG["gold_institutional_daily_signals<br/>(Rolling 5d/20d Accumulation & Z-Scores)"]
-        G_M1["gold_bofa_day_start_forecasts<br/>(Model 1: Live Upcoming Macro T+1 Forecast)"]
-        G_M2["gold_bofa_sector_day_start_forecasts<br/>(Model 2: Live Upcoming Sector T+1 Allocations)"]
-        G_M1_PERF["gold_bofa_day_start_performance<br/>(Macro Audited Performance Ledger)"]
-        G_M2_PERF["gold_bofa_sector_day_start_performance<br/>(Sector Audited Performance Ledger)"]
-        G_M1_BT["gold_bofa_day_start_backtests<br/>(Macro Walk-Forward Backtest Ledger)"]
-        G_M2_BT["gold_bofa_sector_day_start_backtests<br/>(Sector Walk-Forward Backtest Ledger)"]
+        G_TERTIP["Tertip ML Forecaster & Predictive Hub<br/>(17 Lean Microstructure Features, FIFO PnL & Rates)"]
     end
 
     B_RAW --> S_BROK_SUM
@@ -75,17 +70,10 @@ flowchart TD
     S_WIN_BROK --> S_THRESH
 
     S_STK_SUM --> G_SIG
-    S_WIN_BROK --> G_M1
-    S_BROK_OVR --> G_M1
-    S_MACRO -.-> G_M1
-    S_BENCH -.-> G_M1
-    S_THRESH -.-> G_M1
-    S_WIN_SEC --> G_M2
-    S_SEC_SUM --> G_M2
-    S_BENCH -.-> G_M2
-    S_THRESH -.-> G_M2
-    G_M1 -. Reconcile .-> G_M1_PERF
-    G_M2 -. Reconcile .-> G_M2_PERF
+    S_STK_SUM --> G_TERTIP
+    S_MACRO -.-> G_TERTIP
+    S_BENCH -.-> G_TERTIP
+    S_THRESH -.-> G_TERTIP
 ```
 
 ### A. Bronze Layer (`src/mdk_trading_oracle/data/bronze/`)
@@ -106,7 +94,6 @@ flowchart TD
 - **`silver_daily_macro_rates`**: Primary key `trade_date`. Prevailing 1-week repo interest rates, rate delta, decision day flags, days since last MPC hike/cut, rate spread vs 30-day mean, and daily carry cost bps.
 - **`silver_daily_benchmark_index`**: Primary key `trade_date`. Rolling 5-day / 20-day returns, 20-day historical return volatility, Parkinson high-low spread, and trend relative to 20-day Simple Moving Average.
 - **`silver_bofa_historical_flow_thresholds`**: Primary key `(scope_type, scope_name, broker_id, window_name)`. Empirical flow percentiles ($P_{25}, P_{50}, P_{85}$) computed across historical buy actions ($\text{net\_flow} > 0$) and sell actions ($|\text{net\_flow}|$) for Macro (`ALL`) and each of the 26 tracked BIST sectors.
-- **`silver_stock_reaction_thresholds`**: Primary key `(symbol, window_name)`. Empirical return percentage percentiles ($P_{25}, P_{50}, P_{85}$) computed per stock for rally phases ($\text{return} > 0$) and decline phases ($|\text{return}|$) across `W2`, `W3`, and `W5`.
 - **`silver_broker_fifo_daily`**: Primary key `(trade_date, symbol, broker_id)`. Tracks daily matched flow, intraday PnL, residual flow, carry FIFO PnL, open position, closing cost/value/unrealized PnL, and cumulative realized PnL across 7 tracked institutions (`MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`).
 - **`silver_broker_fifo_lot_entries`**: Primary key `lot_id`. Immutable initial lot creation records (`opened_quantity`, `opened_value_tl`, `opened_unit_cost`, `open_date`, `direction`).
 - **`silver_broker_fifo_lots`**: Primary key `lot_id`. Currently active open FIFO lots in queue with remaining balance.
@@ -122,17 +109,10 @@ flowchart TD
 - **`silver_market_daily`**: Primary key `(trade_date, symbol)`. Backward-compatibility daily summary table.
 
 
-### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/models/`)
+### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **`gold_bofa_day_start_forecasts`**: Primary key `forecast_date`. Strictly holds active live predictions for upcoming session $T+1$.
-- **`gold_bofa_sector_day_start_forecasts`**: Primary key `(forecast_date, sector)`. Strictly holds active live sector allocations for upcoming session $T+1$ across 26 sectors.
-- **`gold_bofa_stock_reaction_{w2,w3,w5}_forecasts`**: Primary key `(forecast_date, symbol)`. Strictly holds active live stock return predictions for session $T$ across `first_reaction` (W2), `midday_followup` (W3), and `closing_session` (W5) for BIST30 equities.
-- **`gold_bofa_day_start_performance`**: Primary key `trade_date`. Permanent audited performance tracking ledger logging past forecasts matched against actual realized Window 1 market data from Silver.
-- **`gold_bofa_sector_day_start_performance`**: Primary key `(trade_date, sector)`. Permanent audited sector performance tracking ledger.
-- **`gold_bofa_stock_reaction_{w2,w3,w5}_performance`**: Primary key `(trade_date, symbol)`. Permanent audited stock return performance tracking ledgers.
-- **`gold_bofa_day_start_backtests`**: Primary key `trade_date`. Historical out-of-sample simulation backtest ledger with actuals, errors, and hit flags.
-- **`gold_bofa_sector_day_start_backtests`**: Primary key `(trade_date, sector)`. Historical sector simulation backtest ledger across all 26 sectors.
-- **`gold_bofa_stock_reaction_{w2,w3,w5}_backtests`**: Primary key `(trade_date, symbol)`. Historical walk-forward stock simulation backtest ledgers.
+- **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 17 lean microstructure features, point-in-time FIFO inventory, intraday matched volume, carry FIFO PnL, carry costs, macro rates, and benchmark index momentum. Evaluated dynamically via walk-forward arena tournament with **Directional Hit Rate %** as the primary decision metric.
+- **Trader Workstation Gold Predictive Hub**: Serves real-time live upcoming session ($T+1$) forecasts, directional conviction badges, institutional trade playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`), and 30-Day performance track records directly to the React frontend.
 
 ---
 
@@ -152,16 +132,6 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 # 3. Daily Gold Layer Execution & Live Inference (T+1)
 .venv/bin/python scripts/run_pipeline.py --target gold
 
-# 4. Point-in-Time Historical Performance Backfilling
-# Auto-discover missing sessions within default 2-month window:
-.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing
-
-# Custom lookback window (e.g., 3 months or 45 days):
-.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-months 3
-.venv/bin/python scripts/run_pipeline.py --target gold --backfill-missing --backfill-lookback-days 45
-
-# Backfill specific missed dates:
-.venv/bin/python scripts/run_pipeline.py --target gold --backfill-dates 2026-03-10,2026-03-18
 
 # 5. Selective Single-Date Re-ingestion (atomically replaces single trading day)
 .venv/bin/python scripts/run_pipeline.py --target all --date 2026-03-09
@@ -234,12 +204,6 @@ Baseline dataset statistics (March 2026 / 21 trading days / 45 liquid BIST equit
 | **Silver** | `silver_intraday_sector_window_summary` | `(trade_date, sector, broker_id, window_name)` | 126,300 | [PASS] Verified |
 | **Silver** | `silver_market_daily` | `(trade_date, symbol)` | 945 | [PASS] Verified |
 | **Gold** | `gold_institutional_daily_signals` | `(trade_date, symbol)` | 945 | [PASS] Verified |
-| **Gold** | `gold_bofa_day_start_forecasts` | `forecast_date` | 1 (Active Live T+1) | [PASS] Verified |
-| **Gold** | `gold_bofa_sector_day_start_forecasts` | `(forecast_date, sector)` | 26 (Active Live T+1) | [PASS] Verified |
-| **Gold** | `gold_bofa_day_start_performance` | `trade_date` | 20 (Audited Ledger) | [PASS] Verified |
-| **Gold** | `gold_bofa_sector_day_start_performance` | `(trade_date, sector)` | 520 (Audited Ledger) | [PASS] Verified |
-| **Gold** | `gold_bofa_day_start_backtests` | `trade_date` | 20 (Simulation Ledger) | [PASS] Verified |
-| **Gold** | `gold_bofa_sector_day_start_backtests` | `(trade_date, sector)` | 520 (Simulation Ledger) | [PASS] Verified |
 
 > *Note on Sample vs. Production Scaling*: The row counts above reflect the local baseline sample period (March 2026 / 21 trading days). Production instances ingest multi-year and multi-month trading data; all transformations, daily FIFO ledgers, and models scale seamlessly.
 
@@ -255,8 +219,6 @@ The pipeline is tightly integrated with interactive Jupyter notebooks located in
 | [`01_bronze_data_exploration.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/01_bronze_data_exploration.ipynb) | Microsecond Tick Microstructure | Microsecond trade timestamp analysis, VWAP price curves, broker execution feeds. |
 | [`02_silver_transformations_and_intraday_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02_silver_transformations_and_intraday_analysis.ipynb) | Silver Layer & Intraday Execution | Broker market shares, BofA VWAP spreads, CR5 concentration, and 5-window execution profiles. |
 | [`02b_broker_tertip_fifo_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/02b_broker_tertip_fifo_analysis.ipynb) | Institutional Tertip FIFO & Inventory Ledger | Broker position cards (`LONG`/`SHORT`/`FLAT`), cost basis, intraday match vs carry FIFO PnL decomposition, and lot lifecycle audit tables. |
-| [`03_bofa_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/03_bofa_day_start_modeling.ipynb) | Model 1 Day-Start Arena & Playbooks | 9 Feature Clusters extraction, dynamic walk-forward arena tournament, live $T+1$ actionable signal card, and backtest calibration explorer. |
-| [`04_bofa_sector_day_start_modeling.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/04_bofa_sector_day_start_modeling.ipynb) | Model 2 Sector Allocation Forecaster | 6 Sector Feature Clusters across 26 sectors, dynamic champion crowning, live $T+1$ multi-sector allocation bar chart, and interactive historical sector dropdown explorer. |
 
 
 *Kernel requirement*: Always select **`Python 3.9 (mdk-trading-oracle)`**.
@@ -366,7 +328,7 @@ The workstation UI (`frontend/src/`) is partitioned into 5 modular, high-density
 2. **Tab 2: `TertipDashboard`**: Portfolio MTM Valuation, Unrealized PnL, Daily Realized PnL, and Cumulative Realized PnL + Sub-views for Active Stock Inventory, Audited Open Lots, and Historical PnL Progression.
 3. **Tab 3: `EventStudyDashboard`**: Interactive scanner with flow presets (`≥ ₺50M`, `≥ ₺100M`, `≤ -₺50M`) and $D-1$ return conditioning. Computes forward win rates and returns ($T+1, T+2, T+3, T+5, T+10$).
 4. **Tab 4: `TimeWindowTerminal`**: 5 execution splits (`W1` Day-Start, `W2` First Reaction, `W3` Midday Followup, `W4` Afternoon Reaction, `W5` Closing Session) with opening auction (09:55) and closing auction (18:05) highlights and cumulative flow progression.
-5. **Tab 5: `OracleHubDashboard`**: Live Model 1 Day-Start Macro forecast card for $T+1$ (predicted flow, 90% credible intervals, conviction badge, and institutional playbook), Model 2 Sector Allocation matrix, and Model 3 Stock Reaction rankings.
+5. **Tab 5: `OracleHubDashboard`**: Dedicated Institutional Tertip Predictive Hub featuring the live upcoming session ($T+1$) signal card (predicted net flow, directional conviction, and institutional execution playbooks), interactive 30-Day performance track record with directional hit tally pills, and historical walk-forward backtest visualizer.
 
 ---
 
