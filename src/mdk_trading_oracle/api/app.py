@@ -230,9 +230,13 @@ class WalkForwardLedgerItem(BaseModel):
     actual_price: float
     actual_return_pct: float
     ml_pred_price: float
+    ml_pred_return_pct: float = 0.0
+    ml_direction: str = "FLAT"
     ml_err_pct: float
     ml_is_hit: bool
     prophet_pred_price: float
+    prophet_pred_return_pct: float = 0.0
+    prophet_direction: str = "FLAT"
     prophet_err_pct: float
     prophet_is_hit: bool
     winner: str

@@ -1824,6 +1824,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                               <th className="text-left px-2 py-1 font-sans">Date</th>
                               <th className="text-right px-1.5 py-1 font-sans">Actual</th>
                               <th className="text-right px-1.5 py-1 font-sans text-cyan-300">ML Pred</th>
+                              <th className="text-center px-1.5 py-1 font-sans text-amber-300">Dir Correct?</th>
                               <th className="text-right px-1.5 py-1 font-sans">Prophet</th>
                               <th className="text-center px-1.5 py-1 font-sans">MLB Did</th>
                               <th className="text-center px-1.5 py-1 font-sans">BIG5 Did</th>
@@ -1832,69 +1833,91 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
-                            {mlForecast.walk_forward_ledger.map((row) => (
-                              <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
-                                <td className="px-2 py-1 text-slate-400 font-bold">
-                                  {row.date.slice(5)}
-                                </td>
-                                <td className="text-right px-1.5 py-1 text-white font-semibold">
-                                  <div>₺{row.actual_price.toFixed(2)}</div>
-                                  <div className={`text-[8px] ${
-                                    row.actual_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                                  }`}>
-                                    {row.actual_return_pct >= 0 ? '+' : ''}{row.actual_return_pct.toFixed(1)}%
-                                  </div>
-                                </td>
-                                <td className="text-right px-1.5 py-1 text-cyan-300">
-                                  <div>₺{row.ml_pred_price.toFixed(2)}</div>
-                                  <div className="text-[8px] text-slate-400">
-                                    {row.ml_err_pct.toFixed(1)}% {row.ml_is_hit ? '✓' : '✗'}
-                                  </div>
-                                </td>
-                                <td className="text-right px-1.5 py-1 text-slate-300">
-                                  <div>₺{row.prophet_pred_price.toFixed(2)}</div>
-                                  <div className="text-[8px] text-slate-500">
-                                    {row.prophet_err_pct.toFixed(1)}% {row.prophet_is_hit ? '✓' : '✗'}
-                                  </div>
-                                </td>
-                                <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.mlb_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
-                                    {row.mlb_action} {row.mlb_flow_tl >= 0 ? '+' : ''}{(row.mlb_flow_tl / 1e6).toFixed(0)}M
-                                  </span>
-                                </td>
-                                <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.big5_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
-                                    {row.big5_action} {row.big5_flow_tl >= 0 ? '+' : ''}{(row.big5_flow_tl / 1e6).toFixed(0)}M
-                                  </span>
-                                </td>
-                                <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.kamu_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
-                                    {row.kamu_action} {row.kamu_flow_tl >= 0 ? '+' : ''}{(row.kamu_flow_tl / 1e6).toFixed(0)}M
-                                  </span>
-                                </td>
-                                <td className="text-center px-1.5 py-1 font-bold">
-                                  <span className={`px-1.5 py-0.2 rounded text-[8px] border ${
-                                    row.winner === 'CHALLENGER'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                      : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                                  }`}>
-                                    {row.winner === 'CHALLENGER' ? 'ML' : 'PROPHET'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                            {mlForecast.walk_forward_ledger.map((row) => {
+                              const mlRet = row.ml_pred_return_pct !== undefined 
+                                ? row.ml_pred_return_pct 
+                                : ((row.ml_pred_price - (row.actual_price / (1 + (row.actual_return_pct || 0) / 100))) / (row.actual_price / (1 + (row.actual_return_pct || 0) / 100)) * 100);
+                              const isMlUp = row.ml_direction ? row.ml_direction === 'UP' : mlRet > 0;
+                              const isMlDown = row.ml_direction ? row.ml_direction === 'DOWN' : mlRet < 0;
+                              const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
+
+                              return (
+                                <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
+                                  <td className="px-2 py-1 text-slate-400 font-bold">
+                                    {row.date.slice(5)}
+                                  </td>
+                                  <td className="text-right px-1.5 py-1 text-white font-semibold">
+                                    <div>₺{row.actual_price.toFixed(2)}</div>
+                                    <div className={`text-[8px] font-bold ${
+                                      row.actual_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                    }`}>
+                                      {row.actual_return_pct >= 0 ? '▲ UP +' : '▼ DOWN '}{row.actual_return_pct.toFixed(1)}%
+                                    </div>
+                                  </td>
+                                  <td className="text-right px-1.5 py-1">
+                                    <div className="font-semibold text-white">₺{row.ml_pred_price.toFixed(2)}</div>
+                                    <div className={`text-[8.5px] font-bold flex items-center justify-end gap-1 ${
+                                      isMlUp ? 'text-emerald-400' : (isMlDown ? 'text-rose-400' : 'text-slate-400')
+                                    }`}>
+                                      <span>{isMlUp ? '▲ UP +' : (isMlDown ? '▼ DOWN ' : '■ FLAT ')}{mlRet.toFixed(1)}%</span>
+                                      <span className="text-[7.5px] text-slate-500 font-normal">({row.ml_err_pct.toFixed(1)}%)</span>
+                                    </div>
+                                  </td>
+                                  <td className="text-center px-1.5 py-1">
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black border tracking-wider ${
+                                      row.ml_is_hit
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-950/40'
+                                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-950/40'
+                                    }`}>
+                                      <span>{row.ml_is_hit ? '✓' : '✗'}</span>
+                                      <span>{row.ml_is_hit ? 'CORRECT' : 'WRONG'}</span>
+                                    </span>
+                                  </td>
+                                  <td className="text-right px-1.5 py-1 text-slate-300">
+                                    <div>₺{row.prophet_pred_price.toFixed(2)}</div>
+                                    <div className={`text-[8px] ${pRet >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
+                                      {pRet >= 0 ? '+' : ''}{pRet.toFixed(1)}% <span className="text-slate-500">({row.prophet_err_pct.toFixed(1)}%)</span>
+                                    </div>
+                                  </td>
+                                  <td className="text-center px-1.5 py-1">
+                                    <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                      row.mlb_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}>
+                                      {row.mlb_action} {row.mlb_flow_tl >= 0 ? '+' : ''}{(row.mlb_flow_tl / 1e6).toFixed(0)}M
+                                    </span>
+                                  </td>
+                                  <td className="text-center px-1.5 py-1">
+                                    <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                      row.big5_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}>
+                                      {row.big5_action} {row.big5_flow_tl >= 0 ? '+' : ''}{(row.big5_flow_tl / 1e6).toFixed(0)}M
+                                    </span>
+                                  </td>
+                                  <td className="text-center px-1.5 py-1">
+                                    <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
+                                      row.kamu_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}>
+                                      {row.kamu_action} {row.kamu_flow_tl >= 0 ? '+' : ''}{(row.kamu_flow_tl / 1e6).toFixed(0)}M
+                                    </span>
+                                  </td>
+                                  <td className="text-center px-1.5 py-1 font-bold">
+                                    <span className={`px-1.5 py-0.2 rounded text-[8px] border ${
+                                      row.winner === 'CHALLENGER'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                        : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                    }`}>
+                                      {row.winner === 'CHALLENGER' ? 'ML' : 'PROPHET'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

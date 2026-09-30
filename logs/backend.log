@@ -1,379 +1,225 @@
-INFO:     Started server process [10722]
+INFO:     Started server process [3913]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:51970 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:23 - cmdstanpy - INFO - Chain [1] done processing
-23:43:23 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:24 - cmdstanpy - INFO - Chain [1] start processing
-23:43:24 - cmdstanpy - INFO - Chain [1] done processing
-23:43:25 - cmdstanpy - INFO - Chain [1] start processing
-23:43:25 - cmdstanpy - INFO - Chain [1] done processing
-INFO:     127.0.0.1:51972 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51975 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51978 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51980 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51984 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51988 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51991 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51996 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51998 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52011 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52013 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52015 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52020 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52023 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52025 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52027 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52030 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=BIG5&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52032 - "GET /api/v1/market/candles?symbol=ASELS&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52036 - "GET /api/v1/tertip/horizons?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52035 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52040 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52053 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52056 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52058 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52062 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52064 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52066 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52071 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52073 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52076 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52080 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52091 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52093 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52096 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52099 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52102 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52143 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52144 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52147 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52146 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52149 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52151 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52145 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52153 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:34 - cmdstanpy - INFO - Chain [1] start processing
-00:04:34 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:35 - cmdstanpy - INFO - Chain [1] start processing
-00:04:35 - cmdstanpy - INFO - Chain [1] done processing
-00:04:36 - cmdstanpy - INFO - Chain [1] start processing
-00:04:36 - cmdstanpy - INFO - Chain [1] done processing
-INFO:     127.0.0.1:52142 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52159 - "GET /api/v1/market/candles?symbol=PGSUS&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52161 - "GET /api/v1/tertip/horizons?symbol=PGSUS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52160 - "GET /api/v1/market/summary?symbol=PGSUS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:44 - cmdstanpy - INFO - Chain [1] start processing
-00:04:44 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:45 - cmdstanpy - INFO - Chain [1] start processing
-00:04:45 - cmdstanpy - INFO - Chain [1] done processing
-00:04:46 - cmdstanpy - INFO - Chain [1] start processing
-00:04:46 - cmdstanpy - INFO - Chain [1] done processing
-INFO:     127.0.0.1:52158 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52166 - "GET /api/v1/market/summary?symbol=PGSUS&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52174 - "GET /api/v1/market/candles?symbol=SASA&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52173 - "GET /api/v1/tertip/horizons?symbol=SASA&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52172 - "GET /api/v1/market/summary?symbol=SASA&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:21 - cmdstanpy - INFO - Chain [1] start processing
-00:05:21 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:22 - cmdstanpy - INFO - Chain [1] start processing
-00:05:22 - cmdstanpy - INFO - Chain [1] done processing
-00:05:23 - cmdstanpy - INFO - Chain [1] start processing
-00:05:23 - cmdstanpy - INFO - Chain [1] done processing
-INFO:     127.0.0.1:52168 - "GET /api/v1/tertip/ml-forecast?symbol=SASA HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52180 - "GET /api/v1/market/candles?symbol=AKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52182 - "GET /api/v1/tertip/horizons?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52181 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:37 - cmdstanpy - INFO - Chain [1] start processing
-00:05:37 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:38 - cmdstanpy - INFO - Chain [1] start processing
-00:05:38 - cmdstanpy - INFO - Chain [1] done processing
-00:05:39 - cmdstanpy - INFO - Chain [1] start processing
-00:05:39 - cmdstanpy - INFO - Chain [1] done processing
-INFO:     127.0.0.1:52179 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52184 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52186 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [10722]
+INFO:     127.0.0.1:49837 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49838 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49841 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49840 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49839 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49849 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49851 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49853 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49857 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49856 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:50 - cmdstanpy - INFO - Chain [1] start processing
+20:04:50 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:51 - cmdstanpy - INFO - Chain [1] start processing
+20:04:51 - cmdstanpy - INFO - Chain [1] done processing
+20:04:52 - cmdstanpy - INFO - Chain [1] start processing
+20:04:52 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49836 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49865 - "GET /api/v1/market/candles?symbol=AKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49864 - "GET /api/v1/tertip/horizons?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49863 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:57 - cmdstanpy - INFO - Chain [1] start processing
+20:04:57 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:58 - cmdstanpy - INFO - Chain [1] start processing
+20:04:58 - cmdstanpy - INFO - Chain [1] done processing
+20:04:59 - cmdstanpy - INFO - Chain [1] start processing
+20:04:59 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49859 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49867 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49871 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49877 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49884 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49886 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49891 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49895 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49898 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49900 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49902 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49911 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49916 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49919 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49926 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49931 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49943 - "GET /api/v1/market/candles?symbol=AKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+INFO:     127.0.0.1:49945 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:11:59 - cmdstanpy - INFO - Chain [1] start processing
+20:11:59 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:00 - cmdstanpy - INFO - Chain [1] start processing
+20:12:00 - cmdstanpy - INFO - Chain [1] done processing
+20:12:01 - cmdstanpy - INFO - Chain [1] start processing
+20:12:01 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49942 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49949 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49953 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK

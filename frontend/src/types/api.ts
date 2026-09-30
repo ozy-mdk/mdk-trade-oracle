@@ -346,9 +346,13 @@ export interface WalkForwardLedgerItem {
   actual_price: number;
   actual_return_pct: number;
   ml_pred_price: number;
+  ml_pred_return_pct?: number;
+  ml_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
   ml_err_pct: number;
   ml_is_hit: boolean;
   prophet_pred_price: number;
+  prophet_pred_return_pct?: number;
+  prophet_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
   prophet_err_pct: number;
   prophet_is_hit: boolean;
   winner: 'CHALLENGER' | 'BASE';

@@ -3,7 +3,12 @@
 > vite
 
 
-  VITE v5.4.21  ready in 140 ms
+  VITE v5.4.21  ready in 112 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://192.168.178.55:5173/
+8:02:43 PM [vite] page reload src/types/api.ts
+8:03:05 PM [vite] hmr update /src/components/TertipEwmaChart.tsx, /src/index.css
+8:03:20 PM [vite] hmr update /src/components/TradingViewCandleChart.tsx, /src/index.css
+8:11:46 PM [vite] hmr update /src/components/TertipEwmaChart.tsx, /src/index.css
+8:11:58 PM [vite] hmr update /src/components/TradingViewCandleChart.tsx, /src/index.css

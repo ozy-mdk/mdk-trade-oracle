@@ -307,18 +307,28 @@ def run_30d_walk_forward_arena(
         prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         ml_err = abs(ml_price - actual_price) / actual_price * 100.0
 
-        prophet_hit = (prophet_ret > 0) == (actual_ret > 0)
-        ml_hit = (pred_ret_ml > 0) == (actual_ret > 0)
+        if abs(actual_ret) < 0.01:
+            prophet_hit = abs(prophet_ret) < 0.1
+            ml_hit = abs(pred_ret_ml) < 0.1
+        else:
+            prophet_hit = (prophet_ret > 0) if actual_ret > 0 else (prophet_ret < 0)
+            ml_hit = (pred_ret_ml > 0) if actual_ret > 0 else (pred_ret_ml < 0)
         winner = "CHALLENGER" if ml_err < prophet_err else "BASE"
+        ml_direction = "UP" if pred_ret_ml > 0.01 else ("DOWN" if pred_ret_ml < -0.01 else "FLAT")
+        prophet_direction = "UP" if prophet_ret > 0.01 else ("DOWN" if prophet_ret < -0.01 else "FLAT")
 
         ledger.append({
             "date": str(test_row["trade_date"]).split(" ")[0],
             "actual_price": round(actual_price, 2),
             "actual_return_pct": round(actual_ret, 2),
             "ml_pred_price": round(ml_price, 2),
+            "ml_pred_return_pct": round(pred_ret_ml, 2),
+            "ml_direction": ml_direction,
             "ml_err_pct": round(ml_err, 2),
             "ml_is_hit": bool(ml_hit),
             "prophet_pred_price": round(prophet_price, 2),
+            "prophet_pred_return_pct": round(prophet_ret, 2),
+            "prophet_direction": prophet_direction,
             "prophet_err_pct": round(prophet_err, 2),
             "prophet_is_hit": bool(prophet_hit),
             "winner": winner,
