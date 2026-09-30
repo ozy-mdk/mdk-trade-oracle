@@ -40,7 +40,6 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 }) => {
   const [activeSymbol, setActiveSymbol] = useState<string>(symbol);
   const [modelType, setModelType] = useState<'auto' | 'ridge' | 'xgboost'>('auto');
-  const [featuresMode, setFeaturesMode] = useState<'lean' | 'full'>('lean');
   const [chartView, setChartView] = useState<'price' | 'return'>('price');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -57,8 +56,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['tertipMlForecast', activeSymbol, modelType, featuresMode],
-    queryFn: () => fetchTertipMlForecast(activeSymbol, false, modelType, featuresMode),
+    queryKey: ['tertipMlForecast', activeSymbol, modelType],
+    queryFn: () => fetchTertipMlForecast(activeSymbol, false, modelType),
     refetchInterval: 60000,
   });
 
@@ -234,28 +233,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <Layers className="w-3 h-3 text-cyan-400" />
               Features:
             </span>
-            <button
-              onClick={() => setFeaturesMode('lean')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
-                featuresMode === 'lean'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="17 Active Features: Excludes noisy 2-day lags and yesterday execution shares"
-            >
-              Lean (17 Feats)
-            </button>
-            <button
-              onClick={() => setFeaturesMode('full')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
-                featuresMode === 'full'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="28 Active Features: Full candidate feature suite including yesterday shares and lags"
-            >
-              Full (28 Feats)
-            </button>
+            <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-400" title="17 Scarce Microstructure, Tertip Inventory & Today's Execution Features">
+              17 Lean Features (Zero Noise)
+            </span>
           </div>
         </div>
 

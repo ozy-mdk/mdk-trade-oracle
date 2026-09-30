@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Optional, List, Dict, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -34,18 +34,16 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Full Candidate Feature Suite (28 Microstructure, Tertip, Execution & BIST 30 Features)
-ALL_CANDIDATE_FEATURE_COLS = [
+# Lean & Pragmatic Feature Suite (17 Scarce Microstructure, Tertip Inventory & Today's Execution Features)
+FEATURE_COLS = [
     # Core Valuation & Momentum
     "feat_cost_spread_pct",
     "feat_ret_today_pct",
     "feat_ret_yesterday_pct",
     "feat_mlb_w5_share",
 
-    # BIST 30 (XU030) 3-Day Return Dynamics
+    # BIST 30 (XU030) Today's Return Dynamics
     "feat_bist30_ret_today_pct",
-    "feat_bist30_ret_yesterday_pct",
-    "feat_bist30_ret_day_before_pct",
 
     # 3-Month Tertip Inventory Expansion
     "feat_mlb_tertip_3m_ratio",
@@ -62,36 +60,7 @@ ALL_CANDIDATE_FEATURE_COLS = [
     "feat_kamu_buy_share_today",
     "feat_kamu_sell_share_today",
     "feat_kamu_pnl_share_today",
-
-    # Yesterday's Execution Breakdown (Buy, Sell, Realized PnL)
-    "feat_mlb_buy_share_yesterday",
-    "feat_mlb_sell_share_yesterday",
-    "feat_mlb_pnl_share_yesterday",
-    "feat_big5_buy_share_yesterday",
-    "feat_big5_sell_share_yesterday",
-    "feat_big5_pnl_share_yesterday",
-    "feat_kamu_buy_share_yesterday",
-    "feat_kamu_sell_share_yesterday",
-    "feat_kamu_pnl_share_yesterday",
 ]
-
-# Excluded columns in Lean Model Configuration (eliminates noisy 2-day lags & yesterday shares)
-DEFAULT_EXCLUDED_COLS = [
-    "feat_bist30_ret_yesterday_pct",
-    "feat_bist30_ret_day_before_pct",
-    "feat_mlb_buy_share_yesterday",
-    "feat_mlb_sell_share_yesterday",
-    "feat_mlb_pnl_share_yesterday",
-    "feat_big5_buy_share_yesterday",
-    "feat_big5_sell_share_yesterday",
-    "feat_big5_pnl_share_yesterday",
-    "feat_kamu_buy_share_yesterday",
-    "feat_kamu_sell_share_yesterday",
-    "feat_kamu_pnl_share_yesterday",
-]
-
-# Active Lean Feature Suite (17 Scarce Institutional Features)
-FEATURE_COLS = [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in DEFAULT_EXCLUDED_COLS]
 
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
@@ -240,7 +209,6 @@ def extract_3pillar_time_series(
     # Engineer 26 Scarce Microstructure, Tertip, Execution & BIST 30 Features
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
     tt_today = joined["total_turnover_tl"]
-    tt_yesterday = joined["total_turnover_tl"].shift(1).replace(0, np.nan).fillna(1e6)
 
     # 1. BofA Cost Spread %: (Close - BofA FIFO Cost) / BofA FIFO Cost * 100
     joined["feat_cost_spread_pct"] = np.where(
@@ -287,17 +255,9 @@ def extract_3pillar_time_series(
         joined[f"feat_{p}_sell_share_today"] = (joined[f"{p}_sell_tl"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
         joined[f"feat_{p}_pnl_share_today"] = (joined[f"{p}_daily_pnl_tl"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
 
-    # 6. Yesterday's Execution Breakdown (Buy, Sell, Realized PnL) normalized by Yesterday's Total Turnover %
-    for p in ["mlb", "big5", "kamu"]:
-        joined[f"feat_{p}_buy_share_yesterday"] = (joined[f"{p}_buy_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
-        joined[f"feat_{p}_sell_share_yesterday"] = (joined[f"{p}_sell_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
-        joined[f"feat_{p}_pnl_share_yesterday"] = (joined[f"{p}_daily_pnl_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
-
-    # 7. BIST 30 (XU030) 3-Day Return Dynamics (Today T, Yesterday T-1, Day Before T-2)
+    # 6. BIST 30 (XU030) Return Dynamics (Today T)
     joined["bist30_return_pct"] = joined["bist30_return_pct"].fillna(0.0)
     joined["feat_bist30_ret_today_pct"] = joined["bist30_return_pct"].clip(-15.0, 15.0)
-    joined["feat_bist30_ret_yesterday_pct"] = joined["bist30_return_pct"].shift(1).fillna(0.0).clip(-15.0, 15.0)
-    joined["feat_bist30_ret_day_before_pct"] = joined["bist30_return_pct"].shift(2).fillna(0.0).clip(-15.0, 15.0)
 
     # Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
     series_idx = pd.Series(range(len(joined)), index=joined.index)
@@ -723,21 +683,20 @@ def get_tertip_ml_forecast(
     symbol: str,
     force_refresh: bool = False,
     model_type: str = "auto",
-    features_mode: str = "lean",
-    excluded_cols: list[str] | None = None,
+    feature_cols: list[str] | None = None,
     train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and 30-day walk-forward track.
 
     Uses strictly 12 months (252 sessions) historical training lookback,
     compares Prophet Base vs Tertip ML Challenger with dynamic on-the-fly champion selection (Ridge vs XGBoost),
-    and supports lean (17 features) or full (28 features) microstructure suites.
+    and utilizes the lean 17-feature microstructure suite.
     """
     sym = symbol.upper()
     m_type = model_type.lower()
-    f_mode = features_mode.lower()
     now_ts = datetime.now(timezone.utc).timestamp()
-    cache_key = f"{sym}:{m_type}:{f_mode}:{train_lookback_sessions}"
+    cache_key = f"{sym}:{m_type}:{train_lookback_sessions}"
 
     # Check cache (bypassed if force_refresh is True)
     if not force_refresh and cache_key in _FORECAST_CACHE:
@@ -745,14 +704,8 @@ def get_tertip_ml_forecast(
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
-    # Resolve active feature set
-    if f_mode == "full":
-        active_features = list(ALL_CANDIDATE_FEATURE_COLS)
-    else:
-        excl = set(DEFAULT_EXCLUDED_COLS)
-        if excluded_cols:
-            excl.update(excluded_cols)
-        active_features = [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in excl]
+    # Resolve active feature set (strictly lean 17 features)
+    active_features = list(feature_cols) if feature_cols is not None else list(FEATURE_COLS)
 
     # Extract time series (550 calendar days to guarantee 252+ clean sessions after 63d EWMA)
     df = extract_3pillar_time_series(db, sym, lookback_days=550)
@@ -960,11 +913,10 @@ def get_tertip_ml_forecast(
         "bist30_trend": bist30_trend,
         "playbook_headline": playbook_headline,
         "playbook_rationale": playbook_rationale,
-        "features_mode": f_mode,
+        "features_mode": "lean",
         "active_features_count": len(active_features),
         "train_lookback_sessions": train_lookback_sessions,
         "active_features": active_features,
-        "excluded_features": [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in active_features],
         "tournament_summary": tournament,
         "pillar_matrix": pillar_matrix,
         "pillar_execution": pillar_execution,

@@ -9,7 +9,6 @@ import {
   TertipHistoryPoint,
   EventStudyScanItem,
   TimeWindowAnalysisResponse,
-  AllSignalsResponse,
   TertipHorizonsResponse,
   TertipTimeseriesPoint,
   ShockDayItem,
@@ -160,12 +159,6 @@ export async function fetchTimeWindowAnalysis(
   return res.json();
 }
 
-export async function fetchAllSignals(): Promise<AllSignalsResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/signals/all`);
-  if (!res.ok) throw new Error('Failed to fetch predictive signals');
-  return res.json();
-}
-
 export async function fetchShockDays(
   thresholdPct: number = 0.03,
   fromDate?: string,
@@ -182,10 +175,9 @@ export async function fetchShockDays(
 export async function fetchTertipMlForecast(
   symbol: string,
   fresh: boolean = false,
-  modelType: string = 'auto',
-  featuresMode: string = 'lean'
+  modelType: string = 'auto'
 ): Promise<TertipMlForecastResponse> {
-  let url = `${BASE_URL}/api/v1/tertip/ml-forecast?symbol=${encodeURIComponent(symbol)}&model_type=${encodeURIComponent(modelType)}&features_mode=${encodeURIComponent(featuresMode)}`;
+  let url = `${BASE_URL}/api/v1/tertip/ml-forecast?symbol=${encodeURIComponent(symbol)}&model_type=${encodeURIComponent(modelType)}`;
   if (fresh) {
     url += `&fresh=true&_t=${Date.now()}`;
   }

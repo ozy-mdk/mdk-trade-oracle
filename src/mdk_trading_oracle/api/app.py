@@ -413,37 +413,6 @@ class TimeWindowAnalysisResponse(BaseModel):
     closing_auction_net_tl: Optional[float] = None
 
 
-class MacroSignalResponse(BaseModel):
-    forecast_date: str
-    predicted_open_net_flow_tl: float
-    predicted_open_flow_lower_90: float
-    predicted_open_flow_upper_90: float
-    predicted_direction: str
-    direction_confidence: float
-    predicted_playbook: str
-    top_predicted_buy_sector: Optional[str] = None
-    top_predicted_sell_sector: Optional[str] = None
-    model_name: str
-    model_version: str
-
-
-class StockReactionForecastItem(BaseModel):
-    forecast_date: str
-    symbol: str
-    window_name: str
-    predicted_return_pct: float
-    predicted_return_lower_90: float
-    predicted_return_upper_90: float
-    predicted_direction: str
-    direction_confidence: float
-    predicted_playbook: str
-
-
-class AllSignalsResponse(BaseModel):
-    forecast_date: str
-    macro_day_start: Optional[MacroSignalResponse] = None
-    sector_allocations: List[Dict[str, Any]] = Field(default_factory=list)
-    stock_reactions: List[StockReactionForecastItem] = Field(default_factory=list)
 
 
 class ShockDayItem(BaseModel):
@@ -1553,13 +1522,10 @@ def get_tertip_ml_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Force bypass cache and recalculate live"),
     model_type: str = Query("auto", description="Model type: auto, xgboost, or ridge"),
-    features_mode: str = Query("lean", description="Feature configuration: lean (17 features) or full (28 features)"),
 ) -> TertipMlForecastResponse:
     """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
     try:
-        data = get_tertip_ml_forecast(
-            db, symbol, force_refresh=fresh, model_type=model_type, features_mode=features_mode
-        )
+        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh, model_type=model_type)
         if "error" in data:
             raise HTTPException(status_code=404, detail=data["error"])
         return TertipMlForecastResponse(**data)
@@ -1918,139 +1884,6 @@ def analyze_time_windows(
         closing_auction_net_tl=w5.net_flow_tl if w5 else None,
     )
 
-
-# ── Gold Predictive Oracle Endpoints ──────────────────────────────────────────
-
-@app.get("/api/v1/signals/day-start", response_model=Optional[MacroSignalResponse])
-def get_day_start_signal() -> Optional[MacroSignalResponse]:
-    """Return live Model 1 Day-Start Macro Forecast for upcoming session T+1."""
-    query = """
-        SELECT 
-            forecast_date,
-            predicted_open_net_flow_tl,
-            predicted_open_flow_lower_90,
-            predicted_open_flow_upper_90,
-            predicted_direction,
-            direction_confidence,
-            predicted_playbook,
-            top_predicted_buy_sector,
-            top_predicted_sell_sector,
-            model_name,
-            model_version
-        FROM gold_bofa_day_start_forecasts
-        ORDER BY forecast_date DESC LIMIT 1;
-    """
-    row = db.execute(query).fetchone()
-    if not row:
-        return None
-
-    return MacroSignalResponse(
-        forecast_date=str(row[0]),
-        predicted_open_net_flow_tl=row[1],
-        predicted_open_flow_lower_90=row[2],
-        predicted_open_flow_upper_90=row[3],
-        predicted_direction=row[4],
-        direction_confidence=row[5],
-        predicted_playbook=row[6],
-        top_predicted_buy_sector=row[7],
-        top_predicted_sell_sector=row[8],
-        model_name=row[9],
-        model_version=row[10],
-    )
-
-
-@app.get("/api/v1/signals/sector-rotation")
-def get_sector_rotation_signals() -> List[Dict[str, Any]]:
-    """Return live Model 2 Sector Day-Start predicted capital allocations."""
-    query = """
-        SELECT 
-            forecast_date,
-            sector,
-            predicted_open_net_flow_tl,
-            predicted_open_flow_lower_90,
-            predicted_open_flow_upper_90,
-            predicted_direction,
-            direction_confidence,
-            predicted_playbook
-        FROM gold_bofa_sector_day_start_forecasts
-        WHERE forecast_date = (SELECT MAX(forecast_date) FROM gold_bofa_sector_day_start_forecasts)
-        ORDER BY predicted_open_net_flow_tl DESC;
-    """
-    rows = db.execute(query).fetchall()
-    return [
-        {
-            "forecast_date": str(r[0]),
-            "sector": r[1],
-            "predicted_open_net_flow_tl": round(float(r[2] or 0.0), 2),
-            "predicted_lower_90": round(float(r[3] or 0.0), 2),
-            "predicted_upper_90": round(float(r[4] or 0.0), 2),
-            "direction": r[5],
-            "confidence": round(float(r[6] or 0.0), 3),
-            "playbook": r[7],
-        }
-        for r in rows
-    ]
-
-
-@app.get("/api/v1/signals/stock-reactions", response_model=List[StockReactionForecastItem])
-def get_stock_reaction_signals(
-    window: str = Query("w2", description="Reaction window: w2, w3, w5"),
-) -> List[StockReactionForecastItem]:
-    """Return Model 3 Stock Intraday Reaction predictions for equities."""
-    tbl_map = {
-        "w2": "gold_bofa_stock_reaction_w2_forecasts",
-        "w3": "gold_bofa_stock_reaction_w3_forecasts",
-        "w5": "gold_bofa_stock_reaction_w5_forecasts",
-    }
-    tbl = tbl_map.get(window.lower(), "gold_bofa_stock_reaction_w2_forecasts")
-
-    query = f"""
-        SELECT 
-            forecast_date,
-            symbol,
-            window_name,
-            predicted_return_pct,
-            predicted_return_lower_90,
-            predicted_return_upper_90,
-            predicted_direction,
-            direction_confidence,
-            predicted_playbook
-        FROM {tbl}
-        WHERE forecast_date = (SELECT MAX(forecast_date) FROM {tbl})
-        ORDER BY predicted_return_pct DESC;
-    """
-    rows = db.execute(query).fetchall()
-    return [
-        StockReactionForecastItem(
-            forecast_date=str(r[0]),
-            symbol=r[1],
-            window_name=r[2],
-            predicted_return_pct=round(float(r[3] or 0.0), 2),
-            predicted_return_lower_90=round(float(r[4] or 0.0), 2),
-            predicted_return_upper_90=round(float(r[5] or 0.0), 2),
-            predicted_direction=r[6],
-            direction_confidence=round(float(r[7] or 0.0), 3),
-            predicted_playbook=r[8],
-        )
-        for r in rows
-    ]
-
-
-@app.get("/api/v1/signals/all", response_model=AllSignalsResponse)
-def get_all_signals() -> AllSignalsResponse:
-    """Return consolidated Gold Layer signals across Macro, Sector, and Stock models."""
-    macro = get_day_start_signal()
-    sectors = get_sector_rotation_signals()
-    stocks = get_stock_reaction_signals(window="w2")
-
-    f_date = macro.forecast_date if macro else "2026-09-17"
-
-    return AllSignalsResponse(
-        forecast_date=f_date,
-        macro_day_start=macro,
-        sector_allocations=sectors,
-        stock_reactions=stocks,
-    )
 
 
 # ── WebSocket Real-Time Channel ───────────────────────────────────────────────

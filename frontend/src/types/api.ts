@@ -139,49 +139,6 @@ export interface TimeWindowAnalysisResponse {
   closing_auction_net_tl?: number | null;
 }
 
-export interface MacroSignalResponse {
-  forecast_date: string;
-  predicted_open_net_flow_tl: number;
-  predicted_open_flow_lower_90: number;
-  predicted_open_flow_upper_90: number;
-  predicted_direction: string;
-  direction_confidence: number;
-  predicted_playbook: string;
-  top_predicted_buy_sector?: string | null;
-  top_predicted_sell_sector?: string | null;
-  model_name: string;
-  model_version: string;
-}
-
-export interface SectorAllocationItem {
-  forecast_date: string;
-  sector: string;
-  predicted_open_net_flow_tl: number;
-  predicted_lower_90: number;
-  predicted_upper_90: number;
-  direction: string;
-  confidence: number;
-  playbook: string;
-}
-
-export interface StockReactionForecastItem {
-  forecast_date: string;
-  symbol: string;
-  window_name: string;
-  predicted_return_pct: number;
-  predicted_return_lower_90: number;
-  predicted_return_upper_90: number;
-  predicted_direction: string;
-  direction_confidence: number;
-  predicted_playbook: string;
-}
-
-export interface AllSignalsResponse {
-  forecast_date: string;
-  macro_day_start?: MacroSignalResponse | null;
-  sector_allocations: SectorAllocationItem[];
-  stock_reactions: StockReactionForecastItem[];
-}
 
 export interface TertipDiagnostic {
   diagnostic_badge: string;

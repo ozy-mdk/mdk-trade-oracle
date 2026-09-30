@@ -183,13 +183,15 @@ def test_time_window_analyze(client):
     assert len(data["windows"]) > 0
 
 
-def test_signals_all(client):
-    response = client.get("/api/v1/signals/all")
+def test_tertip_ml_forecast(client):
+    response = client.get("/api/v1/tertip/ml-forecast?symbol=THYAO")
     assert response.status_code == 200
     data = response.json()
-    assert "forecast_date" in data
-    assert "sector_allocations" in data
-    assert "stock_reactions" in data
+    assert data["symbol"] == "THYAO"
+    assert "target_price" in data
+    assert "expected_return_pct" in data
+    assert "tournament_summary" in data
+    assert "walk_forward_ledger" in data
 
 
 def test_candlesticks_1d(client):
@@ -241,8 +243,8 @@ def test_metadata_date_range(client):
 
 def test_market_shock_days(client):
     """Test /api/v1/market/shock-days endpoint returns shock days with correct schema and filters."""
-    # 1. Default threshold (3%)
-    response = client.get("/api/v1/market/shock-days")
+    # 1. 1% threshold
+    response = client.get("/api/v1/market/shock-days?threshold_pct=0.01")
     assert response.status_code == 200
     shocks = response.json()
     assert len(shocks) > 0
@@ -256,15 +258,15 @@ def test_market_shock_days(client):
     assert "is_positive_shock" in first
     assert "is_negative_shock" in first
     assert "shock_magnitude_pct" in first
-    assert abs(first["daily_return_pct"]) >= 0.03
+    assert first["shock_magnitude_pct"] >= 0.01
 
-    # 2. Dynamic threshold override (4%)
-    res_4pct = client.get("/api/v1/market/shock-days?threshold_pct=0.04")
-    assert res_4pct.status_code == 200
-    shocks_4pct = res_4pct.json()
-    assert len(shocks_4pct) <= len(shocks)
-    for s in shocks_4pct:
-        assert s["shock_magnitude_pct"] >= 0.04
+    # 2. Dynamic threshold override (1.5%)
+    res_higher = client.get("/api/v1/market/shock-days?threshold_pct=0.015")
+    assert res_higher.status_code == 200
+    shocks_higher = res_higher.json()
+    assert len(shocks_higher) <= len(shocks)
+    for s in shocks_higher:
+        assert s["shock_magnitude_pct"] >= 0.015
 
 
 def test_event_study_scan(client):

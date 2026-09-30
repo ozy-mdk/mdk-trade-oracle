@@ -28,8 +28,6 @@ def test_run_30d_walk_forward_arena_synthetic():
         "feat_mlb_w5_share": np.random.randn(65) * 0.03,
         "bist30_return_pct": np.random.randn(65) * 1.5,
         "feat_bist30_ret_today_pct": np.random.randn(65) * 1.5,
-        "feat_bist30_ret_yesterday_pct": np.random.randn(65) * 1.5,
-        "feat_bist30_ret_day_before_pct": np.random.randn(65) * 1.5,
         "feat_mlb_tertip_3m_ratio": np.random.randn(65) * 5.0,
         "feat_big5_tertip_3m_ratio": np.random.randn(65) * 4.0,
         "feat_kamu_tertip_3m_ratio": np.random.randn(65) * 3.0,
@@ -47,14 +45,11 @@ def test_run_30d_walk_forward_arena_synthetic():
         "kamu_daily_pnl_tl": np.random.randn(65) * 8e5,
     }
 
-    # Add 18 execution share features
+    # Add 9 today's execution share features
     for p in ["mlb", "big5", "kamu"]:
         data_dict[f"feat_{p}_buy_share_today"] = np.random.randn(65) * 5.0
         data_dict[f"feat_{p}_sell_share_today"] = np.random.randn(65) * 5.0
         data_dict[f"feat_{p}_pnl_share_today"] = np.random.randn(65) * 1.0
-        data_dict[f"feat_{p}_buy_share_yesterday"] = np.random.randn(65) * 5.0
-        data_dict[f"feat_{p}_sell_share_yesterday"] = np.random.randn(65) * 5.0
-        data_dict[f"feat_{p}_pnl_share_yesterday"] = np.random.randn(65) * 1.0
 
     df = pd.DataFrame(data_dict)
 
