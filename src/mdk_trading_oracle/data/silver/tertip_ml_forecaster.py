@@ -31,13 +31,17 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Active 25-Feature Microstructure, Tertip & Execution Suite
+# Active 27-Feature Microstructure, Tertip, Execution & Shock Suite
 FEATURE_COLS = [
     # Core Valuation & Momentum
     "feat_cost_spread_pct",
     "feat_ret_today_pct",
     "feat_ret_yesterday_pct",
     "feat_mlb_w5_share",
+
+    # Shock Regime Proximity (Distance in sessions from last ±3% shock)
+    "feat_days_since_pos_shock",
+    "feat_days_since_neg_shock",
 
     # 3-Month Tertip Inventory Expansion
     "feat_mlb_tertip_3m_ratio",
@@ -73,9 +77,9 @@ logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 logging.getLogger("prophet").setLevel(logging.WARNING)
 logging.getLogger("lightgbm").setLevel(logging.WARNING)
 
-# In-memory cache for fast UI serving (TTL 5 minutes)
+# In-memory cache for fast UI serving (TTL 30 seconds to stay fresh)
 _FORECAST_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-CACHE_TTL_SECONDS = 300.0
+CACHE_TTL_SECONDS = 30.0
 
 
 def clear_forecast_cache() -> None:
@@ -241,6 +245,14 @@ def extract_3pillar_time_series(
         joined[f"feat_{p}_buy_share_yesterday"] = (joined[f"{p}_buy_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
         joined[f"feat_{p}_sell_share_yesterday"] = (joined[f"{p}_sell_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
         joined[f"feat_{p}_pnl_share_yesterday"] = (joined[f"{p}_daily_pnl_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
+
+    # 7. Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
+    series_idx = pd.Series(range(len(joined)), index=joined.index)
+    pos_shock_idx = series_idx.where(joined["daily_return_pct"] >= 0.03).ffill()
+    joined["feat_days_since_pos_shock"] = (series_idx - pos_shock_idx).fillna(63.0).clip(0.0, 63.0)
+
+    neg_shock_idx = series_idx.where(joined["daily_return_pct"] <= -0.03).ffill()
+    joined["feat_days_since_neg_shock"] = (series_idx - neg_shock_idx).fillna(63.0).clip(0.0, 63.0)
 
     return joined
 
@@ -476,7 +488,9 @@ def run_30d_walk_forward_arena(
     return ledger, tournament_summary, champion_ml_model
 
 
-def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
+def get_tertip_ml_forecast(
+    db: PostgresManager, symbol: str, force_refresh: bool = False
+) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and 30-day walk-forward track.
 
     Uses zero-lookahead training, compares Prophet Base vs Tertip ML Challenger,
@@ -485,8 +499,8 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
     sym = symbol.upper()
     now_ts = datetime.now(timezone.utc).timestamp()
 
-    # Check cache
-    if sym in _FORECAST_CACHE:
+    # Check cache (bypassed if force_refresh is True)
+    if not force_refresh and sym in _FORECAST_CACHE:
         cached_ts, cached_data = _FORECAST_CACHE[sym]
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
@@ -633,6 +647,9 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         },
     }
 
+    days_pos_shock = int(round(float(latest_row.get("feat_days_since_pos_shock", 63.0))))
+    days_neg_shock = int(round(float(latest_row.get("feat_days_since_neg_shock", 63.0))))
+
     response_data = {
         "symbol": sym,
         "as_of_date": latest_date_str,
@@ -646,6 +663,8 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         "stance_color": stance_color,
         "prophet_target_price": round(prophet_target_price, 2),
         "prophet_expected_return_pct": round(prophet_ret_pct, 2),
+        "days_since_last_positive_shock": days_pos_shock,
+        "days_since_last_negative_shock": days_neg_shock,
         "playbook_headline": playbook_headline,
         "playbook_rationale": playbook_rationale,
         "tournament_summary": tournament,

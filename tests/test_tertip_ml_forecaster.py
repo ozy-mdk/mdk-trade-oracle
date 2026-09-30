@@ -26,6 +26,8 @@ def test_run_30d_walk_forward_arena_synthetic():
         "feat_ret_today_pct": np.random.randn(65) * 1.5,
         "feat_ret_yesterday_pct": np.random.randn(65) * 1.5,
         "feat_mlb_w5_share": np.random.randn(65) * 0.03,
+        "feat_days_since_pos_shock": np.random.uniform(0, 30, 65),
+        "feat_days_since_neg_shock": np.random.uniform(0, 30, 65),
         "feat_mlb_tertip_3m_ratio": np.random.randn(65) * 5.0,
         "feat_big5_tertip_3m_ratio": np.random.randn(65) * 4.0,
         "feat_kamu_tertip_3m_ratio": np.random.randn(65) * 3.0,
@@ -89,6 +91,8 @@ def test_tertip_ml_forecaster_live_database():
     assert data["target_price"] > 0
     assert "expected_return_pct" in data
     assert "stance" in data
+    assert "days_since_last_positive_shock" in data
+    assert "days_since_last_negative_shock" in data
     assert "tournament_summary" in data
     assert len(data["pillar_matrix"]) == 3
     assert len(data["walk_forward_ledger"]) == 30
