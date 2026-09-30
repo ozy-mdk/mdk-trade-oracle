@@ -1682,9 +1682,28 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
                   {/* 30-Day Walk-Forward Reality Ledger Table */}
                   <div className="space-y-1">
-                    <div className="text-[10px] font-bold text-slate-300 tracking-wide flex items-center justify-between">
+                    <div className="text-[10px] font-bold text-slate-300 tracking-wide flex flex-wrap items-center justify-between gap-1">
                       <span>Out-of-Sample Walk-Forward Reality Ledger</span>
-                      <span className="text-[8.5px] text-slate-500 font-mono">Ground-Truth Pillar Actions</span>
+                      <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
+                        {(() => {
+                          const ledger = mlForecast.walk_forward_ledger || [];
+                          const mlHits = ledger.filter((r) => r.ml_is_hit).length;
+                          const mlMiss = ledger.length - mlHits;
+                          const l10 = ledger.slice(-10);
+                          const l10Hits = l10.filter((r) => r.ml_is_hit).length;
+                          const l10Miss = l10.length - l10Hits;
+                          return (
+                            <>
+                              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                                30D ML: <span className="text-emerald-400 font-bold">{mlHits}✓</span> / <span className="text-rose-400 font-bold">{mlMiss}✗</span> ({((mlHits / (ledger.length || 1)) * 100).toFixed(1)}%)
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                                Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> / <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({((l10Hits / (l10.length || 1)) * 100).toFixed(0)}%)
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto max-h-56 overflow-y-auto rounded-lg border border-slate-800/90">
@@ -1694,9 +1713,9 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                             <th className="text-left px-2 py-1 font-sans">Date</th>
                             <th className="text-right px-1.5 py-1 font-sans">Actual</th>
                             <th className="text-right px-1.5 py-1 font-sans text-cyan-300">ML Pred</th>
-                            <th className="text-center px-1.5 py-1 font-sans text-amber-300">Dir Correct?</th>
+                            <th className="text-center px-1.5 py-1 font-sans text-cyan-300">ML Hit?</th>
                             <th className="text-right px-1.5 py-1 font-sans text-amber-200">XU030</th>
-                            <th className="text-right px-1.5 py-1 font-sans">Prophet</th>
+                            <th className="text-right px-1.5 py-1 font-sans text-purple-300">Prophet</th>
                             <th className="text-center px-1.5 py-1 font-sans">MLB Did</th>
                             <th className="text-center px-1.5 py-1 font-sans">BIG5 Did</th>
                             <th className="text-center px-1.5 py-1 font-sans">KAMU Did</th>
@@ -1713,6 +1732,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                             const isActUp = row.actual_return_pct > 0.02;
                             const isActDown = row.actual_return_pct < -0.02;
                             const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
+                            const bothMiss = !row.ml_is_hit && !row.prophet_is_hit;
 
                             return (
                               <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
@@ -1756,7 +1776,16 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                                   </div>
                                 </td>
                                 <td className="text-right px-1.5 py-1 text-slate-300">
-                                  <div>₺{row.prophet_pred_price.toFixed(2)}</div>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>₺{row.prophet_pred_price.toFixed(2)}</span>
+                                    <span className={`text-[7px] font-black px-1 py-0.2 rounded border ${
+                                      row.prophet_is_hit
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                        : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                    }`}>
+                                      {row.prophet_is_hit ? '✓' : '✗'}
+                                    </span>
+                                  </div>
                                   <div className={`text-[8px] ${pRet >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
                                     {pRet >= 0 ? '+' : ''}{pRet.toFixed(1)}% <span className="text-slate-500">({row.prophet_err_pct.toFixed(1)}%)</span>
                                   </div>
@@ -1799,11 +1828,13 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                                 </td>
                                 <td className="text-center px-1.5 py-1 font-bold">
                                   <span className={`px-1.5 py-0.2 rounded text-[8px] border ${
-                                    row.winner === 'CHALLENGER'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                      : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                    bothMiss
+                                      ? 'bg-slate-800 text-slate-400 border-slate-700'
+                                      : (row.winner === 'CHALLENGER'
+                                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                          : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40')
                                   }`}>
-                                    {row.winner === 'CHALLENGER' ? 'ML' : 'PROPHET'}
+                                    {bothMiss ? 'BOTH MISS' : (row.winner === 'CHALLENGER' ? 'ML' : 'PROPHET')}
                                   </span>
                                 </td>
                               </tr>
