@@ -34,6 +34,7 @@ import {
   History,
   Award,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 
 interface TertipEwmaChartProps {
@@ -1615,23 +1616,41 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                       </span>
                     </div>
 
-                    {/* Shock Regime Proximity & Real-time Refresh Banner */}
+                    {/* BIST 30 (XU030) 3-Day Momentum & Real-time Refresh Banner */}
                     <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] font-mono bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-slate-400 font-sans font-medium flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-400" />
-                          <span>Shock Regime Proximity:</span>
+                        <span className="text-amber-400/90 font-sans font-semibold flex items-center gap-1">
+                          <Activity className="w-3 h-3 text-amber-400" />
+                          <span>BIST 30 (XU030) 3-Day Return:</span>
                         </span>
                         <span className="flex items-center gap-1">
-                          <span className="text-emerald-400 font-bold">▲ Last Pos Shock:</span>
-                          <span className="text-slate-200">
-                            {mlForecast.days_since_last_positive_shock === 0 ? 'TODAY (Acute)' : `${mlForecast.days_since_last_positive_shock ?? '-'}d ago`}
+                          <span className="text-slate-400 font-medium">Today (T):</span>
+                          <span className={`font-bold ${
+                            (mlForecast.bist30_trend?.today_pct ?? 0) > 0.02
+                              ? 'text-emerald-400'
+                              : (mlForecast.bist30_trend?.today_pct ?? 0) < -0.02 ? 'text-rose-400' : 'text-slate-200'
+                          }`}>
+                            {(mlForecast.bist30_trend?.today_pct ?? 0) > 0 ? '+' : ''}{(mlForecast.bist30_trend?.today_pct ?? 0).toFixed(2)}%
                           </span>
                         </span>
                         <span className="flex items-center gap-1">
-                          <span className="text-rose-400 font-bold">▼ Last Neg Shock:</span>
-                          <span className="text-slate-200">
-                            {mlForecast.days_since_last_negative_shock === 0 ? 'TODAY (Acute)' : `${mlForecast.days_since_last_negative_shock ?? '-'}d ago`}
+                          <span className="text-slate-400 font-medium">Yesterday (T-1):</span>
+                          <span className={`font-bold ${
+                            (mlForecast.bist30_trend?.yesterday_pct ?? 0) > 0.02
+                              ? 'text-emerald-400'
+                              : (mlForecast.bist30_trend?.yesterday_pct ?? 0) < -0.02 ? 'text-rose-400' : 'text-slate-200'
+                          }`}>
+                            {(mlForecast.bist30_trend?.yesterday_pct ?? 0) > 0 ? '+' : ''}{(mlForecast.bist30_trend?.yesterday_pct ?? 0).toFixed(2)}%
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-slate-400 font-medium">Day Before (T-2):</span>
+                          <span className={`font-bold ${
+                            (mlForecast.bist30_trend?.day_before_pct ?? 0) > 0.02
+                              ? 'text-emerald-400'
+                              : (mlForecast.bist30_trend?.day_before_pct ?? 0) < -0.02 ? 'text-rose-400' : 'text-slate-200'
+                          }`}>
+                            {(mlForecast.bist30_trend?.day_before_pct ?? 0) > 0 ? '+' : ''}{(mlForecast.bist30_trend?.day_before_pct ?? 0).toFixed(2)}%
                           </span>
                         </span>
                       </div>
@@ -1944,6 +1963,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                               <th className="text-right px-1.5 py-1 font-sans">Actual</th>
                               <th className="text-right px-1.5 py-1 font-sans text-cyan-300">ML Pred</th>
                               <th className="text-center px-1.5 py-1 font-sans text-amber-300">Dir Correct?</th>
+                              <th className="text-right px-1.5 py-1 font-sans text-amber-200">XU030</th>
                               <th className="text-right px-1.5 py-1 font-sans">Prophet</th>
                               <th className="text-center px-1.5 py-1 font-sans">MLB Did</th>
                               <th className="text-center px-1.5 py-1 font-sans">BIG5 Did</th>
@@ -1993,6 +2013,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                                       <span>{row.ml_is_hit ? '✓' : '✗'}</span>
                                       <span>{row.ml_is_hit ? 'CORRECT' : 'WRONG'}</span>
                                     </span>
+                                  </td>
+                                  <td className="text-right px-1.5 py-1">
+                                    <div className={`text-[8.5px] font-bold ${
+                                      (row.bist30_ret_pct ?? 0) > 0.02 
+                                        ? 'text-emerald-400' 
+                                        : ((row.bist30_ret_pct ?? 0) < -0.02 ? 'text-rose-400' : 'text-slate-400')
+                                    }`}>
+                                      {(row.bist30_ret_pct ?? 0) > 0 ? '+' : ''}{(row.bist30_ret_pct ?? 0).toFixed(2)}%
+                                    </div>
                                   </td>
                                   <td className="text-right px-1.5 py-1 text-slate-300">
                                     <div>₺{row.prophet_pred_price.toFixed(2)}</div>

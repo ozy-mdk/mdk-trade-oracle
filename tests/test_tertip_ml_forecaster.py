@@ -26,8 +26,10 @@ def test_run_30d_walk_forward_arena_synthetic():
         "feat_ret_today_pct": np.random.randn(65) * 1.5,
         "feat_ret_yesterday_pct": np.random.randn(65) * 1.5,
         "feat_mlb_w5_share": np.random.randn(65) * 0.03,
-        "feat_days_since_pos_shock": np.random.uniform(0, 30, 65),
-        "feat_days_since_neg_shock": np.random.uniform(0, 30, 65),
+        "bist30_return_pct": np.random.randn(65) * 1.5,
+        "feat_bist30_ret_today_pct": np.random.randn(65) * 1.5,
+        "feat_bist30_ret_yesterday_pct": np.random.randn(65) * 1.5,
+        "feat_bist30_ret_day_before_pct": np.random.randn(65) * 1.5,
         "feat_mlb_tertip_3m_ratio": np.random.randn(65) * 5.0,
         "feat_big5_tertip_3m_ratio": np.random.randn(65) * 4.0,
         "feat_kamu_tertip_3m_ratio": np.random.randn(65) * 3.0,
@@ -70,6 +72,7 @@ def test_run_30d_walk_forward_arena_synthetic():
     row = ledger[0]
     assert "date" in row
     assert "actual_price" in row
+    assert "bist30_ret_pct" in row
     assert "ml_pred_price" in row
     assert "prophet_pred_price" in row
     assert "mlb_action" in row
@@ -91,8 +94,10 @@ def test_tertip_ml_forecaster_live_database():
     assert data["target_price"] > 0
     assert "expected_return_pct" in data
     assert "stance" in data
-    assert "days_since_last_positive_shock" in data
-    assert "days_since_last_negative_shock" in data
+    assert "bist30_trend" in data
+    assert "today_pct" in data["bist30_trend"]
+    assert "yesterday_pct" in data["bist30_trend"]
+    assert "day_before_pct" in data["bist30_trend"]
     assert "tournament_summary" in data
     assert len(data["pillar_matrix"]) == 3
     assert len(data["walk_forward_ledger"]) == 30
@@ -104,6 +109,7 @@ def test_tertip_ml_forecaster_live_database():
     last_row = data["walk_forward_ledger"][-1]
     assert "date" in last_row
     assert "actual_price" in last_row
+    assert "bist30_ret_pct" in last_row
     assert "mlb_action" in last_row
     assert "big5_action" in last_row
     assert "kamu_action" in last_row

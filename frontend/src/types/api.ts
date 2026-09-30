@@ -345,6 +345,7 @@ export interface WalkForwardLedgerItem {
   date: string;
   actual_price: number;
   actual_return_pct: number;
+  bist30_ret_pct?: number;
   ml_pred_price: number;
   ml_pred_return_pct?: number;
   ml_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
@@ -406,6 +407,12 @@ export interface PillarExecutionTodayYesterday {
   kamu: PillarExecutionPillar;
 }
 
+export interface Bist30Trend {
+  today_pct: number;
+  yesterday_pct: number;
+  day_before_pct: number;
+}
+
 export interface TertipMlForecastResponse {
   symbol: string;
   as_of_date: string;
@@ -421,6 +428,7 @@ export interface TertipMlForecastResponse {
   prophet_expected_return_pct: number;
   days_since_last_positive_shock?: number;
   days_since_last_negative_shock?: number;
+  bist30_trend?: Bist30Trend;
   playbook_headline: string;
   playbook_rationale: string;
   tournament_summary: TournamentSummary;

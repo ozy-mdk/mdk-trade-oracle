@@ -31,7 +31,7 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Active 27-Feature Microstructure, Tertip, Execution & Shock Suite
+# Active 28-Feature Microstructure, Tertip, Execution & BIST 30 Benchmark Suite
 FEATURE_COLS = [
     # Core Valuation & Momentum
     "feat_cost_spread_pct",
@@ -39,9 +39,10 @@ FEATURE_COLS = [
     "feat_ret_yesterday_pct",
     "feat_mlb_w5_share",
 
-    # Shock Regime Proximity (Distance in sessions from last ±3% shock)
-    "feat_days_since_pos_shock",
-    "feat_days_since_neg_shock",
+    # BIST 30 (XU030) 3-Day Return Dynamics
+    "feat_bist30_ret_today_pct",
+    "feat_bist30_ret_yesterday_pct",
+    "feat_bist30_ret_day_before_pct",
 
     # 3-Month Tertip Inventory Expansion
     "feat_mlb_tertip_3m_ratio",
@@ -179,18 +180,40 @@ def extract_3pillar_time_series(
         params=[sym],
     )
 
+    # 5. BIST 30 (XU030) Benchmark Daily Returns
+    df_bist30 = db.query_pl(
+        """
+        SELECT 
+            s.trade_date,
+            COALESCE(
+                b.daily_return_pct * 100.0,
+                s.basket_return_pct
+            ) AS bist30_return_pct
+        FROM (
+            SELECT trade_date,
+                   (COALESCE(SUM(adj_daily_return_pct * total_turnover_tl) / NULLIF(SUM(total_turnover_tl), 0), 0.0) * 100.0) AS basket_return_pct
+            FROM silver_daily_stock_summary
+            WHERE index_name = 'BIST30'
+            GROUP BY trade_date
+        ) s
+        LEFT JOIN silver_daily_benchmark_index b USING (trade_date)
+        ORDER BY s.trade_date ASC;
+        """
+    )
+
     # Join on trade_date
     joined = (
         df_prices.join(df_inventory, on="trade_date", how="left")
         .join(df_flows, on="trade_date", how="left")
         .join(df_w5, on="trade_date", how="left")
+        .join(df_bist30, on="trade_date", how="left")
         .to_pandas()
     )
 
     if joined.empty:
         return pd.DataFrame()
 
-    # Engineer 25 Scarce Microstructure, Tertip & Execution Features
+    # Engineer 26 Scarce Microstructure, Tertip, Execution & BIST 30 Features
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
     tt_today = joined["total_turnover_tl"]
     tt_yesterday = joined["total_turnover_tl"].shift(1).replace(0, np.nan).fillna(1e6)
@@ -246,7 +269,13 @@ def extract_3pillar_time_series(
         joined[f"feat_{p}_sell_share_yesterday"] = (joined[f"{p}_sell_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
         joined[f"feat_{p}_pnl_share_yesterday"] = (joined[f"{p}_daily_pnl_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
 
-    # 7. Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
+    # 7. BIST 30 (XU030) 3-Day Return Dynamics (Today T, Yesterday T-1, Day Before T-2)
+    joined["bist30_return_pct"] = joined["bist30_return_pct"].fillna(0.0)
+    joined["feat_bist30_ret_today_pct"] = joined["bist30_return_pct"].clip(-15.0, 15.0)
+    joined["feat_bist30_ret_yesterday_pct"] = joined["bist30_return_pct"].shift(1).fillna(0.0).clip(-15.0, 15.0)
+    joined["feat_bist30_ret_day_before_pct"] = joined["bist30_return_pct"].shift(2).fillna(0.0).clip(-15.0, 15.0)
+
+    # Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
     series_idx = pd.Series(range(len(joined)), index=joined.index)
     pos_shock_idx = series_idx.where(joined["daily_return_pct"] >= 0.03).ffill()
     joined["feat_days_since_pos_shock"] = (series_idx - pos_shock_idx).fillna(63.0).clip(0.0, 63.0)
@@ -424,10 +453,16 @@ def run_30d_walk_forward_arena(
         ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
         prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
 
+        # Shock day metrics on actual realization
+        is_pos_shock = bool(actual_ret >= 3.0)
+        is_neg_shock = bool(actual_ret <= -3.0)
+        shock_type = "POSITIVE" if is_pos_shock else ("NEGATIVE" if is_neg_shock else "NONE")
+
         ledger.append({
             "date": str(test_row["trade_date"]).split(" ")[0],
             "actual_price": round(actual_price, 2),
             "actual_return_pct": round(actual_ret, 2),
+            "bist30_ret_pct": round(float(test_row["bist30_return_pct"]) if ("bist30_return_pct" in test_row and pd.notna(test_row["bist30_return_pct"])) else 0.0, 2),
             "ml_pred_price": round(ml_price, 2),
             "ml_pred_return_pct": round(pred_ret_ml, 2),
             "ml_direction": ml_direction,
@@ -439,6 +474,10 @@ def run_30d_walk_forward_arena(
             "prophet_err_pct": round(prophet_err, 2),
             "prophet_is_hit": bool(prophet_hit),
             "winner": winner,
+            "is_shock_day": is_pos_shock or is_neg_shock,
+            "shock_type": shock_type,
+            "days_since_pos_shock": int(round(float(prev_row.get("feat_days_since_pos_shock", 63.0)))),
+            "days_since_neg_shock": int(round(float(prev_row.get("feat_days_since_neg_shock", 63.0)))),
             "mlb_action": mlb_action,
             "mlb_flow_tl": round(mlb_actual_flow, 1),
             "mlb_buy_tl": round(float(test_row["mlb_buy_tl"]) if ("mlb_buy_tl" in test_row and pd.notna(test_row["mlb_buy_tl"])) else 0.0, 1),
@@ -650,6 +689,16 @@ def get_tertip_ml_forecast(
     days_pos_shock = int(round(float(latest_row.get("feat_days_since_pos_shock", 63.0))))
     days_neg_shock = int(round(float(latest_row.get("feat_days_since_neg_shock", 63.0))))
 
+    bist30_today = round(float(latest_row.get("feat_bist30_ret_today_pct", 0.0)), 2)
+    bist30_yesterday = round(float(latest_row.get("feat_bist30_ret_yesterday_pct", 0.0)), 2)
+    bist30_day_before = round(float(latest_row.get("feat_bist30_ret_day_before_pct", 0.0)), 2)
+
+    bist30_trend = {
+        "today_pct": bist30_today,
+        "yesterday_pct": bist30_yesterday,
+        "day_before_pct": bist30_day_before,
+    }
+
     response_data = {
         "symbol": sym,
         "as_of_date": latest_date_str,
@@ -665,6 +714,7 @@ def get_tertip_ml_forecast(
         "prophet_expected_return_pct": round(prophet_ret_pct, 2),
         "days_since_last_positive_shock": days_pos_shock,
         "days_since_last_negative_shock": days_neg_shock,
+        "bist30_trend": bist30_trend,
         "playbook_headline": playbook_headline,
         "playbook_rationale": playbook_rationale,
         "tournament_summary": tournament,

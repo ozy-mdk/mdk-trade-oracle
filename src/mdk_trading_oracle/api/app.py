@@ -240,6 +240,11 @@ class WalkForwardLedgerItem(BaseModel):
     prophet_err_pct: float
     prophet_is_hit: bool
     winner: str
+    is_shock_day: Optional[bool] = False
+    shock_type: Optional[str] = "NONE"
+    days_since_pos_shock: Optional[int] = None
+    days_since_neg_shock: Optional[int] = None
+    bist30_ret_pct: Optional[float] = 0.0
     mlb_action: str
     mlb_flow_tl: float
     mlb_buy_tl: Optional[float] = 0.0
@@ -290,6 +295,12 @@ class PillarExecutionTodayYesterday(BaseModel):
     kamu: PillarExecutionPillar
 
 
+class Bist30Trend(BaseModel):
+    today_pct: float = 0.0
+    yesterday_pct: float = 0.0
+    day_before_pct: float = 0.0
+
+
 class TertipMlForecastResponse(BaseModel):
     symbol: str
     as_of_date: str
@@ -305,6 +316,7 @@ class TertipMlForecastResponse(BaseModel):
     prophet_expected_return_pct: float
     days_since_last_positive_shock: int = 0
     days_since_last_negative_shock: int = 0
+    bist30_trend: Optional[Bist30Trend] = None
     playbook_headline: str
     playbook_rationale: str
     tournament_summary: TournamentSummary
