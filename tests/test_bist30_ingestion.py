@@ -9,7 +9,6 @@ import pytest
 from mdk_trading_oracle.core.db import DuckDBManager
 from mdk_trading_oracle.data.bronze.ingestor import BronzeIngestor
 from mdk_trading_oracle.data.bronze.schema import initialize_bronze_schema
-from mdk_trading_oracle.models.stock_reaction.orchestrator import StockReactionOrchestrator
 
 
 @pytest.fixture
@@ -98,8 +97,8 @@ def test_bist30_ingestion_and_point_in_time_query(temp_db):
             assert "GARAN" in active
 
 
-def test_orchestrator_symbol_resolution_with_db(temp_db):
-    """Verify StockReactionOrchestrator resolves symbols dynamically from Bronze BIST 30 membership."""
+def test_bist30_symbol_resolution_with_db(temp_db):
+    """Verify BronzeIngestor resolves symbols dynamically from Bronze BIST 30 membership."""
     raw_file = (
         Path.home()
         / "data"
@@ -112,9 +111,8 @@ def test_orchestrator_symbol_resolution_with_db(temp_db):
     ingestor = BronzeIngestor(temp_db)
     if raw_file.exists():
         ingestor.ingest_bist30_membership(file_path=raw_file, force=True)
-
-    orch = StockReactionOrchestrator(db=temp_db, symbols=None)
-    assert len(orch.symbols) == 30
-    assert "TRALT" in orch.symbols
-    assert "DSTKF" in orch.symbols
-    assert "THYAO" in orch.symbols
+        active_syms = ingestor.get_bist30_symbols(active_only=True)
+        assert len(active_syms) == 30
+        assert "TRALT" in active_syms
+        assert "DSTKF" in active_syms
+        assert "THYAO" in active_syms

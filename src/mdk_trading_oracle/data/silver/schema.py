@@ -500,26 +500,7 @@ def initialize_silver_schema(db: PostgresManager) -> None:
         );
     """)
 
-    # 17. Silver Stock Reaction Thresholds: Per-Stock Per-Window Return Percentile Distribution
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS silver_stock_reaction_thresholds (
-            symbol VARCHAR NOT NULL,
-            window_name VARCHAR NOT NULL,
-            up_p25_pct DOUBLE PRECISION NOT NULL,
-            up_p50_pct DOUBLE PRECISION NOT NULL,
-            up_p85_pct DOUBLE PRECISION NOT NULL,
-            down_p25_pct DOUBLE PRECISION NOT NULL,
-            down_p50_pct DOUBLE PRECISION NOT NULL,
-            down_p85_pct DOUBLE PRECISION NOT NULL,
-            up_session_count INTEGER NOT NULL,
-            down_session_count INTEGER NOT NULL,
-            total_sessions INTEGER NOT NULL,
-            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (symbol, window_name)
-        );
-    """)
-
     logger.info(
         "Silver schemas initialized for all core aggregation, candlestick, macro, benchmark, tertip FIFO, "
-        "corporate action adjustment, and stock reaction threshold tables."
+        "and corporate action adjustment tables."
     )

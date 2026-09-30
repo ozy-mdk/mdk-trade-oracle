@@ -1458,13 +1458,6 @@ class SilverTransformer:
         res = engine.execute_and_persist()
         return {"table": "silver_corporate_action_adjustment_periods", "details": res, "status": "success"}
 
-    def transform_stock_reaction_thresholds(self) -> dict[str, Any]:
-        """Compute per-stock per-window empirical return percentile thresholds for Model 3."""
-        from mdk_trading_oracle.data.silver.stock_reaction_thresholds import StockReactionThresholdEngine
-
-        logger.info("Computing `silver_stock_reaction_thresholds`...")
-        engine = StockReactionThresholdEngine(self.db)
-        return engine.compute_and_persist()
 
     def refresh_candlestick_aggregates(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Refresh TimescaleDB continuous aggregate views for candlesticks."""
@@ -1519,9 +1512,6 @@ class SilverTransformer:
         res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()
         res_fifo = self.transform_broker_fifo_ledger()
-        # Model 3: compute per-stock per-window return percentile thresholds
-        # Must run after intraday broker windows and stock summary are populated
-        res_stock_rxn_thresh = self.transform_stock_reaction_thresholds()
         # Refresh TimescaleDB continuous aggregates (1m and 5m candles)
         res_candlesticks = self.refresh_candlestick_aggregates(target_dates=target_dates)
 
@@ -1537,7 +1527,6 @@ class SilverTransformer:
             "silver_daily_benchmark_index": res_benchmark,
             "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
             "silver_broker_fifo_daily": res_fifo,
-            "silver_stock_reaction_thresholds": res_stock_rxn_thresh,
             "silver_candles_aggregates": res_candlesticks,
             "status": "success",
         }

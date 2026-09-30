@@ -236,100 +236,24 @@ class MedallionPipeline:
             "status": "success",
         }
 
-    def run_gold(
-        self,
-        backfill_dates: Optional[List[Union[str, date]]] = None,
-        all_missing: bool = False,
-        backfill_lookback_months: Optional[int] = None,
-        backfill_lookback_days: Optional[int] = None,
-        disabled_clusters: Optional[List[str]] = None,
-        enabled_clusters: Optional[List[str]] = None,
-        include_features: Optional[List[str]] = None,
-        exclude_features: Optional[List[str]] = None,
-        # Model 3 symbol/window selection
-        stock_reaction_symbols: Optional[List[str]] = None,
-        stock_reaction_windows: Optional[List[str]] = None,
-        stock_reaction_backtest: bool = False,
-        freeze_bofa_models: Optional[bool] = None,
-    ) -> dict[str, Any]:
-        """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
-        logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
+    def run_gold(self, **kwargs: Any) -> dict[str, Any]:
+        """Execute Gold layer feature engineering and institutional daily signals."""
+        logger.info("Starting Gold Layer Institutional Signals...")
         start_time = datetime.now()
 
         initialize_gold_schema(self.db)
-        gold_res = self.gold_engineer.run_all(
-            backfill_dates=backfill_dates,
-            all_missing=all_missing,
-            backfill_lookback_months=backfill_lookback_months,
-            backfill_lookback_days=backfill_lookback_days,
-            disabled_clusters=disabled_clusters,
-            enabled_clusters=enabled_clusters,
-            include_features=include_features,
-            exclude_features=exclude_features,
-            stock_reaction_symbols=stock_reaction_symbols,
-            stock_reaction_windows=stock_reaction_windows,
-            stock_reaction_backtest=stock_reaction_backtest,
-            freeze_bofa_models=freeze_bofa_models,
-        )
+        gold_res = self.gold_engineer.run_all()
 
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
-        forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_forecasts;").fetchone()[0]
-        sector_forecasts_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_forecasts;").fetchone()[0]
-        perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_performance;").fetchone()[0]
-        sector_perf_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_performance;").fetchone()[0]
-        backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_day_start_backtests;").fetchone()[0]
-        sector_backtests_count = conn.execute("SELECT COUNT(*) FROM gold_bofa_sector_day_start_backtests;").fetchone()[0]
-        # Model 3 aggregated counts (sum across 3 windows)
-        try:
-            sr_w2_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_forecasts;").fetchone()[0]
-            sr_w3_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_forecasts;").fetchone()[0]
-            sr_w5_fc = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_forecasts;").fetchone()[0]
-            sr_forecasts_count = sr_w2_fc + sr_w3_fc + sr_w5_fc
-        except Exception:
-            sr_forecasts_count = 0
-
-        try:
-            sr_w2_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_performance;").fetchone()[0]
-            sr_w3_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_performance;").fetchone()[0]
-            sr_w5_p = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_performance;").fetchone()[0]
-            sr_perf_count = sr_w2_p + sr_w3_p + sr_w5_p
-        except Exception:
-            sr_perf_count = 0
-
-        try:
-            sr_w2_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w2_backtests;").fetchone()[0]
-            sr_w3_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w3_backtests;").fetchone()[0]
-            sr_w5_bt = conn.execute("SELECT COUNT(*) FROM gold_bofa_stock_reaction_w5_backtests;").fetchone()[0]
-            sr_backtests_count = sr_w2_bt + sr_w3_bt + sr_w5_bt
-        except Exception:
-            sr_backtests_count = 0
-
         elapsed = (datetime.now() - start_time).total_seconds()
 
-        logger.info(
-            f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,} | "
-            f"Macro Live: {forecasts_count:,} | Sector Live: {sector_forecasts_count:,} | "
-            f"StockRxn Live: {sr_forecasts_count:,} | "
-            f"Macro Perf: {perf_count:,} | Sector Perf: {sector_perf_count:,} | "
-            f"StockRxn Perf: {sr_perf_count:,} | "
-            f"Macro Backtests: {backtests_count:,} | Sector Backtests: {sector_backtests_count:,} | "
-            f"StockRxn Backtests: {sr_backtests_count:,}"
-        )
+        logger.info(f"Gold Layer completed in {elapsed:.2f}s | Signals: {signals_count:,}")
         return {
             "layer": "gold",
             "elapsed_sec": elapsed,
             "metrics": {
                 "gold_institutional_daily_signals": signals_count,
-                "gold_bofa_day_start_forecasts": forecasts_count,
-                "gold_bofa_sector_day_start_forecasts": sector_forecasts_count,
-                "gold_bofa_stock_reaction_forecasts (w2+w3+w5)": sr_forecasts_count,
-                "gold_bofa_day_start_performance": perf_count,
-                "gold_bofa_sector_day_start_performance": sector_perf_count,
-                "gold_bofa_stock_reaction_performance (w2+w3+w5)": sr_perf_count,
-                "gold_bofa_day_start_backtests": backtests_count,
-                "gold_bofa_sector_day_start_backtests": sector_backtests_count,
-                "gold_bofa_stock_reaction_backtests (w2+w3+w5)": sr_backtests_count,
             },
             "details": gold_res,
             "status": "success",
@@ -346,19 +270,7 @@ class MedallionPipeline:
         sync_catalog: bool = False,
         resolve_dependencies: bool = True,
         print_summary: bool = True,
-        backfill_dates: Optional[List[Union[str, date]]] = None,
-        all_missing: bool = False,
-        backfill_lookback_months: Optional[int] = None,
-        backfill_lookback_days: Optional[int] = None,
-        disabled_clusters: Optional[List[str]] = None,
-        enabled_clusters: Optional[List[str]] = None,
-        include_features: Optional[List[str]] = None,
-        exclude_features: Optional[List[str]] = None,
-        # Model 3 symbol/window selection
-        stock_reaction_symbols: Optional[List[str]] = None,
-        stock_reaction_windows: Optional[List[str]] = None,
-        stock_reaction_backtest: bool = False,
-        freeze_bofa_models: Optional[bool] = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -399,20 +311,7 @@ class MedallionPipeline:
                 except Exception as e_cache:
                     logger.debug(f"Could not clear tertip forecast cache: {e_cache}")
             elif layer == "gold":
-                results["gold"] = self.run_gold(
-                    backfill_dates=backfill_dates,
-                    all_missing=all_missing,
-                    backfill_lookback_months=backfill_lookback_months,
-                    backfill_lookback_days=backfill_lookback_days,
-                    disabled_clusters=disabled_clusters,
-                    enabled_clusters=enabled_clusters,
-                    include_features=include_features,
-                    exclude_features=exclude_features,
-                    stock_reaction_symbols=stock_reaction_symbols,
-                    stock_reaction_windows=stock_reaction_windows,
-                    stock_reaction_backtest=stock_reaction_backtest,
-                    freeze_bofa_models=freeze_bofa_models,
-                )
+                results["gold"] = self.run_gold()
 
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()
         results["total_elapsed_sec"] = total_elapsed
