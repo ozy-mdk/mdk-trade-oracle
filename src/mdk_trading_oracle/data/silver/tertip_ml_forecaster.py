@@ -186,8 +186,10 @@ def extract_3pillar_time_series(
     if joined.empty:
         return pd.DataFrame()
 
-    # Engineer 10 Scarce Microstructure & Tertip Features
+    # Engineer 25 Scarce Microstructure, Tertip & Execution Features
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
+    tt_today = joined["total_turnover_tl"]
+    tt_yesterday = joined["total_turnover_tl"].shift(1).replace(0, np.nan).fillna(1e6)
 
     # 1. BofA Cost Spread %: (Close - BofA FIFO Cost) / BofA FIFO Cost * 100
     joined["feat_cost_spread_pct"] = np.where(
@@ -195,21 +197,15 @@ def extract_3pillar_time_series(
         (joined["close_price"] - joined["fifo_avg_cost"]) / joined["fifo_avg_cost"] * 100.0,
         0.0,
     )
-    # 2. 1D Flow Shares normalized by Total Turnover
-    joined["feat_mlb_flow_share"] = joined["mlb_flow"].fillna(0) / joined["total_turnover_tl"]
-    joined["feat_big5_flow_share"] = joined["big5_flow"].fillna(0) / joined["total_turnover_tl"]
-    joined["feat_kamu_flow_share"] = joined["kamu_flow"].fillna(0) / joined["total_turnover_tl"]
 
-    # 3. MLB W5 Closing Session Flow Share
-    joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / joined["total_turnover_tl"]
-
-    # 4. Today's Price Return %
+    # 2. Today's & Yesterday's Price Returns %
     joined["feat_ret_today_pct"] = (joined["daily_return_pct"].fillna(0) * 100.0).clip(-25.0, 25.0)
-
-    # 5. Yesterday's Price Return % (1-day lagged return)
     joined["feat_ret_yesterday_pct"] = (joined["daily_return_pct"].shift(1).fillna(0) * 100.0).clip(-25.0, 25.0)
 
-    # 6. BofA 3-Month (63d) Tertip Inventory Expansion %: (Current Qty - 63d EWMA Qty) / 63d EWMA Qty * 100
+    # 3. MLB W5 Closing Session Flow Share
+    joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / tt_today
+
+    # 4. 3-Month (63d) Tertip Inventory Expansion %: (Current Qty - 63d EWMA Qty) / 63d EWMA Qty * 100
     ewma_q_mlb_63 = joined["mlb_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
     joined["feat_mlb_tertip_3m_ratio"] = np.where(
         ewma_q_mlb_63.abs() > 1.0,
@@ -218,7 +214,6 @@ def extract_3pillar_time_series(
     )
     joined["feat_mlb_tertip_3m_ratio"] = joined["feat_mlb_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
 
-    # 7. BIG5 3-Month (63d) Tertip Inventory Expansion %
     ewma_q_big5_63 = joined["big5_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
     joined["feat_big5_tertip_3m_ratio"] = np.where(
         ewma_q_big5_63.abs() > 1.0,
@@ -227,7 +222,6 @@ def extract_3pillar_time_series(
     )
     joined["feat_big5_tertip_3m_ratio"] = joined["feat_big5_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
 
-    # 8. KAMU 3-Month (63d) Tertip Inventory Expansion % (including TRA)
     ewma_q_kamu_63 = joined["kamu_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
     joined["feat_kamu_tertip_3m_ratio"] = np.where(
         ewma_q_kamu_63.abs() > 1.0,
@@ -235,6 +229,18 @@ def extract_3pillar_time_series(
         0.0,
     )
     joined["feat_kamu_tertip_3m_ratio"] = joined["feat_kamu_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+
+    # 5. Today's Execution Breakdown (Buy, Sell, Realized PnL) normalized by Today's Total Turnover %
+    for p in ["mlb", "big5", "kamu"]:
+        joined[f"feat_{p}_buy_share_today"] = (joined[f"{p}_buy_tl"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
+        joined[f"feat_{p}_sell_share_today"] = (joined[f"{p}_sell_tl"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
+        joined[f"feat_{p}_pnl_share_today"] = (joined[f"{p}_daily_pnl_tl"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
+
+    # 6. Yesterday's Execution Breakdown (Buy, Sell, Realized PnL) normalized by Yesterday's Total Turnover %
+    for p in ["mlb", "big5", "kamu"]:
+        joined[f"feat_{p}_buy_share_yesterday"] = (joined[f"{p}_buy_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
+        joined[f"feat_{p}_sell_share_yesterday"] = (joined[f"{p}_sell_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
+        joined[f"feat_{p}_pnl_share_yesterday"] = (joined[f"{p}_daily_pnl_tl"].shift(1).fillna(0) / tt_yesterday * 100.0).clip(-100.0, 100.0)
 
     return joined
 
@@ -423,10 +429,19 @@ def run_30d_walk_forward_arena(
             "winner": winner,
             "mlb_action": mlb_action,
             "mlb_flow_tl": round(mlb_actual_flow, 1),
+            "mlb_buy_tl": round(float(test_row["mlb_buy_tl"]) if ("mlb_buy_tl" in test_row and pd.notna(test_row["mlb_buy_tl"])) else 0.0, 1),
+            "mlb_sell_tl": round(float(test_row["mlb_sell_tl"]) if ("mlb_sell_tl" in test_row and pd.notna(test_row["mlb_sell_tl"])) else 0.0, 1),
+            "mlb_pnl_tl": round(float(test_row["mlb_daily_pnl_tl"]) if ("mlb_daily_pnl_tl" in test_row and pd.notna(test_row["mlb_daily_pnl_tl"])) else 0.0, 1),
             "big5_action": big5_action,
             "big5_flow_tl": round(big5_actual_flow, 1),
+            "big5_buy_tl": round(float(test_row["big5_buy_tl"]) if ("big5_buy_tl" in test_row and pd.notna(test_row["big5_buy_tl"])) else 0.0, 1),
+            "big5_sell_tl": round(float(test_row["big5_sell_tl"]) if ("big5_sell_tl" in test_row and pd.notna(test_row["big5_sell_tl"])) else 0.0, 1),
+            "big5_pnl_tl": round(float(test_row["big5_daily_pnl_tl"]) if ("big5_daily_pnl_tl" in test_row and pd.notna(test_row["big5_daily_pnl_tl"])) else 0.0, 1),
             "kamu_action": kamu_action,
             "kamu_flow_tl": round(kamu_actual_flow, 1),
+            "kamu_buy_tl": round(float(test_row["kamu_buy_tl"]) if ("kamu_buy_tl" in test_row and pd.notna(test_row["kamu_buy_tl"])) else 0.0, 1),
+            "kamu_sell_tl": round(float(test_row["kamu_sell_tl"]) if ("kamu_sell_tl" in test_row and pd.notna(test_row["kamu_sell_tl"])) else 0.0, 1),
+            "kamu_pnl_tl": round(float(test_row["kamu_daily_pnl_tl"]) if ("kamu_daily_pnl_tl" in test_row and pd.notna(test_row["kamu_daily_pnl_tl"])) else 0.0, 1),
         })
 
     # Summary Statistics
@@ -558,6 +573,66 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         f"Institutional synthesis projects next session trading between ₺{price_low:.2f} and ₺{price_high:.2f}."
     )
 
+    # Build 3-Pillar Execution Summary (Today vs Yesterday)
+    prev_row = df.iloc[-2] if len(df) >= 2 else latest_row
+    prev_date_str = str(prev_row["trade_date"]).split(" ")[0]
+
+    def _safe_float(row: pd.Series, col: str) -> float:
+        return float(row[col]) if (col in row and pd.notna(row[col])) else 0.0
+
+    pillar_execution = {
+        "today_date": latest_date_str,
+        "yesterday_date": prev_date_str,
+        "mlb": {
+            "today": {
+                "buy_tl": round(_safe_float(latest_row, "mlb_buy_tl"), 2),
+                "sell_tl": round(_safe_float(latest_row, "mlb_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(latest_row, "mlb_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(latest_row, "mlb_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(latest_row, "mlb_unrealized_pnl_tl"), 2),
+            },
+            "yesterday": {
+                "buy_tl": round(_safe_float(prev_row, "mlb_buy_tl"), 2),
+                "sell_tl": round(_safe_float(prev_row, "mlb_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(prev_row, "mlb_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(prev_row, "mlb_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(prev_row, "mlb_unrealized_pnl_tl"), 2),
+            },
+        },
+        "big5": {
+            "today": {
+                "buy_tl": round(_safe_float(latest_row, "big5_buy_tl"), 2),
+                "sell_tl": round(_safe_float(latest_row, "big5_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(latest_row, "big5_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(latest_row, "big5_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(latest_row, "big5_unrealized_pnl_tl"), 2),
+            },
+            "yesterday": {
+                "buy_tl": round(_safe_float(prev_row, "big5_buy_tl"), 2),
+                "sell_tl": round(_safe_float(prev_row, "big5_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(prev_row, "big5_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(prev_row, "big5_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(prev_row, "big5_unrealized_pnl_tl"), 2),
+            },
+        },
+        "kamu": {
+            "today": {
+                "buy_tl": round(_safe_float(latest_row, "kamu_buy_tl"), 2),
+                "sell_tl": round(_safe_float(latest_row, "kamu_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(latest_row, "kamu_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(latest_row, "kamu_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(latest_row, "kamu_unrealized_pnl_tl"), 2),
+            },
+            "yesterday": {
+                "buy_tl": round(_safe_float(prev_row, "kamu_buy_tl"), 2),
+                "sell_tl": round(_safe_float(prev_row, "kamu_sell_tl"), 2),
+                "net_flow_tl": round(_safe_float(prev_row, "kamu_flow"), 2),
+                "daily_pnl_tl": round(_safe_float(prev_row, "kamu_daily_pnl_tl"), 2),
+                "unrealized_pnl_tl": round(_safe_float(prev_row, "kamu_unrealized_pnl_tl"), 2),
+            },
+        },
+    }
+
     response_data = {
         "symbol": sym,
         "as_of_date": latest_date_str,
@@ -575,6 +650,7 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         "playbook_rationale": playbook_rationale,
         "tournament_summary": tournament,
         "pillar_matrix": pillar_matrix,
+        "pillar_execution": pillar_execution,
         "walk_forward_ledger": ledger,
         "calculated_at": datetime.now(timezone.utc).isoformat(),
     }

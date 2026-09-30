@@ -242,10 +242,19 @@ class WalkForwardLedgerItem(BaseModel):
     winner: str
     mlb_action: str
     mlb_flow_tl: float
+    mlb_buy_tl: Optional[float] = 0.0
+    mlb_sell_tl: Optional[float] = 0.0
+    mlb_pnl_tl: Optional[float] = 0.0
     big5_action: str
     big5_flow_tl: float
+    big5_buy_tl: Optional[float] = 0.0
+    big5_sell_tl: Optional[float] = 0.0
+    big5_pnl_tl: Optional[float] = 0.0
     kamu_action: str
     kamu_flow_tl: float
+    kamu_buy_tl: Optional[float] = 0.0
+    kamu_sell_tl: Optional[float] = 0.0
+    kamu_pnl_tl: Optional[float] = 0.0
 
 
 class TournamentSummary(BaseModel):
@@ -258,6 +267,27 @@ class TournamentSummary(BaseModel):
     prophet_mae_pct: float
     prophet_wins: int
     total_sessions: int
+
+
+class PillarExecutionDetail(BaseModel):
+    buy_tl: float = 0.0
+    sell_tl: float = 0.0
+    net_flow_tl: float = 0.0
+    daily_pnl_tl: float = 0.0
+    unrealized_pnl_tl: float = 0.0
+
+
+class PillarExecutionPillar(BaseModel):
+    today: PillarExecutionDetail
+    yesterday: PillarExecutionDetail
+
+
+class PillarExecutionTodayYesterday(BaseModel):
+    today_date: str
+    yesterday_date: str
+    mlb: PillarExecutionPillar
+    big5: PillarExecutionPillar
+    kamu: PillarExecutionPillar
 
 
 class TertipMlForecastResponse(BaseModel):
@@ -277,6 +307,7 @@ class TertipMlForecastResponse(BaseModel):
     playbook_rationale: str
     tournament_summary: TournamentSummary
     pillar_matrix: List[PillarMatrixItem]
+    pillar_execution: Optional[PillarExecutionTodayYesterday] = None
     walk_forward_ledger: List[WalkForwardLedgerItem]
     calculated_at: str
 

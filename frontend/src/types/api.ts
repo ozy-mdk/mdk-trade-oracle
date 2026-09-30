@@ -358,10 +358,19 @@ export interface WalkForwardLedgerItem {
   winner: 'CHALLENGER' | 'BASE';
   mlb_action: string;
   mlb_flow_tl: number;
+  mlb_buy_tl?: number;
+  mlb_sell_tl?: number;
+  mlb_pnl_tl?: number;
   big5_action: string;
   big5_flow_tl: number;
+  big5_buy_tl?: number;
+  big5_sell_tl?: number;
+  big5_pnl_tl?: number;
   kamu_action: string;
   kamu_flow_tl: number;
+  kamu_buy_tl?: number;
+  kamu_sell_tl?: number;
+  kamu_pnl_tl?: number;
 }
 
 export interface TournamentSummary {
@@ -374,6 +383,27 @@ export interface TournamentSummary {
   prophet_mae_pct: number;
   prophet_wins: number;
   total_sessions: number;
+}
+
+export interface PillarExecutionDetail {
+  buy_tl: number;
+  sell_tl: number;
+  net_flow_tl: number;
+  daily_pnl_tl: number;
+  unrealized_pnl_tl: number;
+}
+
+export interface PillarExecutionPillar {
+  today: PillarExecutionDetail;
+  yesterday: PillarExecutionDetail;
+}
+
+export interface PillarExecutionTodayYesterday {
+  today_date: string;
+  yesterday_date: string;
+  mlb: PillarExecutionPillar;
+  big5: PillarExecutionPillar;
+  kamu: PillarExecutionPillar;
 }
 
 export interface TertipMlForecastResponse {
@@ -393,6 +423,7 @@ export interface TertipMlForecastResponse {
   playbook_rationale: string;
   tournament_summary: TournamentSummary;
   pillar_matrix: PillarMatrixItem[];
+  pillar_execution?: PillarExecutionTodayYesterday | null;
   walk_forward_ledger: WalkForwardLedgerItem[];
   calculated_at: string;
 }

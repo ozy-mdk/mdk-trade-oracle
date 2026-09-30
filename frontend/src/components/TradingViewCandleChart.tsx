@@ -1433,6 +1433,84 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                     <span className="font-semibold text-slate-300 font-sans">Tactical Assessment: </span>
                     {mlForecast.playbook_rationale}
                   </div>
+
+                  {/* 3-Pillar Execution & PnL Breakdown (Today vs Yesterday) */}
+                  {mlForecast.pillar_execution && (
+                    <div className="space-y-1.5 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800">
+                      <div className="text-[10px] font-bold text-slate-300 tracking-wide flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                          3-Pillar Execution & PnL (Today vs Yesterday)
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          Today ({mlForecast.pillar_execution.today_date}) vs Yesterday ({mlForecast.pillar_execution.yesterday_date})
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                        {[
+                          { key: 'mlb', name: 'Bank of America (MLB)', color: 'border-cyan-500/40 bg-cyan-950/20' },
+                          { key: 'big5', name: 'Big 5 Domestic Desks', color: 'border-indigo-500/40 bg-indigo-950/20' },
+                          { key: 'kamu', name: 'Kamu Conduits (incl. TRA)', color: 'border-emerald-500/40 bg-emerald-950/20' },
+                        ].map((p) => {
+                          const pData = (mlForecast.pillar_execution as any)?.[p.key];
+                          if (!pData) return null;
+                          const today = pData.today;
+                          const yest = pData.yesterday;
+
+                          return (
+                            <div key={p.key} className={`p-2 rounded border ${p.color} text-[9px] font-mono flex flex-col justify-between`}>
+                              <div className="font-bold text-slate-200 border-b border-slate-800/80 pb-1 mb-1.5 flex justify-between items-center">
+                                <span>{p.name}</span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                {/* Today */}
+                                <div className="bg-slate-950/60 p-1.5 rounded border border-slate-800/50">
+                                  <div className="text-[8px] font-sans text-slate-400 font-semibold mb-0.5 flex justify-between">
+                                    <span>TODAY</span>
+                                    <span className={today.net_flow_tl >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                      Net: {today.net_flow_tl >= 0 ? '+' : ''}₺{(today.net_flow_tl / 1e6).toFixed(1)}M
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1 text-[8px] text-slate-300">
+                                    <div><span className="text-slate-500">Buy: </span>₺{(today.buy_tl / 1e6).toFixed(1)}M</div>
+                                    <div><span className="text-slate-500">Sell: </span>₺{(today.sell_tl / 1e6).toFixed(1)}M</div>
+                                    <div>
+                                      <span className="text-slate-500">PnL: </span>
+                                      <span className={today.daily_pnl_tl >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                                        {today.daily_pnl_tl >= 0 ? '+' : ''}₺{(today.daily_pnl_tl / 1e6).toFixed(2)}M
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Yesterday */}
+                                <div className="bg-slate-950/40 p-1.5 rounded border border-slate-800/30">
+                                  <div className="text-[8px] font-sans text-slate-500 font-semibold mb-0.5 flex justify-between">
+                                    <span>YESTERDAY</span>
+                                    <span className={yest.net_flow_tl >= 0 ? 'text-emerald-400/80 font-bold' : 'text-rose-400/80 font-bold'}>
+                                      Net: {yest.net_flow_tl >= 0 ? '+' : ''}₺{(yest.net_flow_tl / 1e6).toFixed(1)}M
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1 text-[8px] text-slate-400">
+                                    <div><span className="text-slate-500">Buy: </span>₺{(yest.buy_tl / 1e6).toFixed(1)}M</div>
+                                    <div><span className="text-slate-500">Sell: </span>₺{(yest.sell_tl / 1e6).toFixed(1)}M</div>
+                                    <div>
+                                      <span className="text-slate-500">PnL: </span>
+                                      <span className={yest.daily_pnl_tl >= 0 ? 'text-emerald-400/80 font-semibold' : 'text-rose-400/80 font-semibold'}>
+                                        {yest.daily_pnl_tl >= 0 ? '+' : ''}₺{(yest.daily_pnl_tl / 1e6).toFixed(2)}M
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-center py-6 text-slate-400 text-xs font-mono">
@@ -1591,29 +1669,38 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                                   </div>
                                 </td>
                                 <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.mlb_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
+                                  <span
+                                    className={`px-1 py-0.2 rounded text-[8px] font-bold cursor-help ${
+                                      row.mlb_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}
+                                    title={`BofA MLB: Bought ₺${((row.mlb_buy_tl || 0) / 1e6).toFixed(1)}M | Sold ₺${((row.mlb_sell_tl || 0) / 1e6).toFixed(1)}M | PnL ₺${((row.mlb_pnl_tl || 0) / 1e6).toFixed(2)}M`}
+                                  >
                                     {row.mlb_action} {row.mlb_flow_tl >= 0 ? '+' : ''}{(row.mlb_flow_tl / 1e6).toFixed(0)}M
                                   </span>
                                 </td>
                                 <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.big5_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
+                                  <span
+                                    className={`px-1 py-0.2 rounded text-[8px] font-bold cursor-help ${
+                                      row.big5_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}
+                                    title={`BIG 5: Bought ₺${((row.big5_buy_tl || 0) / 1e6).toFixed(1)}M | Sold ₺${((row.big5_sell_tl || 0) / 1e6).toFixed(1)}M | PnL ₺${((row.big5_pnl_tl || 0) / 1e6).toFixed(2)}M`}
+                                  >
                                     {row.big5_action} {row.big5_flow_tl >= 0 ? '+' : ''}{(row.big5_flow_tl / 1e6).toFixed(0)}M
                                   </span>
                                 </td>
                                 <td className="text-center px-1.5 py-1">
-                                  <span className={`px-1 py-0.2 rounded text-[8px] font-bold ${
-                                    row.kamu_action === 'BUY'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
-                                  }`}>
+                                  <span
+                                    className={`px-1 py-0.2 rounded text-[8px] font-bold cursor-help ${
+                                      row.kamu_action === 'BUY'
+                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                        : 'bg-rose-500/20 text-rose-400'
+                                    }`}
+                                    title={`KAMU (w/ TRA): Bought ₺${((row.kamu_buy_tl || 0) / 1e6).toFixed(1)}M | Sold ₺${((row.kamu_sell_tl || 0) / 1e6).toFixed(1)}M | PnL ₺${((row.kamu_pnl_tl || 0) / 1e6).toFixed(2)}M`}
+                                  >
                                     {row.kamu_action} {row.kamu_flow_tl >= 0 ? '+' : ''}{(row.kamu_flow_tl / 1e6).toFixed(0)}M
                                   </span>
                                 </td>
