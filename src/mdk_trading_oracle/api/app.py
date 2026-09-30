@@ -265,6 +265,7 @@ class WalkForwardLedgerItem(BaseModel):
 class TournamentSummary(BaseModel):
     champion: str
     champion_label: str
+    ml_champion_type: Optional[str] = "XGBoost"
     ml_hit_rate_pct: float
     ml_mae_pct: float
     ml_wins: int
@@ -272,6 +273,10 @@ class TournamentSummary(BaseModel):
     prophet_mae_pct: float
     prophet_wins: int
     total_sessions: int
+    ridge_hit_rate_pct: Optional[float] = None
+    ridge_mae_pct: Optional[float] = None
+    xgboost_hit_rate_pct: Optional[float] = None
+    xgboost_mae_pct: Optional[float] = None
 
 
 class PillarExecutionDetail(BaseModel):
@@ -1526,10 +1531,11 @@ def get_tertip_timeseries(
 def get_tertip_ml_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Force bypass cache and recalculate live"),
+    model_type: str = Query("auto", description="Model type: auto, xgboost, or ridge"),
 ) -> TertipMlForecastResponse:
     """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
     try:
-        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh)
+        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh, model_type=model_type)
         if "error" in data:
             raise HTTPException(status_code=404, detail=data["error"])
         return TertipMlForecastResponse(**data)

@@ -62,6 +62,10 @@ def test_run_30d_walk_forward_arena_synthetic():
 
     assert len(ledger) == 10
     assert "champion" in summary
+    assert "ml_champion_type" in summary
+    assert summary["ml_champion_type"] in ("XGBoost", "Ridge")
+    assert "ridge_hit_rate_pct" in summary
+    assert "xgboost_hit_rate_pct" in summary
     assert "ml_hit_rate_pct" in summary
     assert "prophet_hit_rate_pct" in summary
     assert "ml_mae_pct" in summary

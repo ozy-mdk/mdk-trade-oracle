@@ -1303,7 +1303,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                     <div className="flex items-center space-x-1.5">
                       <span className="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                         <Award className="w-3 h-3 text-amber-400" />
-                        <span>CHAMPION: {mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? 'TERTIP ML' : 'PROPHET BASE'}</span>
+                        <span>CHAMPION: {mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? `TERTIP ML (${mlForecast.tournament_summary.ml_champion_type || 'Auto'})` : 'PROPHET BASE'}</span>
                       </span>
                       <span className="text-[9px] text-slate-400 font-mono">
                         ({mlForecast.tournament_summary.ml_wins}/{mlForecast.tournament_summary.total_sessions}d won)
@@ -1592,7 +1592,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
 
                     <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
                       <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">ML Hit Rate</div>
+                        <div className="text-[8.5px] text-slate-400">ML Hit Rate ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
                         <div className="text-xs font-bold text-emerald-400 mt-0.5">
                           {mlForecast.tournament_summary.ml_hit_rate_pct.toFixed(1)}%
                         </div>
@@ -1612,7 +1612,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                       </div>
 
                       <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
-                        <div className="text-[8.5px] text-slate-400">ML MAE</div>
+                        <div className="text-[8.5px] text-slate-400">ML MAE ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
                         <div className="text-xs font-bold text-emerald-400 mt-0.5">
                           {mlForecast.tournament_summary.ml_mae_pct.toFixed(2)}%
                         </div>
@@ -1653,6 +1653,27 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                         />
                       </div>
                     </div>
+
+                    {/* Dynamic Arena Selection Details */}
+                    {mlForecast.tournament_summary.xgboost_hit_rate_pct !== undefined &&
+                      mlForecast.tournament_summary.ridge_hit_rate_pct !== undefined && (
+                        <div className="flex flex-wrap items-center justify-between text-[8px] font-mono px-2 py-1 rounded bg-slate-950/60 border border-slate-800/60 text-slate-400">
+                          <span className="text-slate-400 font-semibold">
+                            Arena Candidates (30D Walk-Forward):
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            <span className={mlForecast.tournament_summary.ml_champion_type === 'XGBoost' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
+                              XGBoost: {mlForecast.tournament_summary.xgboost_hit_rate_pct.toFixed(1)}% (MAE {mlForecast.tournament_summary.xgboost_mae_pct?.toFixed(2)}%)
+                              {mlForecast.tournament_summary.ml_champion_type === 'XGBoost' && ' 👑'}
+                            </span>
+                            <span className="text-slate-600">|</span>
+                            <span className={mlForecast.tournament_summary.ml_champion_type === 'Ridge' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
+                              Ridge: {mlForecast.tournament_summary.ridge_hit_rate_pct.toFixed(1)}% (MAE {mlForecast.tournament_summary.ridge_mae_pct?.toFixed(2)}%)
+                              {mlForecast.tournament_summary.ml_champion_type === 'Ridge' && ' 👑'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                   </div>
 
                   {/* 30-Day Walk-Forward Reality Ledger Table */}

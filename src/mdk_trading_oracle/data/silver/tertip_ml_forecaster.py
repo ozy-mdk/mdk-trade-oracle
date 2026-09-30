@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from prophet import Prophet
+from sklearn.linear_model import Ridge
 from xgboost import XGBRegressor
 
 from mdk_trading_oracle.core.db import PostgresManager
@@ -373,10 +374,11 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
 
 
 def run_30d_walk_forward_arena(
-    df: pd.DataFrame, n_sessions: int = 30
+    df: pd.DataFrame, n_sessions: int = 30, model_type: str = "auto"
 ) -> tuple[list[dict[str, Any]], dict[str, Any], Any]:
     """Execute zero-lookahead walk-forward benchmarking Prophet against ML models.
 
+    Supports dynamic on-the-fly champion selection (Ridge vs XGBoost) when model_type="auto".
     Returns the 30-day reality ledger, summary tournament metrics, and the trained champion ML model.
     """
     feature_cols = FEATURE_COLS
@@ -384,10 +386,7 @@ def run_30d_walk_forward_arena(
     if len(df) < n_sessions + 30:
         return [], {}, None
 
-    ledger: list[dict[str, Any]] = []
-
-    # Model instances
-    champion_ml_model = None
+    step_records: list[dict[str, Any]] = []
 
     for idx in range(len(df) - n_sessions, len(df)):
         train_data = df.iloc[:idx].copy()
@@ -423,13 +422,33 @@ def run_30d_walk_forward_arena(
         fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
         prophet_price = float(fc_prophet.iloc[-1]["yhat"])
         prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
+        prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
-        # 2. ML Challenger Model: XGBoost on scarce microstructure features
+        if abs(actual_ret) <= 0.02:
+            prophet_hit = abs(prophet_ret) <= 0.02
+        else:
+            prophet_hit = (prophet_ret > 0.02) if actual_ret > 0.02 else (prophet_ret < -0.02)
+
+        # 2. ML Candidate Features
         tr_clean = train_data.iloc[-200:].dropna(subset=feature_cols).copy()
         y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
         X_tr = tr_clean[feature_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
 
+        # Candidate A: Ridge
+        ridge = Ridge(alpha=10.0, random_state=42)
+        ridge.fit(X_tr, y_tr)
+        pred_ret_ridge = float(ridge.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
+        pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
+        ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
+        ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
+
+        if abs(actual_ret) <= 0.02:
+            ridge_hit = abs(pred_ret_ridge) <= 0.02
+        else:
+            ridge_hit = (pred_ret_ridge > 0.02) if actual_ret > 0.02 else (pred_ret_ridge < -0.02)
+
+        # Candidate B: XGBoost
         xgb = XGBRegressor(
             n_estimators=45,
             max_depth=2,
@@ -440,31 +459,105 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
         )
         xgb.fit(X_tr, y_tr)
-        champion_ml_model = xgb
-
-        pred_ret_ml = float(xgb.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
-        # Bound extreme predictions
-        pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
-        ml_price = prev_price * (1.0 + pred_ret_ml / 100.0)
-
-        # Performance Metrics
-        prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
-        ml_err = abs(ml_price - actual_price) / actual_price * 100.0
+        pred_ret_xgb = float(xgb.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
+        pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
+        xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
+        xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
 
         if abs(actual_ret) <= 0.02:
-            prophet_hit = abs(prophet_ret) <= 0.02
-            ml_hit = abs(pred_ret_ml) <= 0.02
+            xgb_hit = abs(pred_ret_xgb) <= 0.02
         else:
-            prophet_hit = (prophet_ret > 0.02) if actual_ret > 0.02 else (prophet_ret < -0.02)
-            ml_hit = (pred_ret_ml > 0.02) if actual_ret > 0.02 else (pred_ret_ml < -0.02)
-        winner = "CHALLENGER" if ml_err < prophet_err else "BASE"
-        ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
-        prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
+            xgb_hit = (pred_ret_xgb > 0.02) if actual_ret > 0.02 else (pred_ret_xgb < -0.02)
 
         # Shock day metrics on actual realization
         is_pos_shock = bool(actual_ret >= 3.0)
         is_neg_shock = bool(actual_ret <= -3.0)
         shock_type = "POSITIVE" if is_pos_shock else ("NEGATIVE" if is_neg_shock else "NONE")
+
+        step_records.append({
+            "test_row": test_row,
+            "prev_row": prev_row,
+            "actual_price": actual_price,
+            "actual_ret": actual_ret,
+            "prophet_price": prophet_price,
+            "prophet_ret": prophet_ret,
+            "prophet_err": prophet_err,
+            "prophet_hit": prophet_hit,
+            "ridge_price": ridge_price,
+            "ridge_ret": pred_ret_ridge,
+            "ridge_err": ridge_err,
+            "ridge_hit": ridge_hit,
+            "xgb_price": xgb_price,
+            "xgb_ret": pred_ret_xgb,
+            "xgb_err": xgb_err,
+            "xgb_hit": xgb_hit,
+            "is_pos_shock": is_pos_shock,
+            "is_neg_shock": is_neg_shock,
+            "shock_type": shock_type,
+            "mlb_actual_flow": mlb_actual_flow,
+            "big5_actual_flow": big5_actual_flow,
+            "kamu_actual_flow": kamu_actual_flow,
+            "mlb_action": mlb_action,
+            "big5_action": big5_action,
+            "kamu_action": kamu_action,
+            "ridge_model": ridge,
+            "xgb_model": xgb,
+        })
+
+    n_total = len(step_records)
+    ridge_hits = sum(1 for s in step_records if s["ridge_hit"])
+    ridge_hit_rate = (ridge_hits / n_total) * 100.0 if n_total > 0 else 0.0
+    ridge_mae = sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0
+
+    xgb_hits = sum(1 for s in step_records if s["xgb_hit"])
+    xgb_hit_rate = (xgb_hits / n_total) * 100.0 if n_total > 0 else 0.0
+    xgb_mae = sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0
+
+    # Dynamic Champion Selection
+    m_choice = model_type.lower()
+    if m_choice == "ridge":
+        ml_champion_type = "Ridge"
+    elif m_choice == "xgboost":
+        ml_champion_type = "XGBoost"
+    else:  # "auto"
+        if xgb_hits > ridge_hits:
+            ml_champion_type = "XGBoost"
+        elif ridge_hits > xgb_hits:
+            ml_champion_type = "Ridge"
+        else:
+            # Tie breaker: lower MAE
+            ml_champion_type = "XGBoost" if xgb_mae <= ridge_mae else "Ridge"
+
+    champion_ml_model = (
+        step_records[-1]["xgb_model"] if ml_champion_type == "XGBoost" else step_records[-1]["ridge_model"]
+    )
+
+    # Build the 30-Day Reality Ledger using the crowned ML champion
+    ledger: list[dict[str, Any]] = []
+    for s in step_records:
+        test_row = s["test_row"]
+        prev_row = s["prev_row"]
+        actual_price = s["actual_price"]
+        actual_ret = s["actual_ret"]
+        prophet_price = s["prophet_price"]
+        prophet_ret = s["prophet_ret"]
+        prophet_err = s["prophet_err"]
+        prophet_hit = s["prophet_hit"]
+
+        if ml_champion_type == "XGBoost":
+            ml_price = s["xgb_price"]
+            pred_ret_ml = s["xgb_ret"]
+            ml_err = s["xgb_err"]
+            ml_hit = s["xgb_hit"]
+        else:
+            ml_price = s["ridge_price"]
+            pred_ret_ml = s["ridge_ret"]
+            ml_err = s["ridge_err"]
+            ml_hit = s["ridge_hit"]
+
+        winner = "CHALLENGER" if ml_err < prophet_err else "BASE"
+        ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
+        prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
 
         ledger.append({
             "date": str(test_row["trade_date"]).split(" ")[0],
@@ -482,22 +575,22 @@ def run_30d_walk_forward_arena(
             "prophet_err_pct": round(prophet_err, 2),
             "prophet_is_hit": bool(prophet_hit),
             "winner": winner,
-            "is_shock_day": is_pos_shock or is_neg_shock,
-            "shock_type": shock_type,
+            "is_shock_day": s["is_pos_shock"] or s["is_neg_shock"],
+            "shock_type": s["shock_type"],
             "days_since_pos_shock": int(round(float(prev_row.get("feat_days_since_pos_shock", 63.0)))),
             "days_since_neg_shock": int(round(float(prev_row.get("feat_days_since_neg_shock", 63.0)))),
-            "mlb_action": mlb_action,
-            "mlb_flow_tl": round(mlb_actual_flow, 1),
+            "mlb_action": s["mlb_action"],
+            "mlb_flow_tl": round(s["mlb_actual_flow"], 1),
             "mlb_buy_tl": round(float(test_row["mlb_buy_tl"]) if ("mlb_buy_tl" in test_row and pd.notna(test_row["mlb_buy_tl"])) else 0.0, 1),
             "mlb_sell_tl": round(float(test_row["mlb_sell_tl"]) if ("mlb_sell_tl" in test_row and pd.notna(test_row["mlb_sell_tl"])) else 0.0, 1),
             "mlb_pnl_tl": round(float(test_row["mlb_daily_pnl_tl"]) if ("mlb_daily_pnl_tl" in test_row and pd.notna(test_row["mlb_daily_pnl_tl"])) else 0.0, 1),
-            "big5_action": big5_action,
-            "big5_flow_tl": round(big5_actual_flow, 1),
+            "big5_action": s["big5_action"],
+            "big5_flow_tl": round(s["big5_actual_flow"], 1),
             "big5_buy_tl": round(float(test_row["big5_buy_tl"]) if ("big5_buy_tl" in test_row and pd.notna(test_row["big5_buy_tl"])) else 0.0, 1),
             "big5_sell_tl": round(float(test_row["big5_sell_tl"]) if ("big5_sell_tl" in test_row and pd.notna(test_row["big5_sell_tl"])) else 0.0, 1),
             "big5_pnl_tl": round(float(test_row["big5_daily_pnl_tl"]) if ("big5_daily_pnl_tl" in test_row and pd.notna(test_row["big5_daily_pnl_tl"])) else 0.0, 1),
-            "kamu_action": kamu_action,
-            "kamu_flow_tl": round(kamu_actual_flow, 1),
+            "kamu_action": s["kamu_action"],
+            "kamu_flow_tl": round(s["kamu_actual_flow"], 1),
             "kamu_buy_tl": round(float(test_row["kamu_buy_tl"]) if ("kamu_buy_tl" in test_row and pd.notna(test_row["kamu_buy_tl"])) else 0.0, 1),
             "kamu_sell_tl": round(float(test_row["kamu_sell_tl"]) if ("kamu_sell_tl" in test_row and pd.notna(test_row["kamu_sell_tl"])) else 0.0, 1),
             "kamu_pnl_tl": round(float(test_row["kamu_daily_pnl_tl"]) if ("kamu_daily_pnl_tl" in test_row and pd.notna(test_row["kamu_daily_pnl_tl"])) else 0.0, 1),
@@ -515,7 +608,7 @@ def run_30d_walk_forward_arena(
     # Champion designation
     if ml_wins >= prophet_wins or ml_mae < prophet_mae:
         champion = "TERTIP_ML_CHALLENGER"
-        champion_label = "Tertip ML Challenger (XGBoost)"
+        champion_label = f"Tertip ML Challenger ({ml_champion_type})"
     else:
         champion = "PROPHET_BASE"
         champion_label = "Prophet Base Model"
@@ -523,6 +616,7 @@ def run_30d_walk_forward_arena(
     tournament_summary = {
         "champion": champion,
         "champion_label": champion_label,
+        "ml_champion_type": ml_champion_type,
         "ml_hit_rate_pct": round(ml_hit_rate, 1),
         "ml_mae_pct": round(ml_mae, 2),
         "ml_wins": ml_wins,
@@ -530,25 +624,35 @@ def run_30d_walk_forward_arena(
         "prophet_mae_pct": round(prophet_mae, 2),
         "prophet_wins": prophet_wins,
         "total_sessions": len(ledger),
+        "ridge_hit_rate_pct": round(ridge_hit_rate, 1),
+        "ridge_mae_pct": round(ridge_mae, 2),
+        "xgboost_hit_rate_pct": round(xgb_hit_rate, 1),
+        "xgboost_mae_pct": round(xgb_mae, 2),
     }
 
     return ledger, tournament_summary, champion_ml_model
 
 
 def get_tertip_ml_forecast(
-    db: PostgresManager, symbol: str, force_refresh: bool = False
+    db: PostgresManager,
+    symbol: str,
+    force_refresh: bool = False,
+    model_type: str = "auto",
 ) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and 30-day walk-forward track.
 
-    Uses zero-lookahead training, compares Prophet Base vs Tertip ML Challenger,
+    Uses zero-lookahead training, compares Prophet Base vs Tertip ML Challenger
+    with dynamic on-the-fly champion selection (Ridge vs XGBoost),
     and returns comprehensive institutional intelligence.
     """
     sym = symbol.upper()
+    m_type = model_type.lower()
     now_ts = datetime.now(timezone.utc).timestamp()
+    cache_key = f"{sym}:{m_type}"
 
     # Check cache (bypassed if force_refresh is True)
-    if not force_refresh and sym in _FORECAST_CACHE:
-        cached_ts, cached_data = _FORECAST_CACHE[sym]
+    if not force_refresh and cache_key in _FORECAST_CACHE:
+        cached_ts, cached_data = _FORECAST_CACHE[cache_key]
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
@@ -558,7 +662,9 @@ def get_tertip_ml_forecast(
         return {"error": f"Insufficient historical data for symbol {sym}"}
 
     # Run 30-Day Walk-Forward Tournament
-    ledger, tournament, trained_ml_model = run_30d_walk_forward_arena(df, n_sessions=30)
+    ledger, tournament, trained_ml_model = run_30d_walk_forward_arena(
+        df, n_sessions=30, model_type=m_type
+    )
 
     # 3-Pillar Matrix
     pillar_matrix = get_pillar_live_matrix(db, sym)
@@ -592,17 +698,22 @@ def get_tertip_ml_forecast(
     X_tr_full = tr_full[feature_cols].iloc[:-1]
     y_tr_full = y_tr_full.iloc[:-1]
 
-    live_xgb = XGBRegressor(
-        n_estimators=45,
-        max_depth=2,
-        learning_rate=0.03,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        n_jobs=1,
-    )
-    live_xgb.fit(X_tr_full, y_tr_full)
-    pred_ret_ml = float(live_xgb.predict(pd.DataFrame([latest_row[feature_cols]]))[0])
+    ml_champion_type = tournament.get("ml_champion_type", "XGBoost")
+    if ml_champion_type == "XGBoost":
+        live_ml = XGBRegressor(
+            n_estimators=45,
+            max_depth=2,
+            learning_rate=0.03,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=1,
+        )
+    else:
+        live_ml = Ridge(alpha=10.0, random_state=42)
+
+    live_ml.fit(X_tr_full, y_tr_full)
+    pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[feature_cols]]))[0])
     pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
@@ -744,5 +855,5 @@ def get_tertip_ml_forecast(
         "calculated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    _FORECAST_CACHE[sym] = (now_ts, response_data)
+    _FORECAST_CACHE[cache_key] = (now_ts, response_data)
     return response_data

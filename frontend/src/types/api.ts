@@ -377,6 +377,7 @@ export interface WalkForwardLedgerItem {
 export interface TournamentSummary {
   champion: string;
   champion_label: string;
+  ml_champion_type?: string;
   ml_hit_rate_pct: number;
   ml_mae_pct: number;
   ml_wins: number;
@@ -384,6 +385,10 @@ export interface TournamentSummary {
   prophet_mae_pct: number;
   prophet_wins: number;
   total_sessions: number;
+  ridge_hit_rate_pct?: number;
+  ridge_mae_pct?: number;
+  xgboost_hit_rate_pct?: number;
+  xgboost_mae_pct?: number;
 }
 
 export interface PillarExecutionDetail {
