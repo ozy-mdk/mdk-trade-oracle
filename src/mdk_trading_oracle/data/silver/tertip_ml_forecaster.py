@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from prophet import Prophet
-from sklearn.linear_model import Ridge
+from xgboost import XGBRegressor
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
@@ -424,17 +424,25 @@ def run_30d_walk_forward_arena(
         prophet_price = float(fc_prophet.iloc[-1]["yhat"])
         prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
 
-        # 2. ML Challenger Model: Bayesian Ridge on scarce microstructure features
+        # 2. ML Challenger Model: XGBoost on scarce microstructure features
         tr_clean = train_data.iloc[-200:].dropna(subset=feature_cols).copy()
         y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
         X_tr = tr_clean[feature_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
 
-        ridge = Ridge(alpha=10.0)
-        ridge.fit(X_tr, y_tr)
-        champion_ml_model = ridge
+        xgb = XGBRegressor(
+            n_estimators=45,
+            max_depth=2,
+            learning_rate=0.03,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=1,
+        )
+        xgb.fit(X_tr, y_tr)
+        champion_ml_model = xgb
 
-        pred_ret_ml = float(ridge.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
+        pred_ret_ml = float(xgb.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
         # Bound extreme predictions
         pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
         ml_price = prev_price * (1.0 + pred_ret_ml / 100.0)
@@ -507,7 +515,7 @@ def run_30d_walk_forward_arena(
     # Champion designation
     if ml_wins >= prophet_wins or ml_mae < prophet_mae:
         champion = "TERTIP_ML_CHALLENGER"
-        champion_label = "Tertip ML Challenger (Ridge Ensemble)"
+        champion_label = "Tertip ML Challenger (XGBoost)"
     else:
         champion = "PROPHET_BASE"
         champion_label = "Prophet Base Model"
@@ -578,12 +586,24 @@ def get_tertip_ml_forecast(
     prophet_target_price = float(fc_prophet.iloc[-1]["yhat"])
     prophet_ret_pct = (prophet_target_price - latest_price) / latest_price * 100.0
 
-    # 2. ML Challenger Prediction for T+1
-    if trained_ml_model is not None:
-        pred_ret_ml = float(trained_ml_model.predict(pd.DataFrame([latest_row[feature_cols]]))[0])
-        pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
-    else:
-        pred_ret_ml = 0.0
+    # 2. ML Challenger Prediction for T+1 (fitted on full available history up to session T)
+    tr_full = df.iloc[-200:].dropna(subset=feature_cols).copy()
+    y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
+    X_tr_full = tr_full[feature_cols].iloc[:-1]
+    y_tr_full = y_tr_full.iloc[:-1]
+
+    live_xgb = XGBRegressor(
+        n_estimators=45,
+        max_depth=2,
+        learning_rate=0.03,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=1,
+    )
+    live_xgb.fit(X_tr_full, y_tr_full)
+    pred_ret_ml = float(live_xgb.predict(pd.DataFrame([latest_row[feature_cols]]))[0])
+    pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
