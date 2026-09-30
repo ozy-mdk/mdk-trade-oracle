@@ -456,6 +456,11 @@ export interface TertipMlForecastResponse {
   pillar_matrix: PillarMatrixItem[];
   pillar_execution?: PillarExecutionTodayYesterday | null;
   walk_forward_ledger: WalkForwardLedgerItem[];
+  features_mode?: string;
+  active_features_count?: number;
+  train_lookback_sessions?: number;
+  active_features?: string[];
+  excluded_features?: string[];
   calculated_at: string;
 }
 

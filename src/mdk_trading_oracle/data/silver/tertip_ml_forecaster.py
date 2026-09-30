@@ -11,10 +11,12 @@ Features zero-lookahead point-in-time training and a 30-day walk-forward reality
 recording the exact next-day actions executed by each institutional pillar.
 """
 
+from __future__ import annotations
+
 import logging
 import warnings
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional, List, Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -32,8 +34,8 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Active 28-Feature Microstructure, Tertip, Execution & BIST 30 Benchmark Suite
-FEATURE_COLS = [
+# Full Candidate Feature Suite (28 Microstructure, Tertip, Execution & BIST 30 Features)
+ALL_CANDIDATE_FEATURE_COLS = [
     # Core Valuation & Momentum
     "feat_cost_spread_pct",
     "feat_ret_today_pct",
@@ -73,6 +75,27 @@ FEATURE_COLS = [
     "feat_kamu_pnl_share_yesterday",
 ]
 
+# Excluded columns in Lean Model Configuration (eliminates noisy 2-day lags & yesterday shares)
+DEFAULT_EXCLUDED_COLS = [
+    "feat_bist30_ret_yesterday_pct",
+    "feat_bist30_ret_day_before_pct",
+    "feat_mlb_buy_share_yesterday",
+    "feat_mlb_sell_share_yesterday",
+    "feat_mlb_pnl_share_yesterday",
+    "feat_big5_buy_share_yesterday",
+    "feat_big5_sell_share_yesterday",
+    "feat_big5_pnl_share_yesterday",
+    "feat_kamu_buy_share_yesterday",
+    "feat_kamu_sell_share_yesterday",
+    "feat_kamu_pnl_share_yesterday",
+]
+
+# Active Lean Feature Suite (17 Scarce Institutional Features)
+FEATURE_COLS = [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in DEFAULT_EXCLUDED_COLS]
+
+# Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
+TRAIN_LOOKBACK_SESSIONS = 252
+
 # Suppress verbose warnings from third-party math packages
 warnings.filterwarnings("ignore")
 logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
@@ -92,7 +115,7 @@ def clear_forecast_cache() -> None:
 
 
 def extract_3pillar_time_series(
-    db: PostgresManager, symbol: str, lookback_days: int = 400
+    db: PostgresManager, symbol: str, lookback_days: int = 550
 ) -> pd.DataFrame:
     """Extract historical daily prices and 3-pillar institutional order flows."""
     sym = symbol.upper()
@@ -374,14 +397,19 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
 
 
 def run_30d_walk_forward_arena(
-    df: pd.DataFrame, n_sessions: int = 30, model_type: str = "auto"
+    df: pd.DataFrame,
+    n_sessions: int = 30,
+    model_type: str = "auto",
+    feature_cols: list[str] | None = None,
+    train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], Any]:
     """Execute zero-lookahead walk-forward benchmarking Prophet against ML models.
 
+    Strictly anchors historical training data to the last 12 months (252 trading sessions).
     Supports dynamic on-the-fly champion selection (Ridge vs XGBoost) when model_type="auto".
     Returns the 30-day reality ledger, summary tournament metrics, and the trained champion ML model.
     """
-    feature_cols = FEATURE_COLS
+    f_cols = feature_cols if feature_cols is not None else FEATURE_COLS
 
     if len(df) < n_sessions + 30:
         return [], {}, None
@@ -407,10 +435,10 @@ def run_30d_walk_forward_arena(
         big5_action = "BUY" if big5_actual_flow > 0 else "SELL"
         kamu_action = "BUY" if kamu_actual_flow > 0 else "SELL"
 
-        # 1. Base Model: Prophet (trailing 120 days pure price series)
+        # 1. Base Model: Prophet (strictly trailing 12 months / 252 sessions pure price series)
         p_df = pd.DataFrame({
-            "ds": pd.to_datetime(train_data["trade_date"].iloc[-120:]),
-            "y": train_data["close_price"].iloc[-120:],
+            "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
+            "y": train_data["close_price"].iloc[-train_lookback_sessions:],
         })
         m_prophet = Prophet(
             daily_seasonality=False,
@@ -429,16 +457,16 @@ def run_30d_walk_forward_arena(
         else:
             prophet_hit = (prophet_ret > 0.02) if actual_ret > 0.02 else (prophet_ret < -0.02)
 
-        # 2. ML Candidate Features
-        tr_clean = train_data.iloc[-200:].dropna(subset=feature_cols).copy()
+        # 2. ML Candidate Features (strictly trailing 12 months / 252 sessions)
+        tr_clean = train_data.iloc[-train_lookback_sessions:].dropna(subset=f_cols).copy()
         y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
-        X_tr = tr_clean[feature_cols].iloc[:-1]
+        X_tr = tr_clean[f_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
 
         # Candidate A: Ridge
         ridge = Ridge(alpha=10.0, random_state=42)
         ridge.fit(X_tr, y_tr)
-        pred_ret_ridge = float(ridge.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
+        pred_ret_ridge = float(ridge.predict(pd.DataFrame([prev_row[f_cols]]))[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
         ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
@@ -459,7 +487,7 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
         )
         xgb.fit(X_tr, y_tr)
-        pred_ret_xgb = float(xgb.predict(pd.DataFrame([prev_row[feature_cols]]))[0])
+        pred_ret_xgb = float(xgb.predict(pd.DataFrame([prev_row[f_cols]]))[0])
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
         xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
@@ -695,17 +723,21 @@ def get_tertip_ml_forecast(
     symbol: str,
     force_refresh: bool = False,
     model_type: str = "auto",
+    features_mode: str = "lean",
+    excluded_cols: list[str] | None = None,
+    train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
 ) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and 30-day walk-forward track.
 
-    Uses zero-lookahead training, compares Prophet Base vs Tertip ML Challenger
-    with dynamic on-the-fly champion selection (Ridge vs XGBoost),
-    and returns comprehensive institutional intelligence.
+    Uses strictly 12 months (252 sessions) historical training lookback,
+    compares Prophet Base vs Tertip ML Challenger with dynamic on-the-fly champion selection (Ridge vs XGBoost),
+    and supports lean (17 features) or full (28 features) microstructure suites.
     """
     sym = symbol.upper()
     m_type = model_type.lower()
+    f_mode = features_mode.lower()
     now_ts = datetime.now(timezone.utc).timestamp()
-    cache_key = f"{sym}:{m_type}"
+    cache_key = f"{sym}:{m_type}:{f_mode}:{train_lookback_sessions}"
 
     # Check cache (bypassed if force_refresh is True)
     if not force_refresh and cache_key in _FORECAST_CACHE:
@@ -713,14 +745,27 @@ def get_tertip_ml_forecast(
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
-    # Extract time series
-    df = extract_3pillar_time_series(db, sym, lookback_days=450)
+    # Resolve active feature set
+    if f_mode == "full":
+        active_features = list(ALL_CANDIDATE_FEATURE_COLS)
+    else:
+        excl = set(DEFAULT_EXCLUDED_COLS)
+        if excluded_cols:
+            excl.update(excluded_cols)
+        active_features = [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in excl]
+
+    # Extract time series (550 calendar days to guarantee 252+ clean sessions after 63d EWMA)
+    df = extract_3pillar_time_series(db, sym, lookback_days=550)
     if df.empty or len(df) < 35:
         return {"error": f"Insufficient historical data for symbol {sym}"}
 
     # Run 30-Day Walk-Forward Tournament
     ledger, tournament, trained_ml_model = run_30d_walk_forward_arena(
-        df, n_sessions=30, model_type=m_type
+        df,
+        n_sessions=30,
+        model_type=m_type,
+        feature_cols=active_features,
+        train_lookback_sessions=train_lookback_sessions,
     )
 
     # 3-Pillar Matrix
@@ -731,12 +776,10 @@ def get_tertip_ml_forecast(
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    feature_cols = FEATURE_COLS
-
-    # 1. Base Prophet Prediction for T+1
+    # 1. Base Prophet Prediction for T+1 (strictly trailing 12 months / 252 sessions)
     p_df = pd.DataFrame({
-        "ds": pd.to_datetime(df["trade_date"].iloc[-120:]),
-        "y": df["close_price"].iloc[-120:],
+        "ds": pd.to_datetime(df["trade_date"].iloc[-train_lookback_sessions:]),
+        "y": df["close_price"].iloc[-train_lookback_sessions:],
     })
     m_prophet = Prophet(
         daily_seasonality=False,
@@ -749,10 +792,10 @@ def get_tertip_ml_forecast(
     prophet_target_price = float(fc_prophet.iloc[-1]["yhat"])
     prophet_ret_pct = (prophet_target_price - latest_price) / latest_price * 100.0
 
-    # 2. ML Challenger Prediction for T+1 (fitted on full available history up to session T)
-    tr_full = df.iloc[-200:].dropna(subset=feature_cols).copy()
+    # 2. ML Challenger Prediction for T+1 (fitted on trailing 12 months / 252 sessions up to session T)
+    tr_full = df.iloc[-train_lookback_sessions:].dropna(subset=active_features).copy()
     y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
-    X_tr_full = tr_full[feature_cols].iloc[:-1]
+    X_tr_full = tr_full[active_features].iloc[:-1]
     y_tr_full = y_tr_full.iloc[:-1]
 
     ml_champion_type = tournament.get("ml_champion_type", "XGBoost")
@@ -770,7 +813,7 @@ def get_tertip_ml_forecast(
         live_ml = Ridge(alpha=10.0, random_state=42)
 
     live_ml.fit(X_tr_full, y_tr_full)
-    pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[feature_cols]]))[0])
+    pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
     pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
@@ -917,6 +960,11 @@ def get_tertip_ml_forecast(
         "bist30_trend": bist30_trend,
         "playbook_headline": playbook_headline,
         "playbook_rationale": playbook_rationale,
+        "features_mode": f_mode,
+        "active_features_count": len(active_features),
+        "train_lookback_sessions": train_lookback_sessions,
+        "active_features": active_features,
+        "excluded_features": [c for c in ALL_CANDIDATE_FEATURE_COLS if c not in active_features],
         "tournament_summary": tournament,
         "pillar_matrix": pillar_matrix,
         "pillar_execution": pillar_execution,

@@ -344,6 +344,11 @@ class TertipMlForecastResponse(BaseModel):
     pillar_matrix: List[PillarMatrixItem]
     pillar_execution: Optional[PillarExecutionTodayYesterday] = None
     walk_forward_ledger: List[WalkForwardLedgerItem]
+    features_mode: Optional[str] = "lean"
+    active_features_count: Optional[int] = 17
+    train_lookback_sessions: Optional[int] = 252
+    active_features: Optional[List[str]] = None
+    excluded_features: Optional[List[str]] = None
     calculated_at: str
 
 
@@ -1548,10 +1553,13 @@ def get_tertip_ml_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Force bypass cache and recalculate live"),
     model_type: str = Query("auto", description="Model type: auto, xgboost, or ridge"),
+    features_mode: str = Query("lean", description="Feature configuration: lean (17 features) or full (28 features)"),
 ) -> TertipMlForecastResponse:
     """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
     try:
-        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh, model_type=model_type)
+        data = get_tertip_ml_forecast(
+            db, symbol, force_refresh=fresh, model_type=model_type, features_mode=features_mode
+        )
         if "error" in data:
             raise HTTPException(status_code=404, detail=data["error"])
         return TertipMlForecastResponse(**data)

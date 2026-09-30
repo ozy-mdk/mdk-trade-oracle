@@ -327,7 +327,10 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'oracle' && (
-          <OracleHubDashboard onSelectSymbol={handleSelectSymbol} />
+          <OracleHubDashboard
+            symbol={selectedSymbol}
+            onSelectSymbol={handleSelectSymbol}
+          />
         )}
       </main>
 

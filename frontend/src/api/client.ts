@@ -179,8 +179,13 @@ export async function fetchShockDays(
   return res.json();
 }
 
-export async function fetchTertipMlForecast(symbol: string, fresh: boolean = false): Promise<TertipMlForecastResponse> {
-  let url = `${BASE_URL}/api/v1/tertip/ml-forecast?symbol=${encodeURIComponent(symbol)}`;
+export async function fetchTertipMlForecast(
+  symbol: string,
+  fresh: boolean = false,
+  modelType: string = 'auto',
+  featuresMode: string = 'lean'
+): Promise<TertipMlForecastResponse> {
+  let url = `${BASE_URL}/api/v1/tertip/ml-forecast?symbol=${encodeURIComponent(symbol)}&model_type=${encodeURIComponent(modelType)}&features_mode=${encodeURIComponent(featuresMode)}`;
   if (fresh) {
     url += `&fresh=true&_t=${Date.now()}`;
   }
