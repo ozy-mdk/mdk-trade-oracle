@@ -31,18 +31,40 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Active 10-Feature Microstructure & Tertip Suite
+# Active 25-Feature Microstructure, Tertip & Execution Suite
 FEATURE_COLS = [
+    # Core Valuation & Momentum
     "feat_cost_spread_pct",
-    "feat_mlb_flow_share",
-    "feat_big5_flow_share",
-    "feat_kamu_flow_share",
+    "feat_ret_today_pct",
+    "feat_ret_yesterday_pct",
     "feat_mlb_w5_share",
-    "feat_ret_1d_pct",
-    "feat_price_vs_ewma_5d_pct",
+
+    # 3-Month Tertip Inventory Expansion
     "feat_mlb_tertip_3m_ratio",
     "feat_big5_tertip_3m_ratio",
     "feat_kamu_tertip_3m_ratio",
+
+    # Today's Execution Breakdown (Buy, Sell, Realized PnL)
+    "feat_mlb_buy_share_today",
+    "feat_mlb_sell_share_today",
+    "feat_mlb_pnl_share_today",
+    "feat_big5_buy_share_today",
+    "feat_big5_sell_share_today",
+    "feat_big5_pnl_share_today",
+    "feat_kamu_buy_share_today",
+    "feat_kamu_sell_share_today",
+    "feat_kamu_pnl_share_today",
+
+    # Yesterday's Execution Breakdown (Buy, Sell, Realized PnL)
+    "feat_mlb_buy_share_yesterday",
+    "feat_mlb_sell_share_yesterday",
+    "feat_mlb_pnl_share_yesterday",
+    "feat_big5_buy_share_yesterday",
+    "feat_big5_sell_share_yesterday",
+    "feat_big5_pnl_share_yesterday",
+    "feat_kamu_buy_share_yesterday",
+    "feat_kamu_sell_share_yesterday",
+    "feat_kamu_pnl_share_yesterday",
 ]
 
 # Suppress verbose warnings from third-party math packages
@@ -83,22 +105,38 @@ def extract_3pillar_time_series(
     if len(df_prices) < 35:
         return pd.DataFrame()
 
-    # 2. 3-Pillar FIFO Inventories & BofA Cost Basis
+    big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
+    kamu_in = ", ".join(f"'{b}'" for b in KAMU_BROKERS)
+
+    # 2. 3-Pillar FIFO Inventories, Costs & Execution (Buy, Sell, PnL)
     df_inventory = db.query_pl(
-        """
+        f"""
         SELECT 
             trade_date,
             SUM(CASE WHEN broker_id = 'MLB' THEN open_stock_quantity ELSE 0 END) AS mlb_open_qty,
             MAX(CASE WHEN broker_id = 'MLB' THEN fifo_avg_cost ELSE 0 END) AS fifo_avg_cost,
+            SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl ELSE 0 END) AS mlb_buy_tl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN sell_turnover_tl ELSE 0 END) AS mlb_sell_tl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN total_daily_pnl_tl ELSE 0 END) AS mlb_daily_pnl_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
-            SUM(CASE WHEN broker_id = ANY(%s) THEN open_stock_quantity ELSE 0 END) AS big5_open_qty,
-            SUM(CASE WHEN broker_id = ANY(%s) THEN open_stock_quantity ELSE 0 END) AS kamu_open_qty
+
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity ELSE 0 END) AS big5_open_qty,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl ELSE 0 END) AS big5_buy_tl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN sell_turnover_tl ELSE 0 END) AS big5_sell_tl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN total_daily_pnl_tl ELSE 0 END) AS big5_daily_pnl_tl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl_tl,
+
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity ELSE 0 END) AS kamu_open_qty,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl ELSE 0 END) AS kamu_buy_tl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN sell_turnover_tl ELSE 0 END) AS kamu_sell_tl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN total_daily_pnl_tl ELSE 0 END) AS kamu_daily_pnl_tl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN unrealized_pnl_tl ELSE 0 END) AS kamu_unrealized_pnl_tl
         FROM silver_broker_fifo_daily
         WHERE symbol = %s
         GROUP BY trade_date
         ORDER BY trade_date ASC;
         """,
-        params=[list(BIG_FIVE_BROKERS), list(KAMU_BROKERS), sym],
+        params=[sym],
     )
 
     # 3. 3-Pillar Aggregated Daily Flows
@@ -165,17 +203,11 @@ def extract_3pillar_time_series(
     # 3. MLB W5 Closing Session Flow Share
     joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / joined["total_turnover_tl"]
 
-    # 4. 1-Day Price Return %
-    joined["feat_ret_1d_pct"] = joined["daily_return_pct"].fillna(0) * 100.0
+    # 4. Today's Price Return %
+    joined["feat_ret_today_pct"] = (joined["daily_return_pct"].fillna(0) * 100.0).clip(-25.0, 25.0)
 
-    # 5. 5-Day Price EWMA Divergence: (Close - 5D EWMA Price) / 5D EWMA Price * 100
-    ewma_p5 = joined["close_price"].ewm(span=5, adjust=False).mean()
-    joined["feat_price_vs_ewma_5d_pct"] = np.where(
-        ewma_p5 > 0,
-        (joined["close_price"] - ewma_p5) / ewma_p5 * 100.0,
-        0.0,
-    )
-    joined["feat_price_vs_ewma_5d_pct"] = joined["feat_price_vs_ewma_5d_pct"].clip(-20.0, 20.0).fillna(0.0)
+    # 5. Yesterday's Price Return % (1-day lagged return)
+    joined["feat_ret_yesterday_pct"] = (joined["daily_return_pct"].shift(1).fillna(0) * 100.0).clip(-25.0, 25.0)
 
     # 6. BofA 3-Month (63d) Tertip Inventory Expansion %: (Current Qty - 63d EWMA Qty) / 63d EWMA Qty * 100
     ewma_q_mlb_63 = joined["mlb_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
