@@ -27,6 +27,9 @@ oracle:
 
 # Quantitative Gold Predictive Models Configuration
 models:
+  # Freeze legacy BofA Models 1, 2, 3 (Day-Start, Sector Day-Start, Stock Reaction)
+  freeze_legacy_bofa_models: true
+
   # Global Fallback Defaults
   default_lookback_months: 12        # Trailing history window (None = full available history)
   default_eval_window_days: 20       # Out-of-sample evaluation window for Model Arena tournament

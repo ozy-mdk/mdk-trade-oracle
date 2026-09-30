@@ -250,6 +250,7 @@ class MedallionPipeline:
         stock_reaction_symbols: Optional[List[str]] = None,
         stock_reaction_windows: Optional[List[str]] = None,
         stock_reaction_backtest: bool = False,
+        freeze_bofa_models: Optional[bool] = None,
     ) -> dict[str, Any]:
         """Execute Gold layer feature engineering, predictive models, and performance tracking ledgers."""
         logger.info("Starting Gold Layer Feature Engineering & Predictive Models...")
@@ -268,6 +269,7 @@ class MedallionPipeline:
             stock_reaction_symbols=stock_reaction_symbols,
             stock_reaction_windows=stock_reaction_windows,
             stock_reaction_backtest=stock_reaction_backtest,
+            freeze_bofa_models=freeze_bofa_models,
         )
 
         conn = self.db.get_connection()
@@ -356,6 +358,7 @@ class MedallionPipeline:
         stock_reaction_symbols: Optional[List[str]] = None,
         stock_reaction_windows: Optional[List[str]] = None,
         stock_reaction_backtest: bool = False,
+        freeze_bofa_models: Optional[bool] = None,
     ) -> dict[str, Any]:
         """Execute the Medallion Pipeline for requested target layers."""
         pipeline_start = datetime.now()
@@ -389,6 +392,12 @@ class MedallionPipeline:
                     if bronze_ingested:
                         silver_target_dates = bronze_ingested
                 results["silver"] = self.run_silver(target_dates=silver_target_dates)
+                # Clear Tertip ML Forecaster cache on new silver data
+                try:
+                    from mdk_trading_oracle.data.silver.tertip_ml_forecaster import clear_forecast_cache
+                    clear_forecast_cache()
+                except Exception as e_cache:
+                    logger.debug(f"Could not clear tertip forecast cache: {e_cache}")
             elif layer == "gold":
                 results["gold"] = self.run_gold(
                     backfill_dates=backfill_dates,
@@ -402,6 +411,7 @@ class MedallionPipeline:
                     stock_reaction_symbols=stock_reaction_symbols,
                     stock_reaction_windows=stock_reaction_windows,
                     stock_reaction_backtest=stock_reaction_backtest,
+                    freeze_bofa_models=freeze_bofa_models,
                 )
 
         total_elapsed = (datetime.now() - pipeline_start).total_seconds()

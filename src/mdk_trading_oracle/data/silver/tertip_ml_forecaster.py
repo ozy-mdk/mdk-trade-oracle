@@ -42,6 +42,13 @@ _FORECAST_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 CACHE_TTL_SECONDS = 300.0
 
 
+def clear_forecast_cache() -> None:
+    """Clear in-memory forecast cache to ensure fresh computation."""
+    global _FORECAST_CACHE
+    _FORECAST_CACHE.clear()
+    logger.info("Cleared Tertip ML Forecaster in-memory cache.")
+
+
 def extract_3pillar_time_series(
     db: PostgresManager, symbol: str, lookback_days: int = 400
 ) -> pd.DataFrame:

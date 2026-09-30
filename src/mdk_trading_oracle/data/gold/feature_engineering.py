@@ -256,40 +256,55 @@ class GoldFeatureEngineer:
         stock_reaction_symbols: Optional[List[str]] = None,
         stock_reaction_windows: Optional[List[str]] = None,
         stock_reaction_backtest: bool = False,
+        freeze_bofa_models: Optional[bool] = None,
     ) -> dict[str, Any]:
         """Execute all Gold layer feature tables, institutional signals, predictive models, and ledgers."""
         initialize_gold_schema(self.db)
         sig_res = self.compute_institutional_signals()
-        day_start_res = self.run_day_start_forecasting(
-            backfill_dates=backfill_dates,
-            all_missing=all_missing,
-            backfill_lookback_months=backfill_lookback_months,
-            backfill_lookback_days=backfill_lookback_days,
-            disabled_clusters=disabled_clusters,
-            enabled_clusters=enabled_clusters,
-            include_features=include_features,
-            exclude_features=exclude_features,
-        )
-        sector_day_start_res = self.run_sector_day_start_forecasting(
-            backfill_dates=backfill_dates,
-            all_missing=all_missing,
-            backfill_lookback_months=backfill_lookback_months,
-            backfill_lookback_days=backfill_lookback_days,
-            disabled_clusters=disabled_clusters,
-            enabled_clusters=enabled_clusters,
-            include_features=include_features,
-            exclude_features=exclude_features,
-        )
-        # Model 3: Stock Intraday Reaction (BIST30 or configured symbol subset)
-        stock_reaction_res = self.run_stock_reaction_forecasting(
-            symbols=stock_reaction_symbols,
-            windows=stock_reaction_windows,
-            run_backtest=stock_reaction_backtest,
-            backfill_dates=backfill_dates,
-            all_missing=all_missing,
-            backfill_lookback_months=backfill_lookback_months,
-            backfill_lookback_days=backfill_lookback_days,
-        )
+
+        if freeze_bofa_models is None:
+            default_cfg = self.settings.get_default_config()
+            freeze_bofa_models = default_cfg.get("models", {}).get("freeze_legacy_bofa_models", True)
+
+        if freeze_bofa_models:
+            logger.info(
+                "BofA predictive models (Model 1 Day-Start, Model 2 Sector, Model 3 Stock Reaction) "
+                "are frozen. Skipping update."
+            )
+            day_start_res = {"status": "frozen", "message": "Model 1 Day-Start Forecaster is frozen."}
+            sector_day_start_res = {"status": "frozen", "message": "Model 2 Sector Day-Start Forecaster is frozen."}
+            stock_reaction_res = {"status": "frozen", "message": "Model 3 Stock Reaction Forecaster is frozen."}
+        else:
+            day_start_res = self.run_day_start_forecasting(
+                backfill_dates=backfill_dates,
+                all_missing=all_missing,
+                backfill_lookback_months=backfill_lookback_months,
+                backfill_lookback_days=backfill_lookback_days,
+                disabled_clusters=disabled_clusters,
+                enabled_clusters=enabled_clusters,
+                include_features=include_features,
+                exclude_features=exclude_features,
+            )
+            sector_day_start_res = self.run_sector_day_start_forecasting(
+                backfill_dates=backfill_dates,
+                all_missing=all_missing,
+                backfill_lookback_months=backfill_lookback_months,
+                backfill_lookback_days=backfill_lookback_days,
+                disabled_clusters=disabled_clusters,
+                enabled_clusters=enabled_clusters,
+                include_features=include_features,
+                exclude_features=exclude_features,
+            )
+            # Model 3: Stock Intraday Reaction (BIST30 or configured symbol subset)
+            stock_reaction_res = self.run_stock_reaction_forecasting(
+                symbols=stock_reaction_symbols,
+                windows=stock_reaction_windows,
+                run_backtest=stock_reaction_backtest,
+                backfill_dates=backfill_dates,
+                all_missing=all_missing,
+                backfill_lookback_months=backfill_lookback_months,
+                backfill_lookback_days=backfill_lookback_days,
+            )
         return {
             "institutional_signals": sig_res,
             "day_start_macro_forecaster": day_start_res,

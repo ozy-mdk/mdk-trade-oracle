@@ -162,6 +162,18 @@ def main():
         action="store_true",
         help="Also run full walk-forward backtests for Model 3 (slow — typically run once on setup).",
     )
+    parser.add_argument(
+        "--unfreeze-bofa-models",
+        action="store_true",
+        default=False,
+        help="Unfreeze and execute legacy Models 1, 2, 3 (default: False, kept frozen)",
+    )
+    parser.add_argument(
+        "--freeze-bofa-models",
+        dest="unfreeze_bofa_models",
+        action="store_false",
+        help="Explicitly keep Models 1, 2, 3 frozen (default: True)",
+    )
 
     args = parser.parse_args()
 
@@ -173,6 +185,7 @@ def main():
     include_features_list = [f.strip() for f in args.include_features.split(",")] if args.include_features else None
     disabled_clusters_list = [c.strip() for c in args.disabled_clusters.split(",")] if args.disabled_clusters else None
     enabled_clusters_list = [c.strip() for c in args.enabled_clusters.split(",")] if args.enabled_clusters else None
+    freeze_bofa = not args.unfreeze_bofa_models
 
     # Resolve Model 3 symbol list
     symbols_list = None
@@ -190,7 +203,7 @@ def main():
     logger.info(
         f"Triggering Medallion Lakehouse Pipeline ("
         f"Target: {args.target}, Date: {args.date}, Month: {args.month}, File: {args.file}, "
-        f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, "
+        f"Force: {args.force}, Sync Catalog: {args.sync_catalog}, Freeze BofA Models: {freeze_bofa}, "
         f"Backfill: {backfill_dates_list or args.backfill_missing} "
         f"[Lookback: {args.backfill_lookback_months or args.backfill_lookback_days or 'default 2 months'}], "
         f"Excluded Features: {exclude_features_list}, Disabled Clusters: {disabled_clusters_list}, "
@@ -217,6 +230,7 @@ def main():
         stock_reaction_symbols=symbols_list,
         stock_reaction_windows=windows_list,
         stock_reaction_backtest=args.run_stock_backtest,
+        freeze_bofa_models=freeze_bofa,
     )
 
 
