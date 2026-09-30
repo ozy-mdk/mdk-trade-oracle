@@ -303,6 +303,8 @@ class TertipMlForecastResponse(BaseModel):
     stance_color: str
     prophet_target_price: float
     prophet_expected_return_pct: float
+    days_since_last_positive_shock: int = 0
+    days_since_last_negative_shock: int = 0
     playbook_headline: str
     playbook_rationale: str
     tournament_summary: TournamentSummary
@@ -1511,10 +1513,11 @@ def get_tertip_timeseries(
 @app.get("/api/v1/tertip/ml-forecast", response_model=TertipMlForecastResponse)
 def get_tertip_ml_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
+    fresh: bool = Query(False, description="Force bypass cache and recalculate live"),
 ) -> TertipMlForecastResponse:
     """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
     try:
-        data = get_tertip_ml_forecast(db, symbol)
+        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh)
         if "error" in data:
             raise HTTPException(status_code=404, detail=data["error"])
         return TertipMlForecastResponse(**data)

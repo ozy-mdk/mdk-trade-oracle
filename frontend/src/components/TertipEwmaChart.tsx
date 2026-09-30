@@ -33,6 +33,7 @@ import {
   BarChart3,
   History,
   Award,
+  RefreshCw,
 } from 'lucide-react';
 
 interface TertipEwmaChartProps {
@@ -108,10 +109,10 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
   const timeMapRef = useRef<Map<string | number, TertipTimeseriesPoint>>(new Map());
 
   // Fetch Tertip 3-Pillar ML Forecast & 30-Day Walk-Forward Track
-  const { data: mlForecast } = useQuery<TertipMlForecastResponse>({
+  const { data: mlForecast, refetch: refetchMlForecast, isFetching: isFetchingMl } = useQuery<TertipMlForecastResponse>({
     queryKey: ['tertipMlForecast', symbol],
     queryFn: () => fetchTertipMlForecast(symbol),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 15,
   });
 
   // Fetch Time Series Data (all available history up to latest date)
@@ -1612,6 +1613,46 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                       >
                         {mlForecast.stance_badge}
                       </span>
+                    </div>
+
+                    {/* Shock Regime Proximity & Real-time Refresh Banner */}
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] font-mono bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-slate-400 font-sans font-medium flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-400" />
+                          <span>Shock Regime Proximity:</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-emerald-400 font-bold">▲ Last Pos Shock:</span>
+                          <span className="text-slate-200">
+                            {mlForecast.days_since_last_positive_shock === 0 ? 'TODAY (Acute)' : `${mlForecast.days_since_last_positive_shock ?? '-'}d ago`}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-rose-400 font-bold">▼ Last Neg Shock:</span>
+                          <span className="text-slate-200">
+                            {mlForecast.days_since_last_negative_shock === 0 ? 'TODAY (Acute)' : `${mlForecast.days_since_last_negative_shock ?? '-'}d ago`}
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] text-slate-500">
+                          {mlForecast.calculated_at ? new Date(mlForecast.calculated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                        </span>
+                        <button
+                          onClick={() => {
+                            fetchTertipMlForecast(symbol, true).then(() => {
+                              refetchMlForecast();
+                            });
+                          }}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[8.5px] font-sans transition-colors border border-slate-700/60"
+                          title="Recalculate forecast live bypassing cache"
+                        >
+                          <RefreshCw className={`w-2.5 h-2.5 ${isFetchingMl ? 'animate-spin text-cyan-400' : 'text-slate-400'}`} />
+                          <span>Refresh</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Price Projection 3-Card Summary */}

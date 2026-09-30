@@ -419,6 +419,8 @@ export interface TertipMlForecastResponse {
   stance_color: string;
   prophet_target_price: number;
   prophet_expected_return_pct: number;
+  days_since_last_positive_shock?: number;
+  days_since_last_negative_shock?: number;
   playbook_headline: string;
   playbook_rationale: string;
   tournament_summary: TournamentSummary;
