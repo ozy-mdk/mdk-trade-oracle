@@ -176,13 +176,13 @@ export const App: React.FC = () => {
                     .filter((b) => b.broker_id === 'KAMU')
                     .map((b) => (
                       <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-emerald-300 font-bold">
-                        KAMU — (State: ZRY, VKY, HLY)
+                        KAMU — (State: ZRY, VKY, HLY, TRA)
                       </option>
                     ))}
                 </optgroup>
                 <optgroup label="State Desks (Individual)" className="bg-slate-900 text-slate-400 font-semibold">
                   {(brokers || [])
-                    .filter((b) => ['ZRY', 'VKY', 'HLY'].includes(b.broker_id))
+                    .filter((b) => ['ZRY', 'VKY', 'HLY', 'TRA'].includes(b.broker_id))
                     .map((b) => (
                       <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-slate-100 font-medium">
                         {b.broker_id} — {b.broker_name}

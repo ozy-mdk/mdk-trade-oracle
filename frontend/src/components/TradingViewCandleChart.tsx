@@ -1546,8 +1546,10 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                             const mlRet = row.ml_pred_return_pct !== undefined 
                               ? row.ml_pred_return_pct 
                               : ((row.ml_pred_price - (row.actual_price / (1 + (row.actual_return_pct || 0) / 100))) / (row.actual_price / (1 + (row.actual_return_pct || 0) / 100)) * 100);
-                            const isMlUp = row.ml_direction ? row.ml_direction === 'UP' : mlRet > 0;
-                            const isMlDown = row.ml_direction ? row.ml_direction === 'DOWN' : mlRet < 0;
+                            const isMlUp = row.ml_direction ? row.ml_direction === 'UP' : mlRet > 0.02;
+                            const isMlDown = row.ml_direction ? row.ml_direction === 'DOWN' : mlRet < -0.02;
+                            const isActUp = row.actual_return_pct > 0.02;
+                            const isActDown = row.actual_return_pct < -0.02;
                             const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
 
                             return (
@@ -1558,9 +1560,9 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                                 <td className="text-right px-1.5 py-1 text-white font-semibold">
                                   <div>₺{row.actual_price.toFixed(2)}</div>
                                   <div className={`text-[8px] font-bold ${
-                                    row.actual_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                    isActUp ? 'text-emerald-400' : (isActDown ? 'text-rose-400' : 'text-slate-400')
                                   }`}>
-                                    {row.actual_return_pct >= 0 ? '▲ UP +' : '▼ DOWN '}{row.actual_return_pct.toFixed(1)}%
+                                    {isActUp ? '▲ UP +' : (isActDown ? '▼ DOWN ' : '■ FLAT ')}{row.actual_return_pct.toFixed(2)}%
                                   </div>
                                 </td>
                                 <td className="text-right px-1.5 py-1">
@@ -1568,7 +1570,7 @@ export const TradingViewCandleChart: React.FC<TradingViewChartProps> = ({
                                   <div className={`text-[8.5px] font-bold flex items-center justify-end gap-1 ${
                                     isMlUp ? 'text-emerald-400' : (isMlDown ? 'text-rose-400' : 'text-slate-400')
                                   }`}>
-                                    <span>{isMlUp ? '▲ UP +' : (isMlDown ? '▼ DOWN ' : '■ FLAT ')}{mlRet.toFixed(1)}%</span>
+                                    <span>{isMlUp ? '▲ UP +' : (isMlDown ? '▼ DOWN ' : '■ FLAT ')}{mlRet.toFixed(2)}%</span>
                                     <span className="text-[7.5px] text-slate-500 font-normal">({row.ml_err_pct.toFixed(1)}%)</span>
                                   </div>
                                 </td>

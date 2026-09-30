@@ -5,7 +5,7 @@ challenger models (Bayesian Ridge / LightGBM) armed with scarce 3-pillar institu
 microstructure features:
     - Pillar 1: Bank of America (MLB)
     - Pillar 2: Domestic Big 5 Desks (BIG5: YKR, IYM, AKM, GRM, ZRY)
-    - Pillar 3: State Conduits (KAMU: ZRY, VKY, HLY)
+    - Pillar 3: State Conduits (KAMU: ZRY, VKY, HLY, TRA)
 
 Features zero-lookahead point-in-time training and a 30-day walk-forward reality ledger
 recording the exact next-day actions executed by each institutional pillar.
@@ -30,6 +30,20 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 )
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
+
+# Active 10-Feature Microstructure & Tertip Suite
+FEATURE_COLS = [
+    "feat_cost_spread_pct",
+    "feat_mlb_flow_share",
+    "feat_big5_flow_share",
+    "feat_kamu_flow_share",
+    "feat_mlb_w5_share",
+    "feat_ret_1d_pct",
+    "feat_price_vs_ewma_5d_pct",
+    "feat_mlb_tertip_3m_ratio",
+    "feat_big5_tertip_3m_ratio",
+    "feat_kamu_tertip_3m_ratio",
+]
 
 # Suppress verbose warnings from third-party math packages
 warnings.filterwarnings("ignore")
@@ -69,15 +83,22 @@ def extract_3pillar_time_series(
     if len(df_prices) < 35:
         return pd.DataFrame()
 
-    # 2. MLB FIFO Inventory
-    df_mlb = db.query_pl(
+    # 2. 3-Pillar FIFO Inventories & BofA Cost Basis
+    df_inventory = db.query_pl(
         """
-        SELECT trade_date, open_stock_quantity, fifo_avg_cost, unrealized_pnl_tl
+        SELECT 
+            trade_date,
+            SUM(CASE WHEN broker_id = 'MLB' THEN open_stock_quantity ELSE 0 END) AS mlb_open_qty,
+            MAX(CASE WHEN broker_id = 'MLB' THEN fifo_avg_cost ELSE 0 END) AS fifo_avg_cost,
+            SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
+            SUM(CASE WHEN broker_id = ANY(%s) THEN open_stock_quantity ELSE 0 END) AS big5_open_qty,
+            SUM(CASE WHEN broker_id = ANY(%s) THEN open_stock_quantity ELSE 0 END) AS kamu_open_qty
         FROM silver_broker_fifo_daily
-        WHERE symbol = %s AND broker_id = 'MLB'
+        WHERE symbol = %s
+        GROUP BY trade_date
         ORDER BY trade_date ASC;
         """,
-        params=[sym],
+        params=[list(BIG_FIVE_BROKERS), list(KAMU_BROKERS), sym],
     )
 
     # 3. 3-Pillar Aggregated Daily Flows
@@ -118,7 +139,7 @@ def extract_3pillar_time_series(
 
     # Join on trade_date
     joined = (
-        df_prices.join(df_mlb, on="trade_date", how="left")
+        df_prices.join(df_inventory, on="trade_date", how="left")
         .join(df_flows, on="trade_date", how="left")
         .join(df_w5, on="trade_date", how="left")
         .to_pandas()
@@ -127,18 +148,61 @@ def extract_3pillar_time_series(
     if joined.empty:
         return pd.DataFrame()
 
-    # Engineer Scarce Microstructure Features
+    # Engineer 10 Scarce Microstructure & Tertip Features
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
+
+    # 1. BofA Cost Spread %: (Close - BofA FIFO Cost) / BofA FIFO Cost * 100
     joined["feat_cost_spread_pct"] = np.where(
         (joined["fifo_avg_cost"] > 0) & (joined["close_price"] > 0),
         (joined["close_price"] - joined["fifo_avg_cost"]) / joined["fifo_avg_cost"] * 100.0,
         0.0,
     )
+    # 2. 1D Flow Shares normalized by Total Turnover
     joined["feat_mlb_flow_share"] = joined["mlb_flow"].fillna(0) / joined["total_turnover_tl"]
     joined["feat_big5_flow_share"] = joined["big5_flow"].fillna(0) / joined["total_turnover_tl"]
     joined["feat_kamu_flow_share"] = joined["kamu_flow"].fillna(0) / joined["total_turnover_tl"]
+
+    # 3. MLB W5 Closing Session Flow Share
     joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / joined["total_turnover_tl"]
+
+    # 4. 1-Day Price Return %
     joined["feat_ret_1d_pct"] = joined["daily_return_pct"].fillna(0) * 100.0
+
+    # 5. 5-Day Price EWMA Divergence: (Close - 5D EWMA Price) / 5D EWMA Price * 100
+    ewma_p5 = joined["close_price"].ewm(span=5, adjust=False).mean()
+    joined["feat_price_vs_ewma_5d_pct"] = np.where(
+        ewma_p5 > 0,
+        (joined["close_price"] - ewma_p5) / ewma_p5 * 100.0,
+        0.0,
+    )
+    joined["feat_price_vs_ewma_5d_pct"] = joined["feat_price_vs_ewma_5d_pct"].clip(-20.0, 20.0).fillna(0.0)
+
+    # 6. BofA 3-Month (63d) Tertip Inventory Expansion %: (Current Qty - 63d EWMA Qty) / 63d EWMA Qty * 100
+    ewma_q_mlb_63 = joined["mlb_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
+    joined["feat_mlb_tertip_3m_ratio"] = np.where(
+        ewma_q_mlb_63.abs() > 1.0,
+        (joined["mlb_open_qty"].fillna(0) - ewma_q_mlb_63) / ewma_q_mlb_63.abs() * 100.0,
+        0.0,
+    )
+    joined["feat_mlb_tertip_3m_ratio"] = joined["feat_mlb_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+
+    # 7. BIG5 3-Month (63d) Tertip Inventory Expansion %
+    ewma_q_big5_63 = joined["big5_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
+    joined["feat_big5_tertip_3m_ratio"] = np.where(
+        ewma_q_big5_63.abs() > 1.0,
+        (joined["big5_open_qty"].fillna(0) - ewma_q_big5_63) / ewma_q_big5_63.abs() * 100.0,
+        0.0,
+    )
+    joined["feat_big5_tertip_3m_ratio"] = joined["feat_big5_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+
+    # 8. KAMU 3-Month (63d) Tertip Inventory Expansion % (including TRA)
+    ewma_q_kamu_63 = joined["kamu_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
+    joined["feat_kamu_tertip_3m_ratio"] = np.where(
+        ewma_q_kamu_63.abs() > 1.0,
+        (joined["kamu_open_qty"].fillna(0) - ewma_q_kamu_63) / ewma_q_kamu_63.abs() * 100.0,
+        0.0,
+    )
+    joined["feat_kamu_tertip_3m_ratio"] = joined["feat_kamu_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
 
     return joined
 
@@ -149,7 +213,7 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
     pillars_meta = [
         {"key": "MLB", "name": "Bank of America (MLB)", "desc": "Foreign Algo Powerhouse"},
         {"key": "BIG5", "name": "Top 5 Domestic Desks", "desc": "YKR, IYM, AKM, GRM, ZRY"},
-        {"key": "KAMU", "name": "State-Backed Conduits", "desc": "ZRY, VKY, HLY (Support Floor)"},
+        {"key": "KAMU", "name": "State-Backed Conduits", "desc": "ZRY, VKY, HLY, TRA (State Support Floor)"},
     ]
 
     # Fetch latest stock turnover to compute turnover share
@@ -236,14 +300,7 @@ def run_30d_walk_forward_arena(
 
     Returns the 30-day reality ledger, summary tournament metrics, and the trained champion ML model.
     """
-    feature_cols = [
-        "feat_cost_spread_pct",
-        "feat_mlb_flow_share",
-        "feat_big5_flow_share",
-        "feat_kamu_flow_share",
-        "feat_mlb_w5_share",
-        "feat_ret_1d_pct",
-    ]
+    feature_cols = FEATURE_COLS
 
     if len(df) < n_sessions + 30:
         return [], {}, None
@@ -307,15 +364,15 @@ def run_30d_walk_forward_arena(
         prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         ml_err = abs(ml_price - actual_price) / actual_price * 100.0
 
-        if abs(actual_ret) < 0.01:
-            prophet_hit = abs(prophet_ret) < 0.1
-            ml_hit = abs(pred_ret_ml) < 0.1
+        if abs(actual_ret) <= 0.02:
+            prophet_hit = abs(prophet_ret) <= 0.02
+            ml_hit = abs(pred_ret_ml) <= 0.02
         else:
-            prophet_hit = (prophet_ret > 0) if actual_ret > 0 else (prophet_ret < 0)
-            ml_hit = (pred_ret_ml > 0) if actual_ret > 0 else (pred_ret_ml < 0)
+            prophet_hit = (prophet_ret > 0.02) if actual_ret > 0.02 else (prophet_ret < -0.02)
+            ml_hit = (pred_ret_ml > 0.02) if actual_ret > 0.02 else (pred_ret_ml < -0.02)
         winner = "CHALLENGER" if ml_err < prophet_err else "BASE"
-        ml_direction = "UP" if pred_ret_ml > 0.01 else ("DOWN" if pred_ret_ml < -0.01 else "FLAT")
-        prophet_direction = "UP" if prophet_ret > 0.01 else ("DOWN" if prophet_ret < -0.01 else "FLAT")
+        ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
+        prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
 
         ledger.append({
             "date": str(test_row["trade_date"]).split(" ")[0],
@@ -403,14 +460,7 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    feature_cols = [
-        "feat_cost_spread_pct",
-        "feat_mlb_flow_share",
-        "feat_big5_flow_share",
-        "feat_kamu_flow_share",
-        "feat_mlb_w5_share",
-        "feat_ret_1d_pct",
-    ]
+    feature_cols = FEATURE_COLS
 
     # 1. Base Prophet Prediction for T+1
     p_df = pd.DataFrame({
@@ -447,7 +497,7 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         stance = "STRONG_BUY"
         stance_badge = "STRONG BUY ACCUMULATION"
         stance_color = "emerald"
-    elif pred_ret_ml >= 0.5:
+    elif pred_ret_ml > 0.02:
         stance = "BUY"
         stance_badge = "BUY ABSORPTION REBOUND"
         stance_color = "teal"
@@ -455,7 +505,7 @@ def get_tertip_ml_forecast(db: PostgresManager, symbol: str) -> dict[str, Any]:
         stance = "STRONG_SELL"
         stance_badge = "STRONG SELL PRESSURE"
         stance_color = "rose"
-    elif pred_ret_ml <= -0.5:
+    elif pred_ret_ml < -0.02:
         stance = "SELL"
         stance_badge = "DISTRIBUTION FADE"
         stance_color = "orange"

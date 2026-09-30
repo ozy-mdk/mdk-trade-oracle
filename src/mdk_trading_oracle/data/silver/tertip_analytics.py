@@ -24,8 +24,8 @@ logger = get_logger("mdk_oracle.tertip_analytics")
 # Big Five Institutional Bundle (Next 5 largest players excluding Bank of America)
 BIG_FIVE_BROKERS = ("YKR", "IYM", "AKM", "GRM", "ZRY")
 
-# State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits)
-KAMU_BROKERS = ("ZRY", "VKY", "HLY")
+# State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits + TRA)
+KAMU_BROKERS = ("ZRY", "VKY", "HLY", "TRA")
 
 # Registry of Institutional Bundles
 INSTITUTIONAL_BUNDLES = {
