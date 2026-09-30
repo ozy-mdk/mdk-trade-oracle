@@ -80,21 +80,7 @@ TABLE_PKS = {
     "bronze_bist30_stock_periods": ["symbol", "start_date"],
     "bronze_instruments": ["symbol"],
     "bronze_brokers": ["broker_id"],
-    "gold_bofa_day_start_forecasts": ["forecast_date"],
-    "gold_bofa_day_start_performance": ["trade_date"],
-    "gold_bofa_day_start_backtests": ["trade_date"],
-    "gold_bofa_sector_day_start_forecasts": ["forecast_date", "sector"],
-    "gold_bofa_sector_day_start_performance": ["trade_date", "sector"],
-    "gold_bofa_sector_day_start_backtests": ["trade_date", "sector"],
-    "gold_bofa_stock_reaction_w2_forecasts": ["forecast_date", "symbol"],
-    "gold_bofa_stock_reaction_w2_performance": ["trade_date", "symbol"],
-    "gold_bofa_stock_reaction_w2_backtests": ["trade_date", "symbol"],
-    "gold_bofa_stock_reaction_w3_forecasts": ["forecast_date", "symbol"],
-    "gold_bofa_stock_reaction_w3_performance": ["trade_date", "symbol"],
-    "gold_bofa_stock_reaction_w3_backtests": ["trade_date", "symbol"],
-    "gold_bofa_stock_reaction_w5_forecasts": ["forecast_date", "symbol"],
-    "gold_bofa_stock_reaction_w5_performance": ["trade_date", "symbol"],
-    "gold_bofa_stock_reaction_w5_backtests": ["trade_date", "symbol"],
+    "gold_institutional_daily_signals": ["trade_date", "symbol"],
 }
 
 

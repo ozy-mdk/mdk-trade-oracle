@@ -141,7 +141,16 @@ class BronzeIngestor:
             legacy_sources = [
                 r[0] for r in conn.execute("SELECT DISTINCT raw_source FROM bronze_raw_trades;").fetchall()
             ]
+            existing_dates = {
+                str(r[0])
+                for r in conn.execute(
+                    "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
+                ).fetchall()
+            }
+            backfilled_count = 0
             for meta in discovered_files:
+                if str(meta.get("trade_date")) not in existing_dates:
+                    continue
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO bronze_ingestion_log (
@@ -159,7 +168,8 @@ class BronzeIngestor:
                         legacy_sources[0] if legacy_sources else "historical_feed",
                     ],
                 )
-            logger.info(f"Backfilled {len(discovered_files)} file entries into `bronze_ingestion_log`.")
+                backfilled_count += 1
+            logger.info(f"Backfilled {backfilled_count} file entries into `bronze_ingestion_log`.")
 
     def get_pending_files(self, discovered_files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter discovered files down to only those not yet ingested or modified since last ingestion."""

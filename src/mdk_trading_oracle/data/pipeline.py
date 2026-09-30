@@ -1,8 +1,8 @@
 """Medallion Lakehouse Pipeline Orchestrator (Bronze -> Silver -> Gold)."""
 
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from rich.console import Console
 from rich.table import Table
