@@ -580,13 +580,11 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
-        # Training sample weighting: balanced flat consolidation vs active steep moves
-        # Flat noise (|return| <= 0.5%): weight 0.8x (increased baseline, avoids under-fitting flat regimes)
-        # Active moves (|return| > 0.5%): weight 1.0 + 0.5 * min(|return|, 4.0) (up to 3.0x on high-impact moves)
+        # Training sample weighting: gentle flat day discounting (0.8x for flat days, 1.0x for rest)
         sample_weights_tr = np.where(
             np.abs(y_tr) <= 0.5,
             0.8,
-            1.0 + 0.5 * np.minimum(np.abs(y_tr), 4.0),
+            1.0,
         )
 
         # Candidate A: Ridge
@@ -1324,7 +1322,7 @@ def get_tertip_ml_forecast(
     sample_weights_full = np.where(
         np.abs(y_tr_full) <= 0.5,
         0.8,
-        1.0 + 0.5 * np.minimum(np.abs(y_tr_full), 4.0),
+        1.0,
     )
     if ml_champion_type in ("Huber", "BayesianRidge"):
         live_ml.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights_full)
