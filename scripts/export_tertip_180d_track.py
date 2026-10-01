@@ -85,6 +85,11 @@ def ensure_gold_tables(db: PostgresManager) -> None:
     );
 
     ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS training_lookback_sessions INTEGER DEFAULT 252;
+    ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS confluence_pred_price DOUBLE PRECISION;
+    ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS confluence_pred_return_pct DOUBLE PRECISION;
+    ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS confluence_direction VARCHAR(16);
+    ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS confluence_err_pct DOUBLE PRECISION;
+    ALTER TABLE gold_tertip_walk_forward_backtests ADD COLUMN IF NOT EXISTS confluence_is_hit BOOLEAN;
 
     CREATE TABLE IF NOT EXISTS gold_tertip_daily_forecasts (
         symbol VARCHAR(16) NOT NULL,
@@ -140,6 +145,7 @@ def save_ledger_to_database(db: PostgresManager, symbol: str, ledger: list[dict[
     insert_query = """
     INSERT INTO gold_tertip_walk_forward_backtests (
         symbol, trade_date, actual_price, actual_return_pct, bist30_ret_pct,
+        confluence_pred_price, confluence_pred_return_pct, confluence_direction, confluence_err_pct, confluence_is_hit,
         ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
         prophet_pred_price, prophet_pred_return_pct, prophet_direction, prophet_err_pct, prophet_is_hit,
         winner, is_shock_day, shock_type, days_since_pos_shock, days_since_neg_shock,
@@ -149,6 +155,7 @@ def save_ledger_to_database(db: PostgresManager, symbol: str, ledger: list[dict[
         ml_champion_type, training_lookback_sessions, calculated_at
     ) VALUES (
         %(symbol)s, %(trade_date)s, %(actual_price)s, %(actual_return_pct)s, %(bist30_ret_pct)s,
+        %(confluence_pred_price)s, %(confluence_pred_return_pct)s, %(confluence_direction)s, %(confluence_err_pct)s, %(confluence_is_hit)s,
         %(ml_pred_price)s, %(ml_pred_return_pct)s, %(ml_direction)s, %(ml_err_pct)s, %(ml_is_hit)s,
         %(prophet_pred_price)s, %(prophet_pred_return_pct)s, %(prophet_direction)s, %(prophet_err_pct)s, %(prophet_is_hit)s,
         %(winner)s, %(is_shock_day)s, %(shock_type)s, %(days_since_pos_shock)s, %(days_since_neg_shock)s,
@@ -160,6 +167,11 @@ def save_ledger_to_database(db: PostgresManager, symbol: str, ledger: list[dict[
         actual_price = EXCLUDED.actual_price,
         actual_return_pct = EXCLUDED.actual_return_pct,
         bist30_ret_pct = EXCLUDED.bist30_ret_pct,
+        confluence_pred_price = EXCLUDED.confluence_pred_price,
+        confluence_pred_return_pct = EXCLUDED.confluence_pred_return_pct,
+        confluence_direction = EXCLUDED.confluence_direction,
+        confluence_err_pct = EXCLUDED.confluence_err_pct,
+        confluence_is_hit = EXCLUDED.confluence_is_hit,
         ml_pred_price = EXCLUDED.ml_pred_price,
         ml_pred_return_pct = EXCLUDED.ml_pred_return_pct,
         ml_direction = EXCLUDED.ml_direction,
@@ -202,6 +214,11 @@ def save_ledger_to_database(db: PostgresManager, symbol: str, ledger: list[dict[
             "actual_price": r.get("actual_price"),
             "actual_return_pct": r.get("actual_return_pct"),
             "bist30_ret_pct": r.get("bist30_ret_pct", 0.0),
+            "confluence_pred_price": r.get("confluence_pred_price"),
+            "confluence_pred_return_pct": r.get("confluence_pred_return_pct"),
+            "confluence_direction": r.get("confluence_direction"),
+            "confluence_err_pct": r.get("confluence_err_pct"),
+            "confluence_is_hit": r.get("confluence_is_hit"),
             "ml_pred_price": r.get("ml_pred_price"),
             "ml_pred_return_pct": r.get("ml_pred_return_pct"),
             "ml_direction": r.get("ml_direction"),
@@ -508,10 +525,10 @@ def sync_crowned_yaml(summary_rows: list[dict[str, Any]], yaml_path: Path) -> No
 
     output_data = {
         "_metadata": {
-            "description": "Crowned Tertip Machine Learning models and training lookback horizons optimized for lowest 30-day directional penalty loss (Option B Threshold-Gated Quadratic Loss with Sample Weighting).",
+            "description": "Crowned Tertip Confluence models (70% ML Microstructure + 30% Prophet Macro Trend) and training lookback horizons.",
             "calibration_date": str(pd.Timestamp.now().date()),
             "eval_window": "180d_walk_forward",
-            "selection_metric": "lowest_30d_threshold_gated_quadratic_penalty_loss",
+            "selection_metric": "highest_30d_linear_score_confluence",
         },
         "symbols": symbols_map,
     }

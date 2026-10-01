@@ -75,13 +75,33 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const expReturn = forecast?.expected_return_pct || 0;
   const isUp = expReturn >= 0;
 
+  const isConfluence = tournament?.champion === 'TERTIP_CONFLUENCE';
+  const getRowHit = (r: WalkForwardLedgerItem) =>
+    isConfluence && r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit;
+  const getRowPredPrice = (r: WalkForwardLedgerItem) =>
+    isConfluence && r.confluence_pred_price !== undefined ? r.confluence_pred_price : r.ml_pred_price;
+  const getRowPredReturn = (r: WalkForwardLedgerItem) =>
+    isConfluence && r.confluence_pred_return_pct !== undefined
+      ? r.confluence_pred_return_pct
+      : r.ml_pred_return_pct || 0;
+  const getRowErrPct = (r: WalkForwardLedgerItem) =>
+    isConfluence && r.confluence_err_pct !== undefined ? r.confluence_err_pct : r.ml_err_pct;
+
   // Compute hits and misses from ledger
+  const champHits = ledger.filter((r) => getRowHit(r)).length;
+  const champMiss = ledger.length - champHits;
+  const champHitRatePct = ledger.length > 0 ? (champHits / ledger.length) * 100 : 0;
+
   const mlHits = ledger.filter((r) => r.ml_is_hit).length;
   const mlMiss = ledger.length - mlHits;
-  const hitRatePct = ledger.length > 0 ? (mlHits / ledger.length) * 100 : 0;
+  const mlHitRatePct = ledger.length > 0 ? (mlHits / ledger.length) * 100 : 0;
+
+  const prophetHits = ledger.filter((r) => r.prophet_is_hit).length;
+  const prophetMiss = ledger.length - prophetHits;
+  const prophetHitRatePct = ledger.length > 0 ? (prophetHits / ledger.length) * 100 : 0;
 
   const last10Ledger = ledger.slice(-10);
-  const l10Hits = last10Ledger.filter((r) => r.ml_is_hit).length;
+  const l10Hits = last10Ledger.filter((r) => getRowHit(r)).length;
   const l10Miss = last10Ledger.length - l10Hits;
   const l10RatePct = last10Ledger.length > 0 ? (l10Hits / last10Ledger.length) * 100 : 0;
 
@@ -95,17 +115,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
   // Price Extents
   const minPrice = ledger.length
-    ? Math.min(...ledger.map((r) => Math.min(r.actual_price, r.ml_pred_price))) * 0.985
+    ? Math.min(...ledger.map((r) => Math.min(r.actual_price, getRowPredPrice(r)))) * 0.985
     : 0;
   const maxPrice = ledger.length
-    ? Math.max(...ledger.map((r) => Math.max(r.actual_price, r.ml_pred_price))) * 1.015
+    ? Math.max(...ledger.map((r) => Math.max(r.actual_price, getRowPredPrice(r)))) * 1.015
     : 100;
 
   // Return Extents
   const maxAbsReturn = ledger.length
     ? Math.max(
         ...ledger.map((r) =>
-          Math.max(Math.abs(r.actual_return_pct), Math.abs(r.ml_pred_return_pct || 0))
+          Math.max(Math.abs(r.actual_return_pct), Math.abs(getRowPredReturn(r)))
         ),
         4.0
       ) * 1.15
@@ -132,7 +152,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     .join(' ');
 
   const predPricePath = ledger
-    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYPrice(r.ml_pred_price).toFixed(1)}`)
+    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYPrice(getRowPredPrice(r)).toFixed(1)}`)
     .join(' ');
 
   const actualReturnPath = ledger
@@ -140,7 +160,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     .join(' ');
 
   const predReturnPath = ledger
-    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYReturn(r.ml_pred_return_pct || 0).toFixed(1)}`)
+    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYReturn(getRowPredReturn(r)).toFixed(1)}`)
     .join(' ');
 
   const hoveredItem = hoveredIdx !== null && ledger[hoveredIdx] ? ledger[hoveredIdx] : null;
@@ -389,8 +409,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
                     <span className="text-slate-400">Directional Hit Rate:</span>
                     <span className="font-bold text-emerald-400 text-sm">
-                      {tournament?.champion_dir_hits ?? mlHits}/30 (
-                      {(tournament?.champion_dir_hit_rate_pct ?? hitRatePct).toFixed(1)}%)
+                      {tournament?.champion_dir_hits ?? champHits}/30 (
+                      {(tournament?.champion_dir_hit_rate_pct ?? champHitRatePct).toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
@@ -431,13 +451,18 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center font-mono text-[9px] gap-1.5">
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                    30D Record: <span className="text-emerald-400 font-bold">{mlHits}✓</span> /{' '}
-                    <span className="text-rose-400 font-bold">{mlMiss}✗</span> ({hitRatePct.toFixed(1)}%)
+                    30D Champion: <span className="text-emerald-400 font-bold">{champHits}✓</span> /{' '}
+                    <span className="text-rose-400 font-bold">{champMiss}✗</span> ({champHitRatePct.toFixed(1)}%)
                   </span>
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
                     Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> /{' '}
                     <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
                   </span>
+                  {isConfluence && (
+                    <span className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
+                      ML Alone: <span className="text-cyan-300 font-bold">{mlHits}✓</span> ({mlHitRatePct.toFixed(1)}%)
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center bg-slate-950 rounded border border-slate-800 p-0.5 font-mono text-xs">
@@ -639,7 +664,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                         cx={x}
                         cy={y}
                         r={isHovered ? 5.5 : 3.5}
-                        fill={r.ml_is_hit ? '#10b981' : '#f43f5e'}
+                        fill={getRowHit(r) ? '#10b981' : '#f43f5e'}
                         stroke="#0f172a"
                         strokeWidth="1.5"
                       />
@@ -674,12 +699,12 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                     <span
                       className={`px-1.5 py-0.2 rounded text-[8px] font-black border ${
-                        hoveredItem.ml_is_hit
+                        getRowHit(hoveredItem)
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                           : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                       }`}
                     >
-                      {hoveredItem.ml_is_hit ? '✓ CORRECT' : '✗ WRONG'}
+                      {getRowHit(hoveredItem) ? '✓ CORRECT' : '✗ WRONG'}
                     </span>
                   </div>
 
@@ -698,30 +723,58 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-400">ML Predicted:</span>
+                      <span className="text-amber-400">
+                        {isConfluence ? 'Confluence Pred:' : 'ML Predicted:'}
+                      </span>
                       <span className="font-bold text-white">
-                        ₺{hoveredItem.ml_pred_price.toFixed(2)}{' '}
+                        ₺{getRowPredPrice(hoveredItem).toFixed(2)}{' '}
                         <span
                           className={
-                            (hoveredItem.ml_pred_return_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            getRowPredReturn(hoveredItem) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                           }
                         >
-                          ({(hoveredItem.ml_pred_return_pct || 0) >= 0 ? '+' : ''}
-                          {(hoveredItem.ml_pred_return_pct || 0).toFixed(2)}%)
+                          ({getRowPredReturn(hoveredItem) >= 0 ? '+' : ''}
+                          {getRowPredReturn(hoveredItem).toFixed(2)}%)
                         </span>
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">ML Error:</span>
-                      <span className="text-slate-200">{hoveredItem.ml_err_pct.toFixed(2)}%</span>
+                      <span className="text-slate-400">Error:</span>
+                      <span className="text-slate-200">{getRowErrPct(hoveredItem).toFixed(2)}%</span>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-slate-800 pt-1 mt-1">
+                    {isConfluence && (
+                      <div className="flex items-center justify-between border-t border-slate-800 pt-1 mt-1 text-[10px]">
+                        <span className="text-cyan-300">ML Alone:</span>
+                        <span className="text-slate-300">
+                          ₺{hoveredItem.ml_pred_price.toFixed(2)}{' '}
+                          <span
+                            className={
+                              hoveredItem.ml_is_hit
+                                ? 'text-emerald-400 font-bold'
+                                : 'text-rose-400 font-bold'
+                            }
+                          >
+                            ({hoveredItem.ml_is_hit ? '✓' : '✗'})
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between border-t border-slate-800/60 pt-0.5 mt-0.5 text-[10px]">
                       <span className="text-purple-400">Prophet Pred:</span>
                       <span className="text-slate-300">
                         ₺{hoveredItem.prophet_pred_price.toFixed(2)}{' '}
-                        <span>({hoveredItem.prophet_is_hit ? '✓' : '✗'})</span>
+                        <span
+                          className={
+                            hoveredItem.prophet_is_hit
+                              ? 'text-emerald-400 font-bold'
+                              : 'text-rose-400 font-bold'
+                          }
+                        >
+                          ({hoveredItem.prophet_is_hit ? '✓' : '✗'})
+                        </span>
                       </span>
                     </div>
 
@@ -849,13 +902,18 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               </div>
               <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
                 <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                  30D ML: <span className="text-emerald-400 font-bold">{mlHits}✓</span> /{' '}
-                  <span className="text-rose-400 font-bold">{mlMiss}✗</span> ({hitRatePct.toFixed(1)}%)
+                  30D Champion: <span className="text-emerald-400 font-bold">{champHits}✓</span> /{' '}
+                  <span className="text-rose-400 font-bold">{champMiss}✗</span> ({champHitRatePct.toFixed(1)}%)
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
                   Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> /{' '}
                   <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
                 </span>
+                {isConfluence && (
+                  <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
+                    ML Alone: <span className="text-cyan-300 font-bold">{mlHits}✓</span> ({mlHitRatePct.toFixed(1)}%)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -865,10 +923,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <tr className="text-slate-400">
                     <th className="text-left px-2 py-1.5">Date</th>
                     <th className="text-right px-2 py-1.5">Actual Close</th>
-                    <th className="text-right px-2 py-1.5 text-cyan-300">ML Predicted</th>
-                    <th className="text-center px-2 py-1.5 text-cyan-300">ML Hit?</th>
-                    <th className="text-right px-2 py-1.5 text-amber-200">XU030</th>
+                    <th className="text-right px-2 py-1.5 text-cyan-300">
+                      {isConfluence ? 'Confluence Pred' : 'ML Predicted'}
+                    </th>
+                    <th className="text-center px-2 py-1.5 text-cyan-300">
+                      {isConfluence ? 'Champion Hit?' : 'ML Hit?'}
+                    </th>
+                    {isConfluence && (
+                      <th className="text-right px-2 py-1.5 text-sky-400">ML Alone</th>
+                    )}
                     <th className="text-right px-2 py-1.5 text-purple-300">Prophet</th>
+                    <th className="text-right px-2 py-1.5 text-amber-200">XU030</th>
                     <th className="text-center px-2 py-1.5">BofA MLB Did</th>
                     <th className="text-center px-2 py-1.5">BIG5 Did</th>
                     <th className="text-center px-2 py-1.5">KAMU Did</th>
@@ -879,10 +944,13 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   {ledger.map((row) => {
                     const isActUp = row.actual_return_pct > 0.02;
                     const isActDown = row.actual_return_pct < -0.02;
+                    const predRet = getRowPredReturn(row);
+                    const isPredUp = predRet > 0.02;
+                    const isPredDown = predRet < -0.02;
                     const isMlUp = (row.ml_pred_return_pct || 0) > 0.02;
                     const isMlDown = (row.ml_pred_return_pct || 0) < -0.02;
                     const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
-                    const bothMiss = !row.ml_is_hit && !row.prophet_is_hit;
+                    const isRowHit = getRowHit(row);
 
                     return (
                       <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
@@ -899,33 +967,46 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                           </div>
                         </td>
                         <td className="text-right px-2 py-1">
-                          <div className="font-semibold text-white">₺{row.ml_pred_price.toFixed(2)}</div>
+                          <div className="font-semibold text-white">₺{getRowPredPrice(row).toFixed(2)}</div>
                           <div
                             className={`text-[8px] font-bold flex items-center justify-end gap-1 ${
-                              isMlUp ? 'text-emerald-400' : isMlDown ? 'text-rose-400' : 'text-slate-400'
+                              isPredUp ? 'text-emerald-400' : isPredDown ? 'text-rose-400' : 'text-slate-400'
                             }`}
                           >
                             <span>
-                              {isMlUp ? '▲ +' : isMlDown ? '▼ ' : '■ '}
-                              {(row.ml_pred_return_pct || 0).toFixed(2)}%
+                              {isPredUp ? '▲ +' : isPredDown ? '▼ ' : '■ '}
+                              {predRet.toFixed(2)}%
                             </span>
                             <span className="text-[7.5px] text-slate-500 font-normal">
-                              ({row.ml_err_pct.toFixed(1)}%)
+                              ({getRowErrPct(row).toFixed(1)}%)
                             </span>
                           </div>
                         </td>
                         <td className="text-center px-2 py-1">
                           <span
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black border tracking-wider ${
-                              row.ml_is_hit
+                              isRowHit
                                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                 : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                             }`}
                           >
-                            <span>{row.ml_is_hit ? '✓' : '✗'}</span>
-                            <span>{row.ml_is_hit ? 'CORRECT' : 'WRONG'}</span>
+                            <span>{isRowHit ? '✓' : '✗'}</span>
+                            <span>{isRowHit ? 'CORRECT' : 'WRONG'}</span>
                           </span>
                         </td>
+                        {isConfluence && (
+                          <td className="text-right px-2 py-1 text-slate-300">
+                            <div className="font-semibold">₺{row.ml_pred_price.toFixed(2)}</div>
+                            <div className="text-[7.5px] flex items-center justify-end gap-1">
+                              <span className={isMlUp ? 'text-emerald-400' : isMlDown ? 'text-rose-400' : 'text-slate-400'}>
+                                {(row.ml_pred_return_pct || 0) > 0 ? '+' : ''}{(row.ml_pred_return_pct || 0).toFixed(2)}%
+                              </span>
+                              <span className={row.ml_is_hit ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                {row.ml_is_hit ? '✓' : '✗'}
+                              </span>
+                            </div>
+                          </td>
+                        )}
                         <td className="text-right px-2 py-1">
                           <div
                             className={`text-[8.5px] font-bold ${

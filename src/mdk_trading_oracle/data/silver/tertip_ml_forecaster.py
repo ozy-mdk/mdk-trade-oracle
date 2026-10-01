@@ -14,7 +14,6 @@ recording the exact next-day actions executed by each institutional pillar.
 from __future__ import annotations
 
 import logging
-import math
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -703,29 +702,18 @@ def run_30d_walk_forward_arena(
     recent_window = min(30, n_total)
     recent_slice = step_records[-recent_window:]
 
-    # Option B: Threshold-Gated Directionally Penalized Quadratic Loss
-    # Demarcates flat noise (|return| <= 0.5%) from active steep moves (|return| > 0.5%).
-    # On flat noise: standard squared percentage error (sq_err).
-    # On active moves:
-    #   - Directional hit: rewarded (0.7 * sq_err)
-    #   - Directional miss: heavily penalized (3.0 * (1.0 + |move|) * sq_err)
-    # The final 30D score is sqrt(mean_loss), bringing it back to interpretable percentage units.
-    def _calc_option_b_loss(err_pct: float, is_hit: bool, actual_ret_pct: float) -> float:
-        sq_err = err_pct ** 2
-        act_move = abs(actual_ret_pct)
-        if act_move <= 0.5:
-            return sq_err
-        else:
-            if is_hit:
-                return 0.7 * sq_err
-            else:
-                return 3.0 * (1.0 + act_move) * sq_err
-
+    # Option 2: Simple Linear Composite Score / Loss
+    # Direct linear combination prioritizing Directional Hit Rate:
+    # Score = Hit Rate % - (2.0 * MAE %) (higher score is better)
+    # Loss = (100.0 - Hit Rate %) + 2.0 * MAE % (lower loss is better, directly mirrors Score)
     def _calc_score(records: list[dict[str, Any]], err_key: str, hit_key: str) -> float:
         if not records:
             return 0.0
-        mean_loss = sum(_calc_option_b_loss(s[err_key], s[hit_key], s.get("actual_ret", 0.0)) for s in records) / len(records)
-        return round(math.sqrt(mean_loss), 2)
+        n = len(records)
+        hits = sum(1 for s in records if s[hit_key])
+        hit_rate = (hits / n) * 100.0
+        mae = sum(s[err_key] for s in records) / n
+        return round((100.0 - hit_rate) + 2.0 * mae, 2)
 
     # Prophet metrics: recent 30-day window (for selection) and full-window
     prophet_30d_hits = sum(1 for s in recent_slice if s["prophet_hit"])
@@ -811,10 +799,10 @@ def run_30d_walk_forward_arena(
         m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # Option B (Threshold-Gated Directionally Penalized Quadratic Loss):
-    # Flat noise (|move| <= 0.5%): sq_err
-    # Active moves (|move| > 0.5%): 0.7 * sq_err if hit else 3.0 * (1 + |move|) * sq_err
-    # Primary: Lowest 30-Day Directional Penalty Loss
+    # Option 2 (Simple Linear Score / Loss):
+    # Score = Hit Rate % - (2.0 * MAE %)
+    # Loss = (100.0 - Hit Rate %) + 2.0 * MAE %
+    # Primary: Lowest 30-Day Directional Penalty Loss (Highest Linear Score)
     # Tie-breakers: Higher 30-Day Hit Rate %, Lower 30-Day MAE %
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
@@ -869,6 +857,18 @@ def run_30d_walk_forward_arena(
         ml_err = s[champ_meta["err_key"]]
         ml_hit = s[champ_meta["hit_key"]]
 
+        # Confluence Forecast: Unified synthesis of Institutional Microstructure (70%) + Macro Trend (30%)
+        confluence_ret = 0.70 * pred_ret_ml + 0.30 * prophet_ret
+        confluence_price = prev_price * (1.0 + confluence_ret / 100.0)
+        confluence_err = abs(confluence_price - actual_price) / actual_price * 100.0
+        confluence_hit = _check_hit(confluence_ret, actual_ret)
+        confluence_direction = "UP" if confluence_ret > DEADBAND_PCT else ("DOWN" if confluence_ret < -DEADBAND_PCT else "FLAT")
+
+        s["confluence_price"] = confluence_price
+        s["confluence_ret"] = confluence_ret
+        s["confluence_err"] = confluence_err
+        s["confluence_hit"] = confluence_hit
+
         # Track error wins
         if ml_err <= prophet_err:
             ml_error_wins += 1
@@ -893,6 +893,11 @@ def run_30d_walk_forward_arena(
             "actual_price": round(actual_price, 2),
             "actual_return_pct": round(actual_ret, 2),
             "bist30_ret_pct": round(float(test_row["bist30_return_pct"]) if ("bist30_return_pct" in test_row and pd.notna(test_row["bist30_return_pct"])) else 0.0, 2),
+            "confluence_pred_price": round(confluence_price, 2),
+            "confluence_pred_return_pct": round(confluence_ret, 2),
+            "confluence_direction": confluence_direction,
+            "confluence_err_pct": round(confluence_err, 2),
+            "confluence_is_hit": bool(confluence_hit),
             "ml_pred_price": round(ml_price, 2),
             "ml_pred_return_pct": round(pred_ret_ml, 2),
             "ml_direction": ml_direction,
@@ -926,44 +931,25 @@ def run_30d_walk_forward_arena(
             "training_lookback_sessions": train_lookback_sessions,
         })
 
-    # Grand Tournament Champion Designation (evaluated on last 30 days via Option 2 Penalized Loss):
-    # 1. Primary: Lowest 30-Day Directional Penalty Loss (penalty_loss_30d)
-    # 2. Tie-breaker 1: Highest 30-Day Directional Hit Rate (hits_30d)
-    # 3. Tie-breaker 2: Lowest 30-Day Error size (mae_30d)
-    if ml_candidate_30d_penalty < prophet_30d_penalty_loss:
-        champion = "TERTIP_ML_CHALLENGER"
-        champion_label = f"Tertip ML Challenger ({ml_champion_type})"
-        champion_dir_hits = ml_candidate_30d_hits
-        champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
-        runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
-        champion_mae_pct = ml_candidate_30d_mae
-        champion_penalty_loss = ml_candidate_30d_penalty
-    elif prophet_30d_penalty_loss < ml_candidate_30d_penalty:
-        champion = "PROPHET_BASE"
-        champion_label = "Prophet Base Model"
-        champion_dir_hits = prophet_30d_hits
-        champion_dir_hit_rate_pct = prophet_30d_hit_rate
-        runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
-        champion_mae_pct = prophet_30d_mae
-        champion_penalty_loss = prophet_30d_penalty_loss
-    else:
-        # Tie on 30-day penalty loss -> use higher 30-day directional hit rate, then lower MAE
-        if (ml_candidate_30d_hits, -ml_candidate_30d_mae) >= (prophet_30d_hits, -prophet_30d_mae):
-            champion = "TERTIP_ML_CHALLENGER"
-            champion_label = f"Tertip ML Challenger ({ml_champion_type})"
-            champion_dir_hits = ml_candidate_30d_hits
-            champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
-            runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
-            champion_mae_pct = ml_candidate_30d_mae
-            champion_penalty_loss = ml_candidate_30d_penalty
-        else:
-            champion = "PROPHET_BASE"
-            champion_label = "Prophet Base Model"
-            champion_dir_hits = prophet_30d_hits
-            champion_dir_hit_rate_pct = prophet_30d_hit_rate
-            runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
-            champion_mae_pct = prophet_30d_mae
-            champion_penalty_loss = prophet_30d_penalty_loss
+    # Confluence Metrics (30-day and full-history)
+    confluence_30d_hits = sum(1 for s in recent_slice if s["confluence_hit"])
+    confluence_30d_hit_rate = (confluence_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
+    confluence_30d_mae = sum(s["confluence_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
+    confluence_30d_penalty_loss = _calc_score(recent_slice, "confluence_err", "confluence_hit")
+
+    confluence_hits = sum(1 for s in step_records if s["confluence_hit"])
+    confluence_hit_rate = (confluence_hits / n_total) * 100.0 if n_total > 0 else 0.0
+    confluence_mae = sum(s["confluence_err"] for s in step_records) / n_total if n_total > 0 else 0.0
+    confluence_penalty_loss = _calc_score(step_records, "confluence_err", "confluence_hit")
+
+    # Unified Operational Grand Champion: Confluence (70% ML Microstructure + 30% Prophet Trend)
+    champion = "TERTIP_CONFLUENCE"
+    champion_label = f"Tertip Confluence ({ml_champion_type} + Prophet)"
+    champion_dir_hits = confluence_30d_hits
+    champion_dir_hit_rate_pct = confluence_30d_hit_rate
+    champion_mae_pct = confluence_30d_mae
+    champion_penalty_loss = confluence_30d_penalty_loss
+    runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
 
     tournament_summary = {
         "champion": champion,
@@ -978,23 +964,30 @@ def run_30d_walk_forward_arena(
         "champion_30d_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
         "champion_30d_mae_pct": round(champion_mae_pct, 2),
         "champion_30d_penalty_loss": round(champion_penalty_loss, 2),
-        "champion_penalty_loss": round(champion_penalty_loss, 2),
-        "champion_full_hits": ml_candidate_hits if champion != "PROPHET_BASE" else prophet_hits,
-        "champion_full_hit_rate_pct": round(ml_candidate_hit_rate if champion != "PROPHET_BASE" else prophet_hit_rate, 1),
-        "champion_full_mae_pct": round(ml_candidate_mae if champion != "PROPHET_BASE" else prophet_mae, 2),
-        "champion_full_penalty_loss": round(ml_candidate_penalty if champion != "PROPHET_BASE" else prophet_penalty_loss, 2),
+        "champion_full_hits": confluence_hits,
+        "champion_full_hit_rate_pct": round(confluence_hit_rate, 1),
+        "champion_full_mae_pct": round(confluence_mae, 2),
+        "champion_full_penalty_loss": round(confluence_penalty_loss, 2),
+        "confluence_30d_hits": confluence_30d_hits,
+        "confluence_30d_hit_rate_pct": round(confluence_30d_hit_rate, 1),
+        "confluence_30d_mae_pct": round(confluence_30d_mae, 2),
+        "confluence_30d_penalty_loss": round(confluence_30d_penalty_loss, 2),
         "ml_dir_hits": ml_candidate_30d_hits,
         "ml_dir_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
         "ml_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
         "ml_penalty_loss_30d": round(ml_candidate_30d_penalty, 2),
         "ml_full_hits": ml_candidate_hits,
         "ml_full_hit_rate_pct": round(ml_candidate_hit_rate, 1),
+        "ml_full_mae_pct": round(ml_candidate_mae, 2),
+        "ml_full_penalty_loss": round(ml_candidate_penalty, 2),
         "prophet_dir_hits": prophet_30d_hits,
         "prophet_dir_hit_rate_pct": round(prophet_30d_hit_rate, 1),
         "prophet_hit_rate_pct": round(prophet_30d_hit_rate, 1),
         "prophet_penalty_loss_30d": round(prophet_30d_penalty_loss, 2),
         "prophet_full_hits": prophet_hits,
         "prophet_full_hit_rate_pct": round(prophet_hit_rate, 1),
+        "prophet_full_mae_pct": round(prophet_mae, 2),
+        "prophet_full_penalty_loss": round(prophet_penalty_loss, 2),
         "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_dir_hits": candidates_meta["Ridge"]["hits_30d"],
         "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
@@ -1318,15 +1311,15 @@ def get_tertip_ml_forecast(
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
-    # Determine Active Champion Forecast for Tomorrow
-    champion = tournament.get("champion", "TERTIP_ML_CHALLENGER")
-    champion_label = tournament.get("champion_label", "Tertip ML")
-    if champion == "PROPHET_BASE":
-        champion_target_price = prophet_target_price
-        champion_pred_ret = prophet_ret_pct
-    else:
-        champion_target_price = ml_target_price
-        champion_pred_ret = pred_ret_ml
+    # Live Confluence Synthesis for T+1: Unified Institutional Microstructure (70%) + Macro Trend (30%)
+    confluence_pred_ret = round(0.70 * pred_ret_ml + 0.30 * prophet_ret_pct, 2)
+    confluence_target_price = round(latest_price * (1.0 + confluence_pred_ret / 100.0), 2)
+
+    # Headline Operational Forecast is Confluence:
+    champion = "TERTIP_CONFLUENCE"
+    champion_label = f"Tertip Confluence ({ml_champion_type} + Prophet)"
+    champion_target_price = confluence_target_price
+    champion_pred_ret = confluence_pred_ret
 
     # Range envelope (using 20-day historical volatility)
     vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
@@ -1442,10 +1435,13 @@ def get_tertip_ml_forecast(
 
     response_data = {
         "symbol": sym,
+        "champion": champion,
         "as_of_date": latest_date_str,
         "latest_close_price": round(latest_price, 2),
         "target_price": round(champion_target_price, 2),
         "expected_return_pct": round(champion_pred_ret, 2),
+        "confluence_target_price": round(confluence_target_price, 2),
+        "confluence_expected_return_pct": round(confluence_pred_ret, 2),
         "ml_target_price": round(ml_target_price, 2),
         "ml_expected_return_pct": round(pred_ret_ml, 2),
         "price_low": round(price_low, 2),

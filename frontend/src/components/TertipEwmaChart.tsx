@@ -1994,16 +1994,27 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                         <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
                           {(() => {
                             const ledger = mlForecast.walk_forward_ledger || [];
+                            const tournament = mlForecast.tournament_summary;
+                            const isConfluence = tournament?.champion === 'TERTIP_CONFLUENCE';
+                            const getRowHit = (r: any) =>
+                              isConfluence && r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit;
+
+                            const champHits = ledger.filter((r) => getRowHit(r)).length;
+                            const champMiss = ledger.length - champHits;
                             const mlHits = ledger.filter((r) => r.ml_is_hit).length;
-                            const mlMiss = ledger.length - mlHits;
                             const l10 = ledger.slice(-10);
-                            const l10Hits = l10.filter((r) => r.ml_is_hit).length;
+                            const l10Hits = l10.filter((r) => getRowHit(r)).length;
                             const l10Miss = l10.length - l10Hits;
                             return (
                               <>
                                 <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                                  30D ML: <span className="text-emerald-400 font-bold">{mlHits}✓</span> / <span className="text-rose-400 font-bold">{mlMiss}✗</span> ({((mlHits / (ledger.length || 1)) * 100).toFixed(1)}%)
+                                  30D Champion: <span className="text-emerald-400 font-bold">{champHits}✓</span> / <span className="text-rose-400 font-bold">{champMiss}✗</span> ({((champHits / (ledger.length || 1)) * 100).toFixed(1)}%)
                                 </span>
+                                {isConfluence && (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                                    ML Alone: <span className="text-cyan-300 font-bold">{mlHits}✓</span>
+                                  </span>
+                                )}
                                 <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
                                   Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> / <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({((l10Hits / (l10.length || 1)) * 100).toFixed(0)}%)
                                 </span>
@@ -2019,8 +2030,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                             <tr className="text-slate-400">
                               <th className="text-left px-2 py-1 font-sans">Date</th>
                               <th className="text-right px-1.5 py-1 font-sans">Actual</th>
-                              <th className="text-right px-1.5 py-1 font-sans text-cyan-300">ML Pred</th>
-                              <th className="text-center px-1.5 py-1 font-sans text-cyan-300">ML Hit?</th>
+                              <th className="text-right px-1.5 py-1 font-sans text-cyan-300">
+                                {mlForecast.tournament_summary?.champion === 'TERTIP_CONFLUENCE' ? 'Confluence Pred' : 'ML Pred'}
+                              </th>
+                              <th className="text-center px-1.5 py-1 font-sans text-cyan-300">
+                                {mlForecast.tournament_summary?.champion === 'TERTIP_CONFLUENCE' ? 'Champion Hit?' : 'ML Hit?'}
+                              </th>
+                              {mlForecast.tournament_summary?.champion === 'TERTIP_CONFLUENCE' && (
+                                <th className="text-right px-1.5 py-1 font-sans text-sky-400">ML Alone</th>
+                              )}
                               <th className="text-right px-1.5 py-1 font-sans text-amber-200">XU030</th>
                               <th className="text-right px-1.5 py-1 font-sans text-purple-300">Prophet</th>
                               <th className="text-center px-1.5 py-1 font-sans">MLB Did</th>
@@ -2031,15 +2049,16 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                           </thead>
                           <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
                             {mlForecast.walk_forward_ledger.map((row) => {
-                              const mlRet = row.ml_pred_return_pct !== undefined 
-                                ? row.ml_pred_return_pct 
-                                : ((row.ml_pred_price - (row.actual_price / (1 + (row.actual_return_pct || 0) / 100))) / (row.actual_price / (1 + (row.actual_return_pct || 0) / 100)) * 100);
-                              const isMlUp = row.ml_direction ? row.ml_direction === 'UP' : mlRet > 0.02;
-                              const isMlDown = row.ml_direction ? row.ml_direction === 'DOWN' : mlRet < -0.02;
+                              const isConfluence = mlForecast.tournament_summary?.champion === 'TERTIP_CONFLUENCE';
+                              const rowHit = isConfluence && row.confluence_is_hit !== undefined ? row.confluence_is_hit : row.ml_is_hit;
+                              const predPrice = isConfluence && row.confluence_pred_price !== undefined ? row.confluence_pred_price : row.ml_pred_price;
+                              const predRet = isConfluence && row.confluence_pred_return_pct !== undefined ? row.confluence_pred_return_pct : (row.ml_pred_return_pct || 0);
+                              const errPct = isConfluence && row.confluence_err_pct !== undefined ? row.confluence_err_pct : row.ml_err_pct;
+                              const isPredUp = predRet > 0.02;
+                              const isPredDown = predRet < -0.02;
                               const isActUp = row.actual_return_pct > 0.02;
                               const isActDown = row.actual_return_pct < -0.02;
                               const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
-                              const bothMiss = !row.ml_is_hit && !row.prophet_is_hit;
 
                               return (
                                 <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
@@ -2055,24 +2074,37 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                                     </div>
                                   </td>
                                   <td className="text-right px-1.5 py-1">
-                                    <div className="font-semibold text-white">₺{row.ml_pred_price.toFixed(2)}</div>
+                                    <div className="font-semibold text-white">₺{predPrice.toFixed(2)}</div>
                                     <div className={`text-[8.5px] font-bold flex items-center justify-end gap-1 ${
-                                      isMlUp ? 'text-emerald-400' : (isMlDown ? 'text-rose-400' : 'text-slate-400')
+                                      isPredUp ? 'text-emerald-400' : (isPredDown ? 'text-rose-400' : 'text-slate-400')
                                     }`}>
-                                      <span>{isMlUp ? '▲ UP +' : (isMlDown ? '▼ DOWN ' : '■ FLAT ')}{mlRet.toFixed(2)}%</span>
-                                      <span className="text-[7.5px] text-slate-500 font-normal">({row.ml_err_pct.toFixed(1)}%)</span>
+                                      <span>{isPredUp ? '▲ UP +' : (isPredDown ? '▼ DOWN ' : '■ FLAT ')}{predRet.toFixed(2)}%</span>
+                                      <span className="text-[7.5px] text-slate-500 font-normal">({errPct.toFixed(1)}%)</span>
                                     </div>
                                   </td>
                                   <td className="text-center px-1.5 py-1">
                                     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black border tracking-wider ${
-                                      row.ml_is_hit
+                                      rowHit
                                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-950/40'
                                         : 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-950/40'
                                     }`}>
-                                      <span>{row.ml_is_hit ? '✓' : '✗'}</span>
-                                      <span>{row.ml_is_hit ? 'CORRECT' : 'WRONG'}</span>
+                                      <span>{rowHit ? '✓' : '✗'}</span>
+                                      <span>{rowHit ? 'CORRECT' : 'WRONG'}</span>
                                     </span>
                                   </td>
+                                  {isConfluence && (
+                                    <td className="text-right px-1.5 py-1 text-slate-300">
+                                      <div className="font-semibold">₺{row.ml_pred_price.toFixed(2)}</div>
+                                      <div className="text-[7.5px] flex items-center justify-end gap-1">
+                                        <span className={(row.ml_pred_return_pct || 0) > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                                          {(row.ml_pred_return_pct || 0) > 0 ? '+' : ''}{(row.ml_pred_return_pct || 0).toFixed(2)}%
+                                        </span>
+                                        <span className={row.ml_is_hit ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                          {row.ml_is_hit ? '✓' : '✗'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  )}
                                   <td className="text-right px-1.5 py-1">
                                     <div className={`text-[8.5px] font-bold ${
                                       (row.bist30_ret_pct ?? 0) > 0.02 

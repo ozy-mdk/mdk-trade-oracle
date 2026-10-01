@@ -234,6 +234,11 @@ class WalkForwardLedgerItem(BaseModel):
     ml_direction: str = "FLAT"
     ml_err_pct: float
     ml_is_hit: bool
+    confluence_pred_price: Optional[float] = None
+    confluence_pred_return_pct: Optional[float] = 0.0
+    confluence_direction: Optional[str] = "FLAT"
+    confluence_err_pct: Optional[float] = None
+    confluence_is_hit: Optional[bool] = None
     prophet_pred_price: float
     prophet_pred_return_pct: float = 0.0
     prophet_direction: str = "FLAT"
@@ -282,6 +287,10 @@ class TournamentSummary(BaseModel):
     champion_full_hit_rate_pct: Optional[float] = None
     champion_full_mae_pct: Optional[float] = None
     champion_full_penalty_loss: Optional[float] = None
+    confluence_30d_hits: Optional[int] = None
+    confluence_30d_hit_rate_pct: Optional[float] = None
+    confluence_30d_mae_pct: Optional[float] = None
+    confluence_30d_penalty_loss: Optional[float] = None
     ml_dir_hits: Optional[int] = None
     ml_dir_hit_rate_pct: Optional[float] = None
     ml_hit_rate_pct: float
@@ -366,6 +375,8 @@ class TertipMlForecastResponse(BaseModel):
     latest_close_price: float
     target_price: float
     expected_return_pct: float
+    confluence_target_price: Optional[float] = None
+    confluence_expected_return_pct: Optional[float] = None
     ml_target_price: Optional[float] = None
     ml_expected_return_pct: Optional[float] = None
     price_low: float

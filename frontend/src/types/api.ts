@@ -308,6 +308,11 @@ export interface WalkForwardLedgerItem {
   ml_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
   ml_err_pct: number;
   ml_is_hit: boolean;
+  confluence_pred_price?: number;
+  confluence_pred_return_pct?: number;
+  confluence_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
+  confluence_err_pct?: number;
+  confluence_is_hit?: boolean;
   prophet_pred_price: number;
   prophet_pred_return_pct?: number;
   prophet_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
@@ -351,6 +356,9 @@ export interface TournamentSummary {
   champion_full_hit_rate_pct?: number;
   champion_full_mae_pct?: number;
   champion_full_penalty_loss?: number;
+  confluence_30d_hits?: number;
+  confluence_30d_hit_rate_pct?: number;
+  confluence_30d_mae_pct?: number;
   ml_dir_hits?: number;
   ml_dir_hit_rate_pct?: number;
   ml_hit_rate_pct: number;
@@ -435,6 +443,8 @@ export interface TertipMlForecastResponse {
   latest_close_price: number;
   target_price: number;
   expected_return_pct: number;
+  confluence_target_price?: number;
+  confluence_expected_return_pct?: number;
   ml_target_price?: number;
   ml_expected_return_pct?: number;
   price_low: number;
