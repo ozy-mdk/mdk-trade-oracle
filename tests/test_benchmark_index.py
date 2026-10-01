@@ -13,17 +13,29 @@ from mdk_trading_oracle.data.silver.transformations import SilverTransformer
 
 @pytest.fixture
 def in_memory_db(tmp_path):
-    """Create a temporary DuckDB database for test isolation."""
+    """Create a temporary DuckDB database for test isolation, with benchmark restoration teardown."""
     db_file = tmp_path / "test_benchmark.duckdb"
     manager = DuckDBManager(db_path=db_file)
     initialize_bronze_schema(manager)
     initialize_silver_schema(manager)
-    return manager
+
+    yield manager
+
+    # Teardown: ensure real benchmark data is restored if modified during tests
+    conn = manager.get_connection()
+    count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
+    if count < 100:
+        from mdk_trading_oracle.data.bronze.ingestor import BronzeIngestor
+        from mdk_trading_oracle.data.silver.transformations import SilverTransformer
+        ingestor = BronzeIngestor(manager)
+        ingestor.ingest_bist30_benchmarks(force=True)
+        SilverTransformer(manager).transform_daily_benchmark_index()
 
 
 def test_bronze_benchmark_schema_and_sync(in_memory_db):
     """Test that bronze_bist_index_benchmarks can insert and forward-fill."""
     conn = in_memory_db.get_connection()
+    conn.execute("DELETE FROM bronze_bist_index_benchmarks;")
 
     # Insert mock benchmark data
     conn.execute("""
@@ -50,10 +62,11 @@ def test_bronze_benchmark_schema_and_sync(in_memory_db):
 def test_silver_benchmark_transformation(in_memory_db):
     """Test silver_daily_benchmark_index computes rolling returns, volatility, and trend vs SMA."""
     conn = in_memory_db.get_connection()
+    conn.execute("DELETE FROM bronze_bist_index_benchmarks;")
 
     # Populate 25 days of mock benchmark data
     for i in range(1, 26):
-        d_str = f"2026-01-{i:02d}"
+        d_str = f"2099-01-{i:02d}"
         price = 10000.0 + i * 50.0
         ret = 0.005 if i > 1 else 0.0
         conn.execute(
@@ -74,7 +87,7 @@ def test_silver_benchmark_transformation(in_memory_db):
     row = conn.execute("""
         SELECT trade_date, close_price, rolling_5d_return_pct, rolling_20d_return_pct, rolling_20d_volatility, index_trend_vs_20d_sma
         FROM silver_daily_benchmark_index
-        WHERE trade_date = '2026-01-25';
+        WHERE trade_date = '2099-01-25';
     """).fetchone()
 
     assert row is not None
@@ -92,11 +105,11 @@ def test_silver_benchmark_shock_days(in_memory_db):
     # Clear and insert 5 distinct sessions with positive, negative, and normal moves
     conn.execute("DELETE FROM bronze_bist_index_benchmarks;")
     test_days = [
-        ("2026-02-01", 10000.0, 0.005),   # Normal
-        ("2026-02-02", 10350.0, 0.035),   # POSITIVE_SHOCK (+3.5%)
-        ("2026-02-03", 10250.0, -0.010),  # Normal
-        ("2026-02-04", 9800.0, -0.042),   # NEGATIVE_SHOCK (-4.2%)
-        ("2026-02-05", 9820.0, 0.002),    # Normal
+        ("2099-02-01", 10000.0, 0.005),   # Normal
+        ("2099-02-02", 10350.0, 0.035),   # POSITIVE_SHOCK (+3.5%)
+        ("2099-02-03", 10250.0, -0.010),  # Normal
+        ("2099-02-04", 9800.0, -0.042),   # NEGATIVE_SHOCK (-4.2%)
+        ("2099-02-05", 9820.0, 0.002),    # Normal
     ]
     for d_str, price, ret in test_days:
         conn.execute(

@@ -59,8 +59,8 @@ flowchart TD
 
 3. **Gold Layer (`gold_*`) & Institutional Predictive Intelligence**:
    - `gold_institutional_daily_signals`: Rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores.
-   - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 17 lean microstructure features, point-in-time FIFO inventory, intraday matched volume, carry FIFO PnL, carry costs, macro rates, and benchmark index momentum.
-   - **Walk-Forward Tournament Arena**: Dynamic candidate model tournament benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (with MAE tie-breaker).
+   - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, systemic regime shock distance, aggregate institutional net flow, and Prophet univariate baseline expectations.
+   - **Walk-Forward Tournament Arena**: Dynamic candidate model tournament benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (evaluated against a calibrated $\pm 0.25\%$ / 25 bps market consolidation deadband, with MAE tie-breaker).
    - **Trader Workstation Integration**: Real-time signal cards for upcoming session $T+1$ with forecasted flow, credible ranges, directional conviction badges, and institutional execution playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
 
 ---
@@ -69,8 +69,8 @@ flowchart TD
 
 The predictive architecture is centered around the **Tertip Machine Learning Forecaster**:
 - **Zero Lookahead Bias & Strict Trailing Lookback**: Features are computed strictly from $T-1$ Close data (18:10 TRT). The training lookback dynamically and strictly anchors backwards 12 months from the evaluation date.
-- **17 Lean Microstructure Features**: High-alpha features focused on carried FIFO inventory, unrealized MTM PnL, carry FIFO realized PnL, intraday scalping PnL, Central Bank repo rates, daily carry costs, and BIST 30 benchmark momentum.
-- **Directional Champion Selection**: Prioritizes directional win rate (predicting whether institutional flow is positive or negative) with Mean Absolute Error (MAE) as the secondary tie-breaker.
+- **21 Lean Microstructure & Baseline Features**: High-alpha features focused on carried FIFO inventory, unrealized MTM PnL, carry FIFO realized PnL, intraday scalping PnL, Central Bank repo rates, daily carry costs, BIST 30 benchmark momentum, macro regime shock distance, aggregate institutional net flow, and zero-leakage Prophet univariate baseline expectations.
+- **Directional Champion Selection**: Prioritizes directional win rate (predicting whether institutional flow is positive or negative, evaluated against a calibrated $\pm 0.25\%$ consolidation deadband) with Mean Absolute Error (MAE) as the secondary tie-breaker.
 - **Interactive Workstation Serving**: Directly integrated into the React frontend's dedicated Gold Predictive Hub (`OracleHubDashboard.tsx`) with 30-Day performance track record, directional hit tally pills, and walk-forward backtest charts.
 
 ---

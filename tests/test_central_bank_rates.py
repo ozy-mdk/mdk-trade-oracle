@@ -124,7 +124,7 @@ def test_forward_fill_market_synchronization():
         """)
 
         # Execute Forward-Fill Synchronization
-        sync_res = ingestor.sync_central_bank_rates_to_market()
+        sync_res = ingestor.sync_central_bank_rates_to_market(target_end_date=date(2026, 3, 15))
         assert sync_res["status"] == "success"
         assert sync_res["forward_filled_count"] == 5  # March 11, 12, 13, 14, 15
 

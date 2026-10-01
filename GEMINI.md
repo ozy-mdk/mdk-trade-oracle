@@ -47,8 +47,8 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
 - **Gold Layer (`gold_institutional_daily_signals`) & Institutional Predictive Hub**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores persisted to `gold_institutional_daily_signals`.
-  - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 17 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, and benchmark index momentum.
-  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (with MAE tie-breaker).
+  - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, systemic regime shock distance, aggregate institutional net flow, and zero-leakage Prophet univariate baseline expectations.
+  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (evaluated against a calibrated $\pm 0.25\%$ / 25 bps market consolidation deadband, with MAE tie-breaker).
   - **Trader Workstation Integration**: Real-time signal cards for upcoming session $T+1$ with forecasted flow, credible ranges, directional badges, institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`), and 30-Day performance track records.
 
 ---
@@ -60,13 +60,14 @@ The predictive architecture is centered around the **Tertip Machine Learning For
 1. **Tertip Microstructure & Inventory Foundation**:
    - Volume alone does not disclose institutional intent. By tracking the **`INTRADAY_MATCHED_FIFO_V1`** mechanism across institutions (`MLB`, `IYM`, `YKR`, `AKM`, `GRM`, `ZRY`, `TRA`), the model distinguishes between intraday scalping/market making and strategic carry inventory accumulation/liquidation.
    - Captures inventory saturation, cost basis spread, and carried unrealized PnL to forecast liquidation pressure, short squeezes, and defense accumulation.
-2. **17 Lean Zero-Leakage Features**:
+2. **21 Lean Zero-Leakage Features**:
    - All predictive features are computed **strictly from prior completed windows / $T-1$ Close data**. Future session information never leaks into training or feature sets.
    - The training lookback dynamically and strictly anchors backwards 12 months from the evaluation date ($[T - 12\text{ months}, T-1]$).
    - Core lean feature set:
      - *Tertip Inventory Dynamics*: `feat_tertip_inventory_flow_yesterday_tl`, `feat_tertip_unrealized_pnl_yesterday_tl`, `feat_tertip_carry_pnl_yesterday_tl`, `feat_tertip_intraday_pnl_yesterday_tl`.
-     - *Macro Rates & Carry Costs*: `feat_macro_repo_rate_pct`, `feat_macro_daily_carry_cost_bps`, `feat_days_since_last_cbrt_decision`.
-     - *Benchmark Index Posture*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`.
+     - *Aggregate Net Flow & Execution*: `feat_total_inst_net_share_today` (aggregate institutional net flow as % of turnover), execution breakdown shares for MLB, BIG5, KAMU.
+     - *Macro Rates, Regime Shocks & Carry Costs*: `feat_macro_repo_rate_pct`, `feat_macro_daily_carry_cost_bps`, `feat_days_since_pos_shock`, `feat_days_since_neg_shock`.
+     - *Benchmark Index & Univariate Prior*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`, `feat_prophet_ret_today_pct`.
      - *Calendar Dynamics*: `feat_day_of_week`, `feat_is_monday`, `feat_is_friday`.
 3. **Walk-Forward Model Tournament & Directional Champion Selection**:
    - Walk-forward candidate arena benchmarks:

@@ -233,8 +233,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <Layers className="w-3 h-3 text-cyan-400" />
               Features:
             </span>
-            <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-400" title="17 Scarce Microstructure, Tertip Inventory & Today's Execution Features">
-              17 Lean Features (Zero Noise)
+            <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-400" title="21 Scarce Microstructure, Tertip Inventory, Today's Execution, Net Imbalance & Prophet Baseline Features">
+              {forecast?.active_features_count ?? 21} Lean Features (Zero Noise)
             </span>
           </div>
         </div>
@@ -411,7 +411,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               {/* Arena Details */}
               <div className="text-[9.5px] font-mono text-slate-500 pt-2 border-t border-slate-800 mt-2 flex items-center justify-between">
                 <span>Training: Last 12M ({forecast.train_lookback_sessions ?? 252}d)</span>
-                <span>Active Feats: {forecast.active_features_count ?? 17}</span>
+                <span>Active Feats: {forecast.active_features_count ?? 21}</span>
               </div>
             </div>
           </div>

@@ -66,7 +66,7 @@ Targets are defined with mathematical rigor around continuous net flow ($TL$) an
 
 ---
 
-## 5. The 17 Lean Feature Set (Zero Data Leakage)
+## 5. The 21 Lean Feature Set (Zero Data Leakage)
 
 All features are computed **strictly from prior completed windows / $T-1$ Close data** (18:10 TRT). A strict 12-month trailing training lookback window ($[T - 12\text{ months}, T-1]$) prevents temporal contamination:
 
@@ -75,19 +75,23 @@ All features are computed **strictly from prior completed windows / $T-1$ Close 
    - `feat_tertip_unrealized_pnl_yesterday_tl`: Carried mark-to-market unrealized PnL ($TL$).
    - `feat_tertip_carry_pnl_yesterday_tl`: Realized carry FIFO PnL from closing multi-day inventory.
    - `feat_tertip_intraday_pnl_yesterday_tl`: Intraday matched scalping PnL.
-2. **Macro Rates & Carry Costs**:
+2. **Aggregate Net Institutional Flow & Execution Breakdown**:
+   - `feat_total_inst_net_share_today`: Aggregate institutional net order flow (MLB + BIG5 + KAMU net flow as % of total market turnover). Eliminates false directional drift caused by symmetric two-way scalping on deadlock sessions.
+   - Execution breakdown shares (buy, sell, realized PnL) for MLB, BIG5, and KAMU.
+3. **Macro Rates, Regime Shocks & Carry Costs**:
    - `feat_macro_repo_rate_pct`: Prevailing Central Bank (TCMB) 1-week repo policy interest rate.
    - `feat_macro_daily_carry_cost_bps`: Daily cost of carry calculated as $\text{Rate} / 365$.
-   - `feat_days_since_last_cbrt_decision`: Calendar days elapsed since the last MPC rate decision.
-3. **Benchmark Index (BIST 30) Momentum & Volatility**:
+   - `feat_days_since_pos_shock`: Calendar sessions elapsed since the last positive index shock ($\ge +3\%$).
+   - `feat_days_since_neg_shock`: Calendar sessions elapsed since the last negative index shock ($\le -3\%$).
+4. **Benchmark Index (BIST 30) Momentum & Volatility**:
    - `feat_bist30_volatility_20d_pct`: 20-day annualized historical return volatility of `XU030`.
    - `feat_bist30_trend_vs_20d_sma_pct`: Distance of BIST 30 close price from its 20-day Simple Moving Average.
-4. **Calendar Dynamics**:
+5. **Calendar Dynamics**:
    - `feat_day_of_week`: Day index (Monday = 0, Friday = 4).
    - `feat_is_monday`: Monday rebalancing indicator.
    - `feat_is_friday`: Friday institutional hedging / risk-off indicator.
-5. **Cross-Institutional Flow Deltas**:
-   - Institutional positioning deltas between BofA and domestic major desks (`IYM`, `YKR`, `AKM`, `GRM`, `ZRY`) and retail panic desk (`TRA`).
+6. **Univariate Baseline Momentum Prior**:
+   - `feat_prophet_ret_today_pct`: Zero-leakage Prophet 1-step baseline forecast for session $T$ (trained strictly up to session $T-1$). Serves as an overextension/momentum-exhaustion gauge against actual institutional net order flow.
 
 ---
 
@@ -116,7 +120,7 @@ Step 30: Train on [Day 1 … 249] ──► Predict Day 250 ──────�
 
 ### Primary Decision Metric: Directional Hit Rate %
 The tournament ranks models based on:
-1. **Primary Metric: Directional Hit Rate %** — Percentage of out-of-sample sessions where the predicted flow direction correctly matches actual realized market flow sign.
+1. **Primary Metric: Directional Hit Rate %** — Percentage of out-of-sample sessions where the predicted flow direction correctly matches actual realized market flow sign, evaluated against a calibrated $\pm 0.25\%$ (25 bps) market consolidation deadband (matching BIST equity tick microstructure).
 2. **Tie-Breaker: Mean Absolute Error (MAE)** — Minimizes error size when directional hit rates are equal.
 
 ---

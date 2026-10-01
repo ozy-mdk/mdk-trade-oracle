@@ -26,6 +26,7 @@ def test_run_30d_walk_forward_arena_synthetic():
         "feat_ret_today_pct": np.random.randn(65) * 1.5,
         "feat_ret_yesterday_pct": np.random.randn(65) * 1.5,
         "feat_mlb_w5_share": np.random.randn(65) * 0.03,
+        "feat_prophet_ret_today_pct": np.random.randn(65) * 1.5,
         "bist30_return_pct": np.random.randn(65) * 1.5,
         "feat_bist30_ret_today_pct": np.random.randn(65) * 1.5,
         "feat_mlb_tertip_3m_ratio": np.random.randn(65) * 5.0,
@@ -43,6 +44,9 @@ def test_run_30d_walk_forward_arena_synthetic():
         "kamu_buy_tl": np.random.uniform(1e7, 4e7, 65),
         "kamu_sell_tl": np.random.uniform(1e7, 4e7, 65),
         "kamu_daily_pnl_tl": np.random.randn(65) * 8e5,
+        "feat_days_since_pos_shock": np.random.uniform(0, 63, 65),
+        "feat_days_since_neg_shock": np.random.uniform(0, 63, 65),
+        "feat_total_inst_net_share_today": np.random.randn(65) * 5.0,
     }
 
     # Add 9 today's execution share features
@@ -106,6 +110,14 @@ def test_tertip_ml_forecaster_live_database():
     assert "tournament_summary" in data
     assert len(data["pillar_matrix"]) == 3
     assert len(data["walk_forward_ledger"]) == 30
+
+    # Verify 21 active features including Prophet rolling baseline & Net Imbalance
+    assert "active_features" in data
+    assert data["active_features_count"] == 21
+    assert "feat_prophet_ret_today_pct" in data["active_features"]
+    assert "feat_total_inst_net_share_today" in data["active_features"]
+    assert "feat_days_since_pos_shock" in data["active_features"]
+    assert "feat_days_since_neg_shock" in data["active_features"]
 
     pillars = {p["pillar"] for p in data["pillar_matrix"]}
     assert pillars == {"MLB", "BIG5", "KAMU"}

@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import warnings
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -34,7 +35,12 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
-# Lean & Pragmatic Feature Suite (17 Scarce Microstructure, Tertip Inventory & Today's Execution Features)
+# Persistent disk cache for rolling Prophet baseline features
+PROPHET_CACHE_DIR = Path.home() / "data" / "mdk_oracle" / "cache" / "prophet_features"
+PROPHET_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+ABLATION_CACHE_DIR = Path.home() / "data" / "mdk_oracle" / "cache" / "prophet_ablation"
+
+# Lean & Pragmatic Feature Suite (21 Scarce Microstructure, Tertip Inventory, Execution, Shock Distance & Prophet Baseline)
 FEATURE_COLS = [
     # Core Valuation & Momentum
     "feat_cost_spread_pct",
@@ -42,8 +48,15 @@ FEATURE_COLS = [
     "feat_ret_yesterday_pct",
     "feat_mlb_w5_share",
 
+    # Univariate Baseline Momentum (Prophet 1-Step Prior for Session T, Zero-Leakage)
+    "feat_prophet_ret_today_pct",
+
     # BIST 30 (XU030) Today's Return Dynamics
     "feat_bist30_ret_today_pct",
+
+    # Macro Regime Shock Distance (Sessions elapsed since last positive / negative shock)
+    "feat_days_since_pos_shock",
+    "feat_days_since_neg_shock",
 
     # 3-Month Tertip Inventory Expansion
     "feat_mlb_tertip_3m_ratio",
@@ -60,10 +73,17 @@ FEATURE_COLS = [
     "feat_kamu_buy_share_today",
     "feat_kamu_sell_share_today",
     "feat_kamu_pnl_share_today",
+
+    # Aggregate Institutional Net Order Flow (MLB + Big 5 + Kamu Net Flow as % of Turnover)
+    "feat_total_inst_net_share_today",
 ]
 
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
+
+# Neutral Consolidation Deadband % (+/- 0.25% / 25 bps)
+# Reflects realistic BIST equity tick size (1-2 ticks) and intraday consolidation range.
+DEADBAND_PCT: float = 0.25
 
 # Suppress verbose warnings from third-party math packages
 warnings.filterwarnings("ignore")
@@ -81,6 +101,105 @@ def clear_forecast_cache() -> None:
     global _FORECAST_CACHE
     _FORECAST_CACHE.clear()
     logger.info("Cleared Tertip ML Forecaster in-memory cache.")
+
+
+def attach_prophet_rolling_features(
+    df: pd.DataFrame,
+    symbol: str,
+    train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
+    n_history_needed: int = 300,
+) -> pd.DataFrame:
+    """Attach zero-leakage rolling Prophet 1-step baseline returns for each session T.
+
+    Uses persistent disk caching to avoid redundant computation:
+    - Fits Prophet strictly on [k - train_lookback_sessions : k] close prices (history up to session k - 1).
+    - Forecasts session k close price and calculates baseline return:
+      feat_prophet_ret_today_pct = (yhat_k - P_{k-1}) / P_{k-1} * 100.
+    - Automatically computes any missing/new sessions incrementally and saves to cache.
+    """
+    if df.empty or len(df) < 35:
+        df["feat_prophet_ret_today_pct"] = 0.0
+        return df
+
+    # If df already contains clean feat_prophet_ret_today_pct with no trailing NaNs, preserve it
+    if "feat_prophet_ret_today_pct" in df.columns:
+        if not df["feat_prophet_ret_today_pct"].iloc[-30:].isna().any():
+            return df
+
+    sym = symbol.upper()
+    cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_daily.parquet"
+    ablation_file = ABLATION_CACHE_DIR / f"{sym}_prophet_rolling_features.parquet"
+    cached_dict: dict[str, float] = {}
+
+    # Try loading from primary cache or previous ablation cache
+    target_cache = cache_file if cache_file.exists() else (ablation_file if ablation_file.exists() else None)
+    if target_cache is not None:
+        try:
+            cached_df = pd.read_parquet(target_cache)
+            if "trade_date" in cached_df.columns and "feat_prophet_ret_today_pct" in cached_df.columns:
+                cached_dict = dict(
+                    zip(
+                        pd.to_datetime(cached_df["trade_date"]).dt.strftime("%Y-%m-%d"),
+                        cached_df["feat_prophet_ret_today_pct"].astype(float),
+                    )
+                )
+        except Exception as e:
+            logger.warning("Failed to load Prophet cache for %s: %s", sym, e)
+
+    N = len(df)
+    start_idx = max(train_lookback_sessions + 5, N - n_history_needed)
+    close_prices = df["close_price"].to_numpy()
+    trade_dates = pd.to_datetime(df["trade_date"])
+    date_strs = trade_dates.dt.strftime("%Y-%m-%d").to_numpy()
+
+    dirty = False
+    for k in range(start_idx, N):
+        d_str = date_strs[k]
+        if d_str in cached_dict and pd.notna(cached_dict[d_str]):
+            continue
+
+        hist_dates = trade_dates.iloc[k - train_lookback_sessions : k]
+        hist_prices = close_prices[k - train_lookback_sessions : k]
+        p_prev = close_prices[k - 1]
+        target_date = trade_dates.iloc[k]
+
+        if p_prev <= 0:
+            cached_dict[d_str] = 0.0
+            dirty = True
+            continue
+
+        try:
+            p_df = pd.DataFrame({"ds": hist_dates, "y": hist_prices})
+            m = Prophet(
+                daily_seasonality=False,
+                weekly_seasonality=False,
+                yearly_seasonality=False,
+                changepoint_prior_scale=0.05,
+            )
+            m.fit(p_df)
+            target_df = pd.DataFrame({"ds": [target_date]})
+            fc = m.predict(target_df)
+            yhat_today = float(fc.iloc[-1]["yhat"])
+            ret_today = (yhat_today - p_prev) / p_prev * 100.0
+            cached_dict[d_str] = float(np.clip(ret_today, -25.0, 25.0))
+            dirty = True
+        except Exception as e:
+            logger.warning("Prophet fit failed for %s on %s: %s", sym, d_str, e)
+            cached_dict[d_str] = 0.0
+            dirty = True
+
+    if dirty or (not cache_file.exists() and cached_dict):
+        try:
+            save_df = pd.DataFrame([
+                {"trade_date": d, "feat_prophet_ret_today_pct": v}
+                for d, v in cached_dict.items()
+            ])
+            save_df.to_parquet(cache_file)
+        except Exception as e:
+            logger.warning("Failed to save Prophet cache for %s: %s", sym, e)
+
+    df["feat_prophet_ret_today_pct"] = [cached_dict.get(d, 0.0) for d in date_strs]
+    return df
 
 
 def extract_3pillar_time_series(
@@ -259,13 +378,26 @@ def extract_3pillar_time_series(
     joined["bist30_return_pct"] = joined["bist30_return_pct"].fillna(0.0)
     joined["feat_bist30_ret_today_pct"] = joined["bist30_return_pct"].clip(-15.0, 15.0)
 
-    # Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
+    # 6. Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
     series_idx = pd.Series(range(len(joined)), index=joined.index)
     pos_shock_idx = series_idx.where(joined["daily_return_pct"] >= 0.03).ffill()
     joined["feat_days_since_pos_shock"] = (series_idx - pos_shock_idx).fillna(63.0).clip(0.0, 63.0)
 
     neg_shock_idx = series_idx.where(joined["daily_return_pct"] <= -0.03).ffill()
     joined["feat_days_since_neg_shock"] = (series_idx - neg_shock_idx).fillna(63.0).clip(0.0, 63.0)
+
+    # 7. Aggregate Institutional Net Flow Share % of Total Market Turnover
+    joined["feat_total_inst_net_share_today"] = (
+        (
+            joined["mlb_buy_tl"].fillna(0) - joined["mlb_sell_tl"].fillna(0)
+            + joined["big5_buy_tl"].fillna(0) - joined["big5_sell_tl"].fillna(0)
+            + joined["kamu_buy_tl"].fillna(0) - joined["kamu_sell_tl"].fillna(0)
+        )
+        / tt_today * 100.0
+    ).clip(-100.0, 100.0)
+
+    # 8. Attach zero-leakage Prophet rolling baseline feature
+    joined = attach_prophet_rolling_features(joined, sym)
 
     return joined
 
@@ -374,6 +506,11 @@ def run_30d_walk_forward_arena(
     if len(df) < n_sessions + 30:
         return [], {}, None
 
+    # Fallback safety: ensure all feature columns exist in df (e.g. In synthetic tests or custom inputs)
+    for col in f_cols:
+        if col not in df.columns:
+            df[col] = 0.0
+
     step_records: list[dict[str, Any]] = []
 
     for idx in range(len(df) - n_sessions, len(df)):
@@ -412,10 +549,16 @@ def run_30d_walk_forward_arena(
         prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
         prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
-        if abs(actual_ret) <= 0.02:
-            prophet_hit = abs(prophet_ret) <= 0.02
-        else:
-            prophet_hit = (prophet_ret > 0.02) if actual_ret > 0.02 else (prophet_ret < -0.02)
+        # Directional Hit Evaluation with Neutral Consolidation Deadband (+/- 0.25%)
+        def _check_hit(pred: float, actual: float, deadband: float = DEADBAND_PCT) -> bool:
+            if abs(actual) <= deadband:
+                return (abs(pred) <= deadband) or ((pred * actual) >= 0.0)
+            elif actual > deadband:
+                return pred > 0.0
+            else:
+                return pred < 0.0
+
+        prophet_hit = _check_hit(prophet_ret, actual_ret)
 
         # 2. ML Candidate Features (strictly trailing 12 months / 252 sessions)
         tr_clean = train_data.iloc[-train_lookback_sessions:].dropna(subset=f_cols).copy()
@@ -430,11 +573,7 @@ def run_30d_walk_forward_arena(
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
         ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
-
-        if abs(actual_ret) <= 0.02:
-            ridge_hit = abs(pred_ret_ridge) <= 0.02
-        else:
-            ridge_hit = (pred_ret_ridge > 0.02) if actual_ret > 0.02 else (pred_ret_ridge < -0.02)
+        ridge_hit = _check_hit(pred_ret_ridge, actual_ret)
 
         # Candidate B: XGBoost
         xgb = XGBRegressor(
@@ -451,11 +590,7 @@ def run_30d_walk_forward_arena(
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
         xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
-
-        if abs(actual_ret) <= 0.02:
-            xgb_hit = abs(pred_ret_xgb) <= 0.02
-        else:
-            xgb_hit = (pred_ret_xgb > 0.02) if actual_ret > 0.02 else (pred_ret_xgb < -0.02)
+        xgb_hit = _check_hit(pred_ret_xgb, actual_ret)
 
         # Shock day metrics on actual realization
         is_pos_shock = bool(actual_ret >= 3.0)
@@ -570,8 +705,8 @@ def run_30d_walk_forward_arena(
         else:
             winner = "CHALLENGER" if ml_err <= prophet_err else "BASE"
 
-        ml_direction = "UP" if pred_ret_ml > 0.02 else ("DOWN" if pred_ret_ml < -0.02 else "FLAT")
-        prophet_direction = "UP" if prophet_ret > 0.02 else ("DOWN" if prophet_ret < -0.02 else "FLAT")
+        ml_direction = "UP" if pred_ret_ml > DEADBAND_PCT else ("DOWN" if pred_ret_ml < -DEADBAND_PCT else "FLAT")
+        prophet_direction = "UP" if prophet_ret > DEADBAND_PCT else ("DOWN" if prophet_ret < -DEADBAND_PCT else "FLAT")
 
         ledger.append({
             "date": str(test_row["trade_date"]).split(" ")[0],
@@ -791,7 +926,7 @@ def get_tertip_ml_forecast(
         stance = "STRONG_BUY"
         stance_badge = "STRONG BUY ACCUMULATION"
         stance_color = "emerald"
-    elif champion_pred_ret > 0.02:
+    elif champion_pred_ret > DEADBAND_PCT:
         stance = "BUY"
         stance_badge = "BUY ABSORPTION REBOUND"
         stance_color = "teal"
@@ -799,7 +934,7 @@ def get_tertip_ml_forecast(
         stance = "STRONG_SELL"
         stance_badge = "STRONG SELL PRESSURE"
         stance_color = "rose"
-    elif champion_pred_ret < -0.02:
+    elif champion_pred_ret < -DEADBAND_PCT:
         stance = "SELL"
         stance_badge = "DISTRIBUTION FADE"
         stance_color = "orange"
