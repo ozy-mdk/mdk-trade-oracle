@@ -388,24 +388,35 @@ def main() -> None:
                 "champion_full_hits": tournament.get("champion_full_hits"),
                 "champion_full_hit_rate_pct": tournament.get("champion_full_hit_rate_pct"),
                 "champion_full_mae_pct": tournament.get("champion_full_mae_pct"),
+                "champion_30d_penalty_loss": tournament.get("champion_30d_penalty_loss", tournament.get("champion_penalty_loss")),
+                "champion_full_penalty_loss": tournament.get("champion_full_penalty_loss"),
                 "prophet_30d_hits": tournament.get("prophet_dir_hits"),
                 "prophet_30d_hit_rate_pct": tournament.get("prophet_dir_hit_rate_pct"),
+                "prophet_30d_penalty_loss": tournament.get("prophet_penalty_loss_30d"),
                 "prophet_full_hit_rate_pct": tournament.get("prophet_full_hit_rate_pct"),
                 "ridge_30d_hit_rate_pct": tournament.get("ridge_30d_hit_rate_pct"),
+                "ridge_30d_penalty_loss": tournament.get("ridge_penalty_loss_30d"),
                 "ridge_full_hit_rate_pct": tournament.get("ridge_hit_rate_pct"),
                 "xgboost_30d_hit_rate_pct": tournament.get("xgboost_30d_hit_rate_pct"),
+                "xgboost_30d_penalty_loss": tournament.get("xgboost_penalty_loss_30d"),
                 "xgboost_full_hit_rate_pct": tournament.get("xgboost_hit_rate_pct"),
                 "lightgbm_30d_hit_rate_pct": tournament.get("lightgbm_30d_hit_rate_pct"),
+                "lightgbm_30d_penalty_loss": tournament.get("lightgbm_penalty_loss_30d"),
                 "lightgbm_full_hit_rate_pct": tournament.get("lightgbm_hit_rate_pct"),
                 "huber_30d_hit_rate_pct": tournament.get("huber_30d_hit_rate_pct"),
+                "huber_30d_penalty_loss": tournament.get("huber_penalty_loss_30d"),
                 "huber_full_hit_rate_pct": tournament.get("huber_hit_rate_pct"),
                 "bayesian_ridge_30d_hit_rate_pct": tournament.get("bayesian_ridge_30d_hit_rate_pct"),
+                "bayesian_ridge_30d_penalty_loss": tournament.get("bayesian_ridge_penalty_loss_30d"),
                 "bayesian_ridge_full_hit_rate_pct": tournament.get("bayesian_ridge_hit_rate_pct"),
                 "hit_rate_3m_30d_pct": m3_data.get("champion_dir_hit_rate_pct"),
+                "penalty_loss_3m_30d": m3_data.get("champion_30d_penalty_loss"),
                 "hit_rate_3m_full_pct": m3_data.get("champion_full_hit_rate_pct"),
                 "hit_rate_6m_30d_pct": m6_data.get("champion_dir_hit_rate_pct"),
+                "penalty_loss_6m_30d": m6_data.get("champion_30d_penalty_loss"),
                 "hit_rate_6m_full_pct": m6_data.get("champion_full_hit_rate_pct"),
                 "hit_rate_12m_30d_pct": m12_data.get("champion_dir_hit_rate_pct"),
+                "penalty_loss_12m_30d": m12_data.get("champion_30d_penalty_loss"),
                 "hit_rate_12m_full_pct": m12_data.get("champion_full_hit_rate_pct"),
                 "t_plus_1_target_price": fc.get("target_price"),
                 "t_plus_1_expected_return_pct": fc.get("expected_return_pct"),
@@ -419,11 +430,12 @@ def main() -> None:
             sym_t1 = time.time()
             c_30_hits = tournament.get("champion_30d_hits", tournament.get("champion_dir_hits", 0))
             c_30_pct = tournament.get("champion_30d_hit_rate_pct", tournament.get("champion_dir_hit_rate_pct", 0.0))
+            c_30_loss = tournament.get("champion_30d_penalty_loss", tournament.get("champion_penalty_loss", 0.0))
             c_full_pct = tournament.get("champion_full_hit_rate_pct", 0.0)
             logger.info(
                 f"[{idx}/{len(symbols)}] {sym} done in {sym_t1 - sym_t0:.1f}s | "
                 f"Crowned: {crowned_h} ({train_lb}d) | ML: {ml_champ} | "
-                f"30D Hits: {c_30_hits}/30 ({c_30_pct:.1f}%) | 180D: {c_full_pct:.1f}% | "
+                f"30D Loss: {c_30_loss:.2f}% | 30D Hits: {c_30_hits}/30 ({c_30_pct:.1f}%) | 180D: {c_full_pct:.1f}% | "
                 f"T+1: {fc.get('stance')} ({fc.get('expected_return_pct', 0.0):+.2f}%)"
             )
 
@@ -459,11 +471,55 @@ def main() -> None:
         df_summary.to_csv(out_summary_path, index=False)
         logger.info(f"Exported tournament summary for {len(df_summary)} symbols to: {out_summary_path}")
 
+        # 3. Synchronize config/tertip_crowned_models.yaml
+        yaml_path = Path(__file__).resolve().parents[1] / "config" / "tertip_crowned_models.yaml"
+        sync_crowned_yaml(summary_rows, yaml_path)
+
     t_total = time.time() - t_start
     logger.info("=" * 80)
     logger.info(f"COMPLETED {n_eval}D BIST 30 EXPORT: {success_count} succeeded, {fail_count} failed in {t_total:.1f}s")
     logger.info(f"Artifacts located at: {EXPORT_DIR}")
     logger.info("=" * 80)
+
+
+def sync_crowned_yaml(summary_rows: list[dict[str, Any]], yaml_path: Path) -> None:
+    """Sync crowned models and horizons to YAML config."""
+    import yaml
+    current_data: dict[str, Any] = {}
+    if yaml_path.exists():
+        try:
+            with open(yaml_path, "r") as f:
+                current_data = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.warning(f"Could not read existing YAML: {e}")
+
+    symbols_map = current_data.get("symbols", {})
+    for r in summary_rows:
+        sym = r["symbol"]
+        symbols_map[sym] = {
+            "model": r["ml_champion_type"],
+            "horizon": r["crowned_horizon"],
+            "training_lookback_sessions": r["training_lookback_sessions"],
+            "recent_30d_hits": r["champion_30d_hits"],
+            "recent_30d_hit_rate_pct": r["champion_30d_hit_rate_pct"],
+            "recent_30d_mae_pct": r["champion_30d_mae_pct"],
+            "recent_30d_penalty_loss": r.get("champion_30d_penalty_loss"),
+        }
+
+    output_data = {
+        "_metadata": {
+            "description": "Crowned Tertip Machine Learning models and training lookback horizons optimized for lowest 30-day directional penalty loss (Option 2).",
+            "calibration_date": str(pd.Timestamp.now().date()),
+            "eval_window": "180d_walk_forward",
+            "selection_metric": "lowest_30d_directional_penalty_loss",
+        },
+        "symbols": symbols_map,
+    }
+
+    yaml_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(yaml_path, "w") as f:
+        yaml.dump(output_data, f, sort_keys=False, default_flow_style=False)
+    logger.info(f"Successfully synced {len(symbols_map)} crowned model selections to: {yaml_path}")
 
 
 if __name__ == "__main__":

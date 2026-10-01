@@ -1962,17 +1962,20 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                         </span>
                         <div className="flex flex-wrap items-center gap-2">
                           {[
-                            { name: 'XGBoost', hits: mlForecast.tournament_summary.xgboost_dir_hits, rate: mlForecast.tournament_summary.xgboost_30d_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct, mae: mlForecast.tournament_summary.xgboost_mae_pct },
-                            { name: 'LightGBM', hits: mlForecast.tournament_summary.lightgbm_dir_hits, rate: mlForecast.tournament_summary.lightgbm_30d_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_dir_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_hit_rate_pct, mae: mlForecast.tournament_summary.lightgbm_mae_pct },
-                            { name: 'Huber', hits: mlForecast.tournament_summary.huber_dir_hits, rate: mlForecast.tournament_summary.huber_30d_hit_rate_pct ?? mlForecast.tournament_summary.huber_dir_hit_rate_pct ?? mlForecast.tournament_summary.huber_hit_rate_pct, mae: mlForecast.tournament_summary.huber_mae_pct },
-                            { name: 'BayesianRidge', hits: mlForecast.tournament_summary.bayesian_ridge_dir_hits, rate: mlForecast.tournament_summary.bayesian_ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_hit_rate_pct, mae: mlForecast.tournament_summary.bayesian_ridge_mae_pct },
-                            { name: 'Ridge', hits: mlForecast.tournament_summary.ridge_dir_hits, rate: mlForecast.tournament_summary.ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct, mae: mlForecast.tournament_summary.ridge_mae_pct },
+                            { name: 'XGBoost', hits: mlForecast.tournament_summary.xgboost_dir_hits, rate: mlForecast.tournament_summary.xgboost_30d_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct, mae: mlForecast.tournament_summary.xgboost_mae_pct, loss: mlForecast.tournament_summary.xgboost_penalty_loss_30d },
+                            { name: 'LightGBM', hits: mlForecast.tournament_summary.lightgbm_dir_hits, rate: mlForecast.tournament_summary.lightgbm_30d_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_dir_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_hit_rate_pct, mae: mlForecast.tournament_summary.lightgbm_mae_pct, loss: mlForecast.tournament_summary.lightgbm_penalty_loss_30d },
+                            { name: 'Huber', hits: mlForecast.tournament_summary.huber_dir_hits, rate: mlForecast.tournament_summary.huber_30d_hit_rate_pct ?? mlForecast.tournament_summary.huber_dir_hit_rate_pct ?? mlForecast.tournament_summary.huber_hit_rate_pct, mae: mlForecast.tournament_summary.huber_mae_pct, loss: mlForecast.tournament_summary.huber_penalty_loss_30d },
+                            { name: 'BayesianRidge', hits: mlForecast.tournament_summary.bayesian_ridge_dir_hits, rate: mlForecast.tournament_summary.bayesian_ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_hit_rate_pct, mae: mlForecast.tournament_summary.bayesian_ridge_mae_pct, loss: mlForecast.tournament_summary.bayesian_ridge_penalty_loss_30d },
+                            { name: 'Ridge', hits: mlForecast.tournament_summary.ridge_dir_hits, rate: mlForecast.tournament_summary.ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct, mae: mlForecast.tournament_summary.ridge_mae_pct, loss: mlForecast.tournament_summary.ridge_penalty_loss_30d },
                           ].filter(m => m.rate !== undefined).map((m, idx, arr) => {
                             const isChamp = mlForecast.tournament_summary.ml_champion_type === m.name;
                             return (
                               <React.Fragment key={m.name}>
-                                <span className={isChamp ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                                  {m.name}: {m.hits !== undefined ? `${m.hits}/30d` : ''} ({m.rate?.toFixed(1)}%{m.mae !== undefined ? `, ${m.mae.toFixed(1)}%` : ''})
+                                <span
+                                  className={isChamp ? 'text-amber-300 font-bold' : 'text-slate-400'}
+                                  title={m.loss !== undefined ? `Option 2 Penalty Loss: ${m.loss.toFixed(2)}% | MAE: ${m.mae?.toFixed(2)}%` : undefined}
+                                >
+                                  {m.name}: {m.hits !== undefined ? `${m.hits}/30d` : ''} ({m.rate?.toFixed(1)}%{m.loss !== undefined ? `, L: ${m.loss.toFixed(1)}%` : (m.mae !== undefined ? `, ${m.mae.toFixed(1)}%` : '')})
                                   {isChamp && ' 👑'}
                                 </span>
                                 {idx < arr.length - 1 && <span className="text-slate-600">|</span>}

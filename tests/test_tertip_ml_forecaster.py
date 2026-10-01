@@ -77,6 +77,15 @@ def test_run_30d_walk_forward_arena_synthetic():
     assert "ml_hit_rate_pct" in summary
     assert "prophet_hit_rate_pct" in summary
     assert "ml_mae_pct" in summary
+    assert "champion_30d_penalty_loss" in summary
+    assert "ml_penalty_loss_30d" in summary
+    assert "prophet_penalty_loss_30d" in summary
+    assert "ridge_penalty_loss_30d" in summary
+    assert "xgboost_penalty_loss_30d" in summary
+    assert "lightgbm_penalty_loss_30d" in summary
+    assert "huber_penalty_loss_30d" in summary
+    assert "bayesian_ridge_penalty_loss_30d" in summary
+    assert summary["champion_30d_penalty_loss"] >= 0.0
     assert summary["total_sessions"] == 10
     assert model is not None
 

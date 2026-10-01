@@ -702,17 +702,34 @@ def run_30d_walk_forward_arena(
     prophet_30d_hits = sum(1 for s in recent_slice if s["prophet_hit"])
     prophet_30d_hit_rate = (prophet_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
     prophet_30d_mae = sum(s["prophet_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
+    # Option 2 (Directionally Penalized Loss: error if hit else 3.0 * error)
+    prophet_30d_penalty_loss = (
+        sum(s["prophet_err"] if s["prophet_hit"] else (3.0 * s["prophet_err"]) for s in recent_slice) / recent_window
+        if recent_window > 0 else 0.0
+    )
 
     prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
     prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
     prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
+    prophet_penalty_loss = (
+        sum(s["prophet_err"] if s["prophet_hit"] else (3.0 * s["prophet_err"]) for s in step_records) / n_total
+        if n_total > 0 else 0.0
+    )
 
     candidates_meta = {
         "Ridge": {
             "hits_30d": sum(1 for s in recent_slice if s["ridge_hit"]),
             "mae_30d": sum(s["ridge_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
+            "penalty_loss_30d": (
+                sum(s["ridge_err"] if s["ridge_hit"] else (3.0 * s["ridge_err"]) for s in recent_slice) / recent_window
+                if recent_window > 0 else 0.0
+            ),
             "hits": sum(1 for s in step_records if s["ridge_hit"]),
             "mae": sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "penalty_loss": (
+                sum(s["ridge_err"] if s["ridge_hit"] else (3.0 * s["ridge_err"]) for s in step_records) / n_total
+                if n_total > 0 else 0.0
+            ),
             "model_key": "ridge_model",
             "price_key": "ridge_price",
             "ret_key": "ridge_ret",
@@ -722,8 +739,16 @@ def run_30d_walk_forward_arena(
         "XGBoost": {
             "hits_30d": sum(1 for s in recent_slice if s["xgb_hit"]),
             "mae_30d": sum(s["xgb_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
+            "penalty_loss_30d": (
+                sum(s["xgb_err"] if s["xgb_hit"] else (3.0 * s["xgb_err"]) for s in recent_slice) / recent_window
+                if recent_window > 0 else 0.0
+            ),
             "hits": sum(1 for s in step_records if s["xgb_hit"]),
             "mae": sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "penalty_loss": (
+                sum(s["xgb_err"] if s["xgb_hit"] else (3.0 * s["xgb_err"]) for s in step_records) / n_total
+                if n_total > 0 else 0.0
+            ),
             "model_key": "xgb_model",
             "price_key": "xgb_price",
             "ret_key": "xgb_ret",
@@ -733,8 +758,16 @@ def run_30d_walk_forward_arena(
         "LightGBM": {
             "hits_30d": sum(1 for s in recent_slice if s["lgbm_hit"]),
             "mae_30d": sum(s["lgbm_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
+            "penalty_loss_30d": (
+                sum(s["lgbm_err"] if s["lgbm_hit"] else (3.0 * s["lgbm_err"]) for s in recent_slice) / recent_window
+                if recent_window > 0 else 0.0
+            ),
             "hits": sum(1 for s in step_records if s["lgbm_hit"]),
             "mae": sum(s["lgbm_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "penalty_loss": (
+                sum(s["lgbm_err"] if s["lgbm_hit"] else (3.0 * s["lgbm_err"]) for s in step_records) / n_total
+                if n_total > 0 else 0.0
+            ),
             "model_key": "lgbm_model",
             "price_key": "lgbm_price",
             "ret_key": "lgbm_ret",
@@ -744,8 +777,16 @@ def run_30d_walk_forward_arena(
         "Huber": {
             "hits_30d": sum(1 for s in recent_slice if s["huber_hit"]),
             "mae_30d": sum(s["huber_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
+            "penalty_loss_30d": (
+                sum(s["huber_err"] if s["huber_hit"] else (3.0 * s["huber_err"]) for s in recent_slice) / recent_window
+                if recent_window > 0 else 0.0
+            ),
             "hits": sum(1 for s in step_records if s["huber_hit"]),
             "mae": sum(s["huber_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "penalty_loss": (
+                sum(s["huber_err"] if s["huber_hit"] else (3.0 * s["huber_err"]) for s in step_records) / n_total
+                if n_total > 0 else 0.0
+            ),
             "model_key": "huber_model",
             "price_key": "huber_price",
             "ret_key": "huber_ret",
@@ -755,8 +796,16 @@ def run_30d_walk_forward_arena(
         "BayesianRidge": {
             "hits_30d": sum(1 for s in recent_slice if s["bayes_hit"]),
             "mae_30d": sum(s["bayes_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
+            "penalty_loss_30d": (
+                sum(s["bayes_err"] if s["bayes_hit"] else (3.0 * s["bayes_err"]) for s in recent_slice) / recent_window
+                if recent_window > 0 else 0.0
+            ),
             "hits": sum(1 for s in step_records if s["bayes_hit"]),
             "mae": sum(s["bayes_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "penalty_loss": (
+                sum(s["bayes_err"] if s["bayes_hit"] else (3.0 * s["bayes_err"]) for s in step_records) / n_total
+                if n_total > 0 else 0.0
+            ),
             "model_key": "bayes_model",
             "price_key": "bayes_price",
             "ret_key": "bayes_ret",
@@ -770,7 +819,10 @@ def run_30d_walk_forward_arena(
         m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # Primary: Directional Hit Rate over last 30 sessions, Secondary: MAE over last 30 sessions
+    # Option 2 (Directionally Penalized Loss):
+    # loss_t = error_pct if hit else (3.0 * error_pct).
+    # Primary: Lowest 30-Day Directional Penalty Loss
+    # Tie-breakers: Higher 30-Day Hit Rate %, Lower 30-Day MAE %
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
         ml_champion_type = "Ridge"
@@ -782,10 +834,14 @@ def run_30d_walk_forward_arena(
         ml_champion_type = "Huber"
     elif m_choice in ("bayesianridge", "bayesian_ridge", "bayes"):
         ml_champion_type = "BayesianRidge"
-    else:  # "auto": ranked by recent 30-day hits descending, then recent 30-day mae ascending
+    else:  # "auto": ranked by lowest recent 30-day penalty_loss, then hits descending, then mae ascending
         sorted_candidates = sorted(
             candidates_meta.keys(),
-            key=lambda k: (-candidates_meta[k]["hits_30d"], candidates_meta[k]["mae_30d"]),
+            key=lambda k: (
+                candidates_meta[k]["penalty_loss_30d"],
+                -candidates_meta[k]["hits_30d"],
+                candidates_meta[k]["mae_30d"],
+            ),
         )
         ml_champion_type = sorted_candidates[0]
 
@@ -794,9 +850,11 @@ def run_30d_walk_forward_arena(
     ml_candidate_30d_hits = champ_meta["hits_30d"]
     ml_candidate_30d_hit_rate = champ_meta["hit_rate_30d"]
     ml_candidate_30d_mae = champ_meta["mae_30d"]
+    ml_candidate_30d_penalty = champ_meta["penalty_loss_30d"]
     ml_candidate_hits = champ_meta["hits"]
     ml_candidate_hit_rate = champ_meta["hit_rate"]
     ml_candidate_mae = champ_meta["mae"]
+    ml_candidate_penalty = champ_meta["penalty_loss"]
 
     # Build the Walk-Forward Reality Ledger using the crowned ML challenger
     ledger: list[dict[str, Any]] = []
@@ -875,32 +933,36 @@ def run_30d_walk_forward_arena(
             "training_lookback_sessions": train_lookback_sessions,
         })
 
-    # Grand Tournament Champion Designation (evaluated on last 30 days):
-    # 1. Primary: 30-Day Directional Hit Rate (hits_30d)
-    # 2. Secondary: 30-Day Error size (mae_30d)
-    if ml_candidate_30d_hits > prophet_30d_hits:
+    # Grand Tournament Champion Designation (evaluated on last 30 days via Option 2 Penalized Loss):
+    # 1. Primary: Lowest 30-Day Directional Penalty Loss (penalty_loss_30d)
+    # 2. Tie-breaker 1: Highest 30-Day Directional Hit Rate (hits_30d)
+    # 3. Tie-breaker 2: Lowest 30-Day Error size (mae_30d)
+    if ml_candidate_30d_penalty < prophet_30d_penalty_loss:
         champion = "TERTIP_ML_CHALLENGER"
         champion_label = f"Tertip ML Challenger ({ml_champion_type})"
         champion_dir_hits = ml_candidate_30d_hits
         champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
         runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
         champion_mae_pct = ml_candidate_30d_mae
-    elif prophet_30d_hits > ml_candidate_30d_hits:
+        champion_penalty_loss = ml_candidate_30d_penalty
+    elif prophet_30d_penalty_loss < ml_candidate_30d_penalty:
         champion = "PROPHET_BASE"
         champion_label = "Prophet Base Model"
         champion_dir_hits = prophet_30d_hits
         champion_dir_hit_rate_pct = prophet_30d_hit_rate
         runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
         champion_mae_pct = prophet_30d_mae
+        champion_penalty_loss = prophet_30d_penalty_loss
     else:
-        # Tie on 30-day directional hit rate -> use lower 30-day MAE
-        if ml_candidate_30d_mae <= prophet_30d_mae:
+        # Tie on 30-day penalty loss -> use higher 30-day directional hit rate, then lower MAE
+        if (ml_candidate_30d_hits, -ml_candidate_30d_mae) >= (prophet_30d_hits, -prophet_30d_mae):
             champion = "TERTIP_ML_CHALLENGER"
             champion_label = f"Tertip ML Challenger ({ml_champion_type})"
             champion_dir_hits = ml_candidate_30d_hits
             champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
             runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
             champion_mae_pct = ml_candidate_30d_mae
+            champion_penalty_loss = ml_candidate_30d_penalty
         else:
             champion = "PROPHET_BASE"
             champion_label = "Prophet Base Model"
@@ -908,6 +970,7 @@ def run_30d_walk_forward_arena(
             champion_dir_hit_rate_pct = prophet_30d_hit_rate
             runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
             champion_mae_pct = prophet_30d_mae
+            champion_penalty_loss = prophet_30d_penalty_loss
 
     tournament_summary = {
         "champion": champion,
@@ -921,17 +984,22 @@ def run_30d_walk_forward_arena(
         "champion_30d_hits": champion_dir_hits,
         "champion_30d_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
         "champion_30d_mae_pct": round(champion_mae_pct, 2),
+        "champion_30d_penalty_loss": round(champion_penalty_loss, 2),
+        "champion_penalty_loss": round(champion_penalty_loss, 2),
         "champion_full_hits": ml_candidate_hits if champion != "PROPHET_BASE" else prophet_hits,
         "champion_full_hit_rate_pct": round(ml_candidate_hit_rate if champion != "PROPHET_BASE" else prophet_hit_rate, 1),
         "champion_full_mae_pct": round(ml_candidate_mae if champion != "PROPHET_BASE" else prophet_mae, 2),
+        "champion_full_penalty_loss": round(ml_candidate_penalty if champion != "PROPHET_BASE" else prophet_penalty_loss, 2),
         "ml_dir_hits": ml_candidate_30d_hits,
         "ml_dir_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
         "ml_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
+        "ml_penalty_loss_30d": round(ml_candidate_30d_penalty, 2),
         "ml_full_hits": ml_candidate_hits,
         "ml_full_hit_rate_pct": round(ml_candidate_hit_rate, 1),
         "prophet_dir_hits": prophet_30d_hits,
         "prophet_dir_hit_rate_pct": round(prophet_30d_hit_rate, 1),
         "prophet_hit_rate_pct": round(prophet_30d_hit_rate, 1),
+        "prophet_penalty_loss_30d": round(prophet_30d_penalty_loss, 2),
         "prophet_full_hits": prophet_hits,
         "prophet_full_hit_rate_pct": round(prophet_hit_rate, 1),
         "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
@@ -939,26 +1007,31 @@ def run_30d_walk_forward_arena(
         "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
         "ridge_mae_pct": round(candidates_meta["Ridge"]["mae_30d"], 2),
+        "ridge_penalty_loss_30d": round(candidates_meta["Ridge"]["penalty_loss_30d"], 2),
         "xgboost_30d_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
         "xgboost_dir_hits": candidates_meta["XGBoost"]["hits_30d"],
         "xgboost_dir_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
         "xgboost_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
         "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae_30d"], 2),
+        "xgboost_penalty_loss_30d": round(candidates_meta["XGBoost"]["penalty_loss_30d"], 2),
         "lightgbm_30d_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
         "lightgbm_dir_hits": candidates_meta["LightGBM"]["hits_30d"],
         "lightgbm_dir_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
         "lightgbm_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
         "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae_30d"], 2),
+        "lightgbm_penalty_loss_30d": round(candidates_meta["LightGBM"]["penalty_loss_30d"], 2),
         "huber_30d_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
         "huber_dir_hits": candidates_meta["Huber"]["hits_30d"],
         "huber_dir_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
         "huber_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
         "huber_mae_pct": round(candidates_meta["Huber"]["mae_30d"], 2),
+        "huber_penalty_loss_30d": round(candidates_meta["Huber"]["penalty_loss_30d"], 2),
         "bayesian_ridge_30d_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
         "bayesian_ridge_dir_hits": candidates_meta["BayesianRidge"]["hits_30d"],
         "bayesian_ridge_dir_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
         "bayesian_ridge_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
         "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae_30d"], 2),
+        "bayesian_ridge_penalty_loss_30d": round(candidates_meta["BayesianRidge"]["penalty_loss_30d"], 2),
         "ml_mae_pct": round(ml_candidate_30d_mae, 2),
         "prophet_mae_pct": round(prophet_30d_mae, 2),
         "ml_error_wins": ml_error_wins,
@@ -1021,6 +1094,8 @@ def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> d
                     "champion_dir_hits": m_info.get("recent_30d_hits"),
                     "champion_dir_hit_rate_pct": m_info.get("recent_30d_hit_rate_pct"),
                     "champion_mae_pct": m_info.get("recent_30d_mae_pct"),
+                    "champion_penalty_loss": m_info.get("recent_30d_penalty_loss"),
+                    "champion_30d_penalty_loss": m_info.get("recent_30d_penalty_loss"),
                     "source": "yaml",
                 }
         except Exception as e:
@@ -1100,19 +1175,24 @@ def get_tertip_ml_forecast(
                 "champion_dir_hits": h_summary.get("champion_dir_hits"),
                 "champion_dir_hit_rate_pct": h_summary.get("champion_dir_hit_rate_pct"),
                 "champion_mae_pct": h_summary.get("champion_mae_pct"),
+                "champion_30d_penalty_loss": h_summary.get("champion_30d_penalty_loss"),
+                "champion_penalty_loss": h_summary.get("champion_penalty_loss"),
                 "ml_dir_hit_rate_pct": h_summary.get("ml_dir_hit_rate_pct"),
                 "ml_mae_pct": h_summary.get("ml_mae_pct"),
+                "ml_penalty_loss_30d": h_summary.get("ml_penalty_loss_30d"),
                 "prophet_dir_hit_rate_pct": h_summary.get("prophet_dir_hit_rate_pct"),
+                "prophet_penalty_loss_30d": h_summary.get("prophet_penalty_loss_30d"),
                 "ledger": h_ledger,
                 "summary": h_summary,
             }
 
-        # Crown best horizon based on 30-day directional hit rate from today
-        best_h_key = max(
+        # Crown best horizon based on Option 2: lowest 30-day directional penalty loss from today
+        best_h_key = min(
             candidate_horizons.keys(),
             key=lambda k: (
-                horizon_results[k]["champion_dir_hit_rate_pct"] or 0.0,
-                -(horizon_results[k]["champion_mae_pct"] or 999.0),
+                horizon_results[k]["summary"].get("champion_30d_penalty_loss", 999.0),
+                -(horizon_results[k]["summary"].get("champion_30d_hit_rate_pct", 0.0)),
+                horizon_results[k]["summary"].get("champion_30d_mae_pct", 999.0),
             ),
         )
         crowned_horizon = best_h_key
