@@ -508,10 +508,10 @@ def sync_crowned_yaml(summary_rows: list[dict[str, Any]], yaml_path: Path) -> No
 
     output_data = {
         "_metadata": {
-            "description": "Crowned Tertip Machine Learning models and training lookback horizons optimized for lowest 30-day directional penalty loss (Option 2).",
+            "description": "Crowned Tertip Machine Learning models and training lookback horizons optimized for lowest 30-day directional penalty loss (Option B Threshold-Gated Quadratic Loss with Sample Weighting).",
             "calibration_date": str(pd.Timestamp.now().date()),
             "eval_window": "180d_walk_forward",
-            "selection_metric": "lowest_30d_directional_penalty_loss",
+            "selection_metric": "lowest_30d_threshold_gated_quadratic_penalty_loss",
         },
         "symbols": symbols_map,
     }

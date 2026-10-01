@@ -14,6 +14,7 @@ recording the exact next-day actions executed by each institutional pillar.
 from __future__ import annotations
 
 import logging
+import math
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -575,9 +576,18 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
+        # Training sample weighting: balance flat consolidation vs active steep moves
+        # Flat noise (|return| <= 0.5%): down-weighted to 0.5x
+        # Active moves (|return| > 0.5%): scaled up as 1.0 + min(|return|, 5.0)
+        sample_weights_tr = np.where(
+            np.abs(y_tr) <= 0.5,
+            0.5,
+            1.0 + np.minimum(np.abs(y_tr), 5.0),
+        )
+
         # Candidate A: Ridge
         ridge = Ridge(alpha=10.0, random_state=42)
-        ridge.fit(X_tr, y_tr)
+        ridge.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
         pred_ret_ridge = float(ridge.predict(X_prev)[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
@@ -594,7 +604,7 @@ def run_30d_walk_forward_arena(
             random_state=42,
             n_jobs=1,
         )
-        xgb.fit(X_tr, y_tr)
+        xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
         pred_ret_xgb = float(xgb.predict(X_prev)[0])
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
@@ -613,7 +623,7 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
             verbose=-1,
         )
-        lgbm.fit(X_tr, y_tr)
+        lgbm.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
         pred_ret_lgbm = float(lgbm.predict(X_prev)[0])
         pred_ret_lgbm = max(-10.0, min(10.0, pred_ret_lgbm))
         lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
@@ -625,7 +635,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
         ])
-        huber.fit(X_tr, y_tr)
+        huber.fit(X_tr, y_tr, regressor__sample_weight=sample_weights_tr)
         pred_ret_huber = float(huber.predict(X_prev)[0])
         pred_ret_huber = max(-10.0, min(10.0, pred_ret_huber))
         huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
@@ -637,7 +647,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", BayesianRidge(max_iter=300)),
         ])
-        bayes.fit(X_tr, y_tr)
+        bayes.fit(X_tr, y_tr, regressor__sample_weight=sample_weights_tr)
         pred_ret_bayes = float(bayes.predict(X_prev)[0])
         pred_ret_bayes = max(-10.0, min(10.0, pred_ret_bayes))
         bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
@@ -698,38 +708,49 @@ def run_30d_walk_forward_arena(
     recent_window = min(30, n_total)
     recent_slice = step_records[-recent_window:]
 
+    # Option B: Threshold-Gated Directionally Penalized Quadratic Loss
+    # Demarcates flat noise (|return| <= 0.5%) from active steep moves (|return| > 0.5%).
+    # On flat noise: standard squared percentage error (sq_err).
+    # On active moves:
+    #   - Directional hit: rewarded (0.7 * sq_err)
+    #   - Directional miss: heavily penalized (3.0 * (1.0 + |move|) * sq_err)
+    # The final 30D score is sqrt(mean_loss), bringing it back to interpretable percentage units.
+    def _calc_option_b_loss(err_pct: float, is_hit: bool, actual_ret_pct: float) -> float:
+        sq_err = err_pct ** 2
+        act_move = abs(actual_ret_pct)
+        if act_move <= 0.5:
+            return sq_err
+        else:
+            if is_hit:
+                return 0.7 * sq_err
+            else:
+                return 3.0 * (1.0 + act_move) * sq_err
+
+    def _calc_score(records: list[dict[str, Any]], err_key: str, hit_key: str) -> float:
+        if not records:
+            return 0.0
+        mean_loss = sum(_calc_option_b_loss(s[err_key], s[hit_key], s.get("actual_ret", 0.0)) for s in records) / len(records)
+        return round(math.sqrt(mean_loss), 2)
+
     # Prophet metrics: recent 30-day window (for selection) and full-window
     prophet_30d_hits = sum(1 for s in recent_slice if s["prophet_hit"])
     prophet_30d_hit_rate = (prophet_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
     prophet_30d_mae = sum(s["prophet_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
-    # Option 2 (Directionally Penalized Loss: error if hit else 3.0 * error)
-    prophet_30d_penalty_loss = (
-        sum(s["prophet_err"] if s["prophet_hit"] else (3.0 * s["prophet_err"]) for s in recent_slice) / recent_window
-        if recent_window > 0 else 0.0
-    )
+    prophet_30d_penalty_loss = _calc_score(recent_slice, "prophet_err", "prophet_hit")
 
     prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
     prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
     prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-    prophet_penalty_loss = (
-        sum(s["prophet_err"] if s["prophet_hit"] else (3.0 * s["prophet_err"]) for s in step_records) / n_total
-        if n_total > 0 else 0.0
-    )
+    prophet_penalty_loss = _calc_score(step_records, "prophet_err", "prophet_hit")
 
     candidates_meta = {
         "Ridge": {
             "hits_30d": sum(1 for s in recent_slice if s["ridge_hit"]),
             "mae_30d": sum(s["ridge_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": (
-                sum(s["ridge_err"] if s["ridge_hit"] else (3.0 * s["ridge_err"]) for s in recent_slice) / recent_window
-                if recent_window > 0 else 0.0
-            ),
+            "penalty_loss_30d": _calc_score(recent_slice, "ridge_err", "ridge_hit"),
             "hits": sum(1 for s in step_records if s["ridge_hit"]),
             "mae": sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": (
-                sum(s["ridge_err"] if s["ridge_hit"] else (3.0 * s["ridge_err"]) for s in step_records) / n_total
-                if n_total > 0 else 0.0
-            ),
+            "penalty_loss": _calc_score(step_records, "ridge_err", "ridge_hit"),
             "model_key": "ridge_model",
             "price_key": "ridge_price",
             "ret_key": "ridge_ret",
@@ -739,16 +760,10 @@ def run_30d_walk_forward_arena(
         "XGBoost": {
             "hits_30d": sum(1 for s in recent_slice if s["xgb_hit"]),
             "mae_30d": sum(s["xgb_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": (
-                sum(s["xgb_err"] if s["xgb_hit"] else (3.0 * s["xgb_err"]) for s in recent_slice) / recent_window
-                if recent_window > 0 else 0.0
-            ),
+            "penalty_loss_30d": _calc_score(recent_slice, "xgb_err", "xgb_hit"),
             "hits": sum(1 for s in step_records if s["xgb_hit"]),
             "mae": sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": (
-                sum(s["xgb_err"] if s["xgb_hit"] else (3.0 * s["xgb_err"]) for s in step_records) / n_total
-                if n_total > 0 else 0.0
-            ),
+            "penalty_loss": _calc_score(step_records, "xgb_err", "xgb_hit"),
             "model_key": "xgb_model",
             "price_key": "xgb_price",
             "ret_key": "xgb_ret",
@@ -758,16 +773,10 @@ def run_30d_walk_forward_arena(
         "LightGBM": {
             "hits_30d": sum(1 for s in recent_slice if s["lgbm_hit"]),
             "mae_30d": sum(s["lgbm_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": (
-                sum(s["lgbm_err"] if s["lgbm_hit"] else (3.0 * s["lgbm_err"]) for s in recent_slice) / recent_window
-                if recent_window > 0 else 0.0
-            ),
+            "penalty_loss_30d": _calc_score(recent_slice, "lgbm_err", "lgbm_hit"),
             "hits": sum(1 for s in step_records if s["lgbm_hit"]),
             "mae": sum(s["lgbm_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": (
-                sum(s["lgbm_err"] if s["lgbm_hit"] else (3.0 * s["lgbm_err"]) for s in step_records) / n_total
-                if n_total > 0 else 0.0
-            ),
+            "penalty_loss": _calc_score(step_records, "lgbm_err", "lgbm_hit"),
             "model_key": "lgbm_model",
             "price_key": "lgbm_price",
             "ret_key": "lgbm_ret",
@@ -777,16 +786,10 @@ def run_30d_walk_forward_arena(
         "Huber": {
             "hits_30d": sum(1 for s in recent_slice if s["huber_hit"]),
             "mae_30d": sum(s["huber_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": (
-                sum(s["huber_err"] if s["huber_hit"] else (3.0 * s["huber_err"]) for s in recent_slice) / recent_window
-                if recent_window > 0 else 0.0
-            ),
+            "penalty_loss_30d": _calc_score(recent_slice, "huber_err", "huber_hit"),
             "hits": sum(1 for s in step_records if s["huber_hit"]),
             "mae": sum(s["huber_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": (
-                sum(s["huber_err"] if s["huber_hit"] else (3.0 * s["huber_err"]) for s in step_records) / n_total
-                if n_total > 0 else 0.0
-            ),
+            "penalty_loss": _calc_score(step_records, "huber_err", "huber_hit"),
             "model_key": "huber_model",
             "price_key": "huber_price",
             "ret_key": "huber_ret",
@@ -796,16 +799,10 @@ def run_30d_walk_forward_arena(
         "BayesianRidge": {
             "hits_30d": sum(1 for s in recent_slice if s["bayes_hit"]),
             "mae_30d": sum(s["bayes_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": (
-                sum(s["bayes_err"] if s["bayes_hit"] else (3.0 * s["bayes_err"]) for s in recent_slice) / recent_window
-                if recent_window > 0 else 0.0
-            ),
+            "penalty_loss_30d": _calc_score(recent_slice, "bayes_err", "bayes_hit"),
             "hits": sum(1 for s in step_records if s["bayes_hit"]),
             "mae": sum(s["bayes_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": (
-                sum(s["bayes_err"] if s["bayes_hit"] else (3.0 * s["bayes_err"]) for s in step_records) / n_total
-                if n_total > 0 else 0.0
-            ),
+            "penalty_loss": _calc_score(step_records, "bayes_err", "bayes_hit"),
             "model_key": "bayes_model",
             "price_key": "bayes_price",
             "ret_key": "bayes_ret",
@@ -819,8 +816,9 @@ def run_30d_walk_forward_arena(
         m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # Option 2 (Directionally Penalized Loss):
-    # loss_t = error_pct if hit else (3.0 * error_pct).
+    # Option B (Threshold-Gated Directionally Penalized Quadratic Loss):
+    # Flat noise (|move| <= 0.5%): sq_err
+    # Active moves (|move| > 0.5%): 0.7 * sq_err if hit else 3.0 * (1 + |move|) * sq_err
     # Primary: Lowest 30-Day Directional Penalty Loss
     # Tie-breakers: Higher 30-Day Hit Rate %, Lower 30-Day MAE %
     m_choice = model_type.lower()
@@ -1319,7 +1317,15 @@ def get_tertip_ml_forecast(
     else:
         live_ml = Ridge(alpha=10.0, random_state=42)
 
-    live_ml.fit(X_tr_full, y_tr_full)
+    sample_weights_full = np.where(
+        np.abs(y_tr_full) <= 0.5,
+        0.5,
+        1.0 + np.minimum(np.abs(y_tr_full), 5.0),
+    )
+    if ml_champion_type in ("Huber", "BayesianRidge"):
+        live_ml.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights_full)
+    else:
+        live_ml.fit(X_tr_full, y_tr_full, sample_weight=sample_weights_full)
     pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
     pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
 
