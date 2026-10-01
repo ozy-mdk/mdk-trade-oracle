@@ -1951,26 +1951,37 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                         </div>
                       </div>
 
-                      {/* Dynamic Arena Selection Details */}
-                      {mlForecast.tournament_summary.xgboost_hit_rate_pct !== undefined &&
-                        mlForecast.tournament_summary.ridge_hit_rate_pct !== undefined && (
-                          <div className="flex flex-wrap items-center justify-between text-[8px] font-mono px-2 py-1 rounded bg-slate-950/60 border border-slate-800/60 text-slate-400">
-                            <span className="text-slate-400 font-semibold">
-                              Arena Candidates (Directional Hit Rate):
-                            </span>
-                            <div className="flex items-center space-x-2">
-                              <span className={mlForecast.tournament_summary.ml_champion_type === 'XGBoost' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                                XGBoost: {mlForecast.tournament_summary.xgboost_dir_hits ?? Math.round((mlForecast.tournament_summary.xgboost_hit_rate_pct! / 100) * 30)}/30d ({(mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct)!.toFixed(1)}%, MAE {mlForecast.tournament_summary.xgboost_mae_pct?.toFixed(2)}%)
-                                {mlForecast.tournament_summary.ml_champion_type === 'XGBoost' && ' 👑'}
-                              </span>
-                              <span className="text-slate-600">|</span>
-                              <span className={mlForecast.tournament_summary.ml_champion_type === 'Ridge' ? 'text-amber-300 font-bold' : 'text-slate-400'}>
-                                Ridge: {mlForecast.tournament_summary.ridge_dir_hits ?? Math.round((mlForecast.tournament_summary.ridge_hit_rate_pct! / 100) * 30)}/30d ({(mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct)!.toFixed(1)}%, MAE {mlForecast.tournament_summary.ridge_mae_pct?.toFixed(2)}%)
-                                {mlForecast.tournament_summary.ml_champion_type === 'Ridge' && ' 👑'}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                    {/* Dynamic Arena Selection Details */}
+                    {mlForecast.tournament_summary && (
+                      <div className="flex flex-wrap items-center justify-between text-[8px] font-mono px-2 py-1 rounded bg-slate-950/60 border border-slate-800/60 text-slate-400 gap-1">
+                        <span className="text-slate-400 font-semibold flex items-center gap-1">
+                          Arena 30D Candidates:
+                          <span className="text-[7.5px] px-1 py-0.2 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-800/40">
+                            {mlForecast.tournament_summary.crowned_horizon?.toUpperCase() || '12M'} ({mlForecast.train_lookback_sessions || 252}d)
+                          </span>
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {[
+                            { name: 'XGBoost', hits: mlForecast.tournament_summary.xgboost_dir_hits, rate: mlForecast.tournament_summary.xgboost_30d_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct, mae: mlForecast.tournament_summary.xgboost_mae_pct },
+                            { name: 'LightGBM', hits: mlForecast.tournament_summary.lightgbm_dir_hits, rate: mlForecast.tournament_summary.lightgbm_30d_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_dir_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_hit_rate_pct, mae: mlForecast.tournament_summary.lightgbm_mae_pct },
+                            { name: 'Huber', hits: mlForecast.tournament_summary.huber_dir_hits, rate: mlForecast.tournament_summary.huber_30d_hit_rate_pct ?? mlForecast.tournament_summary.huber_dir_hit_rate_pct ?? mlForecast.tournament_summary.huber_hit_rate_pct, mae: mlForecast.tournament_summary.huber_mae_pct },
+                            { name: 'BayesianRidge', hits: mlForecast.tournament_summary.bayesian_ridge_dir_hits, rate: mlForecast.tournament_summary.bayesian_ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_hit_rate_pct, mae: mlForecast.tournament_summary.bayesian_ridge_mae_pct },
+                            { name: 'Ridge', hits: mlForecast.tournament_summary.ridge_dir_hits, rate: mlForecast.tournament_summary.ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct, mae: mlForecast.tournament_summary.ridge_mae_pct },
+                          ].filter(m => m.rate !== undefined).map((m, idx, arr) => {
+                            const isChamp = mlForecast.tournament_summary.ml_champion_type === m.name;
+                            return (
+                              <React.Fragment key={m.name}>
+                                <span className={isChamp ? 'text-amber-300 font-bold' : 'text-slate-400'}>
+                                  {m.name}: {m.hits !== undefined ? `${m.hits}/30d` : ''} ({m.rate?.toFixed(1)}%{m.mae !== undefined ? `, ${m.mae.toFixed(1)}%` : ''})
+                                  {isChamp && ' 👑'}
+                                </span>
+                                {idx < arr.length - 1 && <span className="text-slate-600">|</span>}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     </div>
 
                     {/* 30-Day Walk-Forward Reality Ledger Table */}

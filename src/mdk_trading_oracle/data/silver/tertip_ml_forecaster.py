@@ -972,6 +972,63 @@ def run_30d_walk_forward_arena(
     return ledger, tournament_summary, champion_ml_model
 
 
+def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> dict[str, Any] | None:
+    """Fetch latest crowned (model, training_window) from PostgreSQL or YAML config.
+
+    Ensures production pipelines and the frontend automatically use the optimal
+    champion configuration crowned during the periodic calibration competition.
+    """
+    sym = symbol.upper()
+    # 1. Try PostgreSQL gold_tertip_daily_forecasts
+    if db is not None:
+        try:
+            query = """
+            SELECT ml_champion_type, crowned_horizon, training_lookback_sessions,
+                   champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct
+            FROM gold_tertip_daily_forecasts
+            WHERE symbol = %(symbol)s
+            ORDER BY as_of_date DESC, calculated_at DESC
+            LIMIT 1;
+            """
+            row = db.execute(query, {"symbol": sym}).fetchone()
+            if row and row[0]:
+                return {
+                    "ml_champion_type": str(row[0]),
+                    "crowned_horizon": str(row[1] or "12m"),
+                    "training_lookback_sessions": int(row[2] or 252),
+                    "champion_dir_hits": int(row[3]) if row[3] is not None else None,
+                    "champion_dir_hit_rate_pct": float(row[4]) if row[4] is not None else None,
+                    "champion_mae_pct": float(row[5]) if row[5] is not None else None,
+                    "source": "database",
+                }
+        except Exception as e:
+            logger.debug(f"DB lookup for calibrated model {sym} failed: {e}")
+
+    # 2. Fall back to config/tertip_crowned_models.yaml
+    yaml_path = Path(__file__).resolve().parents[3] / "config" / "tertip_crowned_models.yaml"
+    if yaml_path.exists():
+        try:
+            import yaml
+            with open(yaml_path, "r") as f:
+                data = yaml.safe_load(f) or {}
+            symbols_meta = data.get("symbols", {})
+            if sym in symbols_meta:
+                m_info = symbols_meta[sym]
+                return {
+                    "ml_champion_type": str(m_info.get("model", "Ridge")),
+                    "crowned_horizon": str(m_info.get("horizon", "12m")),
+                    "training_lookback_sessions": int(m_info.get("training_lookback_sessions", 252)),
+                    "champion_dir_hits": m_info.get("recent_30d_hits"),
+                    "champion_dir_hit_rate_pct": m_info.get("recent_30d_hit_rate_pct"),
+                    "champion_mae_pct": m_info.get("recent_30d_mae_pct"),
+                    "source": "yaml",
+                }
+        except Exception as e:
+            logger.debug(f"YAML lookup for calibrated model {sym} failed: {e}")
+
+    return None
+
+
 def get_tertip_ml_forecast(
     db: PostgresManager,
     symbol: str,
@@ -990,7 +1047,9 @@ def get_tertip_ml_forecast(
     and utilizes the lean 21-feature microstructure suite.
 
     Supports lookback_mode:
-    - 'default' / '12m': Strictly trailing 12 months (252 sessions)
+    - 'default': Automatically applies the crowned champion configuration (model + training window)
+      calibrated from the periodic competition, providing sub-second live inference.
+    - '12m': Trailing 12 months (252 sessions)
     - '6m': Trailing 6 months (126 sessions)
     - '3m': Trailing 3 months (63 sessions)
     - 'auto': Runs a multi-horizon tournament across [3M, 6M, 12M] and crowns the best horizon.
@@ -1048,7 +1107,7 @@ def get_tertip_ml_forecast(
                 "summary": h_summary,
             }
 
-        # Crown best horizon
+        # Crown best horizon based on 30-day directional hit rate from today
         best_h_key = max(
             candidate_horizons.keys(),
             key=lambda k: (
@@ -1081,9 +1140,26 @@ def get_tertip_ml_forecast(
             feature_cols=active_features,
             train_lookback_sessions=train_lookback_sessions,
         )
-    else:
+    elif lb_mode in ("12m", "252"):
         train_lookback_sessions = 252
         crowned_horizon = "12m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
+    else:
+        # 'default': Automatically apply pre-calibrated champion configuration (model + horizon)
+        calibrated = get_calibrated_model_selection(db, sym)
+        if calibrated:
+            train_lookback_sessions = calibrated["training_lookback_sessions"]
+            crowned_horizon = calibrated["crowned_horizon"]
+        else:
+            train_lookback_sessions = 252
+            crowned_horizon = "12m"
+
         ledger, tournament, _ = run_30d_walk_forward_arena(
             df,
             n_sessions=n_eval_sessions,

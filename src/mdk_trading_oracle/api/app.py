@@ -266,24 +266,54 @@ class TournamentSummary(BaseModel):
     champion: str
     champion_label: str
     ml_champion_type: Optional[str] = "XGBoost"
+    crowned_horizon: Optional[str] = "12m"
+    training_lookback_sessions: Optional[int] = 252
+    selection_window_sessions: Optional[int] = 30
     champion_dir_hits: Optional[int] = None
     champion_dir_hit_rate_pct: Optional[float] = None
     runner_up_dir_hit_rate_pct: Optional[float] = None
     champion_mae_pct: Optional[float] = None
+    champion_30d_hits: Optional[int] = None
+    champion_30d_hit_rate_pct: Optional[float] = None
+    champion_30d_mae_pct: Optional[float] = None
+    champion_full_hits: Optional[int] = None
+    champion_full_hit_rate_pct: Optional[float] = None
+    champion_full_mae_pct: Optional[float] = None
     ml_dir_hits: Optional[int] = None
     ml_dir_hit_rate_pct: Optional[float] = None
     ml_hit_rate_pct: float
+    ml_full_hits: Optional[int] = None
+    ml_full_hit_rate_pct: Optional[float] = None
     prophet_dir_hits: Optional[int] = None
     prophet_dir_hit_rate_pct: Optional[float] = None
     prophet_hit_rate_pct: float
+    prophet_full_hits: Optional[int] = None
+    prophet_full_hit_rate_pct: Optional[float] = None
+    ridge_30d_hit_rate_pct: Optional[float] = None
     ridge_dir_hits: Optional[int] = None
     ridge_dir_hit_rate_pct: Optional[float] = None
     ridge_hit_rate_pct: Optional[float] = None
     ridge_mae_pct: Optional[float] = None
+    xgboost_30d_hit_rate_pct: Optional[float] = None
     xgboost_dir_hits: Optional[int] = None
     xgboost_dir_hit_rate_pct: Optional[float] = None
     xgboost_hit_rate_pct: Optional[float] = None
     xgboost_mae_pct: Optional[float] = None
+    lightgbm_30d_hit_rate_pct: Optional[float] = None
+    lightgbm_dir_hits: Optional[int] = None
+    lightgbm_dir_hit_rate_pct: Optional[float] = None
+    lightgbm_hit_rate_pct: Optional[float] = None
+    lightgbm_mae_pct: Optional[float] = None
+    huber_30d_hit_rate_pct: Optional[float] = None
+    huber_dir_hits: Optional[int] = None
+    huber_dir_hit_rate_pct: Optional[float] = None
+    huber_hit_rate_pct: Optional[float] = None
+    huber_mae_pct: Optional[float] = None
+    bayesian_ridge_30d_hit_rate_pct: Optional[float] = None
+    bayesian_ridge_dir_hits: Optional[int] = None
+    bayesian_ridge_dir_hit_rate_pct: Optional[float] = None
+    bayesian_ridge_hit_rate_pct: Optional[float] = None
+    bayesian_ridge_mae_pct: Optional[float] = None
     ml_mae_pct: float
     prophet_mae_pct: float
     ml_error_wins: Optional[int] = None
