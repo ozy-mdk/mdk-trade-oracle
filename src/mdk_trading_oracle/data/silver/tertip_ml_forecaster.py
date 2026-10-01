@@ -19,10 +19,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from prophet import Prophet
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import BayesianRidge, HuberRegressor, Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 from mdk_trading_oracle.core.db import PostgresManager
@@ -532,22 +535,27 @@ def run_30d_walk_forward_arena(
         big5_action = "BUY" if big5_actual_flow > 0 else "SELL"
         kamu_action = "BUY" if kamu_actual_flow > 0 else "SELL"
 
-        # 1. Base Model: Prophet (strictly trailing 12 months / 252 sessions pure price series)
-        p_df = pd.DataFrame({
-            "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
-            "y": train_data["close_price"].iloc[-train_lookback_sessions:],
-        })
-        m_prophet = Prophet(
-            daily_seasonality=False,
-            weekly_seasonality=False,
-            yearly_seasonality=False,
-            changepoint_prior_scale=0.05,
-        )
-        m_prophet.fit(p_df)
-        fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-        prophet_price = float(fc_prophet.iloc[-1]["yhat"])
-        prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
-        prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
+        # 1. Base Model: Prophet (strictly trailing lookback pure price series)
+        if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
+            prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
+            prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
+            prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
+        else:
+            p_df = pd.DataFrame({
+                "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
+                "y": train_data["close_price"].iloc[-train_lookback_sessions:],
+            })
+            m_prophet = Prophet(
+                daily_seasonality=False,
+                weekly_seasonality=False,
+                yearly_seasonality=False,
+                changepoint_prior_scale=0.05,
+            )
+            m_prophet.fit(p_df)
+            fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
+            prophet_price = float(fc_prophet.iloc[-1]["yhat"])
+            prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
+            prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
         # Directional Hit Evaluation with Neutral Consolidation Deadband (+/- 0.25%)
         def _check_hit(pred: float, actual: float, deadband: float = DEADBAND_PCT) -> bool:
@@ -560,16 +568,17 @@ def run_30d_walk_forward_arena(
 
         prophet_hit = _check_hit(prophet_ret, actual_ret)
 
-        # 2. ML Candidate Features (strictly trailing 12 months / 252 sessions)
+        # 2. ML Candidate Features (strictly trailing train_lookback_sessions)
         tr_clean = train_data.iloc[-train_lookback_sessions:].dropna(subset=f_cols).copy()
         y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
         X_tr = tr_clean[f_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
+        X_prev = pd.DataFrame([prev_row[f_cols]])
 
         # Candidate A: Ridge
         ridge = Ridge(alpha=10.0, random_state=42)
         ridge.fit(X_tr, y_tr)
-        pred_ret_ridge = float(ridge.predict(pd.DataFrame([prev_row[f_cols]]))[0])
+        pred_ret_ridge = float(ridge.predict(X_prev)[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
         ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
@@ -586,11 +595,54 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
         )
         xgb.fit(X_tr, y_tr)
-        pred_ret_xgb = float(xgb.predict(pd.DataFrame([prev_row[f_cols]]))[0])
+        pred_ret_xgb = float(xgb.predict(X_prev)[0])
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
         xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
         xgb_hit = _check_hit(pred_ret_xgb, actual_ret)
+
+        # Candidate C: LightGBM
+        lgbm = lgb.LGBMRegressor(
+            n_estimators=45,
+            max_depth=3,
+            learning_rate=0.03,
+            num_leaves=7,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=1,
+            verbose=-1,
+        )
+        lgbm.fit(X_tr, y_tr)
+        pred_ret_lgbm = float(lgbm.predict(X_prev)[0])
+        pred_ret_lgbm = max(-10.0, min(10.0, pred_ret_lgbm))
+        lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
+        lgbm_err = abs(lgbm_price - actual_price) / actual_price * 100.0
+        lgbm_hit = _check_hit(pred_ret_lgbm, actual_ret)
+
+        # Candidate D: Huber Regressor (L1/L2 Hybrid with Scaler)
+        huber = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
+        ])
+        huber.fit(X_tr, y_tr)
+        pred_ret_huber = float(huber.predict(X_prev)[0])
+        pred_ret_huber = max(-10.0, min(10.0, pred_ret_huber))
+        huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
+        huber_err = abs(huber_price - actual_price) / actual_price * 100.0
+        huber_hit = _check_hit(pred_ret_huber, actual_ret)
+
+        # Candidate E: Bayesian Ridge (Automatic Relevance / Shrinkage with Scaler)
+        bayes = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", BayesianRidge(max_iter=300)),
+        ])
+        bayes.fit(X_tr, y_tr)
+        pred_ret_bayes = float(bayes.predict(X_prev)[0])
+        pred_ret_bayes = max(-10.0, min(10.0, pred_ret_bayes))
+        bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
+        bayes_err = abs(bayes_price - actual_price) / actual_price * 100.0
+        bayes_hit = _check_hit(pred_ret_bayes, actual_ret)
 
         # Shock day metrics on actual realization
         is_pos_shock = bool(actual_ret >= 3.0)
@@ -614,6 +666,18 @@ def run_30d_walk_forward_arena(
             "xgb_ret": pred_ret_xgb,
             "xgb_err": xgb_err,
             "xgb_hit": xgb_hit,
+            "lgbm_price": lgbm_price,
+            "lgbm_ret": pred_ret_lgbm,
+            "lgbm_err": lgbm_err,
+            "lgbm_hit": lgbm_hit,
+            "huber_price": huber_price,
+            "huber_ret": pred_ret_huber,
+            "huber_err": huber_err,
+            "huber_hit": huber_hit,
+            "bayes_price": bayes_price,
+            "bayes_ret": pred_ret_bayes,
+            "bayes_err": bayes_err,
+            "bayes_hit": bayes_hit,
             "is_pos_shock": is_pos_shock,
             "is_neg_shock": is_neg_shock,
             "shock_type": shock_type,
@@ -625,45 +689,94 @@ def run_30d_walk_forward_arena(
             "kamu_action": kamu_action,
             "ridge_model": ridge,
             "xgb_model": xgb,
+            "lgbm_model": lgbm,
+            "huber_model": huber,
+            "bayes_model": bayes,
         })
 
     n_total = len(step_records)
-    ridge_hits = sum(1 for s in step_records if s["ridge_hit"])
-    ridge_hit_rate = (ridge_hits / n_total) * 100.0 if n_total > 0 else 0.0
-    ridge_mae = sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-
-    xgb_hits = sum(1 for s in step_records if s["xgb_hit"])
-    xgb_hit_rate = (xgb_hits / n_total) * 100.0 if n_total > 0 else 0.0
-    xgb_mae = sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-
     prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
     prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
     prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
 
+    candidates_meta = {
+        "Ridge": {
+            "hits": sum(1 for s in step_records if s["ridge_hit"]),
+            "mae": sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "model_key": "ridge_model",
+            "price_key": "ridge_price",
+            "ret_key": "ridge_ret",
+            "err_key": "ridge_err",
+            "hit_key": "ridge_hit",
+        },
+        "XGBoost": {
+            "hits": sum(1 for s in step_records if s["xgb_hit"]),
+            "mae": sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "model_key": "xgb_model",
+            "price_key": "xgb_price",
+            "ret_key": "xgb_ret",
+            "err_key": "xgb_err",
+            "hit_key": "xgb_hit",
+        },
+        "LightGBM": {
+            "hits": sum(1 for s in step_records if s["lgbm_hit"]),
+            "mae": sum(s["lgbm_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "model_key": "lgbm_model",
+            "price_key": "lgbm_price",
+            "ret_key": "lgbm_ret",
+            "err_key": "lgbm_err",
+            "hit_key": "lgbm_hit",
+        },
+        "Huber": {
+            "hits": sum(1 for s in step_records if s["huber_hit"]),
+            "mae": sum(s["huber_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "model_key": "huber_model",
+            "price_key": "huber_price",
+            "ret_key": "huber_ret",
+            "err_key": "huber_err",
+            "hit_key": "huber_hit",
+        },
+        "BayesianRidge": {
+            "hits": sum(1 for s in step_records if s["bayes_hit"]),
+            "mae": sum(s["bayes_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
+            "model_key": "bayes_model",
+            "price_key": "bayes_price",
+            "ret_key": "bayes_ret",
+            "err_key": "bayes_err",
+            "hit_key": "bayes_hit",
+        },
+    }
+
+    for m_info in candidates_meta.values():
+        m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
+
     # Dynamic ML Challenger Selection (Primary: Directional Hit Rate, Secondary: Error size MAE)
     m_choice = model_type.lower()
-    if m_choice == "ridge":
+    if m_choice in ("ridge",):
         ml_champion_type = "Ridge"
-    elif m_choice == "xgboost":
+    elif m_choice in ("xgboost", "xgb"):
         ml_champion_type = "XGBoost"
+    elif m_choice in ("lightgbm", "lgb", "lgbm"):
+        ml_champion_type = "LightGBM"
+    elif m_choice in ("huber", "huberregressor"):
+        ml_champion_type = "Huber"
+    elif m_choice in ("bayesianridge", "bayesian_ridge", "bayes"):
+        ml_champion_type = "BayesianRidge"
     else:  # "auto"
-        if xgb_hits > ridge_hits:
-            ml_champion_type = "XGBoost"
-        elif ridge_hits > xgb_hits:
-            ml_champion_type = "Ridge"
-        else:
-            # Tie breaker: lower MAE
-            ml_champion_type = "XGBoost" if xgb_mae <= ridge_mae else "Ridge"
+        # Sort candidates by hits descending, then mae ascending
+        sorted_candidates = sorted(
+            candidates_meta.keys(),
+            key=lambda k: (-candidates_meta[k]["hits"], candidates_meta[k]["mae"]),
+        )
+        ml_champion_type = sorted_candidates[0]
 
-    champion_ml_model = (
-        step_records[-1]["xgb_model"] if ml_champion_type == "XGBoost" else step_records[-1]["ridge_model"]
-    )
+    champ_meta = candidates_meta[ml_champion_type]
+    champion_ml_model = step_records[-1][champ_meta["model_key"]]
+    ml_candidate_hits = champ_meta["hits"]
+    ml_candidate_hit_rate = champ_meta["hit_rate"]
+    ml_candidate_mae = champ_meta["mae"]
 
-    ml_candidate_hits = xgb_hits if ml_champion_type == "XGBoost" else ridge_hits
-    ml_candidate_hit_rate = xgb_hit_rate if ml_champion_type == "XGBoost" else ridge_hit_rate
-    ml_candidate_mae = xgb_mae if ml_champion_type == "XGBoost" else ridge_mae
-
-    # Build the 30-Day Reality Ledger using the crowned ML challenger
+    # Build the Walk-Forward Reality Ledger using the crowned ML challenger
     ledger: list[dict[str, Any]] = []
     ml_error_wins = 0
     prophet_error_wins = 0
@@ -678,16 +791,10 @@ def run_30d_walk_forward_arena(
         prophet_err = s["prophet_err"]
         prophet_hit = s["prophet_hit"]
 
-        if ml_champion_type == "XGBoost":
-            ml_price = s["xgb_price"]
-            pred_ret_ml = s["xgb_ret"]
-            ml_err = s["xgb_err"]
-            ml_hit = s["xgb_hit"]
-        else:
-            ml_price = s["ridge_price"]
-            pred_ret_ml = s["ridge_ret"]
-            ml_err = s["ridge_err"]
-            ml_hit = s["ridge_hit"]
+        ml_price = s[champ_meta["price_key"]]
+        pred_ret_ml = s[champ_meta["ret_key"]]
+        ml_err = s[champ_meta["err_key"]]
+        ml_hit = s[champ_meta["hit_key"]]
 
         # Track error wins
         if ml_err <= prophet_err:
@@ -743,6 +850,7 @@ def run_30d_walk_forward_arena(
             "kamu_buy_tl": round(float(test_row["kamu_buy_tl"]) if ("kamu_buy_tl" in test_row and pd.notna(test_row["kamu_buy_tl"])) else 0.0, 1),
             "kamu_sell_tl": round(float(test_row["kamu_sell_tl"]) if ("kamu_sell_tl" in test_row and pd.notna(test_row["kamu_sell_tl"])) else 0.0, 1),
             "kamu_pnl_tl": round(float(test_row["kamu_daily_pnl_tl"]) if ("kamu_daily_pnl_tl" in test_row and pd.notna(test_row["kamu_daily_pnl_tl"])) else 0.0, 1),
+            "training_lookback_sessions": train_lookback_sessions,
         })
 
     # Grand Tournament Champion Designation:
@@ -793,20 +901,33 @@ def run_30d_walk_forward_arena(
         "prophet_dir_hits": prophet_hits,
         "prophet_dir_hit_rate_pct": round(prophet_hit_rate, 1),
         "prophet_hit_rate_pct": round(prophet_hit_rate, 1),
-        "ridge_dir_hits": ridge_hits,
-        "ridge_dir_hit_rate_pct": round(ridge_hit_rate, 1),
-        "ridge_hit_rate_pct": round(ridge_hit_rate, 1),
-        "xgboost_dir_hits": xgb_hits,
-        "xgboost_dir_hit_rate_pct": round(xgb_hit_rate, 1),
-        "xgboost_hit_rate_pct": round(xgb_hit_rate, 1),
+        "ridge_dir_hits": candidates_meta["Ridge"]["hits"],
+        "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
+        "ridge_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
+        "ridge_mae_pct": round(candidates_meta["Ridge"]["mae"], 2),
+        "xgboost_dir_hits": candidates_meta["XGBoost"]["hits"],
+        "xgboost_dir_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
+        "xgboost_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
+        "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae"], 2),
+        "lightgbm_dir_hits": candidates_meta["LightGBM"]["hits"],
+        "lightgbm_dir_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
+        "lightgbm_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
+        "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae"], 2),
+        "huber_dir_hits": candidates_meta["Huber"]["hits"],
+        "huber_dir_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
+        "huber_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
+        "huber_mae_pct": round(candidates_meta["Huber"]["mae"], 2),
+        "bayesian_ridge_dir_hits": candidates_meta["BayesianRidge"]["hits"],
+        "bayesian_ridge_dir_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
+        "bayesian_ridge_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
+        "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae"], 2),
         "ml_mae_pct": round(ml_candidate_mae, 2),
         "prophet_mae_pct": round(prophet_mae, 2),
-        "ridge_mae_pct": round(ridge_mae, 2),
-        "xgboost_mae_pct": round(xgb_mae, 2),
         "ml_error_wins": ml_error_wins,
         "prophet_error_wins": prophet_error_wins,
         "ml_wins": ml_error_wins,
         "prophet_wins": prophet_error_wins,
+        "training_lookback_sessions": train_lookback_sessions,
         "total_sessions": len(ledger),
     }
 
@@ -820,18 +941,27 @@ def get_tertip_ml_forecast(
     model_type: str = "auto",
     feature_cols: list[str] | None = None,
     train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
+    n_eval_sessions: int = 30,
+    lookback_mode: str = "default",
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Generate live upcoming session (T+1) forecast and 30-day walk-forward track.
+    """Generate live upcoming session (T+1) forecast and walk-forward track.
 
-    Uses strictly 12 months (252 sessions) historical training lookback,
+    Uses strictly zero-lookahead historical training lookback,
     compares Prophet Base vs Tertip ML Challenger with dynamic on-the-fly champion selection (Ridge vs XGBoost),
-    and utilizes the lean 17-feature microstructure suite.
+    and utilizes the lean 21-feature microstructure suite.
+
+    Supports lookback_mode:
+    - 'default' / '12m': Strictly trailing 12 months (252 sessions)
+    - '6m': Trailing 6 months (126 sessions)
+    - '3m': Trailing 3 months (63 sessions)
+    - 'auto': Runs a multi-horizon tournament across [3M, 6M, 12M] and crowns the best horizon.
     """
     sym = symbol.upper()
     m_type = model_type.lower()
+    lb_mode = str(lookback_mode).lower()
     now_ts = datetime.now(timezone.utc).timestamp()
-    cache_key = f"{sym}:{m_type}:{train_lookback_sessions}"
+    cache_key = f"{sym}:{m_type}:{train_lookback_sessions}:{n_eval_sessions}:{lb_mode}"
 
     # Check cache (bypassed if force_refresh is True)
     if not force_refresh and cache_key in _FORECAST_CACHE:
@@ -839,22 +969,95 @@ def get_tertip_ml_forecast(
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
-    # Resolve active feature set (strictly lean 17 features)
+    # Resolve active feature set (strictly lean 21 features)
     active_features = list(feature_cols) if feature_cols is not None else list(FEATURE_COLS)
 
-    # Extract time series (550 calendar days to guarantee 252+ clean sessions after 63d EWMA)
-    df = extract_3pillar_time_series(db, sym, lookback_days=550)
-    if df.empty or len(df) < 35:
+    # Determine needed calendar days to cover eval sessions + training lookback + burn-in
+    max_train_lb = 252
+    needed_calendar_days = max(550, int((n_eval_sessions + max_train_lb + 75) * 1.5))
+    df = extract_3pillar_time_series(db, sym, lookback_days=needed_calendar_days)
+    if df.empty or len(df) < (n_eval_sessions + 35):
         return {"error": f"Insufficient historical data for symbol {sym}"}
 
-    # Run 30-Day Walk-Forward Tournament
-    ledger, tournament, trained_ml_model = run_30d_walk_forward_arena(
-        df,
-        n_sessions=30,
-        model_type=m_type,
-        feature_cols=active_features,
-        train_lookback_sessions=train_lookback_sessions,
-    )
+    # Ensure rolling Prophet baseline is attached
+    df = attach_prophet_rolling_features(df, sym, n_history_needed=n_eval_sessions + 40)
+
+    # Multi-Horizon Tournament or Static Horizon Selection
+    crowned_horizon = "12m"
+    horizon_comparison: dict[str, Any] = {}
+
+    if lb_mode == "auto":
+        candidate_horizons = {"3m": 63, "6m": 126, "12m": 252}
+        horizon_results: dict[str, Any] = {}
+        for h_key, h_lb in candidate_horizons.items():
+            h_ledger, h_summary, _ = run_30d_walk_forward_arena(
+                df,
+                n_sessions=n_eval_sessions,
+                model_type=m_type,
+                feature_cols=active_features,
+                train_lookback_sessions=h_lb,
+            )
+            horizon_results[h_key] = {
+                "lookback_sessions": h_lb,
+                "ml_champion_type": h_summary.get("ml_champion_type"),
+                "champion_dir_hits": h_summary.get("champion_dir_hits"),
+                "champion_dir_hit_rate_pct": h_summary.get("champion_dir_hit_rate_pct"),
+                "champion_mae_pct": h_summary.get("champion_mae_pct"),
+                "ml_dir_hit_rate_pct": h_summary.get("ml_dir_hit_rate_pct"),
+                "ml_mae_pct": h_summary.get("ml_mae_pct"),
+                "prophet_dir_hit_rate_pct": h_summary.get("prophet_dir_hit_rate_pct"),
+                "ledger": h_ledger,
+                "summary": h_summary,
+            }
+
+        # Crown best horizon
+        best_h_key = max(
+            candidate_horizons.keys(),
+            key=lambda k: (
+                horizon_results[k]["champion_dir_hit_rate_pct"] or 0.0,
+                -(horizon_results[k]["champion_mae_pct"] or 999.0),
+            ),
+        )
+        crowned_horizon = best_h_key
+        train_lookback_sessions = candidate_horizons[best_h_key]
+        ledger = horizon_results[best_h_key]["ledger"]
+        tournament = horizon_results[best_h_key]["summary"]
+        horizon_comparison = {k: {sk: sv for sk, sv in v.items() if sk != "ledger"} for k, v in horizon_results.items()}
+    elif lb_mode in ("3m", "63"):
+        train_lookback_sessions = 63
+        crowned_horizon = "3m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
+    elif lb_mode in ("6m", "126"):
+        train_lookback_sessions = 126
+        crowned_horizon = "6m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
+    else:
+        train_lookback_sessions = 252
+        crowned_horizon = "12m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
+
+    tournament["crowned_horizon"] = crowned_horizon
+    tournament["training_lookback_sessions"] = train_lookback_sessions
+    if horizon_comparison:
+        tournament["horizon_comparison"] = horizon_comparison
 
     # 3-Pillar Matrix
     pillar_matrix = get_pillar_live_matrix(db, sym)
@@ -886,7 +1089,7 @@ def get_tertip_ml_forecast(
     X_tr_full = tr_full[active_features].iloc[:-1]
     y_tr_full = y_tr_full.iloc[:-1]
 
-    ml_champion_type = tournament.get("ml_champion_type", "XGBoost")
+    ml_champion_type = tournament.get("ml_champion_type", "Ridge")
     if ml_champion_type == "XGBoost":
         live_ml = XGBRegressor(
             n_estimators=45,
@@ -897,6 +1100,28 @@ def get_tertip_ml_forecast(
             random_state=42,
             n_jobs=1,
         )
+    elif ml_champion_type == "LightGBM":
+        live_ml = lgb.LGBMRegressor(
+            n_estimators=45,
+            max_depth=3,
+            learning_rate=0.03,
+            num_leaves=7,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=1,
+            verbose=-1,
+        )
+    elif ml_champion_type == "Huber":
+        live_ml = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
+        ])
+    elif ml_champion_type == "BayesianRidge":
+        live_ml = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", BayesianRidge(max_iter=300)),
+        ])
     else:
         live_ml = Ridge(alpha=10.0, random_state=42)
 
