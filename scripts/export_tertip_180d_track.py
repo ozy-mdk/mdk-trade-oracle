@@ -382,23 +382,31 @@ def main() -> None:
                 "training_lookback_sessions": train_lb,
                 "ml_champion_type": ml_champ,
                 "grand_champion": tournament.get("champion"),
-                "champion_dir_hits": tournament.get("champion_dir_hits"),
-                "champion_dir_hit_rate_pct": tournament.get("champion_dir_hit_rate_pct"),
-                "champion_mae_pct": tournament.get("champion_mae_pct"),
-                "prophet_dir_hits": tournament.get("prophet_dir_hits"),
-                "prophet_dir_hit_rate_pct": tournament.get("prophet_dir_hit_rate_pct"),
-                "prophet_mae_pct": tournament.get("prophet_mae_pct"),
-                "ridge_hit_rate_pct": tournament.get("ridge_hit_rate_pct"),
-                "xgboost_hit_rate_pct": tournament.get("xgboost_hit_rate_pct"),
-                "lightgbm_hit_rate_pct": tournament.get("lightgbm_hit_rate_pct"),
-                "huber_hit_rate_pct": tournament.get("huber_hit_rate_pct"),
-                "bayesian_ridge_hit_rate_pct": tournament.get("bayesian_ridge_hit_rate_pct"),
-                "hit_rate_3m_pct": m3_data.get("champion_dir_hit_rate_pct"),
-                "mae_3m_pct": m3_data.get("champion_mae_pct"),
-                "hit_rate_6m_pct": m6_data.get("champion_dir_hit_rate_pct"),
-                "mae_6m_pct": m6_data.get("champion_mae_pct"),
-                "hit_rate_12m_pct": m12_data.get("champion_dir_hit_rate_pct"),
-                "mae_12m_pct": m12_data.get("champion_mae_pct"),
+                "champion_30d_hits": tournament.get("champion_30d_hits", tournament.get("champion_dir_hits")),
+                "champion_30d_hit_rate_pct": tournament.get("champion_30d_hit_rate_pct", tournament.get("champion_dir_hit_rate_pct")),
+                "champion_30d_mae_pct": tournament.get("champion_30d_mae_pct", tournament.get("champion_mae_pct")),
+                "champion_full_hits": tournament.get("champion_full_hits"),
+                "champion_full_hit_rate_pct": tournament.get("champion_full_hit_rate_pct"),
+                "champion_full_mae_pct": tournament.get("champion_full_mae_pct"),
+                "prophet_30d_hits": tournament.get("prophet_dir_hits"),
+                "prophet_30d_hit_rate_pct": tournament.get("prophet_dir_hit_rate_pct"),
+                "prophet_full_hit_rate_pct": tournament.get("prophet_full_hit_rate_pct"),
+                "ridge_30d_hit_rate_pct": tournament.get("ridge_30d_hit_rate_pct"),
+                "ridge_full_hit_rate_pct": tournament.get("ridge_hit_rate_pct"),
+                "xgboost_30d_hit_rate_pct": tournament.get("xgboost_30d_hit_rate_pct"),
+                "xgboost_full_hit_rate_pct": tournament.get("xgboost_hit_rate_pct"),
+                "lightgbm_30d_hit_rate_pct": tournament.get("lightgbm_30d_hit_rate_pct"),
+                "lightgbm_full_hit_rate_pct": tournament.get("lightgbm_hit_rate_pct"),
+                "huber_30d_hit_rate_pct": tournament.get("huber_30d_hit_rate_pct"),
+                "huber_full_hit_rate_pct": tournament.get("huber_hit_rate_pct"),
+                "bayesian_ridge_30d_hit_rate_pct": tournament.get("bayesian_ridge_30d_hit_rate_pct"),
+                "bayesian_ridge_full_hit_rate_pct": tournament.get("bayesian_ridge_hit_rate_pct"),
+                "hit_rate_3m_30d_pct": m3_data.get("champion_dir_hit_rate_pct"),
+                "hit_rate_3m_full_pct": m3_data.get("champion_full_hit_rate_pct"),
+                "hit_rate_6m_30d_pct": m6_data.get("champion_dir_hit_rate_pct"),
+                "hit_rate_6m_full_pct": m6_data.get("champion_full_hit_rate_pct"),
+                "hit_rate_12m_30d_pct": m12_data.get("champion_dir_hit_rate_pct"),
+                "hit_rate_12m_full_pct": m12_data.get("champion_full_hit_rate_pct"),
                 "t_plus_1_target_price": fc.get("target_price"),
                 "t_plus_1_expected_return_pct": fc.get("expected_return_pct"),
                 "t_plus_1_stance": fc.get("stance"),
@@ -409,11 +417,13 @@ def main() -> None:
 
             success_count += 1
             sym_t1 = time.time()
+            c_30_hits = tournament.get("champion_30d_hits", tournament.get("champion_dir_hits", 0))
+            c_30_pct = tournament.get("champion_30d_hit_rate_pct", tournament.get("champion_dir_hit_rate_pct", 0.0))
+            c_full_pct = tournament.get("champion_full_hit_rate_pct", 0.0)
             logger.info(
                 f"[{idx}/{len(symbols)}] {sym} done in {sym_t1 - sym_t0:.1f}s | "
                 f"Crowned: {crowned_h} ({train_lb}d) | ML: {ml_champ} | "
-                f"Hits: {tournament.get('champion_dir_hits')}/{len(ledger)} "
-                f"({tournament.get('champion_dir_hit_rate_pct', 0.0):.1f}%) | "
+                f"30D Hits: {c_30_hits}/30 ({c_30_pct:.1f}%) | 180D: {c_full_pct:.1f}% | "
                 f"T+1: {fc.get('stance')} ({fc.get('expected_return_pct', 0.0):+.2f}%)"
             )
 

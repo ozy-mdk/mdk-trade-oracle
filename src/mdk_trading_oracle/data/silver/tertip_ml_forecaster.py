@@ -695,12 +695,22 @@ def run_30d_walk_forward_arena(
         })
 
     n_total = len(step_records)
+    recent_window = min(30, n_total)
+    recent_slice = step_records[-recent_window:]
+
+    # Prophet metrics: recent 30-day window (for selection) and full-window
+    prophet_30d_hits = sum(1 for s in recent_slice if s["prophet_hit"])
+    prophet_30d_hit_rate = (prophet_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
+    prophet_30d_mae = sum(s["prophet_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
+
     prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
     prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
     prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
 
     candidates_meta = {
         "Ridge": {
+            "hits_30d": sum(1 for s in recent_slice if s["ridge_hit"]),
+            "mae_30d": sum(s["ridge_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
             "hits": sum(1 for s in step_records if s["ridge_hit"]),
             "mae": sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
             "model_key": "ridge_model",
@@ -710,6 +720,8 @@ def run_30d_walk_forward_arena(
             "hit_key": "ridge_hit",
         },
         "XGBoost": {
+            "hits_30d": sum(1 for s in recent_slice if s["xgb_hit"]),
+            "mae_30d": sum(s["xgb_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
             "hits": sum(1 for s in step_records if s["xgb_hit"]),
             "mae": sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
             "model_key": "xgb_model",
@@ -719,6 +731,8 @@ def run_30d_walk_forward_arena(
             "hit_key": "xgb_hit",
         },
         "LightGBM": {
+            "hits_30d": sum(1 for s in recent_slice if s["lgbm_hit"]),
+            "mae_30d": sum(s["lgbm_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
             "hits": sum(1 for s in step_records if s["lgbm_hit"]),
             "mae": sum(s["lgbm_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
             "model_key": "lgbm_model",
@@ -728,6 +742,8 @@ def run_30d_walk_forward_arena(
             "hit_key": "lgbm_hit",
         },
         "Huber": {
+            "hits_30d": sum(1 for s in recent_slice if s["huber_hit"]),
+            "mae_30d": sum(s["huber_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
             "hits": sum(1 for s in step_records if s["huber_hit"]),
             "mae": sum(s["huber_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
             "model_key": "huber_model",
@@ -737,6 +753,8 @@ def run_30d_walk_forward_arena(
             "hit_key": "huber_hit",
         },
         "BayesianRidge": {
+            "hits_30d": sum(1 for s in recent_slice if s["bayes_hit"]),
+            "mae_30d": sum(s["bayes_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
             "hits": sum(1 for s in step_records if s["bayes_hit"]),
             "mae": sum(s["bayes_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
             "model_key": "bayes_model",
@@ -748,9 +766,11 @@ def run_30d_walk_forward_arena(
     }
 
     for m_info in candidates_meta.values():
+        m_info["hit_rate_30d"] = (m_info["hits_30d"] / recent_window) * 100.0 if recent_window > 0 else 0.0
         m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
 
-    # Dynamic ML Challenger Selection (Primary: Directional Hit Rate, Secondary: Error size MAE)
+    # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
+    # Primary: Directional Hit Rate over last 30 sessions, Secondary: MAE over last 30 sessions
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
         ml_champion_type = "Ridge"
@@ -762,16 +782,18 @@ def run_30d_walk_forward_arena(
         ml_champion_type = "Huber"
     elif m_choice in ("bayesianridge", "bayesian_ridge", "bayes"):
         ml_champion_type = "BayesianRidge"
-    else:  # "auto"
-        # Sort candidates by hits descending, then mae ascending
+    else:  # "auto": ranked by recent 30-day hits descending, then recent 30-day mae ascending
         sorted_candidates = sorted(
             candidates_meta.keys(),
-            key=lambda k: (-candidates_meta[k]["hits"], candidates_meta[k]["mae"]),
+            key=lambda k: (-candidates_meta[k]["hits_30d"], candidates_meta[k]["mae_30d"]),
         )
         ml_champion_type = sorted_candidates[0]
 
     champ_meta = candidates_meta[ml_champion_type]
     champion_ml_model = step_records[-1][champ_meta["model_key"]]
+    ml_candidate_30d_hits = champ_meta["hits_30d"]
+    ml_candidate_30d_hit_rate = champ_meta["hit_rate_30d"]
+    ml_candidate_30d_mae = champ_meta["mae_30d"]
     ml_candidate_hits = champ_meta["hits"]
     ml_candidate_hit_rate = champ_meta["hit_rate"]
     ml_candidate_mae = champ_meta["mae"]
@@ -853,76 +875,92 @@ def run_30d_walk_forward_arena(
             "training_lookback_sessions": train_lookback_sessions,
         })
 
-    # Grand Tournament Champion Designation:
-    # 1. Primary: Directional Hit Rate (dir_hits)
-    # 2. Secondary: Error size (MAE)
-    if ml_candidate_hits > prophet_hits:
+    # Grand Tournament Champion Designation (evaluated on last 30 days):
+    # 1. Primary: 30-Day Directional Hit Rate (hits_30d)
+    # 2. Secondary: 30-Day Error size (mae_30d)
+    if ml_candidate_30d_hits > prophet_30d_hits:
         champion = "TERTIP_ML_CHALLENGER"
         champion_label = f"Tertip ML Challenger ({ml_champion_type})"
-        champion_dir_hits = ml_candidate_hits
-        champion_dir_hit_rate_pct = ml_candidate_hit_rate
-        runner_up_dir_hit_rate_pct = prophet_hit_rate
-        champion_mae_pct = ml_candidate_mae
-    elif prophet_hits > ml_candidate_hits:
+        champion_dir_hits = ml_candidate_30d_hits
+        champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
+        runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
+        champion_mae_pct = ml_candidate_30d_mae
+    elif prophet_30d_hits > ml_candidate_30d_hits:
         champion = "PROPHET_BASE"
         champion_label = "Prophet Base Model"
-        champion_dir_hits = prophet_hits
-        champion_dir_hit_rate_pct = prophet_hit_rate
-        runner_up_dir_hit_rate_pct = ml_candidate_hit_rate
-        champion_mae_pct = prophet_mae
+        champion_dir_hits = prophet_30d_hits
+        champion_dir_hit_rate_pct = prophet_30d_hit_rate
+        runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
+        champion_mae_pct = prophet_30d_mae
     else:
-        # Tie on directional hit rate -> use lower MAE
-        if ml_candidate_mae <= prophet_mae:
+        # Tie on 30-day directional hit rate -> use lower 30-day MAE
+        if ml_candidate_30d_mae <= prophet_30d_mae:
             champion = "TERTIP_ML_CHALLENGER"
             champion_label = f"Tertip ML Challenger ({ml_champion_type})"
-            champion_dir_hits = ml_candidate_hits
-            champion_dir_hit_rate_pct = ml_candidate_hit_rate
-            runner_up_dir_hit_rate_pct = prophet_hit_rate
-            champion_mae_pct = ml_candidate_mae
+            champion_dir_hits = ml_candidate_30d_hits
+            champion_dir_hit_rate_pct = ml_candidate_30d_hit_rate
+            runner_up_dir_hit_rate_pct = prophet_30d_hit_rate
+            champion_mae_pct = ml_candidate_30d_mae
         else:
             champion = "PROPHET_BASE"
             champion_label = "Prophet Base Model"
-            champion_dir_hits = prophet_hits
-            champion_dir_hit_rate_pct = prophet_hit_rate
-            runner_up_dir_hit_rate_pct = ml_candidate_hit_rate
-            champion_mae_pct = prophet_mae
+            champion_dir_hits = prophet_30d_hits
+            champion_dir_hit_rate_pct = prophet_30d_hit_rate
+            runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
+            champion_mae_pct = prophet_30d_mae
 
     tournament_summary = {
         "champion": champion,
         "champion_label": champion_label,
         "ml_champion_type": ml_champion_type,
+        "selection_window_sessions": recent_window,
         "champion_dir_hits": champion_dir_hits,
         "champion_dir_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
         "runner_up_dir_hit_rate_pct": round(runner_up_dir_hit_rate_pct, 1),
         "champion_mae_pct": round(champion_mae_pct, 2),
-        "ml_dir_hits": ml_candidate_hits,
-        "ml_dir_hit_rate_pct": round(ml_candidate_hit_rate, 1),
-        "ml_hit_rate_pct": round(ml_candidate_hit_rate, 1),
-        "prophet_dir_hits": prophet_hits,
-        "prophet_dir_hit_rate_pct": round(prophet_hit_rate, 1),
-        "prophet_hit_rate_pct": round(prophet_hit_rate, 1),
-        "ridge_dir_hits": candidates_meta["Ridge"]["hits"],
-        "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
+        "champion_30d_hits": champion_dir_hits,
+        "champion_30d_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
+        "champion_30d_mae_pct": round(champion_mae_pct, 2),
+        "champion_full_hits": ml_candidate_hits if champion != "PROPHET_BASE" else prophet_hits,
+        "champion_full_hit_rate_pct": round(ml_candidate_hit_rate if champion != "PROPHET_BASE" else prophet_hit_rate, 1),
+        "champion_full_mae_pct": round(ml_candidate_mae if champion != "PROPHET_BASE" else prophet_mae, 2),
+        "ml_dir_hits": ml_candidate_30d_hits,
+        "ml_dir_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
+        "ml_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
+        "ml_full_hits": ml_candidate_hits,
+        "ml_full_hit_rate_pct": round(ml_candidate_hit_rate, 1),
+        "prophet_dir_hits": prophet_30d_hits,
+        "prophet_dir_hit_rate_pct": round(prophet_30d_hit_rate, 1),
+        "prophet_hit_rate_pct": round(prophet_30d_hit_rate, 1),
+        "prophet_full_hits": prophet_hits,
+        "prophet_full_hit_rate_pct": round(prophet_hit_rate, 1),
+        "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
+        "ridge_dir_hits": candidates_meta["Ridge"]["hits_30d"],
+        "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
-        "ridge_mae_pct": round(candidates_meta["Ridge"]["mae"], 2),
-        "xgboost_dir_hits": candidates_meta["XGBoost"]["hits"],
-        "xgboost_dir_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
+        "ridge_mae_pct": round(candidates_meta["Ridge"]["mae_30d"], 2),
+        "xgboost_30d_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
+        "xgboost_dir_hits": candidates_meta["XGBoost"]["hits_30d"],
+        "xgboost_dir_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
         "xgboost_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
-        "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae"], 2),
-        "lightgbm_dir_hits": candidates_meta["LightGBM"]["hits"],
-        "lightgbm_dir_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
+        "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae_30d"], 2),
+        "lightgbm_30d_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
+        "lightgbm_dir_hits": candidates_meta["LightGBM"]["hits_30d"],
+        "lightgbm_dir_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
         "lightgbm_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
-        "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae"], 2),
-        "huber_dir_hits": candidates_meta["Huber"]["hits"],
-        "huber_dir_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
+        "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae_30d"], 2),
+        "huber_30d_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
+        "huber_dir_hits": candidates_meta["Huber"]["hits_30d"],
+        "huber_dir_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
         "huber_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
-        "huber_mae_pct": round(candidates_meta["Huber"]["mae"], 2),
-        "bayesian_ridge_dir_hits": candidates_meta["BayesianRidge"]["hits"],
-        "bayesian_ridge_dir_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
+        "huber_mae_pct": round(candidates_meta["Huber"]["mae_30d"], 2),
+        "bayesian_ridge_30d_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
+        "bayesian_ridge_dir_hits": candidates_meta["BayesianRidge"]["hits_30d"],
+        "bayesian_ridge_dir_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
         "bayesian_ridge_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
-        "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae"], 2),
-        "ml_mae_pct": round(ml_candidate_mae, 2),
-        "prophet_mae_pct": round(prophet_mae, 2),
+        "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae_30d"], 2),
+        "ml_mae_pct": round(ml_candidate_30d_mae, 2),
+        "prophet_mae_pct": round(prophet_30d_mae, 2),
         "ml_error_wins": ml_error_wins,
         "prophet_error_wins": prophet_error_wins,
         "ml_wins": ml_error_wins,
