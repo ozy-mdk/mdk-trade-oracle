@@ -13,87 +13,87 @@ symbols:
     recent_30d_hits: 14
     recent_30d_hit_rate_pct: 46.7
     recent_30d_mae_pct: 1.61
-    recent_30d_penalty_loss: 5.12
+    recent_30d_penalty_loss: 5.11
   AKBNK:
     model: Huber
     horizon: 6m
     training_lookback_sessions: 126
     recent_30d_hits: 20
     recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 2.01
-    recent_30d_penalty_loss: 4.34
+    recent_30d_mae_pct: 2.0
+    recent_30d_penalty_loss: 4.35
   ASELS:
-    model: XGBoost
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 18
-    recent_30d_hit_rate_pct: 60.0
-    recent_30d_mae_pct: 1.97
-    recent_30d_penalty_loss: 6.76
+    model: Huber
+    horizon: 12m
+    training_lookback_sessions: 252
+    recent_30d_hits: 15
+    recent_30d_hit_rate_pct: 50.0
+    recent_30d_mae_pct: 2.11
+    recent_30d_penalty_loss: 7.15
   ASTOR:
     model: BayesianRidge
     horizon: 3m
     training_lookback_sessions: 63
     recent_30d_hits: 19
     recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 3.55
-    recent_30d_penalty_loss: 13.55
+    recent_30d_mae_pct: 3.54
+    recent_30d_penalty_loss: 13.44
   BIMAS:
-    model: XGBoost
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 20
-    recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 1.28
-    recent_30d_penalty_loss: 3.23
+    model: LightGBM
+    horizon: 12m
+    training_lookback_sessions: 252
+    recent_30d_hits: 16
+    recent_30d_hit_rate_pct: 53.3
+    recent_30d_mae_pct: 1.36
+    recent_30d_penalty_loss: 3.62
   DSTKF:
-    model: XGBoost
+    model: LightGBM
     horizon: 3m
     training_lookback_sessions: 63
-    recent_30d_hits: 24
-    recent_30d_hit_rate_pct: 80.0
-    recent_30d_mae_pct: 4.9
-    recent_30d_penalty_loss: 20.74
+    recent_30d_hits: 25
+    recent_30d_hit_rate_pct: 83.3
+    recent_30d_mae_pct: 5.54
+    recent_30d_penalty_loss: 17.39
   EKGYO:
     model: XGBoost
     horizon: 6m
     training_lookback_sessions: 126
-    recent_30d_hits: 15
-    recent_30d_hit_rate_pct: 50.0
+    recent_30d_hits: 14
+    recent_30d_hit_rate_pct: 46.7
     recent_30d_mae_pct: 2.77
-    recent_30d_penalty_loss: 8.66
+    recent_30d_penalty_loss: 8.62
   ENKAI:
-    model: Ridge
+    model: LightGBM
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 1.83
-    recent_30d_penalty_loss: 6.65
+    recent_30d_hits: 18
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 1.67
+    recent_30d_penalty_loss: 6.5
   EREGL:
     model: LightGBM
     horizon: 3m
     training_lookback_sessions: 63
     recent_30d_hits: 18
     recent_30d_hit_rate_pct: 60.0
-    recent_30d_mae_pct: 1.83
-    recent_30d_penalty_loss: 5.93
+    recent_30d_mae_pct: 1.84
+    recent_30d_penalty_loss: 5.9
   FROTO:
-    model: BayesianRidge
-    horizon: 12m
-    training_lookback_sessions: 252
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 1.75
-    recent_30d_penalty_loss: 5.11
+    model: LightGBM
+    horizon: 3m
+    training_lookback_sessions: 63
+    recent_30d_hits: 16
+    recent_30d_hit_rate_pct: 53.3
+    recent_30d_mae_pct: 1.83
+    recent_30d_penalty_loss: 5.08
   GARAN:
     model: LightGBM
     horizon: 6m
     training_lookback_sessions: 126
-    recent_30d_hits: 22
-    recent_30d_hit_rate_pct: 73.3
-    recent_30d_mae_pct: 1.74
-    recent_30d_penalty_loss: 3.5
+    recent_30d_hits: 21
+    recent_30d_hit_rate_pct: 70.0
+    recent_30d_mae_pct: 1.73
+    recent_30d_penalty_loss: 3.48
   GUBRF:
     model: BayesianRidge
     horizon: 3m
@@ -101,7 +101,7 @@ symbols:
     recent_30d_hits: 15
     recent_30d_hit_rate_pct: 50.0
     recent_30d_mae_pct: 2.86
-    recent_30d_penalty_loss: 9.29
+    recent_30d_penalty_loss: 9.21
   ISCTR:
     model: BayesianRidge
     horizon: 12m
@@ -109,15 +109,15 @@ symbols:
     recent_30d_hits: 17
     recent_30d_hit_rate_pct: 56.7
     recent_30d_mae_pct: 2.24
-    recent_30d_penalty_loss: 10.12
+    recent_30d_penalty_loss: 10.11
   KCHOL:
     model: BayesianRidge
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 18
-    recent_30d_hit_rate_pct: 60.0
+    recent_30d_hits: 17
+    recent_30d_hit_rate_pct: 56.7
     recent_30d_mae_pct: 1.52
-    recent_30d_penalty_loss: 6.52
+    recent_30d_penalty_loss: 6.56
   KRDMD:
     model: Ridge
     horizon: 12m
@@ -125,23 +125,23 @@ symbols:
     recent_30d_hits: 16
     recent_30d_hit_rate_pct: 53.3
     recent_30d_mae_pct: 2.29
-    recent_30d_penalty_loss: 8.66
+    recent_30d_penalty_loss: 8.69
   MGROS:
-    model: LightGBM
+    model: BayesianRidge
     horizon: 6m
     training_lookback_sessions: 126
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 1.67
-    recent_30d_penalty_loss: 4.04
+    recent_30d_hits: 18
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 1.73
+    recent_30d_penalty_loss: 4.16
   PETKM:
     model: LightGBM
     horizon: 6m
     training_lookback_sessions: 126
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
+    recent_30d_hits: 20
+    recent_30d_hit_rate_pct: 66.7
     recent_30d_mae_pct: 3.34
-    recent_30d_penalty_loss: 9.61
+    recent_30d_penalty_loss: 9.57
   PGSUS:
     model: BayesianRidge
     horizon: 12m
@@ -149,31 +149,31 @@ symbols:
     recent_30d_hits: 19
     recent_30d_hit_rate_pct: 63.3
     recent_30d_mae_pct: 1.59
-    recent_30d_penalty_loss: 5.05
+    recent_30d_penalty_loss: 5.04
   SAHOL:
     model: BayesianRidge
     horizon: 3m
     training_lookback_sessions: 63
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
+    recent_30d_hits: 19
+    recent_30d_hit_rate_pct: 63.3
     recent_30d_mae_pct: 1.63
-    recent_30d_penalty_loss: 8.05
+    recent_30d_penalty_loss: 7.9
   SASA:
-    model: BayesianRidge
+    model: LightGBM
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 3.23
-    recent_30d_penalty_loss: 14.33
+    recent_30d_hits: 14
+    recent_30d_hit_rate_pct: 46.7
+    recent_30d_mae_pct: 3.42
+    recent_30d_penalty_loss: 11.31
   SISE:
     model: XGBoost
     horizon: 6m
     training_lookback_sessions: 126
     recent_30d_hits: 17
     recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 2.43
-    recent_30d_penalty_loss: 8.21
+    recent_30d_mae_pct: 2.42
+    recent_30d_penalty_loss: 8.14
   TAVHL:
     model: BayesianRidge
     horizon: 6m
@@ -181,7 +181,7 @@ symbols:
     recent_30d_hits: 17
     recent_30d_hit_rate_pct: 56.7
     recent_30d_mae_pct: 1.77
-    recent_30d_penalty_loss: 4.09
+    recent_30d_penalty_loss: 4.08
   TCELL:
     model: LightGBM
     horizon: 6m
@@ -194,18 +194,18 @@ symbols:
     model: XGBoost
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 1.46
-    recent_30d_penalty_loss: 3.59
+    recent_30d_hits: 22
+    recent_30d_hit_rate_pct: 73.3
+    recent_30d_mae_pct: 1.45
+    recent_30d_penalty_loss: 3.61
   TOASO:
-    model: LightGBM
-    horizon: 12m
-    training_lookback_sessions: 252
-    recent_30d_hits: 21
-    recent_30d_hit_rate_pct: 70.0
-    recent_30d_mae_pct: 1.87
-    recent_30d_penalty_loss: 4.87
+    model: XGBoost
+    horizon: 6m
+    training_lookback_sessions: 126
+    recent_30d_hits: 23
+    recent_30d_hit_rate_pct: 76.7
+    recent_30d_mae_pct: 1.79
+    recent_30d_penalty_loss: 5.15
   TRALT:
     model: Ridge
     horizon: 12m
@@ -215,12 +215,12 @@ symbols:
     recent_30d_mae_pct: 3.0
   TTKOM:
     model: XGBoost
-    horizon: 12m
-    training_lookback_sessions: 252
-    recent_30d_hits: 12
-    recent_30d_hit_rate_pct: 40.0
-    recent_30d_mae_pct: 2.51
-    recent_30d_penalty_loss: 9.44
+    horizon: 6m
+    training_lookback_sessions: 126
+    recent_30d_hits: 18
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 2.37
+    recent_30d_penalty_loss: 9.69
   TUPRS:
     model: BayesianRidge
     horizon: 12m
@@ -228,20 +228,20 @@ symbols:
     recent_30d_hits: 16
     recent_30d_hit_rate_pct: 53.3
     recent_30d_mae_pct: 2.07
-    recent_30d_penalty_loss: 9.1
+    recent_30d_penalty_loss: 9.07
   VAKBN:
     model: XGBoost
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 13
-    recent_30d_hit_rate_pct: 43.3
+    recent_30d_hits: 14
+    recent_30d_hit_rate_pct: 46.7
     recent_30d_mae_pct: 3.28
-    recent_30d_penalty_loss: 15.17
+    recent_30d_penalty_loss: 15.2
   YKBNK:
     model: XGBoost
     horizon: 12m
     training_lookback_sessions: 252
     recent_30d_hits: 21
     recent_30d_hit_rate_pct: 70.0
-    recent_30d_mae_pct: 2.04
-    recent_30d_penalty_loss: 4.66
+    recent_30d_mae_pct: 2.05
+    recent_30d_penalty_loss: 4.62

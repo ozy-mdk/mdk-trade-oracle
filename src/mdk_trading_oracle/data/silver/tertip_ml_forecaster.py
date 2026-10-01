@@ -580,16 +580,9 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
-        # Training sample weighting: gentle flat day discounting (0.8x for flat days, 1.0x for rest)
-        sample_weights_tr = np.where(
-            np.abs(y_tr) <= 0.5,
-            0.8,
-            1.0,
-        )
-
         # Candidate A: Ridge
         ridge = Ridge(alpha=10.0, random_state=42)
-        ridge.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+        ridge.fit(X_tr, y_tr)
         pred_ret_ridge = float(ridge.predict(X_prev)[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
@@ -606,7 +599,7 @@ def run_30d_walk_forward_arena(
             random_state=42,
             n_jobs=1,
         )
-        xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+        xgb.fit(X_tr, y_tr)
         pred_ret_xgb = float(xgb.predict(X_prev)[0])
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
@@ -625,7 +618,7 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
             verbose=-1,
         )
-        lgbm.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+        lgbm.fit(X_tr, y_tr)
         pred_ret_lgbm = float(lgbm.predict(X_prev)[0])
         pred_ret_lgbm = max(-10.0, min(10.0, pred_ret_lgbm))
         lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
@@ -637,7 +630,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
         ])
-        huber.fit(X_tr, y_tr, regressor__sample_weight=sample_weights_tr)
+        huber.fit(X_tr, y_tr)
         pred_ret_huber = float(huber.predict(X_prev)[0])
         pred_ret_huber = max(-10.0, min(10.0, pred_ret_huber))
         huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
@@ -649,7 +642,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", BayesianRidge(max_iter=300)),
         ])
-        bayes.fit(X_tr, y_tr, regressor__sample_weight=sample_weights_tr)
+        bayes.fit(X_tr, y_tr)
         pred_ret_bayes = float(bayes.predict(X_prev)[0])
         pred_ret_bayes = max(-10.0, min(10.0, pred_ret_bayes))
         bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
@@ -1319,15 +1312,7 @@ def get_tertip_ml_forecast(
     else:
         live_ml = Ridge(alpha=10.0, random_state=42)
 
-    sample_weights_full = np.where(
-        np.abs(y_tr_full) <= 0.5,
-        0.8,
-        1.0,
-    )
-    if ml_champion_type in ("Huber", "BayesianRidge"):
-        live_ml.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights_full)
-    else:
-        live_ml.fit(X_tr_full, y_tr_full, sample_weight=sample_weights_full)
+    live_ml.fit(X_tr_full, y_tr_full)
     pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
     pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
 
