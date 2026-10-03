@@ -41,7 +41,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 }) => {
   const [activeSymbol, setActiveSymbol] = useState<string>(symbol);
   const [modelType, setModelType] = useState<'auto' | 'ridge' | 'xgboost'>('auto');
-  const [activeModel, setActiveModel] = useState<'confluence' | 'ml' | 'prophet'>('confluence');
+  const [activeModel, setActiveModel] = useState<'champion' | 'ml' | 'prophet'>('champion');
   const [horizonRange, setHorizonRange] = useState<'30d' | '6m'>('30d');
   const [chartView, setChartView] = useState<'price' | 'return'>('price');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -78,9 +78,6 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   // Horizon slice: Last 30 sessions (focused recent view) vs Full hydrated multi-month history (126-180 sessions)
   const displayLedger = horizonRange === '30d' ? ledger.slice(-30) : ledger;
 
-  // Convex Softmax Weights (calibrated from out-of-sample directional hit rate)
-  const convexWeightMl = forecast?.convex_weight_ml ?? tournament?.convex_weight_ml ?? 0.70;
-  const convexWeightProphet = forecast?.convex_weight_prophet ?? tournament?.convex_weight_prophet ?? 0.30;
 
   // Dynamic targeting based on selected perspective
   let activeTargetPrice = forecast?.target_price || 0;
@@ -115,25 +112,25 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const getRowPredPrice = (r: WalkForwardLedgerItem) => {
     if (activeModel === 'ml') return r.ml_pred_price;
     if (activeModel === 'prophet') return r.prophet_pred_price;
-    return r.confluence_pred_price !== undefined ? r.confluence_pred_price : r.ml_pred_price;
+    return r.champion_pred_price !== undefined ? r.champion_pred_price : (r.confluence_pred_price !== undefined ? r.confluence_pred_price : r.ml_pred_price);
   };
 
   const getRowPredReturn = (r: WalkForwardLedgerItem) => {
     if (activeModel === 'ml') return r.ml_pred_return_pct || 0;
     if (activeModel === 'prophet') return r.prophet_pred_return_pct || 0;
-    return r.confluence_pred_return_pct !== undefined ? r.confluence_pred_return_pct : (r.ml_pred_return_pct || 0);
+    return r.champion_pred_return_pct !== undefined ? r.champion_pred_return_pct : (r.confluence_pred_return_pct !== undefined ? r.confluence_pred_return_pct : (r.ml_pred_return_pct || 0));
   };
 
   const getRowHit = (r: WalkForwardLedgerItem) => {
     if (activeModel === 'ml') return r.ml_is_hit;
     if (activeModel === 'prophet') return r.prophet_is_hit;
-    return r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit;
+    return r.champion_is_hit !== undefined ? r.champion_is_hit : (r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit);
   };
 
   const getRowErrPct = (r: WalkForwardLedgerItem) => {
     if (activeModel === 'ml') return r.ml_err_pct;
     if (activeModel === 'prophet') return r.prophet_err_pct;
-    return r.confluence_err_pct !== undefined ? r.confluence_err_pct : r.ml_err_pct;
+    return r.champion_err_pct !== undefined ? r.champion_err_pct : (r.confluence_err_pct !== undefined ? r.confluence_err_pct : r.ml_err_pct);
   };
 
   // Performance hits and hit rates evaluated over the visible horizon (displayLedger)
@@ -141,8 +138,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const activeMiss = displayLedger.length - activeHits;
   const activeHitRatePct = displayLedger.length > 0 ? (activeHits / displayLedger.length) * 100 : 0;
 
-  const confluenceHits = displayLedger.filter((r) => r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit).length;
-  const confluenceHitRatePct = displayLedger.length > 0 ? (confluenceHits / displayLedger.length) * 100 : 0;
+  const championHits = displayLedger.filter((r) => r.champion_is_hit !== undefined ? r.champion_is_hit : (r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit)).length;
+  const championHitRatePct = displayLedger.length > 0 ? (championHits / displayLedger.length) * 100 : 0;
 
   const mlHits = displayLedger.filter((r) => r.ml_is_hit).length;
   const mlHitRatePct = displayLedger.length > 0 ? (mlHits / displayLedger.length) * 100 : 0;
@@ -334,17 +331,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
           </span>
           <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 font-mono text-xs shadow-inner">
             <button
-              onClick={() => setActiveModel('confluence')}
+              onClick={() => setActiveModel('champion')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
-                activeModel === 'confluence'
+                activeModel === 'champion'
                   ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
               <span>👑</span>
-              <span>Convex Confluence (Default)</span>
+              <span>Crowned Champion (Default)</span>
               <span className="text-[9px] opacity-80 font-normal">
-                ({Math.round(convexWeightMl * 100)}% ML + {Math.round(convexWeightProphet * 100)}% P)
+                ({tournament?.grand_champion_key || (tournament?.champion === 'PROPHET_BASE' ? 'Prophet' : tournament?.ml_champion_type || 'Champion')})
               </span>
             </button>
 
@@ -432,13 +429,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     TARGET: {forecast.as_of_date}
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
-                    activeModel === 'confluence'
+                    activeModel === 'champion'
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                       : activeModel === 'ml'
                       ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
                       : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                   }`}>
-                    {activeModel === 'confluence' ? '👑 CONVEX CONFLUENCE' : activeModel === 'ml' ? '⚡ PURE ML' : '📈 PROPHET BASELINE'}
+                    {activeModel === 'champion'
+                      ? `👑 CROWNED CHAMPION (${tournament?.grand_champion_key || (tournament?.champion === 'PROPHET_BASE' ? 'PROPHET' : tournament?.ml_champion_type || 'CHAMPION')})`
+                      : activeModel === 'ml'
+                      ? '⚡ PURE ML'
+                      : '📈 PROPHET BASELINE'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 font-mono">
@@ -499,8 +500,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800 flex flex-col justify-between text-xs font-mono">
                   <div className="text-[10.5px] text-slate-400 mb-0.5">Model Targets Overview</div>
                   <div className="space-y-1">
-                    <div className={`flex items-center justify-between text-[11px] ${activeModel === 'confluence' ? 'font-bold' : ''}`}>
-                      <span className="text-amber-400">Confluence:</span>
+                    <div className={`flex items-center justify-between text-[11px] ${activeModel === 'champion' ? 'font-bold' : ''}`}>
+                      <span className="text-amber-400">Crowned Champion:</span>
                       <span className="text-white">
                         ₺{forecast.target_price.toFixed(2)}{' '}
                         <span className={forecast.expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
@@ -529,8 +530,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       </span>
                     </div>
                   </div>
-                  <div className="text-[9px] text-slate-500 mt-1">
-                    Weights: <span className="text-amber-300 font-semibold">{Math.round(convexWeightMl * 100)}% ML / {Math.round(convexWeightProphet * 100)}% Prophet</span>
+                  <div className="text-[9px] text-slate-400 mt-1">
+                    Crowned: <span className="text-amber-300 font-semibold">{tournament?.champion_label || 'Tournament Champion'}</span>
                   </div>
                 </div>
               </div>
@@ -551,16 +552,16 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-3">
                   <Trophy className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                    {activeModel === 'confluence' ? 'Grand Tournament Champion' : activeModel === 'ml' ? 'ML Challenger Perspective' : 'Prophet Prior Perspective'}
+                    {activeModel === 'champion' ? 'Grand Tournament Champion' : activeModel === 'ml' ? 'ML Challenger Perspective' : 'Prophet Prior Perspective'}
                   </span>
                 </div>
 
                 <div className="text-center py-2">
                   <div className="text-sm font-black text-white font-mono flex items-center justify-center gap-1.5">
-                    <span>{activeModel === 'confluence' ? '👑' : activeModel === 'ml' ? '⚡' : '📈'}</span>
+                    <span>{activeModel === 'champion' ? '👑' : activeModel === 'ml' ? '⚡' : '📈'}</span>
                     <span>
-                      {activeModel === 'confluence'
-                        ? tournament?.champion_label || 'Convex Confluence'
+                      {activeModel === 'champion'
+                        ? tournament?.champion_label || 'Crowned Champion'
                         : activeModel === 'ml'
                         ? `${tournament?.ml_champion_type || 'Pure ML'} Challenger`
                         : 'Prophet Baseline Prior'}
@@ -579,9 +580,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Confluence Hit Rate:</span>
+                    <span className="text-slate-400">Champion Hit Rate:</span>
                     <span className="font-semibold text-amber-300">
-                      {confluenceHits}/{displayLedger.length} ({confluenceHitRatePct.toFixed(1)}%)
+                      {championHits}/{displayLedger.length} ({championHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
@@ -613,7 +614,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <div className="flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-cyan-400" />
                 <span className="text-sm font-bold text-white tracking-wide">
-                  Walk-Forward Performance: {activeModel === 'confluence' ? 'Convex Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} vs Realized
+                  Walk-Forward Performance: {activeModel === 'champion' ? (tournament?.champion_label || 'Crowned Champion') : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} vs Realized
                 </span>
                 <span className="text-xs text-slate-500 font-mono">
                   ({horizonRange === '30d' ? 'Last 30 Sessions' : `${displayLedger.length} Sessions (6 Months)`})
@@ -624,7 +625,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center font-mono text-[9px] gap-1.5">
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                    {activeModel === 'confluence' ? 'Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'}:{' '}
+                    {activeModel === 'champion' ? 'Champion' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'}:{' '}
                     <span className="text-emerald-400 font-bold">{activeHits}✓</span> /{' '}
                     <span className="text-rose-400 font-bold">{activeMiss}✗</span> ({activeHitRatePct.toFixed(1)}%)
                   </span>
@@ -772,7 +773,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predPricePath}
                       fill="none"
-                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
+                      stroke={activeModel === 'champion' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -794,7 +795,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predReturnPath}
                       fill="none"
-                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
+                      stroke={activeModel === 'champion' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -810,7 +811,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   const yPred = chartView === 'price' ? getYPrice(getRowPredPrice(r)) : getYReturn(getRowPredReturn(r));
                   const isHovered = hoveredIdx === i;
                   const isHit = getRowHit(r);
-                  const predColor = activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef';
+                  const predColor = activeModel === 'champion' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef';
                   const actualColor = '#38bdf8';
                   const baseR = displayLedger.length > 60 ? 2.2 : 3.5;
                   const dotR = isHovered ? baseR + 2.0 : baseR;
@@ -932,8 +933,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className={activeModel === 'confluence' ? 'text-amber-400' : activeModel === 'ml' ? 'text-indigo-400' : 'text-fuchsia-400'}>
-                        {activeModel === 'confluence' ? 'Confluence Pred:' : activeModel === 'ml' ? 'ML Pred:' : 'Prophet Pred:'}
+                      <span className={activeModel === 'champion' ? 'text-amber-400' : activeModel === 'ml' ? 'text-indigo-400' : 'text-fuchsia-400'}>
+                        {activeModel === 'champion' ? 'Champion Pred:' : activeModel === 'ml' ? 'ML Pred:' : 'Prophet Pred:'}
                       </span>
                       <span className="font-bold text-white">
                         ₺{getRowPredPrice(hoveredItem).toFixed(2)}{' '}
@@ -1011,13 +1012,13 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   </div>
                   <div className="flex items-center space-x-1.5">
                     <span className={`w-3 h-0.5 border-b border-dashed inline-block ${
-                      activeModel === 'confluence'
+                      activeModel === 'champion'
                         ? 'border-amber-400'
                         : activeModel === 'ml'
                         ? 'border-indigo-400'
                         : 'border-fuchsia-400'
                     }`} />
-                    <span>{activeModel === 'confluence' ? 'Confluence (Amber)' : activeModel === 'ml' ? 'Pure ML (Indigo)' : 'Prophet (Fuchsia)'}</span>
+                    <span>{activeModel === 'champion' ? `Champion (${tournament?.grand_champion_key || 'Amber'})` : activeModel === 'ml' ? 'Pure ML (Indigo)' : 'Prophet (Fuchsia)'}</span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -1112,12 +1113,12 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   Out-of-Sample Walk-Forward Reality Ledger ({displayLedger.length} Sessions)
                 </span>
                 <span className="text-xs text-slate-500 font-mono">
-                  Showing {activeModel === 'confluence' ? 'Convex Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} Perspective
+                  Showing {activeModel === 'champion' ? (tournament?.champion_label || 'Crowned Champion') : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} Perspective
                 </span>
               </div>
               <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
                 <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                  {activeModel === 'confluence' ? 'Confluence' : activeModel === 'ml' ? 'ML' : 'Prophet'}:{' '}
+                  {activeModel === 'champion' ? 'Champion' : activeModel === 'ml' ? 'ML' : 'Prophet'}:{' '}
                   <span className="text-emerald-400 font-bold">{activeHits}✓</span> /{' '}
                   <span className="text-rose-400 font-bold">{activeMiss}✗</span> ({activeHitRatePct.toFixed(1)}%)
                 </span>
@@ -1141,10 +1142,10 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <th className="text-left px-2 py-1.5">Date</th>
                     <th className="text-right px-2 py-1.5">Actual Close</th>
                     <th className="text-right px-2 py-1.5 text-amber-300">
-                      {activeModel === 'confluence' ? 'Confluence Pred' : activeModel === 'ml' ? 'Pure ML Pred' : 'Prophet Pred'}
+                      {activeModel === 'champion' ? 'Champion Pred' : activeModel === 'ml' ? 'Pure ML Pred' : 'Prophet Pred'}
                     </th>
                     <th className="text-center px-2 py-1.5 text-cyan-300">
-                      {activeModel === 'confluence' ? 'Confluence Hit?' : activeModel === 'ml' ? 'ML Hit?' : 'Prophet Hit?'}
+                      {activeModel === 'champion' ? 'Champion Hit?' : activeModel === 'ml' ? 'ML Hit?' : 'Prophet Hit?'}
                     </th>
                     {activeModel !== 'ml' && (
                       <th className="text-right px-2 py-1.5 text-indigo-400">ML Alone</th>
