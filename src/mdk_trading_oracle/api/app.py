@@ -375,10 +375,14 @@ class Bist30Trend(BaseModel):
 
 class TertipMlForecastResponse(BaseModel):
     symbol: str
+    champion: Optional[str] = None
+    champion_label: Optional[str] = None
     as_of_date: str
     latest_close_price: float
     target_price: float
     expected_return_pct: float
+    champion_target_price: Optional[float] = None
+    champion_expected_return_pct: Optional[float] = None
     confluence_target_price: Optional[float] = None
     confluence_expected_return_pct: Optional[float] = None
     convex_weight_ml: Optional[float] = None

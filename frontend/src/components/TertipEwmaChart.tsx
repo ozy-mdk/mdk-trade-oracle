@@ -1989,7 +1989,10 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
 
                     {/* 30-Day Walk-Forward Reality Ledger Table */}
                     <div className="space-y-1">
-                      <div className="text-[10px] font-bold text-slate-300 tracking-wide flex flex-wrap items-center just                          {(() => {
+                      <div className="text-[10px] font-bold text-slate-300 tracking-wide flex flex-wrap items-center justify-between gap-1">
+                        <span>Out-of-Sample Walk-Forward Reality Ledger</span>
+                        <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
+                          {(() => {
                             const ledger = mlForecast.walk_forward_ledger || [];
                             const tournament = mlForecast.tournament_summary;
                             const champKey = tournament?.grand_champion_key || (tournament?.champion === 'PROPHET_BASE' ? 'Prophet' : tournament?.ml_champion_type || 'Champion');

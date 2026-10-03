@@ -1602,6 +1602,7 @@ def get_tertip_ml_forecast(
     response_data = {
         "symbol": sym,
         "champion": champion,
+        "champion_label": champion_label,
         "as_of_date": latest_date_str,
         "latest_close_price": round(latest_price, 2),
         "target_price": round(target_price, 2),
