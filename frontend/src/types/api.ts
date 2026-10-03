@@ -313,6 +313,8 @@ export interface WalkForwardLedgerItem {
   confluence_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
   confluence_err_pct?: number;
   confluence_is_hit?: boolean;
+  convex_weight_ml?: number;
+  convex_weight_prophet?: number;
   prophet_pred_price: number;
   prophet_pred_return_pct?: number;
   prophet_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
@@ -343,6 +345,8 @@ export interface TournamentSummary {
   crowned_horizon?: string;
   training_lookback_sessions?: number;
   selection_window_sessions?: number;
+  convex_weight_ml?: number;
+  convex_weight_prophet?: number;
   champion_dir_hits?: number;
   champion_dir_hit_rate_pct?: number;
   runner_up_dir_hit_rate_pct?: number;
@@ -445,8 +449,13 @@ export interface TertipMlForecastResponse {
   expected_return_pct: number;
   confluence_target_price?: number;
   confluence_expected_return_pct?: number;
+  convex_weight_ml?: number;
+  convex_weight_prophet?: number;
   ml_target_price?: number;
   ml_expected_return_pct?: number;
+  ml_stance?: string;
+  ml_stance_badge?: string;
+  ml_stance_color?: string;
   price_low: number;
   price_high: number;
   stance: string;
@@ -454,6 +463,9 @@ export interface TertipMlForecastResponse {
   stance_color: string;
   prophet_target_price: number;
   prophet_expected_return_pct: number;
+  prophet_stance?: string;
+  prophet_stance_badge?: string;
+  prophet_stance_color?: string;
   days_since_last_positive_shock?: number;
   days_since_last_negative_shock?: number;
   bist30_trend?: Bist30Trend;

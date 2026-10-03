@@ -239,6 +239,8 @@ class WalkForwardLedgerItem(BaseModel):
     confluence_direction: Optional[str] = "FLAT"
     confluence_err_pct: Optional[float] = None
     confluence_is_hit: Optional[bool] = None
+    convex_weight_ml: Optional[float] = None
+    convex_weight_prophet: Optional[float] = None
     prophet_pred_price: float
     prophet_pred_return_pct: float = 0.0
     prophet_direction: str = "FLAT"
@@ -274,6 +276,8 @@ class TournamentSummary(BaseModel):
     crowned_horizon: Optional[str] = "12m"
     training_lookback_sessions: Optional[int] = 252
     selection_window_sessions: Optional[int] = 30
+    convex_weight_ml: Optional[float] = None
+    convex_weight_prophet: Optional[float] = None
     champion_dir_hits: Optional[int] = None
     champion_dir_hit_rate_pct: Optional[float] = None
     runner_up_dir_hit_rate_pct: Optional[float] = None
@@ -377,8 +381,13 @@ class TertipMlForecastResponse(BaseModel):
     expected_return_pct: float
     confluence_target_price: Optional[float] = None
     confluence_expected_return_pct: Optional[float] = None
+    convex_weight_ml: Optional[float] = None
+    convex_weight_prophet: Optional[float] = None
     ml_target_price: Optional[float] = None
     ml_expected_return_pct: Optional[float] = None
+    ml_stance: Optional[str] = None
+    ml_stance_badge: Optional[str] = None
+    ml_stance_color: Optional[str] = None
     price_low: float
     price_high: float
     stance: str
@@ -386,6 +395,9 @@ class TertipMlForecastResponse(BaseModel):
     stance_color: str
     prophet_target_price: float
     prophet_expected_return_pct: float
+    prophet_stance: Optional[str] = None
+    prophet_stance_badge: Optional[str] = None
+    prophet_stance_color: Optional[str] = None
     days_since_last_positive_shock: int = 0
     days_since_last_negative_shock: int = 0
     bist30_trend: Optional[Bist30Trend] = None

@@ -2059,6 +2059,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                               const isActUp = row.actual_return_pct > 0.02;
                               const isActDown = row.actual_return_pct < -0.02;
                               const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
+                              const bothMiss = !row.ml_is_hit && !row.prophet_is_hit;
 
                               return (
                                 <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">

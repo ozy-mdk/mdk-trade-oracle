@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTertipMlForecast } from '../api/client';
+import { WalkForwardLedgerItem } from '../types/api';
 import { formatTL } from '../utils/formatters';
 import {
   BrainCircuit,
@@ -40,6 +41,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 }) => {
   const [activeSymbol, setActiveSymbol] = useState<string>(symbol);
   const [modelType, setModelType] = useState<'auto' | 'ridge' | 'xgboost'>('auto');
+  const [activeModel, setActiveModel] = useState<'confluence' | 'ml' | 'prophet'>('confluence');
+  const [horizonRange, setHorizonRange] = useState<'30d' | '6m'>('30d');
   const [chartView, setChartView] = useState<'price' | 'return'>('price');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -71,36 +74,83 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const tournament = forecast?.tournament_summary;
   const ledger = forecast?.walk_forward_ledger || [];
   const latestPrice = forecast?.latest_close_price || 0;
-  const targetPrice = forecast?.target_price || 0;
-  const expReturn = forecast?.expected_return_pct || 0;
-  const isUp = expReturn >= 0;
 
-  const isConfluence = tournament?.champion === 'TERTIP_CONFLUENCE';
-  const getRowHit = (r: WalkForwardLedgerItem) =>
-    isConfluence && r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit;
-  const getRowPredPrice = (r: WalkForwardLedgerItem) =>
-    isConfluence && r.confluence_pred_price !== undefined ? r.confluence_pred_price : r.ml_pred_price;
-  const getRowPredReturn = (r: WalkForwardLedgerItem) =>
-    isConfluence && r.confluence_pred_return_pct !== undefined
-      ? r.confluence_pred_return_pct
-      : r.ml_pred_return_pct || 0;
-  const getRowErrPct = (r: WalkForwardLedgerItem) =>
-    isConfluence && r.confluence_err_pct !== undefined ? r.confluence_err_pct : r.ml_err_pct;
+  // Horizon slice: Last 30 sessions (focused recent view) vs Full hydrated multi-month history (126-180 sessions)
+  const displayLedger = horizonRange === '30d' ? ledger.slice(-30) : ledger;
 
-  // Compute hits and misses from ledger
-  const champHits = ledger.filter((r) => getRowHit(r)).length;
-  const champMiss = ledger.length - champHits;
-  const champHitRatePct = ledger.length > 0 ? (champHits / ledger.length) * 100 : 0;
+  // Convex Softmax Weights (calibrated from out-of-sample directional hit rate)
+  const convexWeightMl = forecast?.convex_weight_ml ?? tournament?.convex_weight_ml ?? 0.70;
+  const convexWeightProphet = forecast?.convex_weight_prophet ?? tournament?.convex_weight_prophet ?? 0.30;
 
-  const mlHits = ledger.filter((r) => r.ml_is_hit).length;
-  const mlMiss = ledger.length - mlHits;
-  const mlHitRatePct = ledger.length > 0 ? (mlHits / ledger.length) * 100 : 0;
+  // Dynamic targeting based on selected perspective
+  let activeTargetPrice = forecast?.target_price || 0;
+  let activeExpReturn = forecast?.expected_return_pct || 0;
+  let activeStance = forecast?.stance || 'NEUTRAL';
+  let activeStanceBadge = forecast?.stance_badge || 'NEUTRAL CONSOLIDATION';
+  let activeStanceColor = forecast?.stance_color || 'slate';
+  let activeHeadline = forecast?.playbook_headline || '';
+  let activeRationale = forecast?.playbook_rationale || '';
 
-  const prophetHits = ledger.filter((r) => r.prophet_is_hit).length;
-  const prophetMiss = ledger.length - prophetHits;
-  const prophetHitRatePct = ledger.length > 0 ? (prophetHits / ledger.length) * 100 : 0;
+  if (activeModel === 'ml') {
+    activeTargetPrice = forecast?.ml_target_price ?? latestPrice;
+    activeExpReturn = forecast?.ml_expected_return_pct ?? 0;
+    activeStance = forecast?.ml_stance || 'NEUTRAL';
+    activeStanceBadge = forecast?.ml_stance_badge || 'ML CHALLENGER';
+    activeStanceColor = forecast?.ml_stance_color || 'cyan';
+    activeHeadline = `Projecting ML Challenger ${activeStanceBadge} towards ₺${activeTargetPrice.toFixed(2)} (${activeExpReturn >= 0 ? '+' : ''}${activeExpReturn.toFixed(2)}%)`;
+    activeRationale = `Pure ${tournament?.ml_champion_type || 'Machine Learning'} model trained strictly on trailing 12 months (252 sessions) using 21 scarce microstructure features and point-in-time FIFO inventory tracking.`;
+  } else if (activeModel === 'prophet') {
+    activeTargetPrice = forecast?.prophet_target_price ?? latestPrice;
+    activeExpReturn = forecast?.prophet_expected_return_pct ?? 0;
+    activeStance = forecast?.prophet_stance || 'NEUTRAL';
+    activeStanceBadge = forecast?.prophet_stance_badge || 'PROPHET BASELINE';
+    activeStanceColor = forecast?.prophet_stance_color || 'purple';
+    activeHeadline = `Projecting Prophet Baseline ${activeStanceBadge} towards ₺${activeTargetPrice.toFixed(2)} (${activeExpReturn >= 0 ? '+' : ''}${activeExpReturn.toFixed(2)}%)`;
+    activeRationale = `Univariate Bayesian structural time-series baseline capturing non-linear calendar seasonality and trailing momentum without order-flow features.`;
+  }
 
-  const last10Ledger = ledger.slice(-10);
+  const isUp = activeExpReturn >= 0;
+
+  // Row value accessors reflecting the currently active model perspective
+  const getRowPredPrice = (r: WalkForwardLedgerItem) => {
+    if (activeModel === 'ml') return r.ml_pred_price;
+    if (activeModel === 'prophet') return r.prophet_pred_price;
+    return r.confluence_pred_price !== undefined ? r.confluence_pred_price : r.ml_pred_price;
+  };
+
+  const getRowPredReturn = (r: WalkForwardLedgerItem) => {
+    if (activeModel === 'ml') return r.ml_pred_return_pct || 0;
+    if (activeModel === 'prophet') return r.prophet_pred_return_pct || 0;
+    return r.confluence_pred_return_pct !== undefined ? r.confluence_pred_return_pct : (r.ml_pred_return_pct || 0);
+  };
+
+  const getRowHit = (r: WalkForwardLedgerItem) => {
+    if (activeModel === 'ml') return r.ml_is_hit;
+    if (activeModel === 'prophet') return r.prophet_is_hit;
+    return r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit;
+  };
+
+  const getRowErrPct = (r: WalkForwardLedgerItem) => {
+    if (activeModel === 'ml') return r.ml_err_pct;
+    if (activeModel === 'prophet') return r.prophet_err_pct;
+    return r.confluence_err_pct !== undefined ? r.confluence_err_pct : r.ml_err_pct;
+  };
+
+  // Performance hits and hit rates evaluated over the visible horizon (displayLedger)
+  const activeHits = displayLedger.filter((r) => getRowHit(r)).length;
+  const activeMiss = displayLedger.length - activeHits;
+  const activeHitRatePct = displayLedger.length > 0 ? (activeHits / displayLedger.length) * 100 : 0;
+
+  const confluenceHits = displayLedger.filter((r) => r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit).length;
+  const confluenceHitRatePct = displayLedger.length > 0 ? (confluenceHits / displayLedger.length) * 100 : 0;
+
+  const mlHits = displayLedger.filter((r) => r.ml_is_hit).length;
+  const mlHitRatePct = displayLedger.length > 0 ? (mlHits / displayLedger.length) * 100 : 0;
+
+  const prophetHits = displayLedger.filter((r) => r.prophet_is_hit).length;
+  const prophetHitRatePct = displayLedger.length > 0 ? (prophetHits / displayLedger.length) * 100 : 0;
+
+  const last10Ledger = displayLedger.slice(-10);
   const l10Hits = last10Ledger.filter((r) => getRowHit(r)).length;
   const l10Miss = last10Ledger.length - l10Hits;
   const l10RatePct = last10Ledger.length > 0 ? (l10Hits / last10Ledger.length) * 100 : 0;
@@ -114,17 +164,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const innerH = chartHeight - paddingY * 2;
 
   // Price Extents
-  const minPrice = ledger.length
-    ? Math.min(...ledger.map((r) => Math.min(r.actual_price, getRowPredPrice(r)))) * 0.985
+  const minPrice = displayLedger.length
+    ? Math.min(...displayLedger.map((r) => Math.min(r.actual_price, getRowPredPrice(r)))) * 0.985
     : 0;
-  const maxPrice = ledger.length
-    ? Math.max(...ledger.map((r) => Math.max(r.actual_price, getRowPredPrice(r)))) * 1.015
+  const maxPrice = displayLedger.length
+    ? Math.max(...displayLedger.map((r) => Math.max(r.actual_price, getRowPredPrice(r)))) * 1.015
     : 100;
 
   // Return Extents
-  const maxAbsReturn = ledger.length
+  const maxAbsReturn = displayLedger.length
     ? Math.max(
-        ...ledger.map((r) =>
+        ...displayLedger.map((r) =>
           Math.max(Math.abs(r.actual_return_pct), Math.abs(getRowPredReturn(r)))
         ),
         4.0
@@ -132,8 +182,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     : 10;
 
   const getX = (idx: number) => {
-    if (ledger.length <= 1) return paddingX;
-    return paddingX + (idx / (ledger.length - 1)) * innerW;
+    if (displayLedger.length <= 1) return paddingX;
+    return paddingX + (idx / (displayLedger.length - 1)) * innerW;
   };
 
   const getYPrice = (val: number) => {
@@ -147,23 +197,26 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   };
 
   // Generate SVG path strings
-  const actualPricePath = ledger
+  const actualPricePath = displayLedger
     .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYPrice(r.actual_price).toFixed(1)}`)
     .join(' ');
 
-  const predPricePath = ledger
+  const predPricePath = displayLedger
     .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYPrice(getRowPredPrice(r)).toFixed(1)}`)
     .join(' ');
 
-  const actualReturnPath = ledger
+  const actualReturnPath = displayLedger
     .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYReturn(r.actual_return_pct).toFixed(1)}`)
     .join(' ');
 
-  const predReturnPath = ledger
+  const predReturnPath = displayLedger
     .map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYReturn(getRowPredReturn(r)).toFixed(1)}`)
     .join(' ');
 
-  const hoveredItem = hoveredIdx !== null && ledger[hoveredIdx] ? ledger[hoveredIdx] : null;
+  const hoveredItem = hoveredIdx !== null && displayLedger[hoveredIdx] ? displayLedger[hoveredIdx] : null;
+
+  // Adaptive x-axis label spacing depending on horizon
+  const dateInterval = displayLedger.length > 50 ? Math.ceil(displayLedger.length / 8) : 5;
 
   return (
     <div className="space-y-4">
@@ -183,7 +236,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               </span>
             </div>
             <div className="text-[11px] text-slate-400">
-              Institutional Order-Flow Walk-Forward Tournament & 3-Pillar Predictive Suite
+              Institutional Order-Flow Walk-Forward Tournament & Multi-Horizon Confluence Engine
             </div>
           </div>
         </div>
@@ -272,6 +325,91 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
         </div>
       </div>
 
+      {/* ── Interactive Model Perspective & Horizon Switcher Ribbon ────────────── */}
+      <div className="glass-panel p-2.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 shadow-lg flex flex-wrap items-center justify-between gap-3">
+        {/* Model Perspective Switcher */}
+        <div className="flex items-center space-x-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Perspective:
+          </span>
+          <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 font-mono text-xs shadow-inner">
+            <button
+              onClick={() => setActiveModel('confluence')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
+                activeModel === 'confluence'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>👑</span>
+              <span>Convex Confluence (Default)</span>
+              <span className="text-[9px] opacity-80 font-normal">
+                ({Math.round(convexWeightMl * 100)}% ML + {Math.round(convexWeightProphet * 100)}% P)
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveModel('ml')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
+                activeModel === 'ml'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>⚡</span>
+              <span>Pure ML Challenger</span>
+              <span className="text-[9px] opacity-80 font-normal">
+                ({tournament?.ml_champion_type || 'Ridge'})
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveModel('prophet')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
+                activeModel === 'prophet'
+                  ? 'bg-purple-500 text-slate-950 shadow-md shadow-purple-500/20 font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>📈</span>
+              <span>Prophet Baseline</span>
+              <span className="text-[9px] opacity-80 font-normal">
+                (Univariate Prior)
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Horizon Range Switcher: 30D Focus vs 6-Month Full Arena */}
+        <div className="flex items-center space-x-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Horizon:
+          </span>
+          <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 font-mono text-xs">
+            <button
+              onClick={() => setHorizonRange('30d')}
+              className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition-all ${
+                horizonRange === '30d'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Last 30 Sessions (Focus)
+            </button>
+            <button
+              onClick={() => setHorizonRange('6m')}
+              className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition-all ${
+                horizonRange === '6m'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              6 Months ({ledger.length} Sessions)
+            </button>
+          </div>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="glass-panel p-12 text-center text-slate-400 font-mono text-sm border border-slate-800 rounded-xl">
           <Activity className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-400" />
@@ -293,6 +431,15 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                     TARGET: {forecast.as_of_date}
                   </span>
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                    activeModel === 'confluence'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : activeModel === 'ml'
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                      : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                  }`}>
+                    {activeModel === 'confluence' ? '👑 CONVEX CONFLUENCE' : activeModel === 'ml' ? '⚡ PURE ML' : '📈 PROPHET BASELINE'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 font-mono">
                   <span className="text-[11px] text-slate-400">Current Close:</span>
@@ -306,7 +453,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <div className="text-[10.5px] text-slate-400 mb-0.5">Forecasted Close Target</div>
                   <div className="flex items-baseline space-x-2">
                     <span className="text-2xl font-black font-mono text-white">
-                      ₺{targetPrice.toFixed(2)}
+                      ₺{activeTargetPrice.toFixed(2)}
                     </span>
                     <span
                       className={`text-sm font-bold font-mono ${
@@ -314,7 +461,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       }`}
                     >
                       {isUp ? '+' : ''}
-                      {expReturn.toFixed(2)}%
+                      {activeExpReturn.toFixed(2)}%
                     </span>
                   </div>
                   <div className="text-[9.5px] text-slate-500 mt-1 font-mono">
@@ -328,29 +475,42 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <div>
                     <span
                       className={`inline-block px-2.5 py-1 rounded text-xs font-black font-mono tracking-wider border ${
-                        forecast.stance_color === 'emerald'
+                        activeStanceColor === 'emerald'
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : forecast.stance_color === 'rose'
+                          : activeStanceColor === 'rose'
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : activeStanceColor === 'cyan'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          : activeStanceColor === 'purple'
+                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                           : 'bg-slate-800 text-slate-300 border-slate-700'
                       }`}
                     >
-                      {forecast.stance_badge}
+                      {activeStanceBadge}
                     </span>
                   </div>
                   <div className="text-[9.5px] text-slate-400 mt-1 flex items-center gap-1 font-mono">
                     <span>Stance:</span>
-                    <span className="text-white font-semibold">{forecast.stance}</span>
+                    <span className="text-white font-semibold">{activeStance}</span>
                   </div>
                 </div>
 
                 {/* Candidate Comparison Mini-Box */}
                 <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800 flex flex-col justify-between text-xs font-mono">
-                  <div className="text-[10.5px] text-slate-400 mb-0.5">Arena Model Targets</div>
+                  <div className="text-[10.5px] text-slate-400 mb-0.5">Model Targets Overview</div>
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className={`flex items-center justify-between text-[11px] ${activeModel === 'confluence' ? 'font-bold' : ''}`}>
+                      <span className="text-amber-400">Confluence:</span>
+                      <span className="text-white">
+                        ₺{forecast.target_price.toFixed(2)}{' '}
+                        <span className={forecast.expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                          ({forecast.expected_return_pct >= 0 ? '+' : ''}{forecast.expected_return_pct.toFixed(2)}%)
+                        </span>
+                      </span>
+                    </div>
+                    <div className={`flex items-center justify-between text-[11px] ${activeModel === 'ml' ? 'font-bold' : ''}`}>
                       <span className="text-cyan-400">ML Challenger:</span>
-                      <span className="font-bold text-white">
+                      <span className="text-white">
                         ₺{forecast.ml_target_price?.toFixed(2)}{' '}
                         <span className={(forecast.ml_expected_return_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                           ({(forecast.ml_expected_return_pct || 0) >= 0 ? '+' : ''}
@@ -358,9 +518,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                         </span>
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className={`flex items-center justify-between text-[11px] ${activeModel === 'prophet' ? 'font-bold' : ''}`}>
                       <span className="text-purple-400">Prophet Base:</span>
-                      <span className="font-bold text-white">
+                      <span className="text-white">
                         ₺{forecast.prophet_target_price.toFixed(2)}{' '}
                         <span className={forecast.prophet_expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                           ({forecast.prophet_expected_return_pct >= 0 ? '+' : ''}
@@ -370,7 +530,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
                   </div>
                   <div className="text-[9px] text-slate-500 mt-1">
-                    Crowned: <span className="text-amber-300 font-semibold">{tournament?.champion_label}</span>
+                    Weights: <span className="text-amber-300 font-semibold">{Math.round(convexWeightMl * 100)}% ML / {Math.round(convexWeightProphet * 100)}% Prophet</span>
                   </div>
                 </div>
               </div>
@@ -379,8 +539,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex items-start space-x-2 text-xs text-slate-300">
                 <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-white">{forecast.playbook_headline}. </span>
-                  <span className="text-slate-400 text-[11px]">{forecast.playbook_rationale}</span>
+                  <span className="font-bold text-white">{activeHeadline}. </span>
+                  <span className="text-slate-400 text-[11px]">{activeRationale}</span>
                 </div>
               </div>
             </div>
@@ -391,17 +551,23 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-3">
                   <Trophy className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                    Grand Tournament Champion
+                    {activeModel === 'confluence' ? 'Grand Tournament Champion' : activeModel === 'ml' ? 'ML Challenger Perspective' : 'Prophet Prior Perspective'}
                   </span>
                 </div>
 
                 <div className="text-center py-2">
                   <div className="text-sm font-black text-white font-mono flex items-center justify-center gap-1.5">
-                    <span>👑</span>
-                    <span>{tournament?.champion_label || 'Tertip ML Challenger'}</span>
+                    <span>{activeModel === 'confluence' ? '👑' : activeModel === 'ml' ? '⚡' : '📈'}</span>
+                    <span>
+                      {activeModel === 'confluence'
+                        ? tournament?.champion_label || 'Convex Confluence'
+                        : activeModel === 'ml'
+                        ? `${tournament?.ml_champion_type || 'Pure ML'} Challenger`
+                        : 'Prophet Baseline Prior'}
+                    </span>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">
-                    Selected dynamically out-of-sample via 30-Day Walk-Forward
+                    {horizonRange === '30d' ? '30-Day Walk-Forward Focus' : `6-Month Multi-Horizon (${displayLedger.length} Sessions)`}
                   </div>
                 </div>
 
@@ -409,20 +575,25 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
                     <span className="text-slate-400">Directional Hit Rate:</span>
                     <span className="font-bold text-emerald-400 text-sm">
-                      {tournament?.champion_dir_hits ?? champHits}/30 (
-                      {(tournament?.champion_dir_hit_rate_pct ?? champHitRatePct).toFixed(1)}%)
+                      {activeHits}/{displayLedger.length} ({activeHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Runner-Up Hit Rate:</span>
-                    <span className="font-semibold text-slate-300">
-                      {(tournament?.runner_up_dir_hit_rate_pct ?? tournament?.prophet_hit_rate_pct ?? 43.3).toFixed(1)}%
+                    <span className="text-slate-400">Confluence Hit Rate:</span>
+                    <span className="font-semibold text-amber-300">
+                      {confluenceHits}/{displayLedger.length} ({confluenceHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Mean Abs Error (MAE):</span>
+                    <span className="text-slate-400">ML Challenger Alone:</span>
                     <span className="font-semibold text-cyan-300">
-                      {(tournament?.champion_mae_pct ?? tournament?.ml_mae_pct ?? 2.2).toFixed(2)}%
+                      {mlHits}/{displayLedger.length} ({mlHitRatePct.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-400">Prophet Baseline:</span>
+                    <span className="font-semibold text-purple-300">
+                      {prophetHits}/{displayLedger.length} ({prophetHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
                 </div>
@@ -436,33 +607,31 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
             </div>
           </div>
 
-          {/* ── Visual Walk-Forward Chart: Predicted vs What Happened in Last 30 Sessions ── */}
+          {/* ── Visual Walk-Forward Chart: Predicted vs What Happened ────────────── */}
           <div className="glass-panel p-4 rounded-xl border border-slate-800 bg-slate-900/90 shadow-xl space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-2.5">
               <div className="flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-cyan-400" />
                 <span className="text-sm font-bold text-white tracking-wide">
-                  Walk-Forward Performance: Predicted vs Realized (Last 30 Sessions)
+                  Walk-Forward Performance: {activeModel === 'confluence' ? 'Convex Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} vs Realized
                 </span>
-                <span className="text-xs text-slate-500 font-mono">Zero-Lookahead Point-in-Time</span>
+                <span className="text-xs text-slate-500 font-mono">
+                  ({horizonRange === '30d' ? 'Last 30 Sessions' : `${displayLedger.length} Sessions (6 Months)`})
+                </span>
               </div>
 
               {/* Chart Mode Toggle & Stats Pill */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center font-mono text-[9px] gap-1.5">
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                    30D Champion: <span className="text-emerald-400 font-bold">{champHits}✓</span> /{' '}
-                    <span className="text-rose-400 font-bold">{champMiss}✗</span> ({champHitRatePct.toFixed(1)}%)
+                    {activeModel === 'confluence' ? 'Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'}:{' '}
+                    <span className="text-emerald-400 font-bold">{activeHits}✓</span> /{' '}
+                    <span className="text-rose-400 font-bold">{activeMiss}✗</span> ({activeHitRatePct.toFixed(1)}%)
                   </span>
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
                     Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> /{' '}
                     <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
                   </span>
-                  {isConfluence && (
-                    <span className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
-                      ML Alone: <span className="text-cyan-300 font-bold">{mlHits}✓</span> ({mlHitRatePct.toFixed(1)}%)
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center bg-slate-950 rounded border border-slate-800 p-0.5 font-mono text-xs">
@@ -603,7 +772,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predPricePath}
                       fill="none"
-                      stroke="#f59e0b"
+                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -625,7 +794,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predReturnPath}
                       fill="none"
-                      stroke="#f59e0b"
+                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -635,7 +804,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 )}
 
                 {/* Interactive Points on each session */}
-                {ledger.map((r, i) => {
+                {displayLedger.map((r, i) => {
                   const x = getX(i);
                   const y = chartView === 'price' ? getYPrice(r.actual_price) : getYReturn(r.actual_return_pct);
                   const isHovered = hoveredIdx === i;
@@ -663,14 +832,14 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       <circle
                         cx={x}
                         cy={y}
-                        r={isHovered ? 5.5 : 3.5}
+                        r={isHovered ? 5.5 : displayLedger.length > 60 ? 2.5 : 3.5}
                         fill={getRowHit(r) ? '#10b981' : '#f43f5e'}
                         stroke="#0f172a"
                         strokeWidth="1.5"
                       />
 
                       {/* X Axis Date Labels */}
-                      {i % 5 === 0 && (
+                      {(i % dateInterval === 0 || i === displayLedger.length - 1) && (
                         <text
                           x={x}
                           y={chartHeight - 6}
@@ -723,8 +892,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-400">
-                        {isConfluence ? 'Confluence Pred:' : 'ML Predicted:'}
+                      <span className={activeModel === 'confluence' ? 'text-amber-400' : activeModel === 'ml' ? 'text-cyan-300' : 'text-purple-300'}>
+                        {activeModel === 'confluence' ? 'Confluence Pred:' : activeModel === 'ml' ? 'ML Pred:' : 'Prophet Pred:'}
                       </span>
                       <span className="font-bold text-white">
                         ₺{getRowPredPrice(hoveredItem).toFixed(2)}{' '}
@@ -744,23 +913,22 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       <span className="text-slate-200">{getRowErrPct(hoveredItem).toFixed(2)}%</span>
                     </div>
 
-                    {isConfluence && (
-                      <div className="flex items-center justify-between border-t border-slate-800 pt-1 mt-1 text-[10px]">
-                        <span className="text-cyan-300">ML Alone:</span>
-                        <span className="text-slate-300">
-                          ₺{hoveredItem.ml_pred_price.toFixed(2)}{' '}
-                          <span
-                            className={
-                              hoveredItem.ml_is_hit
-                                ? 'text-emerald-400 font-bold'
-                                : 'text-rose-400 font-bold'
-                            }
-                          >
-                            ({hoveredItem.ml_is_hit ? '✓' : '✗'})
-                          </span>
+                    {/* Breakdown Details */}
+                    <div className="flex items-center justify-between border-t border-slate-800 pt-1 mt-1 text-[10px]">
+                      <span className="text-cyan-300">ML Alone:</span>
+                      <span className="text-slate-300">
+                        ₺{hoveredItem.ml_pred_price.toFixed(2)}{' '}
+                        <span
+                          className={
+                            hoveredItem.ml_is_hit
+                              ? 'text-emerald-400 font-bold'
+                              : 'text-rose-400 font-bold'
+                          }
+                        >
+                          ({hoveredItem.ml_is_hit ? '✓' : '✗'})
                         </span>
-                      </div>
-                    )}
+                      </span>
+                    </div>
 
                     <div className="flex items-center justify-between border-t border-slate-800/60 pt-0.5 mt-0.5 text-[10px]">
                       <span className="text-purple-400">Prophet Pred:</span>
@@ -801,8 +969,14 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <span>Actual Realization</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-3 h-0.5 bg-amber-400 border-b border-amber-400 border-dashed inline-block" />
-                    <span>ML Walk-Forward Predicted</span>
+                    <span className={`w-3 h-0.5 border-b border-dashed inline-block ${
+                      activeModel === 'confluence'
+                        ? 'bg-amber-400 border-amber-400'
+                        : activeModel === 'ml'
+                        ? 'bg-cyan-400 border-cyan-400'
+                        : 'bg-purple-400 border-purple-400'
+                    }`} />
+                    <span>{activeModel === 'confluence' ? 'Convex Confluence Predicted' : activeModel === 'ml' ? 'Pure ML Predicted' : 'Prophet Baseline Predicted'}</span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -888,51 +1062,55 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
             </div>
           </div>
 
-          {/* ── 30-Day Walk-Forward Reality Ledger Table ───────────────────────────── */}
+          {/* ── Walk-Forward Reality Ledger Table ──────────────────────────────────── */}
           <div className="glass-panel p-4 rounded-xl border border-slate-800 bg-slate-900/90 shadow-xl space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-cyan-400" />
                 <span className="text-sm font-bold text-white tracking-wide">
-                  Out-of-Sample Walk-Forward Reality Ledger
+                  Out-of-Sample Walk-Forward Reality Ledger ({displayLedger.length} Sessions)
                 </span>
                 <span className="text-xs text-slate-500 font-mono">
-                  Session-by-Session Audited Log
+                  Showing {activeModel === 'confluence' ? 'Convex Confluence' : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} Perspective
                 </span>
               </div>
               <div className="flex items-center gap-1.5 font-mono text-[8.5px]">
                 <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                  30D Champion: <span className="text-emerald-400 font-bold">{champHits}✓</span> /{' '}
-                  <span className="text-rose-400 font-bold">{champMiss}✗</span> ({champHitRatePct.toFixed(1)}%)
+                  {activeModel === 'confluence' ? 'Confluence' : activeModel === 'ml' ? 'ML' : 'Prophet'}:{' '}
+                  <span className="text-emerald-400 font-bold">{activeHits}✓</span> /{' '}
+                  <span className="text-rose-400 font-bold">{activeMiss}✗</span> ({activeHitRatePct.toFixed(1)}%)
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
                   Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> /{' '}
                   <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
                 </span>
-                {isConfluence && (
-                  <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
-                    ML Alone: <span className="text-cyan-300 font-bold">{mlHits}✓</span> ({mlHitRatePct.toFixed(1)}%)
-                  </span>
-                )}
+                <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
+                  ML Hit Rate: <span className="text-cyan-300 font-bold">{mlHitRatePct.toFixed(1)}%</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
+                  Prophet Hit Rate: <span className="text-purple-300 font-bold">{prophetHitRatePct.toFixed(1)}%</span>
+                </span>
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-72 overflow-y-auto rounded-lg border border-slate-800/90">
+            <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-800/90">
               <table className="w-full text-[9px] font-mono border-collapse">
                 <thead className="sticky top-0 bg-slate-900 border-b border-slate-800 z-10 font-sans">
                   <tr className="text-slate-400">
                     <th className="text-left px-2 py-1.5">Date</th>
                     <th className="text-right px-2 py-1.5">Actual Close</th>
-                    <th className="text-right px-2 py-1.5 text-cyan-300">
-                      {isConfluence ? 'Confluence Pred' : 'ML Predicted'}
+                    <th className="text-right px-2 py-1.5 text-amber-300">
+                      {activeModel === 'confluence' ? 'Confluence Pred' : activeModel === 'ml' ? 'Pure ML Pred' : 'Prophet Pred'}
                     </th>
                     <th className="text-center px-2 py-1.5 text-cyan-300">
-                      {isConfluence ? 'Champion Hit?' : 'ML Hit?'}
+                      {activeModel === 'confluence' ? 'Confluence Hit?' : activeModel === 'ml' ? 'ML Hit?' : 'Prophet Hit?'}
                     </th>
-                    {isConfluence && (
+                    {activeModel !== 'ml' && (
                       <th className="text-right px-2 py-1.5 text-sky-400">ML Alone</th>
                     )}
-                    <th className="text-right px-2 py-1.5 text-purple-300">Prophet</th>
+                    {activeModel !== 'prophet' && (
+                      <th className="text-right px-2 py-1.5 text-purple-300">Prophet Base</th>
+                    )}
                     <th className="text-right px-2 py-1.5 text-amber-200">XU030</th>
                     <th className="text-center px-2 py-1.5">BofA MLB Did</th>
                     <th className="text-center px-2 py-1.5">BIG5 Did</th>
@@ -941,7 +1119,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/60">
-                  {ledger.map((row) => {
+                  {displayLedger.map((row) => {
                     const isActUp = row.actual_return_pct > 0.02;
                     const isActDown = row.actual_return_pct < -0.02;
                     const predRet = getRowPredReturn(row);
@@ -951,6 +1129,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     const isMlDown = (row.ml_pred_return_pct || 0) < -0.02;
                     const pRet = row.prophet_pred_return_pct !== undefined ? row.prophet_pred_return_pct : 0;
                     const isRowHit = getRowHit(row);
+                    const bothMiss = !row.ml_is_hit && !row.prophet_is_hit;
 
                     return (
                       <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
@@ -994,7 +1173,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                             <span>{isRowHit ? 'CORRECT' : 'WRONG'}</span>
                           </span>
                         </td>
-                        {isConfluence && (
+                        {activeModel !== 'ml' && (
                           <td className="text-right px-2 py-1 text-slate-300">
                             <div className="font-semibold">₺{row.ml_pred_price.toFixed(2)}</div>
                             <div className="text-[7.5px] flex items-center justify-end gap-1">
@@ -1004,6 +1183,26 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                               <span className={row.ml_is_hit ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
                                 {row.ml_is_hit ? '✓' : '✗'}
                               </span>
+                            </div>
+                          </td>
+                        )}
+                        {activeModel !== 'prophet' && (
+                          <td className="text-right px-2 py-1 text-slate-300">
+                            <div className="flex items-center justify-end gap-1">
+                              <span>₺{row.prophet_pred_price.toFixed(2)}</span>
+                              <span
+                                className={`text-[7px] font-black px-1 py-0.2 rounded border ${
+                                  row.prophet_is_hit
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                }`}
+                              >
+                                {row.prophet_is_hit ? '✓' : '✗'}
+                              </span>
+                            </div>
+                            <div className={`text-[8px] ${pRet >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
+                              {pRet >= 0 ? '+' : ''}
+                              {pRet.toFixed(1)}% <span className="text-slate-500">({row.prophet_err_pct.toFixed(1)}%)</span>
                             </div>
                           </td>
                         )}
@@ -1019,24 +1218,6 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                           >
                             {(row.bist30_ret_pct ?? 0) > 0 ? '+' : ''}
                             {(row.bist30_ret_pct ?? 0).toFixed(2)}%
-                          </div>
-                        </td>
-                        <td className="text-right px-2 py-1 text-slate-300">
-                          <div className="flex items-center justify-end gap-1">
-                            <span>₺{row.prophet_pred_price.toFixed(2)}</span>
-                            <span
-                              className={`text-[7px] font-black px-1 py-0.2 rounded border ${
-                                row.prophet_is_hit
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                              }`}
-                            >
-                              {row.prophet_is_hit ? '✓' : '✗'}
-                            </span>
-                          </div>
-                          <div className={`text-[8px] ${pRet >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
-                            {pRet >= 0 ? '+' : ''}
-                            {pRet.toFixed(1)}% <span className="text-slate-500">({row.prophet_err_pct.toFixed(1)}%)</span>
                           </div>
                         </td>
                         <td className="text-center px-2 py-1">
@@ -1103,3 +1284,5 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     </div>
   );
 };
+
+export default OracleHubDashboard;

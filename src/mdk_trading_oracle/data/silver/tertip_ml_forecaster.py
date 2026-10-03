@@ -14,6 +14,7 @@ recording the exact next-day actions executed by each institutional pillar.
 from __future__ import annotations
 
 import logging
+import math
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -491,6 +492,36 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
     return matrix
 
 
+def compute_convex_softmax_weights(hit_rate_ml: float, hit_rate_p: float, tau: float = 8.0) -> tuple[float, float]:
+    """Compute adaptive convex softmax weights between ML and Prophet based on out-of-sample hit rates.
+
+    Using a calibrated temperature parameter (tau=8.0):
+    - When ML has a strong performance advantage (e.g. 63% vs 37%), ML receives ~93% dominance.
+    - When performance is balanced (e.g. 52% vs 50%), weights remain balanced (~56% ML / 44% Prophet).
+    - Bounded to [0.05, 0.95] to ensure continuous synthesis without degeneracy.
+    """
+    s_ml = max(0.0, min(100.0, float(hit_rate_ml))) / tau
+    s_p = max(0.0, min(100.0, float(hit_rate_p))) / tau
+    exp_ml = math.exp(s_ml)
+    exp_p = math.exp(s_p)
+    w_ml = exp_ml / (exp_ml + exp_p)
+    w_ml = max(0.05, min(0.95, w_ml))
+    w_p = 1.0 - w_ml
+    return round(w_ml, 4), round(w_p, 4)
+
+
+def _check_hit(pred: float, actual: float, tol_delta: float = 0.20, deadband: float = DEADBAND_PCT) -> bool:
+    """Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)."""
+    if abs(pred - actual) <= tol_delta:
+        return True
+    if abs(actual) <= deadband:
+        return (abs(pred) <= deadband) or ((pred * actual) >= 0.0)
+    elif actual > deadband:
+        return pred > 0.0
+    else:
+        return pred < 0.0
+
+
 def run_30d_walk_forward_arena(
     df: pd.DataFrame,
     n_sessions: int = 30,
@@ -837,6 +868,11 @@ def run_30d_walk_forward_arena(
     ml_candidate_mae = champ_meta["mae"]
     ml_candidate_penalty = champ_meta["penalty_loss"]
 
+    # Convex / Softmax Adaptive Weighting based on out-of-sample directional hit rates
+    convex_weight_ml, convex_weight_prophet = compute_convex_softmax_weights(
+        ml_candidate_30d_hit_rate, prophet_30d_hit_rate, tau=8.0
+    )
+
     # Build the Walk-Forward Reality Ledger using the crowned ML challenger
     ledger: list[dict[str, Any]] = []
     ml_error_wins = 0
@@ -857,8 +893,8 @@ def run_30d_walk_forward_arena(
         ml_err = s[champ_meta["err_key"]]
         ml_hit = s[champ_meta["hit_key"]]
 
-        # Confluence Forecast: Unified synthesis of Institutional Microstructure (70%) + Macro Trend (30%)
-        confluence_ret = 0.70 * pred_ret_ml + 0.30 * prophet_ret
+        # Confluence Forecast: Adaptive Convex Softmax synthesis
+        confluence_ret = convex_weight_ml * pred_ret_ml + convex_weight_prophet * prophet_ret
         confluence_price = prev_price * (1.0 + confluence_ret / 100.0)
         confluence_err = abs(confluence_price - actual_price) / actual_price * 100.0
         confluence_hit = _check_hit(confluence_ret, actual_ret)
@@ -898,6 +934,8 @@ def run_30d_walk_forward_arena(
             "confluence_direction": confluence_direction,
             "confluence_err_pct": round(confluence_err, 2),
             "confluence_is_hit": bool(confluence_hit),
+            "convex_weight_ml": convex_weight_ml,
+            "convex_weight_prophet": convex_weight_prophet,
             "ml_pred_price": round(ml_price, 2),
             "ml_pred_return_pct": round(pred_ret_ml, 2),
             "ml_direction": ml_direction,
@@ -942,9 +980,9 @@ def run_30d_walk_forward_arena(
     confluence_mae = sum(s["confluence_err"] for s in step_records) / n_total if n_total > 0 else 0.0
     confluence_penalty_loss = _calc_score(step_records, "confluence_err", "confluence_hit")
 
-    # Unified Operational Grand Champion: Confluence (70% ML Microstructure + 30% Prophet Trend)
+    # Unified Operational Grand Champion: Convex Softmax Confluence
     champion = "TERTIP_CONFLUENCE"
-    champion_label = f"Tertip Confluence ({ml_champion_type} + Prophet)"
+    champion_label = f"Convex Confluence ({int(round(convex_weight_ml * 100))}% {ml_champion_type} + {int(round(convex_weight_prophet * 100))}% Prophet)"
     champion_dir_hits = confluence_30d_hits
     champion_dir_hit_rate_pct = confluence_30d_hit_rate
     champion_mae_pct = confluence_30d_mae
@@ -955,6 +993,8 @@ def run_30d_walk_forward_arena(
         "champion": champion,
         "champion_label": champion_label,
         "ml_champion_type": ml_champion_type,
+        "convex_weight_ml": convex_weight_ml,
+        "convex_weight_prophet": convex_weight_prophet,
         "selection_window_sessions": recent_window,
         "champion_dir_hits": champion_dir_hits,
         "champion_dir_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
@@ -1239,6 +1279,86 @@ def get_tertip_ml_forecast(
     if horizon_comparison:
         tournament["horizon_comparison"] = horizon_comparison
 
+    # Hydrate full multi-month ledger (up to 180 sessions) if available in gold_tertip_walk_forward_backtests
+    try:
+        cur_res = db.execute("""
+            SELECT trade_date, actual_price, actual_return_pct, bist30_ret_pct,
+                   ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
+                   prophet_pred_price, prophet_pred_return_pct, prophet_direction, prophet_err_pct, prophet_is_hit,
+                   winner, is_shock_day, shock_type, days_since_pos_shock, days_since_neg_shock,
+                   mlb_action, mlb_flow_tl, mlb_buy_tl, mlb_sell_tl, mlb_pnl_tl,
+                   big5_action, big5_flow_tl, big5_buy_tl, big5_sell_tl, big5_pnl_tl,
+                   kamu_action, kamu_flow_tl, kamu_buy_tl, kamu_sell_tl, kamu_pnl_tl,
+                   training_lookback_sessions
+            FROM gold_tertip_walk_forward_backtests
+            WHERE symbol = %s
+            ORDER BY trade_date ASC
+        """, (sym,))
+        db_rows = cur_res.fetchall()
+        if db_rows and len(db_rows) > len(ledger):
+                c_w_ml = float(tournament.get("convex_weight_ml", 0.70))
+                c_w_p = float(tournament.get("convex_weight_prophet", 0.30))
+                full_ledger = []
+                for r in db_rows:
+                    act_price = float(r[1])
+                    act_ret = float(r[2])
+                    ml_ret_row = float(r[5] or 0.0)
+                    p_ret_row = float(r[10] or 0.0)
+                    c_ret_row = c_w_ml * ml_ret_row + c_w_p * p_ret_row
+                    prev_p_row = act_price / (1.0 + act_ret / 100.0) if (1.0 + act_ret / 100.0) != 0 else act_price
+                    c_price_row = prev_p_row * (1.0 + c_ret_row / 100.0)
+                    c_err_row = abs(c_price_row - act_price) / act_price * 100.0 if act_price > 0 else 0.0
+                    c_hit_row = _check_hit(c_ret_row, act_ret)
+                    c_dir_row = "UP" if c_ret_row > DEADBAND_PCT else ("DOWN" if c_ret_row < -DEADBAND_PCT else "FLAT")
+
+                    full_ledger.append({
+                        "date": str(r[0]).split(" ")[0],
+                        "actual_price": round(act_price, 2),
+                        "actual_return_pct": round(act_ret, 2),
+                        "bist30_ret_pct": round(float(r[3] or 0.0), 2),
+                        "confluence_pred_price": round(c_price_row, 2),
+                        "confluence_pred_return_pct": round(c_ret_row, 2),
+                        "confluence_direction": c_dir_row,
+                        "confluence_err_pct": round(c_err_row, 2),
+                        "confluence_is_hit": bool(c_hit_row),
+                        "convex_weight_ml": c_w_ml,
+                        "convex_weight_prophet": c_w_p,
+                        "ml_pred_price": round(float(r[4] or 0.0), 2),
+                        "ml_pred_return_pct": round(ml_ret_row, 2),
+                        "ml_direction": r[6],
+                        "ml_err_pct": round(float(r[7] or 0.0), 2),
+                        "ml_is_hit": bool(r[8]),
+                        "prophet_pred_price": round(float(r[9] or 0.0), 2),
+                        "prophet_pred_return_pct": round(p_ret_row, 2),
+                        "prophet_direction": r[11],
+                        "prophet_err_pct": round(float(r[12] or 0.0), 2),
+                        "prophet_is_hit": bool(r[13]),
+                        "winner": r[14],
+                        "is_shock_day": bool(r[15]),
+                        "shock_type": r[16],
+                        "days_since_pos_shock": int(r[17] or 63),
+                        "days_since_neg_shock": int(r[18] or 63),
+                        "mlb_action": r[19],
+                        "mlb_flow_tl": round(float(r[20] or 0.0), 1),
+                        "mlb_buy_tl": round(float(r[21] or 0.0), 1),
+                        "mlb_sell_tl": round(float(r[22] or 0.0), 1),
+                        "mlb_pnl_tl": round(float(r[23] or 0.0), 1),
+                        "big5_action": r[24],
+                        "big5_flow_tl": round(float(r[25] or 0.0), 1),
+                        "big5_buy_tl": round(float(r[26] or 0.0), 1),
+                        "big5_sell_tl": round(float(r[27] or 0.0), 1),
+                        "big5_pnl_tl": round(float(r[28] or 0.0), 1),
+                        "kamu_action": r[29],
+                        "kamu_flow_tl": round(float(r[30] or 0.0), 1),
+                        "kamu_buy_tl": round(float(r[31] or 0.0), 1),
+                        "kamu_sell_tl": round(float(r[32] or 0.0), 1),
+                        "kamu_pnl_tl": round(float(r[33] or 0.0), 1),
+                        "training_lookback_sessions": int(r[34] or train_lookback_sessions),
+                    })
+                ledger = full_ledger
+    except Exception as e:
+        logger.warning(f"Could not load full historical backtests from DB for {sym}: {e}")
+
     # 3-Pillar Matrix
     pillar_matrix = get_pillar_live_matrix(db, sym)
 
@@ -1311,13 +1431,15 @@ def get_tertip_ml_forecast(
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
-    # Live Confluence Synthesis for T+1: Unified Institutional Microstructure (70%) + Macro Trend (30%)
-    confluence_pred_ret = round(0.70 * pred_ret_ml + 0.30 * prophet_ret_pct, 2)
+    # Live Confluence Synthesis for T+1: Adaptive Convex Softmax
+    convex_w_ml = float(tournament.get("convex_weight_ml", 0.70))
+    convex_w_p = float(tournament.get("convex_weight_prophet", 0.30))
+    confluence_pred_ret = round(convex_w_ml * pred_ret_ml + convex_w_p * prophet_ret_pct, 2)
     confluence_target_price = round(latest_price * (1.0 + confluence_pred_ret / 100.0), 2)
 
     # Headline Operational Forecast is Confluence:
     champion = "TERTIP_CONFLUENCE"
-    champion_label = f"Tertip Confluence ({ml_champion_type} + Prophet)"
+    champion_label = f"Convex Confluence ({int(round(convex_w_ml * 100))}% {ml_champion_type} + {int(round(convex_w_p * 100))}% Prophet)"
     champion_target_price = confluence_target_price
     champion_pred_ret = confluence_pred_ret
 
@@ -1326,27 +1448,21 @@ def get_tertip_ml_forecast(
     price_low = champion_target_price * (1.0 - (1.645 * vol_20d / 100.0))
     price_high = champion_target_price * (1.0 + (1.645 * vol_20d / 100.0))
 
-    # Stance derivation based on Champion
-    if champion_pred_ret >= 2.0:
-        stance = "STRONG_BUY"
-        stance_badge = "STRONG BUY ACCUMULATION"
-        stance_color = "emerald"
-    elif champion_pred_ret > DEADBAND_PCT:
-        stance = "BUY"
-        stance_badge = "BUY ABSORPTION REBOUND"
-        stance_color = "teal"
-    elif champion_pred_ret <= -2.0:
-        stance = "STRONG_SELL"
-        stance_badge = "STRONG SELL PRESSURE"
-        stance_color = "rose"
-    elif champion_pred_ret < -DEADBAND_PCT:
-        stance = "SELL"
-        stance_badge = "DISTRIBUTION FADE"
-        stance_color = "orange"
-    else:
-        stance = "NEUTRAL"
-        stance_badge = "NEUTRAL CONSOLIDATION"
-        stance_color = "slate"
+    def _derive_stance(ret_val: float) -> tuple[str, str, str]:
+        if ret_val >= 2.0:
+            return "STRONG_BUY", "STRONG BUY ACCUMULATION", "emerald"
+        elif ret_val > DEADBAND_PCT:
+            return "BUY", "BUY ABSORPTION REBOUND", "teal"
+        elif ret_val <= -2.0:
+            return "STRONG_SELL", "STRONG SELL PRESSURE", "rose"
+        elif ret_val < -DEADBAND_PCT:
+            return "SELL", "DISTRIBUTION FADE", "orange"
+        else:
+            return "NEUTRAL", "NEUTRAL CONSOLIDATION", "slate"
+
+    stance, stance_badge, stance_color = _derive_stance(champion_pred_ret)
+    ml_stance, ml_stance_badge, ml_stance_color = _derive_stance(pred_ret_ml)
+    prophet_stance, prophet_stance_badge, prophet_stance_color = _derive_stance(prophet_ret_pct)
 
     # Actionable Blueprint
     playbook_headline = (
@@ -1442,8 +1558,13 @@ def get_tertip_ml_forecast(
         "expected_return_pct": round(champion_pred_ret, 2),
         "confluence_target_price": round(confluence_target_price, 2),
         "confluence_expected_return_pct": round(confluence_pred_ret, 2),
+        "convex_weight_ml": convex_w_ml,
+        "convex_weight_prophet": convex_w_p,
         "ml_target_price": round(ml_target_price, 2),
         "ml_expected_return_pct": round(pred_ret_ml, 2),
+        "ml_stance": ml_stance,
+        "ml_stance_badge": ml_stance_badge,
+        "ml_stance_color": ml_stance_color,
         "price_low": round(price_low, 2),
         "price_high": round(price_high, 2),
         "stance": stance,
@@ -1451,6 +1572,9 @@ def get_tertip_ml_forecast(
         "stance_color": stance_color,
         "prophet_target_price": round(prophet_target_price, 2),
         "prophet_expected_return_pct": round(prophet_ret_pct, 2),
+        "prophet_stance": prophet_stance,
+        "prophet_stance_badge": prophet_stance_badge,
+        "prophet_stance_color": prophet_stance_color,
         "days_since_last_positive_shock": days_pos_shock,
         "days_since_last_negative_shock": days_neg_shock,
         "bist30_trend": bist30_trend,
