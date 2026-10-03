@@ -95,9 +95,11 @@ All features are computed **strictly from prior completed windows / $T-1$ Close 
 
 ---
 
-## 6. Walk-Forward Candidate Arena & Directional Champion Selection
+## 6. Walk-Forward Candidate Arena & 3-Criteria Tournament Champion Selection
 
-To prevent overfitting and adapt to changing market regimes, model selection is performed on the fly across candidate paradigms:
+To prevent overfitting and adapt to changing market regimes, model and lookback horizon selection is performed through the walk-forward tournament arena (`test_multi_horizon_180d_arena.py` / `export_tertip_180d_track.py`).
+
+The **tournament run is the single source of truth** for crowning the optimal model and lookback horizon (3M, 6M, 12M) per stock, persisted to `config/tertip_crowned_models.yaml` and PostgreSQL `gold_tertip_daily_forecasts`.
 
 ```
                             12-MONTH TRAILING DATASET (e.g. 250 Sessions)
@@ -114,14 +116,28 @@ Step 30: Train on [Day 1 … 249] ──► Predict Day 250 ──────�
 ```
 
 ### Candidate Paradigms Benchmarked:
-1. `LightGBM`: Gradient boosting regressor with L2 regularization capturing non-linear interactions.
-2. `BayesianRidge`: Analytical conjugate prior regression providing robust posterior variances.
-3. `MovingAverage`: 5-day historical rolling mean baseline.
+1. `Ridge`: L2-regularized linear model with strong generalization and structural stability.
+2. `XGBoost`: Gradient boosting decision trees capturing non-linear feature interactions with low variance.
+3. `BayesianRidge`: Analytical conjugate prior regression providing robust posterior distributions.
+4. `Huber`: Robust M-estimator resilient against outlier volatility spikes.
+5. `LightGBM`: Gradient boosting with leaf-wise splitting.
+6. `Prophet`: Zero-leakage univariate prior baseline.
 
-### Primary Decision Metric: Directional Hit Rate %
-The tournament ranks models based on:
-1. **Primary Metric: Directional Hit Rate %** — Percentage of out-of-sample sessions where the predicted flow direction correctly matches actual realized market flow sign, evaluated against a calibrated $\pm 0.25\%$ (25 bps) market consolidation deadband (matching BIST equity tick microstructure).
-2. **Tie-Breaker: Mean Absolute Error (MAE)** — Minimizes error size when directional hit rates are equal.
+### The 3 Core Tournament Selection Criteria:
+1. **Criterion 1: Percentage of Directional Hits (`hit_rate_pct`)**
+   - Evaluated against a calibrated $\pm 0.25\%$ (25 bps) market consolidation deadband matching BIST equity tick microstructure.
+   - Measures sign accuracy: correct directional calls / total sessions $\times 100.0$.
+2. **Criterion 2: Percentage Price Error in Directional Hits (`hit_mae_pct`)**
+   - Measures calibration accuracy on winning calls.
+   - Predicting $+0.5\%$ when realized is $+1.5\%$ (error $1.0\%$) is rewarded significantly more than predicting $+0.5\%$ when realized is $+10.0\%$ (error $9.5\%$).
+3. **Criterion 3: Percentage Price Error in Directional Misses (`miss_mae_pct`)**
+   - Measures downside capital protection and severity of bad signals.
+   - Predicting $+0.5\%$ when realized is $-0.5\%$ (error $1.0\%$) is far less damaging than predicting $+0.5\%$ when realized is $-5.0\%$ (error $5.5\%$, catastrophic false signal).
+
+### Composite Tournament Loss Function:
+$$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hit\_mae\_pct} + 2.5 \times \text{miss\_mae\_pct}$$
+
+The champion model and lookback horizon for each equity is selected by minimizing this composite loss, simultaneously prioritizing directional correctness, price calibration accuracy, and downside drawdown avoidance.
 
 ---
 

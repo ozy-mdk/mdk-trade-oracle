@@ -729,105 +729,83 @@ def run_30d_walk_forward_arena(
     recent_window = min(30, n_total)
     recent_slice = step_records[-recent_window:]
 
-    # Option 2: Simple Linear Composite Score / Loss
-    # Direct linear combination prioritizing Directional Hit Rate:
-    # Score = Hit Rate % - (2.0 * MAE %) (higher score is better)
-    # Loss = (100.0 - Hit Rate %) + 2.0 * MAE % (lower loss is better, directly mirrors Score)
-    def _calc_score(records: list[dict[str, Any]], err_key: str, hit_key: str) -> float:
+    # 3-Criteria Tournament Selection Loss:
+    # Criterion 1: Directional Hit Rate % (percentage of correct directional calls)
+    # Criterion 2: Calibration Accuracy on Hits (Hit MAE %: percentage error on price when direction is correct)
+    # Criterion 3: Downside Risk on Misses (Miss MAE %: percentage error on price when direction is wrong)
+    #
+    # Composite Tournament Loss:
+    # Loss = (100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct
+    def compute_3criteria_metrics(records: list[dict[str, Any]], err_key: str, hit_key: str) -> dict[str, float]:
         if not records:
-            return 0.0
+            return {
+                "hits": 0,
+                "hit_rate_pct": 0.0,
+                "hit_mae_pct": 0.0,
+                "miss_mae_pct": 0.0,
+                "mae_pct": 0.0,
+                "tournament_loss": 100.0,
+            }
         n = len(records)
-        hits = sum(1 for s in records if s[hit_key])
-        hit_rate = (hits / n) * 100.0
-        mae = sum(s[err_key] for s in records) / n
-        return round((100.0 - hit_rate) + 2.0 * mae, 2)
+        hit_errors = [float(s[err_key]) for s in records if s[hit_key]]
+        miss_errors = [float(s[err_key]) for s in records if not s[hit_key]]
+        hits_count = len(hit_errors)
+        hit_rate_pct = round((hits_count / n) * 100.0, 1)
+        hit_mae_pct = round(float(np.mean(hit_errors)), 2) if hit_errors else 0.0
+        miss_mae_pct = round(float(np.mean(miss_errors)), 2) if miss_errors else 0.0
+        total_mae = round(float(np.mean([float(s[err_key]) for s in records])), 2)
 
-    # Prophet metrics: recent 30-day window (for selection) and full-window
-    prophet_30d_hits = sum(1 for s in recent_slice if s["prophet_hit"])
-    prophet_30d_hit_rate = (prophet_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
-    prophet_30d_mae = sum(s["prophet_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
-    prophet_30d_penalty_loss = _calc_score(recent_slice, "prophet_err", "prophet_hit")
+        composite_loss = round((100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct, 2)
 
-    prophet_hits = sum(1 for s in step_records if s["prophet_hit"])
-    prophet_hit_rate = (prophet_hits / n_total) * 100.0 if n_total > 0 else 0.0
-    prophet_mae = sum(s["prophet_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-    prophet_penalty_loss = _calc_score(step_records, "prophet_err", "prophet_hit")
+        return {
+            "hits": hits_count,
+            "hit_rate_pct": hit_rate_pct,
+            "hit_mae_pct": hit_mae_pct,
+            "miss_mae_pct": miss_mae_pct,
+            "mae_pct": total_mae,
+            "tournament_loss": composite_loss,
+        }
 
-    candidates_meta = {
-        "Ridge": {
-            "hits_30d": sum(1 for s in recent_slice if s["ridge_hit"]),
-            "mae_30d": sum(s["ridge_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": _calc_score(recent_slice, "ridge_err", "ridge_hit"),
-            "hits": sum(1 for s in step_records if s["ridge_hit"]),
-            "mae": sum(s["ridge_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": _calc_score(step_records, "ridge_err", "ridge_hit"),
-            "model_key": "ridge_model",
-            "price_key": "ridge_price",
-            "ret_key": "ridge_ret",
-            "err_key": "ridge_err",
-            "hit_key": "ridge_hit",
-        },
-        "XGBoost": {
-            "hits_30d": sum(1 for s in recent_slice if s["xgb_hit"]),
-            "mae_30d": sum(s["xgb_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": _calc_score(recent_slice, "xgb_err", "xgb_hit"),
-            "hits": sum(1 for s in step_records if s["xgb_hit"]),
-            "mae": sum(s["xgb_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": _calc_score(step_records, "xgb_err", "xgb_hit"),
-            "model_key": "xgb_model",
-            "price_key": "xgb_price",
-            "ret_key": "xgb_ret",
-            "err_key": "xgb_err",
-            "hit_key": "xgb_hit",
-        },
-        "LightGBM": {
-            "hits_30d": sum(1 for s in recent_slice if s["lgbm_hit"]),
-            "mae_30d": sum(s["lgbm_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": _calc_score(recent_slice, "lgbm_err", "lgbm_hit"),
-            "hits": sum(1 for s in step_records if s["lgbm_hit"]),
-            "mae": sum(s["lgbm_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": _calc_score(step_records, "lgbm_err", "lgbm_hit"),
-            "model_key": "lgbm_model",
-            "price_key": "lgbm_price",
-            "ret_key": "lgbm_ret",
-            "err_key": "lgbm_err",
-            "hit_key": "lgbm_hit",
-        },
-        "Huber": {
-            "hits_30d": sum(1 for s in recent_slice if s["huber_hit"]),
-            "mae_30d": sum(s["huber_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": _calc_score(recent_slice, "huber_err", "huber_hit"),
-            "hits": sum(1 for s in step_records if s["huber_hit"]),
-            "mae": sum(s["huber_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": _calc_score(step_records, "huber_err", "huber_hit"),
-            "model_key": "huber_model",
-            "price_key": "huber_price",
-            "ret_key": "huber_ret",
-            "err_key": "huber_err",
-            "hit_key": "huber_hit",
-        },
-        "BayesianRidge": {
-            "hits_30d": sum(1 for s in recent_slice if s["bayes_hit"]),
-            "mae_30d": sum(s["bayes_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0,
-            "penalty_loss_30d": _calc_score(recent_slice, "bayes_err", "bayes_hit"),
-            "hits": sum(1 for s in step_records if s["bayes_hit"]),
-            "mae": sum(s["bayes_err"] for s in step_records) / n_total if n_total > 0 else 0.0,
-            "penalty_loss": _calc_score(step_records, "bayes_err", "bayes_hit"),
-            "model_key": "bayes_model",
-            "price_key": "bayes_price",
-            "ret_key": "bayes_ret",
-            "err_key": "bayes_err",
-            "hit_key": "bayes_hit",
-        },
-    }
+    # Prophet metrics
+    p_30d = compute_3criteria_metrics(recent_slice, "prophet_err", "prophet_hit")
+    p_full = compute_3criteria_metrics(step_records, "prophet_err", "prophet_hit")
 
-    for m_info in candidates_meta.values():
-        m_info["hit_rate_30d"] = (m_info["hits_30d"] / recent_window) * 100.0 if recent_window > 0 else 0.0
-        m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
+    candidates_keys = [
+        ("Ridge", "ridge_model", "ridge_price", "ridge_ret", "ridge_err", "ridge_hit"),
+        ("XGBoost", "xgb_model", "xgb_price", "xgb_ret", "xgb_err", "xgb_hit"),
+        ("LightGBM", "lgbm_model", "lgbm_price", "lgbm_ret", "lgbm_err", "lgbm_hit"),
+        ("Huber", "huber_model", "huber_price", "huber_ret", "huber_err", "huber_hit"),
+        ("BayesianRidge", "bayes_model", "bayes_price", "bayes_ret", "bayes_err", "bayes_hit"),
+    ]
+
+    candidates_meta = {}
+    for name, m_key, pr_key, ret_key, err_key, hit_key in candidates_keys:
+        m_30d = compute_3criteria_metrics(recent_slice, err_key, hit_key)
+        m_full = compute_3criteria_metrics(step_records, err_key, hit_key)
+        candidates_meta[name] = {
+            "hits_30d": m_30d["hits"],
+            "hit_rate_30d": m_30d["hit_rate_pct"],
+            "hit_mae_30d": m_30d["hit_mae_pct"],
+            "miss_mae_30d": m_30d["miss_mae_pct"],
+            "mae_30d": m_30d["mae_pct"],
+            "penalty_loss_30d": m_30d["tournament_loss"],
+            "tournament_loss_30d": m_30d["tournament_loss"],
+            "hits": m_full["hits"],
+            "hit_rate": m_full["hit_rate_pct"],
+            "hit_mae": m_full["hit_mae_pct"],
+            "miss_mae": m_full["miss_mae_pct"],
+            "mae": m_full["mae_pct"],
+            "penalty_loss": m_full["tournament_loss"],
+            "tournament_loss": m_full["tournament_loss"],
+            "model_key": m_key,
+            "price_key": pr_key,
+            "ret_key": ret_key,
+            "err_key": err_key,
+            "hit_key": hit_key,
+        }
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # Blended Criterion: Lowest 30-Day Directional Penalty Loss ((100 - HitRate) + 2.0 * MAE)
-    # Tie-breakers: Higher 30-Day Hit Rate %, Lower 30-Day MAE %
+    # 3-Criteria Ranking: Lowest 30-Day Tournament Loss, then Hits descending, then Miss MAE ascending, then Hit MAE ascending
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
         ml_champion_type = "Ridge"
@@ -839,13 +817,14 @@ def run_30d_walk_forward_arena(
         ml_champion_type = "Huber"
     elif m_choice in ("bayesianridge", "bayesian_ridge", "bayes"):
         ml_champion_type = "BayesianRidge"
-    else:  # "auto": ranked by lowest recent 30-day penalty_loss, then hits descending, then mae ascending
+    else:  # "auto": ranked by 3-criteria tournament loss
         sorted_candidates = sorted(
             candidates_meta.keys(),
             key=lambda k: (
-                candidates_meta[k]["penalty_loss_30d"],
+                candidates_meta[k]["tournament_loss_30d"],
                 -candidates_meta[k]["hits_30d"],
-                candidates_meta[k]["mae_30d"],
+                candidates_meta[k]["miss_mae_30d"],
+                candidates_meta[k]["hit_mae_30d"],
             ),
         )
         ml_champion_type = sorted_candidates[0]
@@ -855,24 +834,34 @@ def run_30d_walk_forward_arena(
     ml_candidate_30d_hits = champ_meta["hits_30d"]
     ml_candidate_30d_hit_rate = champ_meta["hit_rate_30d"]
     ml_candidate_30d_mae = champ_meta["mae_30d"]
+    ml_candidate_30d_hit_mae = champ_meta["hit_mae_30d"]
+    ml_candidate_30d_miss_mae = champ_meta["miss_mae_30d"]
     ml_candidate_30d_penalty = champ_meta["penalty_loss_30d"]
     ml_candidate_hits = champ_meta["hits"]
     ml_candidate_hit_rate = champ_meta["hit_rate"]
     ml_candidate_mae = champ_meta["mae"]
+    ml_candidate_hit_mae = champ_meta["hit_mae"]
+    ml_candidate_miss_mae = champ_meta["miss_mae"]
     ml_candidate_penalty = champ_meta["penalty_loss"]
 
-    # Tournament Grand Champion Selection (Blended Score of Directional Hit Rate and MAE):
+    # Tournament Grand Champion Selection (3-Criteria Tournament Loss):
     # Evaluates all models: ML candidates and Prophet Base
     all_tournament_models = dict(candidates_meta)
     all_tournament_models["Prophet"] = {
-        "hits_30d": prophet_30d_hits,
-        "hit_rate_30d": prophet_30d_hit_rate,
-        "mae_30d": prophet_30d_mae,
-        "penalty_loss_30d": prophet_30d_penalty_loss,
-        "hits": prophet_hits,
-        "hit_rate": prophet_hit_rate,
-        "mae": prophet_mae,
-        "penalty_loss": prophet_penalty_loss,
+        "hits_30d": p_30d["hits"],
+        "hit_rate_30d": p_30d["hit_rate_pct"],
+        "hit_mae_30d": p_30d["hit_mae_pct"],
+        "miss_mae_30d": p_30d["miss_mae_pct"],
+        "mae_30d": p_30d["mae_pct"],
+        "penalty_loss_30d": p_30d["tournament_loss"],
+        "tournament_loss_30d": p_30d["tournament_loss"],
+        "hits": p_full["hits"],
+        "hit_rate": p_full["hit_rate_pct"],
+        "hit_mae": p_full["hit_mae_pct"],
+        "miss_mae": p_full["miss_mae_pct"],
+        "mae": p_full["mae_pct"],
+        "penalty_loss": p_full["tournament_loss"],
+        "tournament_loss": p_full["tournament_loss"],
         "price_key": "prophet_price",
         "ret_key": "prophet_ret",
         "err_key": "prophet_err",
@@ -882,9 +871,10 @@ def run_30d_walk_forward_arena(
     sorted_grand = sorted(
         all_tournament_models.keys(),
         key=lambda k: (
-            all_tournament_models[k]["penalty_loss_30d"],
+            all_tournament_models[k]["tournament_loss_30d"],
             -all_tournament_models[k]["hits_30d"],
-            all_tournament_models[k]["mae_30d"],
+            all_tournament_models[k]["miss_mae_30d"],
+            all_tournament_models[k]["hit_mae_30d"],
         ),
     )
     grand_champion_key = sorted_grand[0]
@@ -900,9 +890,25 @@ def run_30d_walk_forward_arena(
     champion_dir_hits = grand_meta["hits_30d"]
     champion_dir_hit_rate_pct = grand_meta["hit_rate_30d"]
     champion_mae_pct = grand_meta["mae_30d"]
+    champion_hit_mae_pct = grand_meta["hit_mae_30d"]
+    champion_miss_mae_pct = grand_meta["miss_mae_30d"]
     champion_penalty_loss = grand_meta["penalty_loss_30d"]
     runner_up_key = sorted_grand[1]
     runner_up_dir_hit_rate_pct = all_tournament_models[runner_up_key]["hit_rate_30d"]
+
+    prophet_30d_hits = p_30d["hits"]
+    prophet_30d_hit_rate = p_30d["hit_rate_pct"]
+    prophet_30d_mae = p_30d["mae_pct"]
+    prophet_30d_hit_mae = p_30d["hit_mae_pct"]
+    prophet_30d_miss_mae = p_30d["miss_mae_pct"]
+    prophet_30d_penalty_loss = p_30d["tournament_loss"]
+
+    prophet_hits = p_full["hits"]
+    prophet_hit_rate = p_full["hit_rate_pct"]
+    prophet_mae = p_full["mae_pct"]
+    prophet_hit_mae = p_full["hit_mae_pct"]
+    prophet_miss_mae = p_full["miss_mae_pct"]
+    prophet_penalty_loss = p_full["tournament_loss"]
 
     # Telemetry weights for transparency
     convex_weight_ml, convex_weight_prophet = compute_convex_softmax_weights(
@@ -1012,14 +1018,16 @@ def run_30d_walk_forward_arena(
     confluence_30d_hits = sum(1 for s in recent_slice if s["confluence_hit"])
     confluence_30d_hit_rate = (confluence_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
     confluence_30d_mae = sum(s["confluence_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
-    confluence_30d_penalty_loss = _calc_score(recent_slice, "confluence_err", "confluence_hit")
+    c_30d_metrics = compute_3criteria_metrics(recent_slice, "confluence_err", "confluence_hit")
+    confluence_30d_penalty_loss = c_30d_metrics["tournament_loss"]
 
     confluence_hits = sum(1 for s in step_records if s["confluence_hit"])
     confluence_hit_rate = (confluence_hits / n_total) * 100.0 if n_total > 0 else 0.0
     confluence_mae = sum(s["confluence_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-    confluence_penalty_loss = _calc_score(step_records, "confluence_err", "confluence_hit")
+    c_full_metrics = compute_3criteria_metrics(step_records, "confluence_err", "confluence_hit")
+    confluence_penalty_loss = c_full_metrics["tournament_loss"]
 
-    # Operational Grand Champion: Crowned Champion (blended score winner)
+    # Operational Grand Champion: Crowned Champion (3-Criteria Winner)
     tournament_summary = {
         "champion": champion,
         "champion_label": champion_label,
@@ -1032,13 +1040,20 @@ def run_30d_walk_forward_arena(
         "champion_dir_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
         "runner_up_dir_hit_rate_pct": round(runner_up_dir_hit_rate_pct, 1),
         "champion_mae_pct": round(champion_mae_pct, 2),
+        "champion_hit_mae_pct": round(champion_hit_mae_pct, 2),
+        "champion_miss_mae_pct": round(champion_miss_mae_pct, 2),
+        "champion_tournament_loss": round(champion_penalty_loss, 2),
         "champion_30d_hits": champion_dir_hits,
         "champion_30d_hit_rate_pct": round(champion_dir_hit_rate_pct, 1),
         "champion_30d_mae_pct": round(champion_mae_pct, 2),
+        "champion_30d_hit_mae_pct": round(champion_hit_mae_pct, 2),
+        "champion_30d_miss_mae_pct": round(champion_miss_mae_pct, 2),
         "champion_30d_penalty_loss": round(champion_penalty_loss, 2),
         "champion_full_hits": confluence_hits,
         "champion_full_hit_rate_pct": round(confluence_hit_rate, 1),
         "champion_full_mae_pct": round(confluence_mae, 2),
+        "champion_full_hit_mae_pct": round(c_full_metrics["hit_mae_pct"], 2),
+        "champion_full_miss_mae_pct": round(c_full_metrics["miss_mae_pct"], 2),
         "champion_full_penalty_loss": round(confluence_penalty_loss, 2),
         "confluence_30d_hits": confluence_30d_hits,
         "confluence_30d_hit_rate_pct": round(confluence_30d_hit_rate, 1),
@@ -1047,51 +1062,76 @@ def run_30d_walk_forward_arena(
         "ml_dir_hits": ml_candidate_30d_hits,
         "ml_dir_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
         "ml_hit_rate_pct": round(ml_candidate_30d_hit_rate, 1),
+        "ml_mae_pct": round(ml_candidate_30d_mae, 2),
+        "ml_hit_mae_pct": round(ml_candidate_30d_hit_mae, 2),
+        "ml_miss_mae_pct": round(ml_candidate_30d_miss_mae, 2),
         "ml_penalty_loss_30d": round(ml_candidate_30d_penalty, 2),
+        "ml_tournament_loss_30d": round(ml_candidate_30d_penalty, 2),
         "ml_full_hits": ml_candidate_hits,
         "ml_full_hit_rate_pct": round(ml_candidate_hit_rate, 1),
         "ml_full_mae_pct": round(ml_candidate_mae, 2),
+        "ml_full_hit_mae_pct": round(ml_candidate_hit_mae, 2),
+        "ml_full_miss_mae_pct": round(ml_candidate_miss_mae, 2),
         "ml_full_penalty_loss": round(ml_candidate_penalty, 2),
         "prophet_dir_hits": prophet_30d_hits,
         "prophet_dir_hit_rate_pct": round(prophet_30d_hit_rate, 1),
         "prophet_hit_rate_pct": round(prophet_30d_hit_rate, 1),
+        "prophet_mae_pct": round(prophet_30d_mae, 2),
+        "prophet_hit_mae_pct": round(prophet_30d_hit_mae, 2),
+        "prophet_miss_mae_pct": round(prophet_30d_miss_mae, 2),
         "prophet_penalty_loss_30d": round(prophet_30d_penalty_loss, 2),
+        "prophet_tournament_loss_30d": round(prophet_30d_penalty_loss, 2),
         "prophet_full_hits": prophet_hits,
         "prophet_full_hit_rate_pct": round(prophet_hit_rate, 1),
         "prophet_full_mae_pct": round(prophet_mae, 2),
+        "prophet_full_hit_mae_pct": round(prophet_hit_mae, 2),
+        "prophet_full_miss_mae_pct": round(prophet_miss_mae, 2),
         "prophet_full_penalty_loss": round(prophet_penalty_loss, 2),
         "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_dir_hits": candidates_meta["Ridge"]["hits_30d"],
         "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate"], 1),
         "ridge_mae_pct": round(candidates_meta["Ridge"]["mae_30d"], 2),
+        "ridge_hit_mae_pct": round(candidates_meta["Ridge"]["hit_mae_30d"], 2),
+        "ridge_miss_mae_pct": round(candidates_meta["Ridge"]["miss_mae_30d"], 2),
         "ridge_penalty_loss_30d": round(candidates_meta["Ridge"]["penalty_loss_30d"], 2),
+        "ridge_tournament_loss_30d": round(candidates_meta["Ridge"]["tournament_loss_30d"], 2),
         "xgboost_30d_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
         "xgboost_dir_hits": candidates_meta["XGBoost"]["hits_30d"],
         "xgboost_dir_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
         "xgboost_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate"], 1),
         "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae_30d"], 2),
+        "xgboost_hit_mae_pct": round(candidates_meta["XGBoost"]["hit_mae_30d"], 2),
+        "xgboost_miss_mae_pct": round(candidates_meta["XGBoost"]["miss_mae_30d"], 2),
         "xgboost_penalty_loss_30d": round(candidates_meta["XGBoost"]["penalty_loss_30d"], 2),
+        "xgboost_tournament_loss_30d": round(candidates_meta["XGBoost"]["tournament_loss_30d"], 2),
         "lightgbm_30d_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
         "lightgbm_dir_hits": candidates_meta["LightGBM"]["hits_30d"],
         "lightgbm_dir_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
         "lightgbm_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate"], 1),
         "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae_30d"], 2),
+        "lightgbm_hit_mae_pct": round(candidates_meta["LightGBM"]["hit_mae_30d"], 2),
+        "lightgbm_miss_mae_pct": round(candidates_meta["LightGBM"]["miss_mae_30d"], 2),
         "lightgbm_penalty_loss_30d": round(candidates_meta["LightGBM"]["penalty_loss_30d"], 2),
+        "lightgbm_tournament_loss_30d": round(candidates_meta["LightGBM"]["tournament_loss_30d"], 2),
         "huber_30d_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
         "huber_dir_hits": candidates_meta["Huber"]["hits_30d"],
         "huber_dir_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
         "huber_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate"], 1),
         "huber_mae_pct": round(candidates_meta["Huber"]["mae_30d"], 2),
+        "huber_hit_mae_pct": round(candidates_meta["Huber"]["hit_mae_30d"], 2),
+        "huber_miss_mae_pct": round(candidates_meta["Huber"]["miss_mae_30d"], 2),
         "huber_penalty_loss_30d": round(candidates_meta["Huber"]["penalty_loss_30d"], 2),
+        "huber_tournament_loss_30d": round(candidates_meta["Huber"]["tournament_loss_30d"], 2),
         "bayesian_ridge_30d_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
         "bayesian_ridge_dir_hits": candidates_meta["BayesianRidge"]["hits_30d"],
         "bayesian_ridge_dir_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
         "bayesian_ridge_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate"], 1),
         "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae_30d"], 2),
+        "bayesian_ridge_hit_mae_pct": round(candidates_meta["BayesianRidge"]["hit_mae_30d"], 2),
+        "bayesian_ridge_miss_mae_pct": round(candidates_meta["BayesianRidge"]["miss_mae_30d"], 2),
         "bayesian_ridge_penalty_loss_30d": round(candidates_meta["BayesianRidge"]["penalty_loss_30d"], 2),
-        "ml_mae_pct": round(ml_candidate_30d_mae, 2),
-        "prophet_mae_pct": round(prophet_30d_mae, 2),
+        "bayesian_ridge_tournament_loss_30d": round(candidates_meta["BayesianRidge"]["tournament_loss_30d"], 2),
         "ml_error_wins": ml_error_wins,
         "prophet_error_wins": prophet_error_wins,
         "ml_wins": ml_error_wins,

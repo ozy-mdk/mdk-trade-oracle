@@ -69,12 +69,16 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - *Macro Rates, Regime Shocks & Carry Costs*: `feat_macro_repo_rate_pct`, `feat_macro_daily_carry_cost_bps`, `feat_days_since_pos_shock`, `feat_days_since_neg_shock`.
      - *Benchmark Index & Univariate Prior*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`, `feat_prophet_ret_today_pct`.
      - *Calendar Dynamics*: `feat_day_of_week`, `feat_is_monday`, `feat_is_friday`.
-3. **Walk-Forward Model Tournament & Directional Champion Selection**:
-   - Walk-forward candidate arena benchmarks:
-     - `Baselines`: Historical Moving Averages (5-day rolling mean).
-     - `Machine Learning`: Non-linear gradient boosting (LightGBM).
-     - `Probabilistic Bayesian`: Analytical Bayesian Ridge Regression.
-   - **Primary Champion Criterion**: Out-of-sample **Directional Hit Rate %** (percentage of sessions where the predicted sign correctly matched the actual realized market flow direction), using Mean Absolute Error (MAE) as the secondary tie-breaker.
+3. **Walk-Forward Model Tournament & 3-Criteria Champion Selection**:
+   - The **tournament run / arena** (`scripts/experiments/test_multi_horizon_180d_arena.py`, `scripts/export_tertip_180d_track.py`) is the **single source of truth** for crowning models and lookback horizons (3M, 6M, 12M) for each stock, persisted to `config/tertip_crowned_models.yaml` and PostgreSQL `gold_tertip_daily_forecasts`.
+   - Candidate models benchmarked: `Ridge`, `XGBoost`, `BayesianRidge`, `Huber`, `LightGBM`, and `Prophet`.
+   - **The 3 Core Champion Selection Criteria**:
+     1. **Percentage of Directional Hits (`hit_rate_pct`)**: Out-of-sample sign accuracy against the calibrated $\pm 0.25\%$ (25 bps) market consolidation deadband.
+     2. **Percentage Error on Directional Hits (`hit_mae_pct`)**: Measures price calibration precision on winning calls (e.g. predicting $+0.5\%$ when realized is $+1.5\%$ vs $+10.0\%$).
+     3. **Percentage Error on Directional Misses (`miss_mae_pct`)**: Measures downside risk and capital protection on bad signals (e.g. predicting $+0.5\%$ when realized is $-0.5\%$ vs $-5.0\%$).
+   - **Composite Tournament Loss**:
+     $$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hit\_mae\_pct} + 2.5 \times \text{miss\_mae\_pct}$$
+     The champion model and lookback horizon for each equity is crowned strictly by minimizing this composite loss.
 4. **Actionable Trader Playbooks & Dynamic Thresholds**:
    - Translates predicted flows into actionable context blueprints:
      - **`SQUEEZE_LONG`**: Strong positive flow expectation with heavy competitor delta — follow aggressive opening accumulation.

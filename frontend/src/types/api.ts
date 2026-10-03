@@ -313,6 +313,11 @@ export interface WalkForwardLedgerItem {
   confluence_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
   confluence_err_pct?: number;
   confluence_is_hit?: boolean;
+  champion_pred_price?: number;
+  champion_pred_return_pct?: number;
+  champion_direction?: 'UP' | 'DOWN' | 'FLAT' | string;
+  champion_err_pct?: number;
+  champion_is_hit?: boolean;
   convex_weight_ml?: number;
   convex_weight_prophet?: number;
   prophet_pred_price: number;
@@ -341,6 +346,7 @@ export interface WalkForwardLedgerItem {
 export interface TournamentSummary {
   champion: string;
   champion_label: string;
+  grand_champion_key?: string;
   ml_champion_type?: string;
   crowned_horizon?: string;
   training_lookback_sessions?: number;
@@ -351,14 +357,21 @@ export interface TournamentSummary {
   champion_dir_hit_rate_pct?: number;
   runner_up_dir_hit_rate_pct?: number;
   champion_mae_pct?: number;
+  champion_hit_mae_pct?: number;
+  champion_miss_mae_pct?: number;
+  champion_tournament_loss?: number;
   champion_30d_hits?: number;
   champion_30d_hit_rate_pct?: number;
   champion_30d_mae_pct?: number;
+  champion_30d_hit_mae_pct?: number;
+  champion_30d_miss_mae_pct?: number;
   champion_30d_penalty_loss?: number;
   champion_penalty_loss?: number;
   champion_full_hits?: number;
   champion_full_hit_rate_pct?: number;
   champion_full_mae_pct?: number;
+  champion_full_hit_mae_pct?: number;
+  champion_full_miss_mae_pct?: number;
   champion_full_penalty_loss?: number;
   confluence_30d_hits?: number;
   confluence_30d_hit_rate_pct?: number;

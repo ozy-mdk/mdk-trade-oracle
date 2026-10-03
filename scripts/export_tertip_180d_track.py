@@ -402,6 +402,8 @@ def main() -> None:
                 "champion_30d_hits": tournament.get("champion_30d_hits", tournament.get("champion_dir_hits")),
                 "champion_30d_hit_rate_pct": tournament.get("champion_30d_hit_rate_pct", tournament.get("champion_dir_hit_rate_pct")),
                 "champion_30d_mae_pct": tournament.get("champion_30d_mae_pct", tournament.get("champion_mae_pct")),
+                "champion_30d_hit_mae_pct": tournament.get("champion_30d_hit_mae_pct"),
+                "champion_30d_miss_mae_pct": tournament.get("champion_30d_miss_mae_pct"),
                 "champion_full_hits": tournament.get("champion_full_hits"),
                 "champion_full_hit_rate_pct": tournament.get("champion_full_hit_rate_pct"),
                 "champion_full_mae_pct": tournament.get("champion_full_mae_pct"),
@@ -520,15 +522,17 @@ def sync_crowned_yaml(summary_rows: list[dict[str, Any]], yaml_path: Path) -> No
             "recent_30d_hits": r["champion_30d_hits"],
             "recent_30d_hit_rate_pct": r["champion_30d_hit_rate_pct"],
             "recent_30d_mae_pct": r["champion_30d_mae_pct"],
+            "recent_30d_hit_mae_pct": r.get("champion_30d_hit_mae_pct"),
+            "recent_30d_miss_mae_pct": r.get("champion_30d_miss_mae_pct"),
             "recent_30d_penalty_loss": r.get("champion_30d_penalty_loss"),
         }
 
     output_data = {
         "_metadata": {
-            "description": "Crowned Tertip Confluence models (70% ML Microstructure + 30% Prophet Macro Trend) and training lookback horizons.",
+            "description": "Crowned Tertip Confluence models and training lookback horizons selected via 3-Criteria Tournament Arena (Directional Hit %, Hit Calibration Error %, Miss Drawdown Error %).",
             "calibration_date": str(pd.Timestamp.now().date()),
             "eval_window": "180d_walk_forward",
-            "selection_metric": "highest_30d_linear_score_confluence",
+            "selection_metric": "3_criteria_tournament_loss",
         },
         "symbols": symbols_map,
     }

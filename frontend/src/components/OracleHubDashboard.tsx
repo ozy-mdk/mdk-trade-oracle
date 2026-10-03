@@ -138,8 +138,12 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const activeMiss = displayLedger.length - activeHits;
   const activeHitRatePct = displayLedger.length > 0 ? (activeHits / displayLedger.length) * 100 : 0;
 
-  const championHits = displayLedger.filter((r) => r.champion_is_hit !== undefined ? r.champion_is_hit : (r.confluence_is_hit !== undefined ? r.confluence_is_hit : r.ml_is_hit)).length;
-  const championHitRatePct = displayLedger.length > 0 ? (championHits / displayLedger.length) * 100 : 0;
+  // 3 Selection Criteria
+  const activeHitErrors = displayLedger.filter((r) => getRowHit(r)).map((r) => getRowErrPct(r));
+  const activeMissErrors = displayLedger.filter((r) => !getRowHit(r)).map((r) => getRowErrPct(r));
+  const activeHitMae = activeHitErrors.length > 0 ? activeHitErrors.reduce((a, b) => a + b, 0) / activeHitErrors.length : 0;
+  const activeMissMae = activeMissErrors.length > 0 ? activeMissErrors.reduce((a, b) => a + b, 0) / activeMissErrors.length : 0;
+  const active3CritLoss = (100 - activeHitRatePct) + 1.0 * activeHitMae + 2.5 * activeMissMae;
 
   const mlHits = displayLedger.filter((r) => r.ml_is_hit).length;
   const mlHitRatePct = displayLedger.length > 0 ? (mlHits / displayLedger.length) * 100 : 0;
@@ -572,30 +576,49 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="space-y-2 mt-2 font-mono text-xs">
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Directional Hit Rate:</span>
-                    <span className="font-bold text-emerald-400 text-sm">
+                <div className="space-y-1.5 mt-2 font-mono text-xs">
+                  {/* Criterion 1: Directional Hit % */}
+                  <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-400 text-[11px]">1. Directional Hits:</span>
+                    <span className="font-bold text-emerald-400 text-xs">
                       {activeHits}/{displayLedger.length} ({activeHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Champion Hit Rate:</span>
-                    <span className="font-semibold text-amber-300">
-                      {championHits}/{displayLedger.length} ({championHitRatePct.toFixed(1)}%)
+
+                  {/* Criterion 2: Hit Price Error (Hit MAE) */}
+                  <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-400 text-[11px]">2. Hit Price Error (MAE):</span>
+                    <span className="font-semibold text-cyan-300 text-xs">
+                      {activeHitMae.toFixed(2)}%
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">ML Challenger Alone:</span>
-                    <span className="font-semibold text-indigo-300">
-                      {mlHits}/{displayLedger.length} ({mlHitRatePct.toFixed(1)}%)
+
+                  {/* Criterion 3: Miss Price Error (Miss MAE) */}
+                  <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-400 text-[11px]">3. Miss Price Error (MAE):</span>
+                    <span className="font-semibold text-rose-300 text-xs">
+                      {activeMissMae.toFixed(2)}%
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400">Prophet Baseline:</span>
-                    <span className="font-semibold text-purple-300">
-                      {prophetHits}/{displayLedger.length} ({prophetHitRatePct.toFixed(1)}%)
+
+                  {/* 3-Criteria Composite Loss */}
+                  <div className="flex items-center justify-between p-1.5 px-2 rounded bg-amber-500/10 border border-amber-500/30">
+                    <span className="text-amber-300 font-bold text-[11px]">3-Criteria Tournament Loss:</span>
+                    <span className="font-bold text-amber-400 text-xs">
+                      {active3CritLoss.toFixed(2)}
                     </span>
+                  </div>
+
+                  {/* Peer Arena Comparison */}
+                  <div className="pt-1.5 border-t border-slate-800/80 grid grid-cols-2 gap-1 text-[10px]">
+                    <div className="p-1 rounded bg-slate-950/40 border border-slate-800/60 flex justify-between">
+                      <span className="text-slate-400">ML Alone:</span>
+                      <span className="text-indigo-300 font-semibold">{mlHits}/{displayLedger.length} ({mlHitRatePct.toFixed(0)}%)</span>
+                    </div>
+                    <div className="p-1 rounded bg-slate-950/40 border border-slate-800/60 flex justify-between">
+                      <span className="text-slate-400">Prophet:</span>
+                      <span className="text-purple-300 font-semibold">{prophetHits}/{displayLedger.length} ({prophetHitRatePct.toFixed(0)}%)</span>
+                    </div>
                   </div>
                 </div>
               </div>

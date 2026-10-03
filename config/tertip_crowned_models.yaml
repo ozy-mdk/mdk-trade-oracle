@@ -1,9 +1,10 @@
 _metadata:
-  description: Crowned Tertip Confluence models (70% ML Microstructure + 30% Prophet
-    Macro Trend) and training lookback horizons.
+  description: Crowned Tertip Confluence models and training lookback horizons selected
+    via 3-Criteria Tournament Arena (Directional Hit %, Hit Calibration Error %, Miss
+    Drawdown Error %).
   calibration_date: '2026-10-03'
   eval_window: 180d_walk_forward
-  selection_metric: highest_30d_linear_score_confluence
+  selection_metric: 3_criteria_tournament_loss
 symbols:
   AEFES:
     model: LightGBM
@@ -22,13 +23,15 @@ symbols:
     recent_30d_mae_pct: 4.1
     recent_30d_penalty_loss: 44.86
   ASELS:
-    model: LightGBM
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 12.92
-    recent_30d_penalty_loss: 62.51
+    model: Ridge
+    horizon: 12m
+    training_lookback_sessions: 252
+    recent_30d_hits: 17
+    recent_30d_hit_rate_pct: 56.7
+    recent_30d_mae_pct: 2.08
+    recent_30d_hit_mae_pct: 1.57
+    recent_30d_miss_mae_pct: 2.75
+    recent_30d_penalty_loss: 51.74
   ASTOR:
     model: Ridge
     horizon: 12m

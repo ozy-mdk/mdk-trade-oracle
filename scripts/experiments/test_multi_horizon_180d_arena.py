@@ -220,30 +220,47 @@ def run_horizon_walk_forward(
             "err_prophet": err_prophet,
         })
 
-    ridge_hit_rate = (ridge_hits / total_eval * 100.0) if total_eval > 0 else 0.0
-    xgb_hit_rate = (xgb_hits / total_eval * 100.0) if total_eval > 0 else 0.0
-    prophet_hit_rate = (prophet_hits / total_eval * 100.0) if total_eval > 0 else 0.0
+    ridge_is_hits = [r["ridge_hit"] for r in records]
+    xgb_is_hits = [r["xgb_hit"] for r in records]
+    prophet_is_hits = [r["prophet_hit"] for r in records]
+
+    def calc_3crit(hits_cnt: int, err_list: list[float], is_hit_list: list[bool]) -> tuple[float, float, float, float]:
+        n = len(err_list)
+        if n == 0:
+            return 0.0, 0.0, 0.0, 100.0
+        hr = (hits_cnt / n) * 100.0
+        hit_e = [e for e, h in zip(err_list, is_hit_list) if h]
+        miss_e = [e for e, h in zip(err_list, is_hit_list) if not h]
+        h_mae = float(np.mean(hit_e)) if hit_e else 0.0
+        m_mae = float(np.mean(miss_e)) if miss_e else 0.0
+        loss = (100.0 - hr) + 1.0 * h_mae + 2.5 * m_mae
+        return round(hr, 1), round(h_mae, 2), round(m_mae, 2), round(loss, 2)
+
+    ridge_hr, ridge_hmae, ridge_mmae, ridge_loss = calc_3crit(ridge_hits, ridge_errors, ridge_is_hits)
+    xgb_hr, xgb_hmae, xgb_mmae, xgb_loss = calc_3crit(xgb_hits, xgb_errors, xgb_is_hits)
+    prophet_hr, prophet_hmae, prophet_mmae, prophet_loss = calc_3crit(prophet_hits, prophet_errors, prophet_is_hits)
 
     ridge_mae = float(np.mean(ridge_errors)) if ridge_errors else 0.0
     xgb_mae = float(np.mean(xgb_errors)) if xgb_errors else 0.0
     prophet_mae = float(np.mean(prophet_errors)) if prophet_errors else 0.0
 
-    # Pick ML model champion for this horizon (Hit Rate primary, MAE tiebreaker)
-    if xgb_hit_rate > ridge_hit_rate:
+    # Pick ML model champion for this horizon (3-Criteria Tournament Loss primary: sign accuracy + hit calibration error + miss risk)
+    if xgb_loss < ridge_loss:
         ml_champ = "XGBoost"
         ml_hits = xgb_hits
-        ml_hit_rate = xgb_hit_rate
+        ml_hit_rate = xgb_hr
         ml_mae = xgb_mae
-    elif ridge_hit_rate > xgb_hit_rate:
+        ml_hmae = xgb_hmae
+        ml_mmae = xgb_mmae
+        ml_loss = xgb_loss
+    else:
         ml_champ = "Ridge"
         ml_hits = ridge_hits
-        ml_hit_rate = ridge_hit_rate
+        ml_hit_rate = ridge_hr
         ml_mae = ridge_mae
-    else:
-        ml_champ = "XGBoost" if xgb_mae <= ridge_mae else "Ridge"
-        ml_hits = xgb_hits if ml_champ == "XGBoost" else ridge_hits
-        ml_hit_rate = xgb_hit_rate if ml_champ == "XGBoost" else ridge_hit_rate
-        ml_mae = xgb_mae if ml_champ == "XGBoost" else ridge_mae
+        ml_hmae = ridge_hmae
+        ml_mmae = ridge_mmae
+        ml_loss = ridge_loss
 
     return {
         "symbol": symbol,
@@ -254,15 +271,27 @@ def run_horizon_walk_forward(
         "ml_hits": ml_hits,
         "ml_hit_rate_pct": round(ml_hit_rate, 1),
         "ml_mae_pct": round(ml_mae, 2),
+        "ml_hit_mae_pct": ml_hmae,
+        "ml_miss_mae_pct": ml_mmae,
+        "ml_tournament_loss": ml_loss,
         "ridge_hits": ridge_hits,
-        "ridge_hit_rate_pct": round(ridge_hit_rate, 1),
+        "ridge_hit_rate_pct": ridge_hr,
         "ridge_mae_pct": round(ridge_mae, 2),
+        "ridge_hit_mae_pct": ridge_hmae,
+        "ridge_miss_mae_pct": ridge_mmae,
+        "ridge_tournament_loss": ridge_loss,
         "xgb_hits": xgb_hits,
-        "xgb_hit_rate_pct": round(xgb_hit_rate, 1),
+        "xgb_hit_rate_pct": xgb_hr,
         "xgb_mae_pct": round(xgb_mae, 2),
+        "xgb_hit_mae_pct": xgb_hmae,
+        "xgb_miss_mae_pct": xgb_mmae,
+        "xgb_tournament_loss": xgb_loss,
         "prophet_hits": prophet_hits,
-        "prophet_hit_rate_pct": round(prophet_hit_rate, 1),
+        "prophet_hit_rate_pct": prophet_hr,
         "prophet_mae_pct": round(prophet_mae, 2),
+        "prophet_hit_mae_pct": prophet_hmae,
+        "prophet_miss_mae_pct": prophet_mmae,
+        "prophet_tournament_loss": prophet_loss,
         "records": records,
     }
 
@@ -302,16 +331,17 @@ def run_experiment(symbols: list[str], n_eval_sessions: int = 180) -> dict[str, 
                 f"MAE: {h_res['ml_mae_pct']:.2f}% | (Prophet: {h_res['prophet_hit_rate_pct']:.1f}%)"
             )
 
-        # Crown Horizon Champion for this symbol (Hit rate primary, MAE tiebreaker)
-        best_h = max(
+        # Crown Horizon Champion for this symbol (3-Criteria Tournament Loss)
+        best_h = min(
             sym_horizon_results.keys(),
             key=lambda k: (
-                sym_horizon_results[k]["ml_hit_rate_pct"],
-                -sym_horizon_results[k]["ml_mae_pct"],
+                sym_horizon_results[k]["ml_tournament_loss"],
+                -sym_horizon_results[k]["ml_hit_rate_pct"],
+                sym_horizon_results[k]["ml_mae_pct"],
             ),
         )
         sym_horizon_results["crowned_horizon"] = best_h
-        print(f"  >>> CROWNED LOOKBACK FOR {sym}: {best_h} ({sym_horizon_results[best_h]['ml_hit_rate_pct']}%) in {time.time() - sym_t0:.1f}s")
+        print(f"  >>> CROWNED LOOKBACK FOR {sym}: {best_h} (Loss: {sym_horizon_results[best_h]['ml_tournament_loss']}, Hits: {sym_horizon_results[best_h]['ml_hit_rate_pct']}%, Hit MAE: {sym_horizon_results[best_h]['ml_hit_mae_pct']}%, Miss MAE: {sym_horizon_results[best_h]['ml_miss_mae_pct']}%) in {time.time() - sym_t0:.1f}s")
         all_results[sym] = sym_horizon_results
 
     # Save detailed prediction logs
