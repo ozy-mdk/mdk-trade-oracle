@@ -30,13 +30,13 @@ symbols:
     recent_30d_mae_pct: 12.92
     recent_30d_penalty_loss: 62.51
   ASTOR:
-    model: LightGBM
+    model: Ridge
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 22
-    recent_30d_hit_rate_pct: 73.3
-    recent_30d_mae_pct: 26.32
-    recent_30d_penalty_loss: 79.31
+    recent_30d_hits: 21
+    recent_30d_hit_rate_pct: 70.0
+    recent_30d_mae_pct: 26.52
+    recent_30d_penalty_loss: 83.03
   BIMAS:
     model: BayesianRidge
     horizon: 3m

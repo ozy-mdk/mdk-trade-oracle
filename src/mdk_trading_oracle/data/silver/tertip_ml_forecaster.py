@@ -85,6 +85,9 @@ FEATURE_COLS = [
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
 
+# Strict 24-Month Historical Lookback (504 BIST Trading Sessions) for Prophet Baseline
+PROPHET_LOOKBACK_SESSIONS = 504
+
 # Neutral Consolidation Deadband % (+/- 0.25% / 25 bps)
 # Reflects realistic BIST equity tick size (1-2 ticks) and intraday consolidation range.
 DEADBAND_PCT: float = 0.25
@@ -222,9 +225,10 @@ def attach_prophet_rolling_features(
         if d_str in cached_dict and pd.notna(cached_dict[d_str]):
             continue
 
-        # Strictly point-in-time: all historical data from index 0 up to session k - 1
-        hist_dates = trade_dates.iloc[:k]
-        hist_prices = close_prices[:k]
+        # Strictly point-in-time: trailing 24 months (up to 504 trading sessions) up to session k - 1
+        start_hist = max(0, k - PROPHET_LOOKBACK_SESSIONS)
+        hist_dates = trade_dates.iloc[start_hist:k]
+        hist_prices = close_prices[start_hist:k]
         p_prev = close_prices[k - 1]
         target_date_prev = trade_dates.iloc[k - 1]
         target_date_today = trade_dates.iloc[k]
@@ -241,7 +245,7 @@ def attach_prophet_rolling_features(
                 daily_seasonality=False,
                 weekly_seasonality=True,
                 yearly_seasonality=True,
-                changepoint_range=0.95,
+                changepoint_range=0.98,
                 changepoint_prior_scale=0.15,
                 uncertainty_samples=0,
             )
@@ -641,9 +645,10 @@ def run_30d_walk_forward_arena(
             prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
             prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         else:
+            start_hist = max(0, len(train_data) - PROPHET_LOOKBACK_SESSIONS)
             p_df = pd.DataFrame({
-                "ds": pd.to_datetime(train_data["trade_date"]),
-                "y": train_data["close_price"],
+                "ds": pd.to_datetime(train_data["trade_date"].iloc[start_hist:]),
+                "y": train_data["close_price"].iloc[start_hist:],
             })
             holidays_df = get_prophet_holidays()
             m_prophet = Prophet(
@@ -651,7 +656,7 @@ def run_30d_walk_forward_arena(
                 daily_seasonality=False,
                 weekly_seasonality=True,
                 yearly_seasonality=True,
-                changepoint_range=0.95,
+                changepoint_range=0.98,
                 changepoint_prior_scale=0.15,
                 uncertainty_samples=0,
             )
@@ -1444,10 +1449,11 @@ def get_tertip_ml_forecast(
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    # 1. Base Prophet Prediction for T+1 (fitted on full available historical price series + holidays + shocks)
+    # 1. Base Prophet Prediction for T+1 (fitted on trailing 24 months / 504 sessions + holidays + shocks)
+    start_hist = max(0, len(df) - PROPHET_LOOKBACK_SESSIONS)
     p_df = pd.DataFrame({
-        "ds": pd.to_datetime(df["trade_date"]),
-        "y": df["close_price"],
+        "ds": pd.to_datetime(df["trade_date"].iloc[start_hist:]),
+        "y": df["close_price"].iloc[start_hist:],
     })
     holidays_df = get_prophet_holidays(db)
     m_prophet = Prophet(
@@ -1455,7 +1461,7 @@ def get_tertip_ml_forecast(
         daily_seasonality=False,
         weekly_seasonality=True,
         yearly_seasonality=True,
-        changepoint_range=0.95,
+        changepoint_range=0.98,
         changepoint_prior_scale=0.15,
         uncertainty_samples=0,
     )
