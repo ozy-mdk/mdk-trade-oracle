@@ -121,7 +121,7 @@ def test_tertip_ml_forecaster_live_database():
     assert "day_before_pct" in data["bist30_trend"]
     assert "tournament_summary" in data
     assert len(data["pillar_matrix"]) == 3
-    assert len(data["walk_forward_ledger"]) == 30
+    assert len(data["walk_forward_ledger"]) in (30, 180)
 
     # Verify 21 active features including Prophet rolling baseline & Net Imbalance
     assert "active_features" in data

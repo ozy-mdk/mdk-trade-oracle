@@ -1,7 +1,7 @@
 _metadata:
   description: Crowned Tertip Confluence models (70% ML Microstructure + 30% Prophet
     Macro Trend) and training lookback horizons.
-  calibration_date: '2026-10-02'
+  calibration_date: '2026-10-03'
   eval_window: 180d_walk_forward
   selection_metric: highest_30d_linear_score_confluence
 symbols:
@@ -30,13 +30,13 @@ symbols:
     recent_30d_mae_pct: 12.92
     recent_30d_penalty_loss: 62.51
   ASTOR:
-    model: Ridge
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 16
-    recent_30d_hit_rate_pct: 53.3
-    recent_30d_mae_pct: 25.3
-    recent_30d_penalty_loss: 97.26
+    model: LightGBM
+    horizon: 12m
+    training_lookback_sessions: 252
+    recent_30d_hits: 22
+    recent_30d_hit_rate_pct: 73.3
+    recent_30d_mae_pct: 26.32
+    recent_30d_penalty_loss: 79.31
   BIMAS:
     model: BayesianRidge
     horizon: 3m
