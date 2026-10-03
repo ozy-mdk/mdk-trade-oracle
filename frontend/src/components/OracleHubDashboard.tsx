@@ -95,7 +95,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     activeStanceBadge = forecast?.ml_stance_badge || 'ML CHALLENGER';
     activeStanceColor = 'indigo';
     activeHeadline = `Projecting ML Challenger ${activeStanceBadge} towards ₺${activeTargetPrice.toFixed(2)} (${activeExpReturn >= 0 ? '+' : ''}${activeExpReturn.toFixed(2)}%)`;
-    activeRationale = `Pure ${tournament?.ml_champion_type || 'Machine Learning'} model trained strictly on trailing 12 months (252 sessions) using 21 scarce microstructure features and point-in-time FIFO inventory tracking.`;
+    activeRationale = `Pure ${tournament?.ml_champion_type || 'Machine Learning'} model trained strictly on trailing ${tournament?.crowned_horizon?.toUpperCase() || 'crowned'} horizon (${forecast?.train_lookback_sessions ?? 63} sessions) using 21 scarce microstructure features and point-in-time FIFO inventory tracking.`;
   } else if (activeModel === 'prophet') {
     activeTargetPrice = forecast?.prophet_target_price ?? latestPrice;
     activeExpReturn = forecast?.prophet_expected_return_pct ?? 0;
@@ -434,7 +434,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
       {isLoading ? (
         <div className="glass-panel p-12 text-center text-slate-400 font-mono text-sm border border-slate-800 rounded-xl">
           <Activity className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-400" />
-          <span>Computing zero-lookahead 12-month walk-forward tournament for {activeSymbol}...</span>
+          <span>Computing zero-lookahead walk-forward tournament for {activeSymbol}...</span>
         </div>
       ) : forecast ? (
         <>
