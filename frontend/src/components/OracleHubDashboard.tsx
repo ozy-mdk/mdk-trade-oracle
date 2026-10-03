@@ -96,7 +96,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
     activeExpReturn = forecast?.ml_expected_return_pct ?? 0;
     activeStance = forecast?.ml_stance || 'NEUTRAL';
     activeStanceBadge = forecast?.ml_stance_badge || 'ML CHALLENGER';
-    activeStanceColor = forecast?.ml_stance_color || 'cyan';
+    activeStanceColor = 'indigo';
     activeHeadline = `Projecting ML Challenger ${activeStanceBadge} towards ₺${activeTargetPrice.toFixed(2)} (${activeExpReturn >= 0 ? '+' : ''}${activeExpReturn.toFixed(2)}%)`;
     activeRationale = `Pure ${tournament?.ml_champion_type || 'Machine Learning'} model trained strictly on trailing 12 months (252 sessions) using 21 scarce microstructure features and point-in-time FIFO inventory tracking.`;
   } else if (activeModel === 'prophet') {
@@ -352,7 +352,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               onClick={() => setActiveModel('ml')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
                 activeModel === 'ml'
-                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 font-black'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
@@ -435,7 +435,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     activeModel === 'confluence'
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                       : activeModel === 'ml'
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
                       : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
                   }`}>
                     {activeModel === 'confluence' ? '👑 CONVEX CONFLUENCE' : activeModel === 'ml' ? '⚡ PURE ML' : '📈 PROPHET BASELINE'}
@@ -479,8 +479,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                           : activeStanceColor === 'rose'
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                          : activeStanceColor === 'cyan'
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          : activeStanceColor === 'indigo'
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
                           : activeStanceColor === 'purple'
                           ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                           : 'bg-slate-800 text-slate-300 border-slate-700'
@@ -509,7 +509,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       </span>
                     </div>
                     <div className={`flex items-center justify-between text-[11px] ${activeModel === 'ml' ? 'font-bold' : ''}`}>
-                      <span className="text-cyan-400">ML Challenger:</span>
+                      <span className="text-indigo-400">ML Challenger:</span>
                       <span className="text-white">
                         ₺{forecast.ml_target_price?.toFixed(2)}{' '}
                         <span className={(forecast.ml_expected_return_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
@@ -586,7 +586,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800">
                     <span className="text-slate-400">ML Challenger Alone:</span>
-                    <span className="font-semibold text-cyan-300">
+                    <span className="font-semibold text-indigo-300">
                       {mlHits}/{displayLedger.length} ({mlHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
@@ -772,7 +772,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predPricePath}
                       fill="none"
-                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7'}
+                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -794,7 +794,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <path
                       d={predReturnPath}
                       fill="none"
-                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7'}
+                      stroke={activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef'}
                       strokeWidth="2"
                       strokeDasharray="4 3"
                       strokeLinecap="round"
@@ -810,7 +810,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   const yPred = chartView === 'price' ? getYPrice(getRowPredPrice(r)) : getYReturn(getRowPredReturn(r));
                   const isHovered = hoveredIdx === i;
                   const isHit = getRowHit(r);
-                  const predColor = activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7';
+                  const predColor = activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#6366f1' : '#d946ef';
                   const actualColor = '#38bdf8';
                   const baseR = displayLedger.length > 60 ? 2.2 : 3.5;
                   const dotR = isHovered ? baseR + 2.0 : baseR;
@@ -845,7 +845,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                         </>
                       )}
 
-                      {/* Actual Price Point (Filled Circle matching Solid Sky Blue line) */}
+                      {/* Actual Price Point (Solid Sky Blue Circle) */}
                       <circle
                         cx={x}
                         cy={yActual}
@@ -855,26 +855,28 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                         strokeWidth="1.2"
                       />
 
-                      {/* Predicted Price Point (Filled Circle matching Dashed line color) */}
+                      {/* Predicted Price Point: Green for Hit (✓), Red for Miss (✗), with Model Border */}
                       <circle
                         cx={x}
                         cy={yPred}
                         r={dotR}
-                        fill={predColor}
-                        stroke="#0f172a"
-                        strokeWidth="1.2"
+                        fill={isHit ? '#10b981' : '#f43f5e'}
+                        stroke={predColor}
+                        strokeWidth="1.8"
                       />
 
-                      {/* Directional Hit/Miss Indicator Ring around Predicted Point */}
-                      <circle
-                        cx={x}
-                        cy={yPred}
-                        r={dotR + (isHovered ? 3.0 : 1.8)}
-                        fill="none"
-                        stroke={isHit ? '#10b981' : '#f43f5e'}
-                        strokeWidth={isHovered ? 2 : 1}
-                        opacity={isHovered ? 0.95 : 0.55}
-                      />
+                      {/* Outer Glow Halo on Hover */}
+                      {isHovered && (
+                        <circle
+                          cx={x}
+                          cy={yPred}
+                          r={dotR + 2.5}
+                          fill="none"
+                          stroke={isHit ? '#10b981' : '#f43f5e'}
+                          strokeWidth="1.5"
+                          opacity="0.85"
+                        />
+                      )}
 
                       {/* X Axis Date Labels */}
                       {(i % dateInterval === 0 || i === displayLedger.length - 1) && (
@@ -930,7 +932,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className={activeModel === 'confluence' ? 'text-amber-400' : activeModel === 'ml' ? 'text-cyan-300' : 'text-purple-300'}>
+                      <span className={activeModel === 'confluence' ? 'text-amber-400' : activeModel === 'ml' ? 'text-indigo-400' : 'text-fuchsia-400'}>
                         {activeModel === 'confluence' ? 'Confluence Pred:' : activeModel === 'ml' ? 'ML Pred:' : 'Prophet Pred:'}
                       </span>
                       <span className="font-bold text-white">
@@ -953,7 +955,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
                     {/* Breakdown Details */}
                     <div className="flex items-center justify-between border-t border-slate-800 pt-1 mt-1 text-[10px]">
-                      <span className="text-cyan-300">ML Alone:</span>
+                      <span className="text-indigo-300">ML Alone:</span>
                       <span className="text-slate-300">
                         ₺{hoveredItem.ml_pred_price.toFixed(2)}{' '}
                         <span
@@ -1008,31 +1010,24 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <span>Actual Price Point & Realization</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
-                    <span className={`w-2.5 h-2.5 rounded-full border border-slate-900 inline-block ${
-                      activeModel === 'confluence'
-                        ? 'bg-amber-400'
-                        : activeModel === 'ml'
-                        ? 'bg-cyan-400'
-                        : 'bg-purple-400'
-                    }`} />
                     <span className={`w-3 h-0.5 border-b border-dashed inline-block ${
                       activeModel === 'confluence'
                         ? 'border-amber-400'
                         : activeModel === 'ml'
-                        ? 'border-cyan-400'
-                        : 'border-purple-400'
+                        ? 'border-indigo-400'
+                        : 'border-fuchsia-400'
                     }`} />
-                    <span>{activeModel === 'confluence' ? 'Convex Confluence Predicted' : activeModel === 'ml' ? 'Pure ML Predicted' : 'Prophet Baseline Predicted'}</span>
+                    <span>{activeModel === 'confluence' ? 'Confluence (Amber)' : activeModel === 'ml' ? 'Pure ML (Indigo)' : 'Prophet (Fuchsia)'}</span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-1">
-                    <span className="w-2.5 h-2.5 rounded-full border-2 border-emerald-500 inline-block" />
-                    <span>Direction Correct (✓)</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-slate-900 inline-block" />
+                    <span>Direction Hit (✓)</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <span className="w-2.5 h-2.5 rounded-full border-2 border-rose-500 inline-block" />
-                    <span>Direction Wrong (✗)</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-slate-900 inline-block" />
+                    <span>Direction Miss (✗)</span>
                   </div>
                 </div>
               </div>
@@ -1131,7 +1126,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
-                  ML Hit Rate: <span className="text-cyan-300 font-bold">{mlHitRatePct.toFixed(1)}%</span>
+                  ML Hit Rate: <span className="text-indigo-300 font-bold">{mlHitRatePct.toFixed(1)}%</span>
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
                   Prophet Hit Rate: <span className="text-purple-300 font-bold">{prophetHitRatePct.toFixed(1)}%</span>
@@ -1152,7 +1147,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       {activeModel === 'confluence' ? 'Confluence Hit?' : activeModel === 'ml' ? 'ML Hit?' : 'Prophet Hit?'}
                     </th>
                     {activeModel !== 'ml' && (
-                      <th className="text-right px-2 py-1.5 text-sky-400">ML Alone</th>
+                      <th className="text-right px-2 py-1.5 text-indigo-400">ML Alone</th>
                     )}
                     {activeModel !== 'prophet' && (
                       <th className="text-right px-2 py-1.5 text-purple-300">Prophet Base</th>
