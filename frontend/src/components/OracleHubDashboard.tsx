@@ -806,8 +806,14 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 {/* Interactive Points on each session */}
                 {displayLedger.map((r, i) => {
                   const x = getX(i);
-                  const y = chartView === 'price' ? getYPrice(r.actual_price) : getYReturn(r.actual_return_pct);
+                  const yActual = chartView === 'price' ? getYPrice(r.actual_price) : getYReturn(r.actual_return_pct);
+                  const yPred = chartView === 'price' ? getYPrice(getRowPredPrice(r)) : getYReturn(getRowPredReturn(r));
                   const isHovered = hoveredIdx === i;
+                  const isHit = getRowHit(r);
+                  const predColor = activeModel === 'confluence' ? '#f59e0b' : activeModel === 'ml' ? '#06b6d4' : '#a855f7';
+                  const actualColor = '#38bdf8';
+                  const baseR = displayLedger.length > 60 ? 2.2 : 3.5;
+                  const dotR = isHovered ? baseR + 2.0 : baseR;
 
                   return (
                     <g
@@ -815,27 +821,59 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       onMouseEnter={() => setHoveredIdx(i)}
                       className="cursor-pointer"
                     >
-                      {/* Vertical Guideline on hover */}
+                      {/* Vertical Guideline & Inter-point Delta on hover */}
                       {isHovered && (
-                        <line
-                          x1={x}
-                          y1={paddingY}
-                          x2={x}
-                          y2={paddingY + innerH}
-                          stroke="#64748b"
-                          strokeWidth="1"
-                          strokeDasharray="2 2"
-                        />
+                        <>
+                          <line
+                            x1={x}
+                            y1={paddingY}
+                            x2={x}
+                            y2={paddingY + innerH}
+                            stroke="#64748b"
+                            strokeWidth="1"
+                            strokeDasharray="2 2"
+                          />
+                          <line
+                            x1={x}
+                            y1={yActual}
+                            x2={x}
+                            y2={yPred}
+                            stroke={isHit ? '#10b981' : '#f43f5e'}
+                            strokeWidth="2"
+                            strokeDasharray="2 2"
+                          />
+                        </>
                       )}
 
-                      {/* Result Dot */}
+                      {/* Actual Price Point (Filled Circle matching Solid Sky Blue line) */}
                       <circle
                         cx={x}
-                        cy={y}
-                        r={isHovered ? 5.5 : displayLedger.length > 60 ? 2.5 : 3.5}
-                        fill={getRowHit(r) ? '#10b981' : '#f43f5e'}
+                        cy={yActual}
+                        r={dotR}
+                        fill={actualColor}
                         stroke="#0f172a"
-                        strokeWidth="1.5"
+                        strokeWidth="1.2"
+                      />
+
+                      {/* Predicted Price Point (Filled Circle matching Dashed line color) */}
+                      <circle
+                        cx={x}
+                        cy={yPred}
+                        r={dotR}
+                        fill={predColor}
+                        stroke="#0f172a"
+                        strokeWidth="1.2"
+                      />
+
+                      {/* Directional Hit/Miss Indicator Ring around Predicted Point */}
+                      <circle
+                        cx={x}
+                        cy={yPred}
+                        r={dotR + (isHovered ? 3.0 : 1.8)}
+                        fill="none"
+                        stroke={isHit ? '#10b981' : '#f43f5e'}
+                        strokeWidth={isHovered ? 2 : 1}
+                        opacity={isHovered ? 0.95 : 0.55}
                       />
 
                       {/* X Axis Date Labels */}
@@ -965,27 +1003,35 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               <div className="flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-400 pt-2 border-t border-slate-800/60 mt-1 px-1">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 border border-slate-900 inline-block" />
                     <span className="w-3 h-0.5 bg-sky-400 rounded-full inline-block" />
-                    <span>Actual Realization</span>
+                    <span>Actual Price Point & Realization</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
+                    <span className={`w-2.5 h-2.5 rounded-full border border-slate-900 inline-block ${
+                      activeModel === 'confluence'
+                        ? 'bg-amber-400'
+                        : activeModel === 'ml'
+                        ? 'bg-cyan-400'
+                        : 'bg-purple-400'
+                    }`} />
                     <span className={`w-3 h-0.5 border-b border-dashed inline-block ${
                       activeModel === 'confluence'
-                        ? 'bg-amber-400 border-amber-400'
+                        ? 'border-amber-400'
                         : activeModel === 'ml'
-                        ? 'bg-cyan-400 border-cyan-400'
-                        : 'bg-purple-400 border-purple-400'
+                        ? 'border-cyan-400'
+                        : 'border-purple-400'
                     }`} />
                     <span>{activeModel === 'confluence' ? 'Convex Confluence Predicted' : activeModel === 'ml' ? 'Pure ML Predicted' : 'Prophet Baseline Predicted'}</span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full border-2 border-emerald-500 inline-block" />
                     <span>Direction Correct (✓)</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full border-2 border-rose-500 inline-block" />
                     <span>Direction Wrong (✗)</span>
                   </div>
                 </div>
