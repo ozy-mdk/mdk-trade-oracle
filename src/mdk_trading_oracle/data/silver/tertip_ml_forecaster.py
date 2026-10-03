@@ -85,11 +85,7 @@ FEATURE_COLS = [
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
 
-# Strict 12-Month Historical Lookback (252 BIST Trading Sessions) for Prophet Baseline
-PROPHET_LOOKBACK_SESSIONS = 252
-
 # Neutral Consolidation Deadband % (+/- 0.25% / 25 bps)
-# Reflects realistic BIST equity tick size (1-2 ticks) and intraday consolidation range.
 DEADBAND_PCT: float = 0.25
 
 # Suppress verbose warnings from third-party math packages
@@ -110,78 +106,18 @@ def clear_forecast_cache() -> None:
     logger.info("Cleared Tertip ML Forecaster in-memory cache.")
 
 
-_PROPHET_HOLIDAYS_CACHE: pd.DataFrame | None = None
-
-
-def get_prophet_holidays(db: PostgresManager | None = None) -> pd.DataFrame:
-    """Return Turkish public holidays + BIST 30 benchmark shock dates for Prophet.
-
-    Includes:
-    - Official Turkish national and religious holidays via `holidays.Turkey`
-    - Historical BIST 30 positive & negative market shock dates from `silver_daily_benchmark_index`
-    """
-    global _PROPHET_HOLIDAYS_CACHE
-    if _PROPHET_HOLIDAYS_CACHE is not None:
-        return _PROPHET_HOLIDAYS_CACHE
-
-    try:
-        import holidays
-
-        tr_hols = holidays.Turkey(years=range(2021, 2028))
-        hol_rows = [{"ds": pd.to_datetime(dt), "holiday": "TR_HOLIDAY"} for dt in tr_hols.keys()]
-    except Exception as e:
-        logger.warning(f"Could not load Turkish holidays: {e}")
-        hol_rows = []
-
-    shock_rows = []
-    active_db = db
-    if active_db is None:
-        try:
-            active_db = PostgresManager()
-        except Exception:
-            active_db = None
-
-    if active_db is not None:
-        try:
-            df_shocks = active_db.query_df(
-                "SELECT DISTINCT trade_date, shock_type FROM silver_daily_benchmark_index WHERE is_shock_day = TRUE ORDER BY trade_date;"
-            )
-            shock_rows = [
-                {"ds": pd.to_datetime(row["trade_date"]), "holiday": str(row["shock_type"])}
-                for _, row in df_shocks.iterrows()
-            ]
-        except Exception as e:
-            logger.warning(f"Could not load BIST shock regimes from DB: {e}")
-
-    all_rows = hol_rows + shock_rows
-    if all_rows:
-        holidays_df = (
-            pd.DataFrame(all_rows)
-            .drop_duplicates(subset=["ds", "holiday"])
-            .sort_values("ds")
-            .reset_index(drop=True)
-        )
-    else:
-        holidays_df = pd.DataFrame(columns=["ds", "holiday"])
-
-    _PROPHET_HOLIDAYS_CACHE = holidays_df
-    return _PROPHET_HOLIDAYS_CACHE
-
-
 def attach_prophet_rolling_features(
     df: pd.DataFrame,
     symbol: str,
     train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
-    n_history_needed: int = 180,
-    db: PostgresManager | None = None,
+    n_history_needed: int = 300,
 ) -> pd.DataFrame:
     """Attach zero-leakage rolling Prophet 1-step baseline returns for each session T.
 
     Uses persistent disk caching to avoid redundant computation:
-    - Fits Prophet strictly on all available historical data up to session k - 1 (iloc[:k]).
-    - Incorporates official Turkish public holidays and BIST 30 positive & negative shock dates.
-    - Captures weekly and yearly seasonality, evaluating 1-step model drift:
-      feat_prophet_ret_today_pct = (yhat_k - yhat_{k-1}) / yhat_{k-1} * 100.
+    - Fits Prophet strictly on [k - train_lookback_sessions : k] close prices (history up to session k - 1).
+    - Forecasts session k close price and calculates baseline return:
+      feat_prophet_ret_today_pct = (yhat_k - P_{k-1}) / P_{k-1} * 100.
     - Automatically computes any missing/new sessions incrementally and saves to cache.
     """
     if df.empty or len(df) < 35:
@@ -211,13 +147,10 @@ def attach_prophet_rolling_features(
             logger.warning("Failed to load Prophet cache for %s: %s", sym, e)
 
     N = len(df)
-    start_idx = max(60, N - n_history_needed)
+    start_idx = max(train_lookback_sessions + 5, N - n_history_needed)
     close_prices = df["close_price"].to_numpy()
     trade_dates = pd.to_datetime(df["trade_date"])
     date_strs = trade_dates.dt.strftime("%Y-%m-%d").to_numpy()
-
-    holidays_df = get_prophet_holidays(db)
-    hols_param = holidays_df if not holidays_df.empty else None
 
     dirty = False
     for k in range(start_idx, N):
@@ -225,13 +158,10 @@ def attach_prophet_rolling_features(
         if d_str in cached_dict and pd.notna(cached_dict[d_str]):
             continue
 
-        # Strictly point-in-time: trailing 24 months (up to 504 trading sessions) up to session k - 1
-        start_hist = max(0, k - PROPHET_LOOKBACK_SESSIONS)
-        hist_dates = trade_dates.iloc[start_hist:k]
-        hist_prices = close_prices[start_hist:k]
+        hist_dates = trade_dates.iloc[k - train_lookback_sessions : k]
+        hist_prices = close_prices[k - train_lookback_sessions : k]
         p_prev = close_prices[k - 1]
-        target_date_prev = trade_dates.iloc[k - 1]
-        target_date_today = trade_dates.iloc[k]
+        target_date = trade_dates.iloc[k]
 
         if p_prev <= 0:
             cached_dict[d_str] = 0.0
@@ -241,23 +171,16 @@ def attach_prophet_rolling_features(
         try:
             p_df = pd.DataFrame({"ds": hist_dates, "y": hist_prices})
             m = Prophet(
-                holidays=hols_param,
                 daily_seasonality=False,
-                weekly_seasonality=True,
-                yearly_seasonality=True,
-                changepoint_range=0.98,
-                changepoint_prior_scale=0.15,
-                uncertainty_samples=0,
+                weekly_seasonality=False,
+                yearly_seasonality=False,
+                changepoint_prior_scale=0.05,
             )
             m.fit(p_df)
-            target_df = pd.DataFrame({"ds": [target_date_prev, target_date_today]})
+            target_df = pd.DataFrame({"ds": [target_date]})
             fc = m.predict(target_df)
-            yhat_prev = float(fc.iloc[0]["yhat"])
-            yhat_today = float(fc.iloc[1]["yhat"])
-            if yhat_prev > 0:
-                ret_today = (yhat_today - yhat_prev) / yhat_prev * 100.0
-            else:
-                ret_today = 0.0
+            yhat_today = float(fc.iloc[-1]["yhat"])
+            ret_today = (yhat_today - p_prev) / p_prev * 100.0
             cached_dict[d_str] = float(np.clip(ret_today, -25.0, 25.0))
             dirty = True
         except Exception as e:
@@ -474,7 +397,7 @@ def extract_3pillar_time_series(
     ).clip(-100.0, 100.0)
 
     # 8. Attach zero-leakage Prophet rolling baseline feature
-    joined = attach_prophet_rolling_features(joined, sym, db=db)
+    joined = attach_prophet_rolling_features(joined, sym)
 
     return joined
 
@@ -645,29 +568,20 @@ def run_30d_walk_forward_arena(
             prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
             prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         else:
-            start_hist = max(0, len(train_data) - PROPHET_LOOKBACK_SESSIONS)
             p_df = pd.DataFrame({
-                "ds": pd.to_datetime(train_data["trade_date"].iloc[start_hist:]),
-                "y": train_data["close_price"].iloc[start_hist:],
+                "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
+                "y": train_data["close_price"].iloc[-train_lookback_sessions:],
             })
-            holidays_df = get_prophet_holidays()
             m_prophet = Prophet(
-                holidays=holidays_df if not holidays_df.empty else None,
                 daily_seasonality=False,
-                weekly_seasonality=True,
-                yearly_seasonality=True,
-                changepoint_range=0.98,
-                changepoint_prior_scale=0.15,
-                uncertainty_samples=0,
+                weekly_seasonality=False,
+                yearly_seasonality=False,
+                changepoint_prior_scale=0.05,
             )
             m_prophet.fit(p_df)
-            target_df = pd.DataFrame({"ds": [prev_row["trade_date"], test_row["trade_date"]]})
-            fc_prophet = m_prophet.predict(target_df)
-            yhat_prev = float(fc_prophet.iloc[0]["yhat"])
-            yhat_today = float(fc_prophet.iloc[1]["yhat"])
-            prophet_ret = (yhat_today - yhat_prev) / yhat_prev * 100.0 if yhat_prev > 0 else 0.0
-            prophet_ret = float(np.clip(prophet_ret, -25.0, 25.0))
-            prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
+            fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
+            prophet_price = float(fc_prophet.iloc[-1]["yhat"])
+            prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
             prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
         # Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)
@@ -1297,7 +1211,7 @@ def get_tertip_ml_forecast(
         return {"error": f"Insufficient historical data for symbol {sym}"}
 
     # Ensure rolling Prophet baseline is attached
-    df = attach_prophet_rolling_features(df, sym, n_history_needed=n_eval_sessions + 40, db=db)
+    df = attach_prophet_rolling_features(df, sym, n_history_needed=n_eval_sessions + 40)
 
     # Multi-Horizon Tournament or Static Horizon Selection
     crowned_horizon = "12m"
@@ -1486,30 +1400,21 @@ def get_tertip_ml_forecast(
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    # 1. Base Prophet Prediction for T+1 (fitted on trailing 24 months / 504 sessions + holidays + shocks)
-    start_hist = max(0, len(df) - PROPHET_LOOKBACK_SESSIONS)
+    # 1. Base Prophet Prediction for T+1 (strictly trailing 12 months / 252 sessions)
     p_df = pd.DataFrame({
-        "ds": pd.to_datetime(df["trade_date"].iloc[start_hist:]),
-        "y": df["close_price"].iloc[start_hist:],
+        "ds": pd.to_datetime(df["trade_date"].iloc[-train_lookback_sessions:]),
+        "y": df["close_price"].iloc[-train_lookback_sessions:],
     })
-    holidays_df = get_prophet_holidays(db)
     m_prophet = Prophet(
-        holidays=holidays_df if not holidays_df.empty else None,
         daily_seasonality=False,
-        weekly_seasonality=True,
-        yearly_seasonality=True,
-        changepoint_range=0.98,
-        changepoint_prior_scale=0.15,
-        uncertainty_samples=0,
+        weekly_seasonality=False,
+        yearly_seasonality=False,
+        changepoint_prior_scale=0.05,
     )
     m_prophet.fit(p_df)
-    fut = m_prophet.make_future_dataframe(periods=1)
-    fc_prophet = m_prophet.predict(fut.iloc[-2:])
-    yhat_T = float(fc_prophet.iloc[0]["yhat"])
-    yhat_T1 = float(fc_prophet.iloc[1]["yhat"])
-    prophet_drift_ret = (yhat_T1 - yhat_T) / yhat_T * 100.0 if yhat_T > 0 else 0.0
-    prophet_ret_pct = float(np.clip(prophet_drift_ret, -25.0, 25.0))
-    prophet_target_price = latest_price * (1.0 + prophet_ret_pct / 100.0)
+    fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
+    prophet_target_price = float(fc_prophet.iloc[-1]["yhat"])
+    prophet_ret_pct = (prophet_target_price - latest_price) / latest_price * 100.0
 
     # 2. ML Challenger Prediction for T+1 (fitted on trailing 12 months / 252 sessions up to session T)
     tr_full = df.iloc[-train_lookback_sessions:].dropna(subset=active_features).copy()
