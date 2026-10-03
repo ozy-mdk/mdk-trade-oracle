@@ -256,15 +256,15 @@ def save_forecast_to_database(db: PostgresManager, symbol: str, fc: dict[str, An
     p = {
         "symbol": symbol,
         "as_of_date": fc.get("as_of_date"),
-        "current_price": fc.get("current_price"),
+        "current_price": fc.get("latest_close_price") or fc.get("current_price"),
         "target_price": fc.get("target_price"),
         "expected_return_pct": fc.get("expected_return_pct"),
         "price_low": fc.get("price_low"),
         "price_high": fc.get("price_high"),
         "stance": fc.get("stance"),
-        "conviction": fc.get("conviction"),
-        "playbook": fc.get("playbook"),
-        "ml_champion_type": t.get("ml_champion_type"),
+        "conviction": fc.get("conviction", "MEDIUM"),
+        "playbook": fc.get("playbook") or fc.get("stance_badge", "CONSOLIDATION"),
+        "ml_champion_type": t.get("grand_champion_key") or t.get("ml_champion_type", "Ridge"),
         "champion_dir_hits": t.get("champion_dir_hits"),
         "champion_dir_hit_rate_pct": t.get("champion_dir_hit_rate_pct"),
         "champion_mae_pct": t.get("champion_mae_pct"),
@@ -275,14 +275,22 @@ def save_forecast_to_database(db: PostgresManager, symbol: str, fc: dict[str, An
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Export 30-Day Walk-Forward Backtest Track Data")
+    parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols (e.g. ASTOR,ASELS)")
+    args = parser.parse_args()
+
     t_start = time.time()
     db = PostgresManager()
 
     logger.info("Initializing Gold database tables...")
     ensure_gold_tables(db)
 
-    symbols = get_active_bist30_symbols(db)
-    logger.info(f"Targeting {len(symbols)} active BIST 30 symbols: {symbols}")
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+    else:
+        symbols = get_active_bist30_symbols(db)
+    logger.info(f"Targeting {len(symbols)} active symbols: {symbols}")
 
     all_ledger_rows: list[dict[str, Any]] = []
     summary_rows: list[dict[str, Any]] = []
@@ -303,15 +311,16 @@ def main() -> None:
 
             ledger = fc.get("walk_forward_ledger", [])
             tournament = fc.get("tournament_summary", {})
-            ml_champ = tournament.get("ml_champion_type", "XGBoost")
+            ml_champ = tournament.get("ml_champion_type", "Ridge")
+            grand_champ = tournament.get("grand_champion_key") or ml_champ
 
             # Persist to database
-            save_ledger_to_database(db, sym, ledger, ml_champ)
+            save_ledger_to_database(db, sym, ledger, grand_champ)
             save_forecast_to_database(db, sym, fc)
 
             # Accumulate for CSV export
             for row in ledger:
-                enriched_row = {"symbol": sym, **row, "ml_champion_type": ml_champ}
+                enriched_row = {"symbol": sym, **row, "ml_champion_type": grand_champ}
                 all_ledger_rows.append(enriched_row)
 
             # Accumulate tournament summary row
@@ -346,7 +355,7 @@ def main() -> None:
             sym_t1 = time.time()
             logger.info(
                 f"[{idx}/{len(symbols)}] {sym} done in {sym_t1 - sym_t0:.1f}s | "
-                f"Champ: {ml_champ} | Hits: {tournament.get('champion_dir_hits')}/30 "
+                f"Champ: {grand_champ} | Hits: {tournament.get('champion_dir_hits')}/30 "
                 f"({tournament.get('champion_dir_hit_rate_pct', 0.0):.1f}%) | "
                 f"T+1: {fc.get('stance')} ({fc.get('expected_return_pct', 0.0):+.2f}%)"
             )

@@ -85,8 +85,8 @@ FEATURE_COLS = [
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
 
-# Strict 24-Month Historical Lookback (504 BIST Trading Sessions) for Prophet Baseline
-PROPHET_LOOKBACK_SESSIONS = 504
+# Strict 12-Month Historical Lookback (252 BIST Trading Sessions) for Prophet Baseline
+PROPHET_LOOKBACK_SESSIONS = 252
 
 # Neutral Consolidation Deadband % (+/- 0.25% / 25 bps)
 # Reflects realistic BIST equity tick size (1-2 ticks) and intraday consolidation range.
@@ -912,10 +912,7 @@ def run_30d_walk_forward_arena(
         m_info["hit_rate"] = (m_info["hits"] / n_total) * 100.0 if n_total > 0 else 0.0
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # Option 2 (Simple Linear Score / Loss):
-    # Score = Hit Rate % - (2.0 * MAE %)
-    # Loss = (100.0 - Hit Rate %) + 2.0 * MAE %
-    # Primary: Lowest 30-Day Directional Penalty Loss (Highest Linear Score)
+    # Blended Criterion: Lowest 30-Day Directional Penalty Loss ((100 - HitRate) + 2.0 * MAE)
     # Tie-breakers: Higher 30-Day Hit Rate %, Lower 30-Day MAE %
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
@@ -950,12 +947,55 @@ def run_30d_walk_forward_arena(
     ml_candidate_mae = champ_meta["mae"]
     ml_candidate_penalty = champ_meta["penalty_loss"]
 
-    # Convex / Softmax Adaptive Weighting based on out-of-sample directional hit rates
+    # Tournament Grand Champion Selection (Blended Score of Directional Hit Rate and MAE):
+    # Evaluates all models: ML candidates and Prophet Base
+    all_tournament_models = dict(candidates_meta)
+    all_tournament_models["Prophet"] = {
+        "hits_30d": prophet_30d_hits,
+        "hit_rate_30d": prophet_30d_hit_rate,
+        "mae_30d": prophet_30d_mae,
+        "penalty_loss_30d": prophet_30d_penalty_loss,
+        "hits": prophet_hits,
+        "hit_rate": prophet_hit_rate,
+        "mae": prophet_mae,
+        "penalty_loss": prophet_penalty_loss,
+        "price_key": "prophet_price",
+        "ret_key": "prophet_ret",
+        "err_key": "prophet_err",
+        "hit_key": "prophet_hit",
+    }
+
+    sorted_grand = sorted(
+        all_tournament_models.keys(),
+        key=lambda k: (
+            all_tournament_models[k]["penalty_loss_30d"],
+            -all_tournament_models[k]["hits_30d"],
+            all_tournament_models[k]["mae_30d"],
+        ),
+    )
+    grand_champion_key = sorted_grand[0]
+    grand_meta = all_tournament_models[grand_champion_key]
+
+    if grand_champion_key == "Prophet":
+        champion = "PROPHET_BASE"
+        champion_label = "Prophet Base (12M Drift)"
+    else:
+        champion = "TERTIP_ML_CHALLENGER"
+        champion_label = f"ML Champion ({grand_champion_key})"
+
+    champion_dir_hits = grand_meta["hits_30d"]
+    champion_dir_hit_rate_pct = grand_meta["hit_rate_30d"]
+    champion_mae_pct = grand_meta["mae_30d"]
+    champion_penalty_loss = grand_meta["penalty_loss_30d"]
+    runner_up_key = sorted_grand[1]
+    runner_up_dir_hit_rate_pct = all_tournament_models[runner_up_key]["hit_rate_30d"]
+
+    # Telemetry weights for transparency
     convex_weight_ml, convex_weight_prophet = compute_convex_softmax_weights(
         ml_candidate_30d_hit_rate, prophet_30d_hit_rate, tau=8.0
     )
 
-    # Build the Walk-Forward Reality Ledger using the crowned ML challenger
+    # Build the Walk-Forward Reality Ledger using the Crowned Champion's pure prediction
     ledger: list[dict[str, Any]] = []
     ml_error_wins = 0
     prophet_error_wins = 0
@@ -975,17 +1015,17 @@ def run_30d_walk_forward_arena(
         ml_err = s[champ_meta["err_key"]]
         ml_hit = s[champ_meta["hit_key"]]
 
-        # Confluence Forecast: Adaptive Convex Softmax synthesis
-        confluence_ret = convex_weight_ml * pred_ret_ml + convex_weight_prophet * prophet_ret
-        confluence_price = prev_price * (1.0 + confluence_ret / 100.0)
-        confluence_err = abs(confluence_price - actual_price) / actual_price * 100.0
-        confluence_hit = _check_hit(confluence_ret, actual_ret)
-        confluence_direction = "UP" if confluence_ret > DEADBAND_PCT else ("DOWN" if confluence_ret < -DEADBAND_PCT else "FLAT")
+        # Pure Crowned Champion prediction (no convex dilution)
+        champ_price = s[grand_meta["price_key"]]
+        champ_ret = s[grand_meta["ret_key"]]
+        champ_err = s[grand_meta["err_key"]]
+        champ_hit = s[grand_meta["hit_key"]]
+        champ_dir = "UP" if champ_ret > DEADBAND_PCT else ("DOWN" if champ_ret < -DEADBAND_PCT else "FLAT")
 
-        s["confluence_price"] = confluence_price
-        s["confluence_ret"] = confluence_ret
-        s["confluence_err"] = confluence_err
-        s["confluence_hit"] = confluence_hit
+        s["confluence_price"] = champ_price
+        s["confluence_ret"] = champ_ret
+        s["confluence_err"] = champ_err
+        s["confluence_hit"] = champ_hit
 
         # Track error wins
         if ml_err <= prophet_err:
@@ -994,8 +1034,6 @@ def run_30d_walk_forward_arena(
             prophet_error_wins += 1
 
         # Daily Session Winner: Directional Hit first!
-        # If one hit and other missed -> hitter wins
-        # If both hit or both missed -> lower error wins
         if ml_hit and not prophet_hit:
             winner = "CHALLENGER"
         elif prophet_hit and not ml_hit:
@@ -1011,11 +1049,16 @@ def run_30d_walk_forward_arena(
             "actual_price": round(actual_price, 2),
             "actual_return_pct": round(actual_ret, 2),
             "bist30_ret_pct": round(float(test_row["bist30_return_pct"]) if ("bist30_return_pct" in test_row and pd.notna(test_row["bist30_return_pct"])) else 0.0, 2),
-            "confluence_pred_price": round(confluence_price, 2),
-            "confluence_pred_return_pct": round(confluence_ret, 2),
-            "confluence_direction": confluence_direction,
-            "confluence_err_pct": round(confluence_err, 2),
-            "confluence_is_hit": bool(confluence_hit),
+            "confluence_pred_price": round(champ_price, 2),
+            "confluence_pred_return_pct": round(champ_ret, 2),
+            "confluence_direction": champ_dir,
+            "confluence_err_pct": round(champ_err, 2),
+            "confluence_is_hit": bool(champ_hit),
+            "champion_pred_price": round(champ_price, 2),
+            "champion_pred_return_pct": round(champ_ret, 2),
+            "champion_direction": champ_dir,
+            "champion_err_pct": round(champ_err, 2),
+            "champion_is_hit": bool(champ_hit),
             "convex_weight_ml": convex_weight_ml,
             "convex_weight_prophet": convex_weight_prophet,
             "ml_pred_price": round(ml_price, 2),
@@ -1062,18 +1105,11 @@ def run_30d_walk_forward_arena(
     confluence_mae = sum(s["confluence_err"] for s in step_records) / n_total if n_total > 0 else 0.0
     confluence_penalty_loss = _calc_score(step_records, "confluence_err", "confluence_hit")
 
-    # Unified Operational Grand Champion: Convex Softmax Confluence
-    champion = "TERTIP_CONFLUENCE"
-    champion_label = f"Convex Confluence ({int(round(convex_weight_ml * 100))}% {ml_champion_type} + {int(round(convex_weight_prophet * 100))}% Prophet)"
-    champion_dir_hits = confluence_30d_hits
-    champion_dir_hit_rate_pct = confluence_30d_hit_rate
-    champion_mae_pct = confluence_30d_mae
-    champion_penalty_loss = confluence_30d_penalty_loss
-    runner_up_dir_hit_rate_pct = ml_candidate_30d_hit_rate
-
+    # Operational Grand Champion: Crowned Champion (blended score winner)
     tournament_summary = {
         "champion": champion,
         "champion_label": champion_label,
+        "grand_champion_key": grand_champion_key,
         "ml_champion_type": ml_champion_type,
         "convex_weight_ml": convex_weight_ml,
         "convex_weight_prophet": convex_weight_prophet,
@@ -1221,6 +1257,7 @@ def get_tertip_ml_forecast(
     train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
     n_eval_sessions: int = 30,
     lookback_mode: str = "default",
+    selected_composition: str = "champion",
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and walk-forward track.
@@ -1522,17 +1559,21 @@ def get_tertip_ml_forecast(
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
-    # Live Confluence Synthesis for T+1: Adaptive Convex Softmax
+    # Headline Operational Forecast is the Pure Crowned Champion (blended score winner, zero convex dilution)
+    grand_champ = tournament.get("champion", "TERTIP_ML_CHALLENGER")
+    if grand_champ == "PROPHET_BASE":
+        champion_target_price = round(prophet_target_price, 2)
+        champion_pred_ret = round(prophet_ret_pct, 2)
+    else:
+        champion_target_price = round(ml_target_price, 2)
+        champion_pred_ret = round(pred_ret_ml, 2)
+
+    champion = grand_champ
+    champion_label = tournament.get("champion_label", f"Champion ({grand_champ})")
+    confluence_target_price = champion_target_price
+    confluence_pred_ret = champion_pred_ret
     convex_w_ml = float(tournament.get("convex_weight_ml", 0.70))
     convex_w_p = float(tournament.get("convex_weight_prophet", 0.30))
-    confluence_pred_ret = round(convex_w_ml * pred_ret_ml + convex_w_p * prophet_ret_pct, 2)
-    confluence_target_price = round(latest_price * (1.0 + confluence_pred_ret / 100.0), 2)
-
-    # Headline Operational Forecast is Confluence:
-    champion = "TERTIP_CONFLUENCE"
-    champion_label = f"Convex Confluence ({int(round(convex_w_ml * 100))}% {ml_champion_type} + {int(round(convex_w_p * 100))}% Prophet)"
-    champion_target_price = confluence_target_price
-    champion_pred_ret = confluence_pred_ret
 
     # Range envelope (using 20-day historical volatility)
     vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
@@ -1555,9 +1596,22 @@ def get_tertip_ml_forecast(
     ml_stance, ml_stance_badge, ml_stance_color = _derive_stance(pred_ret_ml)
     prophet_stance, prophet_stance_badge, prophet_stance_color = _derive_stance(prophet_ret_pct)
 
+    # Composition selection (user override):
+    if selected_composition == "pure_ml":
+        target_price = round(ml_target_price, 2)
+        expected_ret = round(pred_ret_ml, 2)
+        stance, stance_badge, stance_color = ml_stance, ml_stance_badge, ml_stance_color
+    elif selected_composition == "pure_prophet":
+        target_price = round(prophet_target_price, 2)
+        expected_ret = round(prophet_ret_pct, 2)
+        stance, stance_badge, stance_color = prophet_stance, prophet_stance_badge, prophet_stance_color
+    else:  # "champion", "auto", "convex"
+        target_price = champion_target_price
+        expected_ret = champion_pred_ret
+
     # Actionable Blueprint
     playbook_headline = (
-        f"Projecting {stance_badge} towards ₺{champion_target_price:.2f} ({champion_pred_ret:+.2f}%)"
+        f"Projecting {stance_badge} towards ₺{target_price:.2f} ({expected_ret:+.2f}%)"
     )
     playbook_rationale = (
         f"As of {latest_date_str}, {sym} closed at ₺{latest_price:.2f}. "
@@ -1645,8 +1699,10 @@ def get_tertip_ml_forecast(
         "champion": champion,
         "as_of_date": latest_date_str,
         "latest_close_price": round(latest_price, 2),
-        "target_price": round(champion_target_price, 2),
-        "expected_return_pct": round(champion_pred_ret, 2),
+        "target_price": round(target_price, 2),
+        "expected_return_pct": round(expected_ret, 2),
+        "champion_target_price": round(champion_target_price, 2),
+        "champion_expected_return_pct": round(champion_pred_ret, 2),
         "confluence_target_price": round(confluence_target_price, 2),
         "confluence_expected_return_pct": round(confluence_pred_ret, 2),
         "convex_weight_ml": convex_w_ml,
