@@ -1659,67 +1659,76 @@ def get_tertip_ml_forecast(
             ORDER BY trade_date ASC
         """, (sym,))
         db_rows = cur_res.fetchall()
-        if db_rows and len(db_rows) > len(ledger):
-                c_w_ml = float(tournament.get("convex_weight_ml", 0.70))
-                c_w_p = float(tournament.get("convex_weight_prophet", 0.30))
-                full_ledger = []
-                for r in db_rows:
-                    act_price = float(r[1])
-                    act_ret = float(r[2])
-                    ml_ret_row = float(r[5] or 0.0)
-                    p_ret_row = float(r[10] or 0.0)
-                    c_ret_row = c_w_ml * ml_ret_row + c_w_p * p_ret_row
-                    prev_p_row = act_price / (1.0 + act_ret / 100.0) if (1.0 + act_ret / 100.0) != 0 else act_price
-                    c_price_row = prev_p_row * (1.0 + c_ret_row / 100.0)
-                    c_err_row = abs(c_price_row - act_price) / act_price * 100.0 if act_price > 0 else 0.0
-                    c_hit_row = _check_hit(c_ret_row, act_ret)
-                    c_dir_row = "UP" if c_ret_row > DEADBAND_PCT else ("DOWN" if c_ret_row < -DEADBAND_PCT else "FLAT")
+        if db_rows and ledger:
+            fresh_start_date = ledger[0]["date"]
+            c_w_ml = float(tournament.get("convex_weight_ml", 0.70))
+            c_w_p = float(tournament.get("convex_weight_prophet", 0.30))
+            historical_prefix = []
+            for r in db_rows:
+                r_date = str(r[0]).split(" ")[0]
+                if r_date >= fresh_start_date:
+                    continue  # Keep the fresh in-memory crowned champion ledger for recent sessions!
+                act_price = float(r[1])
+                act_ret = float(r[2])
+                ml_ret_row = float(r[5] or 0.0)
+                p_ret_row = float(r[10] or 0.0)
+                c_ret_row = c_w_ml * ml_ret_row + c_w_p * p_ret_row
+                prev_p_row = act_price / (1.0 + act_ret / 100.0) if (1.0 + act_ret / 100.0) != 0 else act_price
+                c_price_row = prev_p_row * (1.0 + c_ret_row / 100.0)
+                c_err_row = abs(c_price_row - act_price) / act_price * 100.0 if act_price > 0 else 0.0
+                c_hit_row = _check_hit(c_ret_row, act_ret)
+                c_dir_row = "UP" if c_ret_row > DEADBAND_PCT else ("DOWN" if c_ret_row < -DEADBAND_PCT else "FLAT")
 
-                    full_ledger.append({
-                        "date": str(r[0]).split(" ")[0],
-                        "actual_price": round(act_price, 2),
-                        "actual_return_pct": round(act_ret, 2),
-                        "bist30_ret_pct": round(float(r[3] or 0.0), 2),
-                        "confluence_pred_price": round(c_price_row, 2),
-                        "confluence_pred_return_pct": round(c_ret_row, 2),
-                        "confluence_direction": c_dir_row,
-                        "confluence_err_pct": round(c_err_row, 2),
-                        "confluence_is_hit": bool(c_hit_row),
-                        "convex_weight_ml": c_w_ml,
-                        "convex_weight_prophet": c_w_p,
-                        "ml_pred_price": round(float(r[4] or 0.0), 2),
-                        "ml_pred_return_pct": round(ml_ret_row, 2),
-                        "ml_direction": r[6],
-                        "ml_err_pct": round(float(r[7] or 0.0), 2),
-                        "ml_is_hit": bool(r[8]),
-                        "prophet_pred_price": round(float(r[9] or 0.0), 2),
-                        "prophet_pred_return_pct": round(p_ret_row, 2),
-                        "prophet_direction": r[11],
-                        "prophet_err_pct": round(float(r[12] or 0.0), 2),
-                        "prophet_is_hit": bool(r[13]),
-                        "winner": r[14],
-                        "is_shock_day": bool(r[15]),
-                        "shock_type": r[16],
-                        "days_since_pos_shock": int(r[17] or 63),
-                        "days_since_neg_shock": int(r[18] or 63),
-                        "mlb_action": r[19],
-                        "mlb_flow_tl": round(float(r[20] or 0.0), 1),
-                        "mlb_buy_tl": round(float(r[21] or 0.0), 1),
-                        "mlb_sell_tl": round(float(r[22] or 0.0), 1),
-                        "mlb_pnl_tl": round(float(r[23] or 0.0), 1),
-                        "big5_action": r[24],
-                        "big5_flow_tl": round(float(r[25] or 0.0), 1),
-                        "big5_buy_tl": round(float(r[26] or 0.0), 1),
-                        "big5_sell_tl": round(float(r[27] or 0.0), 1),
-                        "big5_pnl_tl": round(float(r[28] or 0.0), 1),
-                        "kamu_action": r[29],
-                        "kamu_flow_tl": round(float(r[30] or 0.0), 1),
-                        "kamu_buy_tl": round(float(r[31] or 0.0), 1),
-                        "kamu_sell_tl": round(float(r[32] or 0.0), 1),
-                        "kamu_pnl_tl": round(float(r[33] or 0.0), 1),
-                        "training_lookback_sessions": int(r[34] or train_lookback_sessions),
-                    })
-                ledger = full_ledger
+                historical_prefix.append({
+                    "date": r_date,
+                    "actual_price": round(act_price, 2),
+                    "actual_return_pct": round(act_ret, 2),
+                    "bist30_ret_pct": round(float(r[3] or 0.0), 2),
+                    "confluence_pred_price": round(c_price_row, 2),
+                    "confluence_pred_return_pct": round(c_ret_row, 2),
+                    "confluence_direction": c_dir_row,
+                    "confluence_err_pct": round(c_err_row, 2),
+                    "confluence_is_hit": bool(c_hit_row),
+                    "champion_pred_price": round(float(r[4] or 0.0), 2),
+                    "champion_pred_return_pct": round(ml_ret_row, 2),
+                    "champion_direction": r[6],
+                    "champion_err_pct": round(float(r[7] or 0.0), 2),
+                    "champion_is_hit": bool(r[8]),
+                    "convex_weight_ml": c_w_ml,
+                    "convex_weight_prophet": c_w_p,
+                    "ml_pred_price": round(float(r[4] or 0.0), 2),
+                    "ml_pred_return_pct": round(ml_ret_row, 2),
+                    "ml_direction": r[6],
+                    "ml_err_pct": round(float(r[7] or 0.0), 2),
+                    "ml_is_hit": bool(r[8]),
+                    "prophet_pred_price": round(float(r[9] or 0.0), 2),
+                    "prophet_pred_return_pct": round(p_ret_row, 2),
+                    "prophet_direction": r[11],
+                    "prophet_err_pct": round(float(r[12] or 0.0), 2),
+                    "prophet_is_hit": bool(r[13]),
+                    "winner": r[14],
+                    "is_shock_day": bool(r[15]),
+                    "shock_type": r[16],
+                    "days_since_pos_shock": int(r[17] or 63),
+                    "days_since_neg_shock": int(r[18] or 63),
+                    "mlb_action": r[19],
+                    "mlb_flow_tl": round(float(r[20] or 0.0), 1),
+                    "mlb_buy_tl": round(float(r[21] or 0.0), 1),
+                    "mlb_sell_tl": round(float(r[22] or 0.0), 1),
+                    "mlb_pnl_tl": round(float(r[23] or 0.0), 1),
+                    "big5_action": r[24],
+                    "big5_flow_tl": round(float(r[25] or 0.0), 1),
+                    "big5_buy_tl": round(float(r[26] or 0.0), 1),
+                    "big5_sell_tl": round(float(r[27] or 0.0), 1),
+                    "big5_pnl_tl": round(float(r[28] or 0.0), 1),
+                    "kamu_action": r[29],
+                    "kamu_flow_tl": round(float(r[30] or 0.0), 1),
+                    "kamu_buy_tl": round(float(r[31] or 0.0), 1),
+                    "kamu_sell_tl": round(float(r[32] or 0.0), 1),
+                    "kamu_pnl_tl": round(float(r[33] or 0.0), 1),
+                    "training_lookback_sessions": int(r[34] or train_lookback_sessions),
+                })
+            ledger = historical_prefix + ledger
     except Exception as e:
         logger.warning(f"Could not load full historical backtests from DB for {sym}: {e}")
 

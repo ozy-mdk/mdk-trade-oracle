@@ -138,30 +138,32 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const activeMiss = displayLedger.length - activeHits;
   const activeHitRatePct = displayLedger.length > 0 ? (activeHits / displayLedger.length) * 100 : 0;
 
-  // Big Move Opportunity Metrics:
-  // Both directionally correct AND suggestion (prediction) was 2% or more
+  // Significant Move Metrics (>= 1.0% moves):
+  const sigMoveRows = displayLedger.filter((r) => Math.abs(r.actual_return_pct) >= 1.0);
+  const sigMoveTotal = sigMoveRows.length;
+  const sigMoveHits = sigMoveRows.filter((r) => getRowHit(r)).length;
+  const sigMoveHitRatePct = sigMoveTotal > 0 ? (sigMoveHits / sigMoveTotal) * 100 : 0;
+
+  // Big Move Metrics (>= 2.0% moves):
   const bigMoveRows = displayLedger.filter((r) => Math.abs(r.actual_return_pct) >= 2.0);
   const bigMoveTotal = bigMoveRows.length;
-  const bigMoveHits = displayLedger.filter(
-    (r) => Math.abs(getRowPredReturn(r)) >= 2.0 && Math.abs(r.actual_return_pct) >= 2.0 && getRowHit(r)
-  ).length;
-  const bigMoveSignalled = displayLedger.filter((r) => Math.abs(getRowPredReturn(r)) >= 2.0).length;
-  const bigMoveMissed = displayLedger.filter(
-    (r) => Math.abs(r.actual_return_pct) >= 2.0 && Math.abs(getRowPredReturn(r)) < 2.0
-  ).length;
-  const bigMoveFalseAlarms = displayLedger.filter(
-    (r) => Math.abs(getRowPredReturn(r)) >= 2.0 && !getRowHit(r)
-  ).length;
+  const bigMoveHits = bigMoveRows.filter((r) => getRowHit(r)).length;
   const bigMoveHitRatePct = bigMoveTotal > 0 ? (bigMoveHits / bigMoveTotal) * 100 : 0;
 
-  // 3 Selection Criteria + Big Move Opportunity Strike Loss
+  // Quiet False Alarms (|pred| >= 1.0% when |actual| < 0.5%)
+  const quietFalseAlarms = displayLedger.filter(
+    (r) => Math.abs(getRowPredReturn(r)) >= 1.0 && Math.abs(r.actual_return_pct) < 0.5
+  ).length;
+
+  // 3 Selection Criteria + Sig & Big Move Opportunity Strike Loss
   const activeHitErrors = displayLedger.filter((r) => getRowHit(r)).map((r) => getRowErrPct(r));
   const activeMissErrors = displayLedger.filter((r) => !getRowHit(r)).map((r) => getRowErrPct(r));
   const activeHitMae = activeHitErrors.length > 0 ? activeHitErrors.reduce((a, b) => a + b, 0) / activeHitErrors.length : 0;
   const activeMissMae = activeMissErrors.length > 0 ? activeMissErrors.reduce((a, b) => a + b, 0) / activeMissErrors.length : 0;
+  const sigMovePenalty = sigMoveTotal > 0 ? (100 - sigMoveHitRatePct) * 1.0 : 0;
   const bigMovePenalty = bigMoveTotal > 0 ? (100 - bigMoveHitRatePct) * 0.5 : 0;
-  const falseAlarmPenalty = bigMoveFalseAlarms * 2.0;
-  const active3CritLoss = (100 - activeHitRatePct) + bigMovePenalty + falseAlarmPenalty + 1.0 * activeHitMae + 2.5 * activeMissMae;
+  const falseAlarmPenalty = quietFalseAlarms * 5.0;
+  const active3CritLoss = (100 - activeHitRatePct) + sigMovePenalty + bigMovePenalty + falseAlarmPenalty + 1.0 * activeHitMae + 2.5 * activeMissMae;
 
   const mlHits = displayLedger.filter((r) => r.ml_is_hit).length;
   const mlHitRatePct = displayLedger.length > 0 ? (mlHits / displayLedger.length) * 100 : 0;
@@ -251,7 +253,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 Gold Tertip Predictive Hub
               </span>
               <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                12-MONTH LOOKBACK (252 SESSIONS)
+                {tournament?.crowned_horizon?.toUpperCase() || '3M'} LOOKBACK ({forecast?.train_lookback_sessions ?? 63} SESSIONS)
               </span>
             </div>
             <div className="text-[11px] text-slate-400">
@@ -603,20 +605,19 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                   </div>
 
-                  {/* Actionable Big Move Opportunity Strike Rate (≥ ±2% Moves) */}
+                  {/* Significant Moves (>= 1.0% Moves) & Big Move Strike */}
                   <div className="p-1.5 px-2 rounded bg-amber-500/10 border border-amber-500/25 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-amber-300 text-[11px] font-semibold flex items-center gap-1">
-                        <span>⚡</span> Actionable Big Move Strike:
+                        <span>⚡</span> Significant (≥1%) Moves Hit:
                       </span>
                       <span className="font-bold text-amber-400 text-xs">
-                        {bigMoveHits}/{bigMoveTotal} ({bigMoveHitRatePct.toFixed(1)}%)
+                        {sigMoveHits}/{sigMoveTotal} ({sigMoveHitRatePct.toFixed(1)}%)
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-[8.5px] text-slate-400 font-mono pt-0.5 border-t border-amber-500/20">
-                      <span>Signalled: <strong className="text-amber-300">{bigMoveSignalled}</strong></span>
-                      <span>Missed: <strong className="text-rose-400">{bigMoveMissed}</strong></span>
-                      <span>False Alarms: <strong className="text-rose-400">{bigMoveFalseAlarms}</strong></span>
+                      <span>Big Moves (≥2%): <strong className="text-emerald-400">{bigMoveHits}/{bigMoveTotal} ({bigMoveHitRatePct.toFixed(0)}%)</strong></span>
+                      <span>Quiet False Alarms: <strong className={quietFalseAlarms === 0 ? "text-emerald-400" : "text-amber-400"}>{quietFalseAlarms}</strong></span>
                     </div>
                   </div>
 
@@ -660,7 +661,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
               {/* Arena Details */}
               <div className="text-[9.5px] font-mono text-slate-500 pt-2 border-t border-slate-800 mt-2 flex items-center justify-between">
-                <span>Training: Last 12M ({forecast.train_lookback_sessions ?? 252}d)</span>
+                <span>Training: Last {tournament?.crowned_horizon?.toUpperCase() || '3M'} ({forecast.train_lookback_sessions ?? 63}d)</span>
                 <span>Active Feats: {forecast.active_features_count ?? 21}</span>
               </div>
             </div>
