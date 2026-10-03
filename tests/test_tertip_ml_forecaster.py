@@ -123,9 +123,9 @@ def test_tertip_ml_forecaster_live_database():
     assert len(data["pillar_matrix"]) == 3
     assert len(data["walk_forward_ledger"]) in (30, 180)
 
-    # Verify 25 active features including Big Move footprints, Prophet baseline & Net Imbalance
+    # Verify 31 active features including Big Move footprints, percentage momentum, Prophet baseline & Net Imbalance
     assert "active_features" in data
-    assert data["active_features_count"] == 25
+    assert data["active_features_count"] == 31
     assert "feat_prophet_ret_today_pct" in data["active_features"]
     assert "feat_total_inst_net_share_today" in data["active_features"]
     assert "feat_bofa_aggression_ratio" in data["active_features"]
@@ -134,6 +134,12 @@ def test_tertip_ml_forecaster_live_database():
     assert "feat_tertip_inventory_zscore" in data["active_features"]
     assert "feat_days_since_pos_shock" in data["active_features"]
     assert "feat_days_since_neg_shock" in data["active_features"]
+    assert "feat_ret_3d_cum_pct" in data["active_features"]
+    assert "feat_ret_5d_cum_pct" in data["active_features"]
+    assert "feat_ret_acceleration_pct" in data["active_features"]
+    assert "feat_intraday_range_pct" in data["active_features"]
+    assert "feat_bofa_turnover_intensity" in data["active_features"]
+    assert "feat_bollinger_bandwidth_pct" in data["active_features"]
 
     pillars = {p["pillar"] for p in data["pillar_matrix"]}
     assert pillars == {"MLB", "BIG5", "KAMU"}

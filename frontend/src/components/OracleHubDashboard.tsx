@@ -471,24 +471,24 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Target Price & Return */}
+                {/* Projected Percentage Movement & Converted Scale */}
                 <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                  <div className="text-[10.5px] text-slate-400 mb-0.5">Forecasted Close Target</div>
+                  <div className="text-[10.5px] text-slate-400 mb-0.5">Projected Movement (Δ%)</div>
                   <div className="flex items-baseline space-x-2">
-                    <span className="text-2xl font-black font-mono text-white">
-                      ₺{activeTargetPrice.toFixed(2)}
-                    </span>
                     <span
-                      className={`text-sm font-bold font-mono ${
+                      className={`text-2xl font-black font-mono ${
                         isUp ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
                       {isUp ? '+' : ''}
                       {activeExpReturn.toFixed(2)}%
                     </span>
+                    <span className="text-sm font-semibold font-mono text-slate-300">
+                      → ₺{activeTargetPrice.toFixed(2)}
+                    </span>
                   </div>
                   <div className="text-[9.5px] text-slate-500 mt-1 font-mono">
-                    90% CI: [₺{forecast.price_low.toFixed(2)} , ₺{forecast.price_high.toFixed(2)}]
+                    Converted Scale (90% CI: [₺{forecast.price_low.toFixed(2)} , ₺{forecast.price_high.toFixed(2)}])
                   </div>
                 </div>
 
@@ -520,35 +520,35 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
                 {/* Candidate Comparison Mini-Box */}
                 <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800 flex flex-col justify-between text-xs font-mono">
-                  <div className="text-[10.5px] text-slate-400 mb-0.5">Model Targets Overview</div>
+                  <div className="text-[10.5px] text-slate-400 mb-0.5">Model Movements Overview (Δ% → Scale)</div>
                   <div className="space-y-1">
                     <div className={`flex items-center justify-between text-[11px] ${activeModel === 'champion' ? 'font-bold' : ''}`}>
                       <span className="text-amber-400">Crowned Champion:</span>
                       <span className="text-white">
-                        ₺{forecast.target_price.toFixed(2)}{' '}
-                        <span className={forecast.expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          ({forecast.expected_return_pct >= 0 ? '+' : ''}{forecast.expected_return_pct.toFixed(2)}%)
-                        </span>
+                        <span className={forecast.expected_return_pct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {forecast.expected_return_pct >= 0 ? '+' : ''}{forecast.expected_return_pct.toFixed(2)}%
+                        </span>{' '}
+                        <span className="text-slate-400">→</span> ₺{forecast.target_price.toFixed(2)}
                       </span>
                     </div>
                     <div className={`flex items-center justify-between text-[11px] ${activeModel === 'ml' ? 'font-bold' : ''}`}>
                       <span className="text-indigo-400">ML Challenger:</span>
                       <span className="text-white">
-                        ₺{forecast.ml_target_price?.toFixed(2)}{' '}
-                        <span className={(forecast.ml_expected_return_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          ({(forecast.ml_expected_return_pct || 0) >= 0 ? '+' : ''}
-                          {forecast.ml_expected_return_pct?.toFixed(2)}%)
-                        </span>
+                        <span className={(forecast.ml_expected_return_pct || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {(forecast.ml_expected_return_pct || 0) >= 0 ? '+' : ''}
+                          {forecast.ml_expected_return_pct?.toFixed(2)}%
+                        </span>{' '}
+                        <span className="text-slate-400">→</span> ₺{forecast.ml_target_price?.toFixed(2)}
                       </span>
                     </div>
                     <div className={`flex items-center justify-between text-[11px] ${activeModel === 'prophet' ? 'font-bold' : ''}`}>
                       <span className="text-purple-400">Prophet Base:</span>
                       <span className="text-white">
-                        ₺{forecast.prophet_target_price.toFixed(2)}{' '}
-                        <span className={forecast.prophet_expected_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          ({forecast.prophet_expected_return_pct >= 0 ? '+' : ''}
-                          {forecast.prophet_expected_return_pct.toFixed(2)}%)
-                        </span>
+                        <span className={forecast.prophet_expected_return_pct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {forecast.prophet_expected_return_pct >= 0 ? '+' : ''}
+                          {forecast.prophet_expected_return_pct.toFixed(2)}%
+                        </span>{' '}
+                        <span className="text-slate-400">→</span> ₺{forecast.prophet_target_price.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -620,17 +620,17 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </div>
                   </div>
 
-                  {/* Criterion 2: Hit Price Error (Hit MAE) */}
+                  {/* Criterion 2: Hit Return Error (Hit MAE) */}
                   <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[11px]">2. Hit Price Error (MAE):</span>
+                    <span className="text-slate-400 text-[11px]">2. Hit Return Error (MAE %):</span>
                     <span className="font-semibold text-cyan-300 text-xs">
                       {activeHitMae.toFixed(2)}%
                     </span>
                   </div>
 
-                  {/* Criterion 3: Miss Price Error (Miss MAE) */}
+                  {/* Criterion 3: Miss Return Error (Miss MAE) */}
                   <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[11px]">3. Miss Price Error (MAE):</span>
+                    <span className="text-slate-400 text-[11px]">3. Miss Return Error (MAE %):</span>
                     <span className="font-semibold text-rose-300 text-xs">
                       {activeMissMae.toFixed(2)}%
                     </span>

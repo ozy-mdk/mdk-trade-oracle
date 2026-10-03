@@ -86,6 +86,14 @@ FEATURE_COLS = [
     "feat_tertip_squeeze_delta",
     "feat_volatility_pinch_5d_20d",
     "feat_tertip_inventory_zscore",
+
+    # Percentage Return Momentum & Velocity Expansion
+    "feat_ret_3d_cum_pct",
+    "feat_ret_5d_cum_pct",
+    "feat_ret_acceleration_pct",
+    "feat_intraday_range_pct",
+    "feat_bofa_turnover_intensity",
+    "feat_bollinger_bandwidth_pct",
 ]
 
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
@@ -136,7 +144,7 @@ def attach_prophet_rolling_features(
             return df
 
     sym = symbol.upper()
-    cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_daily.parquet"
+    cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_ret_daily.parquet"
     cached_dict: dict[str, float] = {}
 
     if cache_file.exists():
@@ -154,7 +162,7 @@ def attach_prophet_rolling_features(
 
     N = len(df)
     start_idx = max(train_lookback_sessions + 5, N - n_history_needed)
-    close_prices = df["close_price"].to_numpy()
+    daily_returns = (df["daily_return_pct"].fillna(0.0) * 100.0).to_numpy()
     trade_dates = pd.to_datetime(df["trade_date"])
     date_strs = trade_dates.dt.strftime("%Y-%m-%d").to_numpy()
 
@@ -165,17 +173,11 @@ def attach_prophet_rolling_features(
             continue
 
         hist_dates = trade_dates.iloc[k - train_lookback_sessions : k]
-        hist_prices = close_prices[k - train_lookback_sessions : k]
-        p_prev = close_prices[k - 1]
+        hist_returns = daily_returns[k - train_lookback_sessions : k]
         target_date = trade_dates.iloc[k]
 
-        if p_prev <= 0:
-            cached_dict[d_str] = 0.0
-            dirty = True
-            continue
-
         try:
-            p_df = pd.DataFrame({"ds": hist_dates, "y": hist_prices})
+            p_df = pd.DataFrame({"ds": hist_dates, "y": hist_returns})
             m = Prophet(
                 daily_seasonality=False,
                 weekly_seasonality=False,
@@ -185,9 +187,8 @@ def attach_prophet_rolling_features(
             m.fit(p_df)
             target_df = pd.DataFrame({"ds": [target_date]})
             fc = m.predict(target_df)
-            yhat_today = float(fc.iloc[-1]["yhat"])
-            ret_today = (yhat_today - p_prev) / p_prev * 100.0
-            cached_dict[d_str] = float(np.clip(ret_today, -25.0, 25.0))
+            ret_today = float(fc.iloc[-1]["yhat"])
+            cached_dict[d_str] = float(np.clip(ret_today, -15.0, 15.0))
             dirty = True
         except Exception as e:
             logger.warning("Prophet fit failed for %s on %s: %s", sym, d_str, e)
@@ -346,6 +347,28 @@ def extract_3pillar_time_series(
     joined["feat_ret_today_pct"] = (joined["daily_return_pct"].fillna(0) * 100.0).clip(-25.0, 25.0)
     joined["feat_ret_yesterday_pct"] = (joined["daily_return_pct"].shift(1).fillna(0) * 100.0).clip(-25.0, 25.0)
 
+    # 2b. Multi-Day Return Momentum & Acceleration (Stationary Percentage Features)
+    joined["feat_ret_3d_cum_pct"] = (
+        ((joined["close_price"] - joined["close_price"].shift(3)) / joined["close_price"].shift(3) * 100.0)
+        .clip(-35.0, 35.0)
+        .fillna(0.0)
+    )
+    joined["feat_ret_5d_cum_pct"] = (
+        ((joined["close_price"] - joined["close_price"].shift(5)) / joined["close_price"].shift(5) * 100.0)
+        .clip(-50.0, 50.0)
+        .fillna(0.0)
+    )
+    joined["feat_ret_acceleration_pct"] = (
+        (joined["feat_ret_today_pct"] - joined["feat_ret_yesterday_pct"])
+        .clip(-25.0, 25.0)
+        .fillna(0.0)
+    )
+    joined["feat_intraday_range_pct"] = (
+        ((joined["high_price"] - joined["low_price"]) / joined["close_price"] * 100.0)
+        .clip(0.0, 30.0)
+        .fillna(0.0)
+    )
+
     # 3. MLB W5 Closing Session Flow Share
     joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / tt_today
 
@@ -422,6 +445,23 @@ def extract_3pillar_time_series(
     mlb_q_mean = mlb_q.rolling(30, min_periods=10).mean()
     mlb_q_std = mlb_q.rolling(30, min_periods=10).std().replace(0, np.nan)
     joined["feat_tertip_inventory_zscore"] = ((mlb_q - mlb_q_mean) / mlb_q_std).clip(-4.0, 4.0).fillna(0.0)
+
+    # 8e. BofA Turnover Intensity % (MLB Flow normalized by rolling 20d median total turnover)
+    tt_20d_median = tt_today.rolling(20, min_periods=5).median().replace(0, np.nan)
+    joined["feat_bofa_turnover_intensity"] = (
+        (joined["mlb_flow"].fillna(0) / tt_20d_median * 100.0)
+        .clip(-100.0, 100.0)
+        .fillna(0.0)
+    )
+
+    # 8f. Bollinger Bandwidth % ((4 * std_20) / sma_20 * 100)
+    sma_20 = joined["close_price"].rolling(20, min_periods=10).mean()
+    std_20 = joined["close_price"].rolling(20, min_periods=10).std()
+    joined["feat_bollinger_bandwidth_pct"] = (
+        ((4.0 * std_20) / sma_20 * 100.0)
+        .clip(0.5, 50.0)
+        .fillna(5.0)
+    )
 
     # 9. Attach zero-leakage Prophet rolling baseline feature
     joined = attach_prophet_rolling_features(joined, sym)
@@ -589,15 +629,16 @@ def run_30d_walk_forward_arena(
         big5_action = "BUY" if big5_actual_flow > 0 else "SELL"
         kamu_action = "BUY" if kamu_actual_flow > 0 else "SELL"
 
-        # 1. Base Model: Prophet (strictly trailing lookback pure price series)
+        # 1. Base Model: Prophet (strictly trailing lookback pure return series)
         if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
             prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
             prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
             prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         else:
+            ret_series = train_data["daily_return_pct"].iloc[-train_lookback_sessions:].fillna(0.0) * 100.0
             p_df = pd.DataFrame({
                 "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
-                "y": train_data["close_price"].iloc[-train_lookback_sessions:],
+                "y": ret_series,
             })
             m_prophet = Prophet(
                 daily_seasonality=False,
@@ -607,8 +648,8 @@ def run_30d_walk_forward_arena(
             )
             m_prophet.fit(p_df)
             fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-            prophet_price = float(fc_prophet.iloc[-1]["yhat"])
-            prophet_ret = (prophet_price - prev_price) / prev_price * 100.0
+            prophet_ret = float(fc_prophet.iloc[-1]["yhat"])
+            prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
             prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
         # Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)
@@ -1593,10 +1634,11 @@ def get_tertip_ml_forecast(
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    # 1. Base Prophet Prediction for T+1 (strictly trailing 12 months / 252 sessions)
+    # 1. Stationary Prophet Return Baseline for T+1 (fitted on trailing 12 months daily returns)
+    ret_history = df["daily_return_pct"].iloc[-train_lookback_sessions:].fillna(0.0) * 100.0
     p_df = pd.DataFrame({
         "ds": pd.to_datetime(df["trade_date"].iloc[-train_lookback_sessions:]),
-        "y": df["close_price"].iloc[-train_lookback_sessions:],
+        "y": ret_history,
     })
     m_prophet = Prophet(
         daily_seasonality=False,
@@ -1606,8 +1648,8 @@ def get_tertip_ml_forecast(
     )
     m_prophet.fit(p_df)
     fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-    prophet_target_price = float(fc_prophet.iloc[-1]["yhat"])
-    prophet_ret_pct = (prophet_target_price - latest_price) / latest_price * 100.0
+    prophet_ret_pct = float(fc_prophet.iloc[-1]["yhat"])
+    prophet_target_price = latest_price * (1.0 + prophet_ret_pct / 100.0)
 
     # 2. ML Challenger Prediction for T+1 (fitted on trailing 12 months / 252 sessions up to session T)
     tr_full = df.iloc[-train_lookback_sessions:].dropna(subset=active_features).copy()
@@ -1641,7 +1683,7 @@ def get_tertip_ml_forecast(
     elif ml_champion_type == "Huber":
         live_ml = Pipeline([
             ("scaler", StandardScaler()),
-            ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
+            ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300)),
         ])
     elif ml_champion_type == "BayesianRidge":
         live_ml = Pipeline([
@@ -1649,7 +1691,7 @@ def get_tertip_ml_forecast(
             ("regressor", BayesianRidge(max_iter=300)),
         ])
     else:
-        live_ml = Ridge(alpha=10.0, random_state=42)
+        live_ml = Ridge(alpha=2.0, random_state=42)
 
     live_ml.fit(X_tr_full, y_tr_full)
     pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
