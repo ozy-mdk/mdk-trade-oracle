@@ -23,15 +23,18 @@ symbols:
     recent_30d_mae_pct: 4.1
     recent_30d_penalty_loss: 44.86
   ASELS:
-    model: Ridge
+    model: XGBoost
     horizon: 12m
     training_lookback_sessions: 252
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 2.08
-    recent_30d_hit_mae_pct: 1.57
-    recent_30d_miss_mae_pct: 2.75
-    recent_30d_penalty_loss: 51.74
+    recent_30d_hits: 16
+    recent_30d_hit_rate_pct: 53.3
+    recent_30d_mae_pct: 2.12
+    recent_30d_hit_mae_pct: 1.53
+    recent_30d_miss_mae_pct: 2.79
+    recent_30d_big_move_hits: 1
+    recent_30d_big_move_total: 9
+    recent_30d_big_move_hit_rate_pct: 11.1
+    recent_30d_penalty_loss: 99.66
   ASTOR:
     model: Ridge
     horizon: 12m

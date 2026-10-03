@@ -80,6 +80,12 @@ FEATURE_COLS = [
 
     # Aggregate Institutional Net Order Flow (MLB + Big 5 + Kamu Net Flow as % of Turnover)
     "feat_total_inst_net_share_today",
+
+    # Big Move & Breakout Footprint Features
+    "feat_bofa_aggression_ratio",
+    "feat_tertip_squeeze_delta",
+    "feat_volatility_pinch_5d_20d",
+    "feat_tertip_inventory_zscore",
 ]
 
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
@@ -396,7 +402,28 @@ def extract_3pillar_time_series(
         / tt_today * 100.0
     ).clip(-100.0, 100.0)
 
-    # 8. Attach zero-leakage Prophet rolling baseline feature
+    # 8. Big Move & Breakout Footprint Features
+    # 8a. BofA Institutional Aggression Score (Z-Score of MLB net flow vs rolling 20d standard deviation)
+    bofa_flow_20d_std = joined["mlb_flow"].fillna(0).rolling(20, min_periods=5).std().replace(0, np.nan)
+    joined["feat_bofa_aggression_ratio"] = (joined["mlb_flow"].fillna(0) / bofa_flow_20d_std).clip(-5.0, 5.0).fillna(0.0)
+
+    # 8b. Institutional Squeeze Pressure (BofA flow minus domestic Big 5 flow normalized by total turnover)
+    joined["feat_tertip_squeeze_delta"] = (
+        (joined["mlb_flow"].fillna(0) - joined["big5_flow"].fillna(0)) / tt_today * 100.0
+    ).clip(-50.0, 50.0).fillna(0.0)
+
+    # 8c. Volatility Compression Pinch (5-day realized vol / 20-day realized vol)
+    vol_5d = joined["feat_ret_today_pct"].rolling(5, min_periods=3).std()
+    vol_20d = joined["feat_ret_today_pct"].rolling(20, min_periods=10).std().replace(0, np.nan)
+    joined["feat_volatility_pinch_5d_20d"] = (vol_5d / vol_20d).clip(0.1, 3.0).fillna(1.0)
+
+    # 8d. Tertip Inventory Saturation Z-Score (Open FIFO inventory deviation from 30-day mean)
+    mlb_q = joined["mlb_open_qty"].fillna(0)
+    mlb_q_mean = mlb_q.rolling(30, min_periods=10).mean()
+    mlb_q_std = mlb_q.rolling(30, min_periods=10).std().replace(0, np.nan)
+    joined["feat_tertip_inventory_zscore"] = ((mlb_q - mlb_q_mean) / mlb_q_std).clip(-4.0, 4.0).fillna(0.0)
+
+    # 9. Attach zero-leakage Prophet rolling baseline feature
     joined = attach_prophet_rolling_features(joined, sym)
 
     return joined
@@ -606,8 +633,8 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
-        # Candidate A: Ridge
-        ridge = Ridge(alpha=10.0, random_state=42)
+        # Candidate A: Ridge (tuned regularization alpha=2.0)
+        ridge = Ridge(alpha=2.0, random_state=42)
         ridge.fit(X_tr, y_tr)
         pred_ret_ridge = float(ridge.predict(X_prev)[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
@@ -615,11 +642,11 @@ def run_30d_walk_forward_arena(
         ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
         ridge_hit = _check_hit(pred_ret_ridge, actual_ret)
 
-        # Candidate B: XGBoost
+        # Candidate B: XGBoost (depth=3, lr=0.05, n_estimators=60)
         xgb = XGBRegressor(
-            n_estimators=45,
-            max_depth=2,
-            learning_rate=0.03,
+            n_estimators=60,
+            max_depth=3,
+            learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,
@@ -632,12 +659,12 @@ def run_30d_walk_forward_arena(
         xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
         xgb_hit = _check_hit(pred_ret_xgb, actual_ret)
 
-        # Candidate C: LightGBM
+        # Candidate C: LightGBM (depth=3, lr=0.05, n_estimators=60, leaves=11)
         lgbm = lgb.LGBMRegressor(
-            n_estimators=45,
+            n_estimators=60,
             max_depth=3,
-            learning_rate=0.03,
-            num_leaves=7,
+            learning_rate=0.05,
+            num_leaves=11,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,
@@ -651,10 +678,10 @@ def run_30d_walk_forward_arena(
         lgbm_err = abs(lgbm_price - actual_price) / actual_price * 100.0
         lgbm_hit = _check_hit(pred_ret_lgbm, actual_ret)
 
-        # Candidate D: Huber Regressor (L1/L2 Hybrid with Scaler)
+        # Candidate D: Huber Regressor (L1/L2 Hybrid with Scaler, alpha=1.0)
         huber = Pipeline([
             ("scaler", StandardScaler()),
-            ("regressor", HuberRegressor(epsilon=1.35, alpha=10.0, max_iter=300)),
+            ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300)),
         ])
         huber.fit(X_tr, y_tr)
         pred_ret_huber = float(huber.predict(X_prev)[0])
@@ -736,7 +763,13 @@ def run_30d_walk_forward_arena(
     #
     # Composite Tournament Loss:
     # Loss = (100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct
-    def compute_3criteria_metrics(records: list[dict[str, Any]], err_key: str, hit_key: str) -> dict[str, float]:
+    def compute_3criteria_metrics(
+        records: list[dict[str, Any]],
+        err_key: str,
+        hit_key: str,
+        pred_ret_key: str = "",
+        big_move_thresh: float = 2.0,
+    ) -> dict[str, Any]:
         if not records:
             return {
                 "hits": 0,
@@ -744,6 +777,12 @@ def run_30d_walk_forward_arena(
                 "hit_mae_pct": 0.0,
                 "miss_mae_pct": 0.0,
                 "mae_pct": 0.0,
+                "big_move_hits": 0,
+                "big_move_total": 0,
+                "big_move_hit_rate_pct": 0.0,
+                "big_move_signalled": 0,
+                "big_move_missed": 0,
+                "big_move_false_alarms": 0,
                 "tournament_loss": 100.0,
             }
         n = len(records)
@@ -755,7 +794,44 @@ def run_30d_walk_forward_arena(
         miss_mae_pct = round(float(np.mean(miss_errors)), 2) if miss_errors else 0.0
         total_mae = round(float(np.mean([float(s[err_key]) for s in records])), 2)
 
-        composite_loss = round((100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct, 2)
+        # Actionable Big Move Evaluation:
+        # Market Big Moves: sessions where realized move was >= big_move_thresh (2.0%)
+        market_big_moves = [s for s in records if abs(float(s["actual_ret"])) >= big_move_thresh]
+        big_move_total = len(market_big_moves)
+
+        if pred_ret_key:
+            # Actionable Big Move Hit:
+            # Both directionally correct AND suggestion (prediction) was 2% or more
+            big_move_hits = sum(
+                1 for s in records
+                if abs(float(s[pred_ret_key])) >= big_move_thresh
+                and abs(float(s["actual_ret"])) >= big_move_thresh
+                and s[hit_key]
+            )
+            big_move_signalled = sum(1 for s in records if abs(float(s[pred_ret_key])) >= big_move_thresh)
+            big_move_missed = sum(1 for s in market_big_moves if abs(float(s[pred_ret_key])) < big_move_thresh)
+            big_move_false_alarms = sum(
+                1 for s in records
+                if abs(float(s[pred_ret_key])) >= big_move_thresh
+                and not s[hit_key]
+            )
+        else:
+            big_move_hits = sum(1 for s in market_big_moves if s[hit_key])
+            big_move_signalled = big_move_total
+            big_move_missed = 0
+            big_move_false_alarms = 0
+
+        big_move_hit_rate_pct = round((big_move_hits / big_move_total) * 100.0, 1) if big_move_total > 0 else 0.0
+
+        # Composite Tournament Loss:
+        # Penalizes overall misses, big move missed opportunities, false alarms on large positions,
+        # hit calibration errors, and miss drawdowns
+        big_move_penalty = (100.0 - big_move_hit_rate_pct) * 0.5 if big_move_total > 0 else 0.0
+        false_alarm_penalty = big_move_false_alarms * 2.0
+        composite_loss = round(
+            (100.0 - hit_rate_pct) + big_move_penalty + false_alarm_penalty + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct,
+            2,
+        )
 
         return {
             "hits": hits_count,
@@ -763,12 +839,18 @@ def run_30d_walk_forward_arena(
             "hit_mae_pct": hit_mae_pct,
             "miss_mae_pct": miss_mae_pct,
             "mae_pct": total_mae,
+            "big_move_hits": big_move_hits,
+            "big_move_total": big_move_total,
+            "big_move_hit_rate_pct": big_move_hit_rate_pct,
+            "big_move_signalled": big_move_signalled,
+            "big_move_missed": big_move_missed,
+            "big_move_false_alarms": big_move_false_alarms,
             "tournament_loss": composite_loss,
         }
 
     # Prophet metrics
-    p_30d = compute_3criteria_metrics(recent_slice, "prophet_err", "prophet_hit")
-    p_full = compute_3criteria_metrics(step_records, "prophet_err", "prophet_hit")
+    p_30d = compute_3criteria_metrics(recent_slice, "prophet_err", "prophet_hit", pred_ret_key="prophet_ret")
+    p_full = compute_3criteria_metrics(step_records, "prophet_err", "prophet_hit", pred_ret_key="prophet_ret")
 
     candidates_keys = [
         ("Ridge", "ridge_model", "ridge_price", "ridge_ret", "ridge_err", "ridge_hit"),
@@ -780,14 +862,20 @@ def run_30d_walk_forward_arena(
 
     candidates_meta = {}
     for name, m_key, pr_key, ret_key, err_key, hit_key in candidates_keys:
-        m_30d = compute_3criteria_metrics(recent_slice, err_key, hit_key)
-        m_full = compute_3criteria_metrics(step_records, err_key, hit_key)
+        m_30d = compute_3criteria_metrics(recent_slice, err_key, hit_key, pred_ret_key=ret_key)
+        m_full = compute_3criteria_metrics(step_records, err_key, hit_key, pred_ret_key=ret_key)
         candidates_meta[name] = {
             "hits_30d": m_30d["hits"],
             "hit_rate_30d": m_30d["hit_rate_pct"],
             "hit_mae_30d": m_30d["hit_mae_pct"],
             "miss_mae_30d": m_30d["miss_mae_pct"],
             "mae_30d": m_30d["mae_pct"],
+            "big_move_hits_30d": m_30d["big_move_hits"],
+            "big_move_total_30d": m_30d["big_move_total"],
+            "big_move_hit_rate_30d": m_30d["big_move_hit_rate_pct"],
+            "big_move_signalled_30d": m_30d["big_move_signalled"],
+            "big_move_missed_30d": m_30d["big_move_missed"],
+            "big_move_false_alarms_30d": m_30d["big_move_false_alarms"],
             "penalty_loss_30d": m_30d["tournament_loss"],
             "tournament_loss_30d": m_30d["tournament_loss"],
             "hits": m_full["hits"],
@@ -795,6 +883,12 @@ def run_30d_walk_forward_arena(
             "hit_mae": m_full["hit_mae_pct"],
             "miss_mae": m_full["miss_mae_pct"],
             "mae": m_full["mae_pct"],
+            "big_move_hits": m_full["big_move_hits"],
+            "big_move_total": m_full["big_move_total"],
+            "big_move_hit_rate": m_full["big_move_hit_rate_pct"],
+            "big_move_signalled": m_full["big_move_signalled"],
+            "big_move_missed": m_full["big_move_missed"],
+            "big_move_false_alarms": m_full["big_move_false_alarms"],
             "penalty_loss": m_full["tournament_loss"],
             "tournament_loss": m_full["tournament_loss"],
             "model_key": m_key,
@@ -822,6 +916,7 @@ def run_30d_walk_forward_arena(
             candidates_meta.keys(),
             key=lambda k: (
                 candidates_meta[k]["tournament_loss_30d"],
+                -candidates_meta[k]["big_move_hit_rate_30d"],
                 -candidates_meta[k]["hits_30d"],
                 candidates_meta[k]["miss_mae_30d"],
                 candidates_meta[k]["hit_mae_30d"],
@@ -836,6 +931,9 @@ def run_30d_walk_forward_arena(
     ml_candidate_30d_mae = champ_meta["mae_30d"]
     ml_candidate_30d_hit_mae = champ_meta["hit_mae_30d"]
     ml_candidate_30d_miss_mae = champ_meta["miss_mae_30d"]
+    ml_candidate_30d_big_move_hits = champ_meta["big_move_hits_30d"]
+    ml_candidate_30d_big_move_total = champ_meta["big_move_total_30d"]
+    ml_candidate_30d_big_move_hit_rate = champ_meta["big_move_hit_rate_30d"]
     ml_candidate_30d_penalty = champ_meta["penalty_loss_30d"]
     ml_candidate_hits = champ_meta["hits"]
     ml_candidate_hit_rate = champ_meta["hit_rate"]
@@ -853,6 +951,12 @@ def run_30d_walk_forward_arena(
         "hit_mae_30d": p_30d["hit_mae_pct"],
         "miss_mae_30d": p_30d["miss_mae_pct"],
         "mae_30d": p_30d["mae_pct"],
+        "big_move_hits_30d": p_30d["big_move_hits"],
+        "big_move_total_30d": p_30d["big_move_total"],
+        "big_move_hit_rate_30d": p_30d["big_move_hit_rate_pct"],
+        "big_move_signalled_30d": p_30d.get("big_move_signalled", 0),
+        "big_move_missed_30d": p_30d.get("big_move_missed", 0),
+        "big_move_false_alarms_30d": p_30d.get("big_move_false_alarms", 0),
         "penalty_loss_30d": p_30d["tournament_loss"],
         "tournament_loss_30d": p_30d["tournament_loss"],
         "hits": p_full["hits"],
@@ -860,6 +964,12 @@ def run_30d_walk_forward_arena(
         "hit_mae": p_full["hit_mae_pct"],
         "miss_mae": p_full["miss_mae_pct"],
         "mae": p_full["mae_pct"],
+        "big_move_hits": p_full["big_move_hits"],
+        "big_move_total": p_full["big_move_total"],
+        "big_move_hit_rate": p_full["big_move_hit_rate_pct"],
+        "big_move_signalled": p_full.get("big_move_signalled", 0),
+        "big_move_missed": p_full.get("big_move_missed", 0),
+        "big_move_false_alarms": p_full.get("big_move_false_alarms", 0),
         "penalty_loss": p_full["tournament_loss"],
         "tournament_loss": p_full["tournament_loss"],
         "price_key": "prophet_price",
@@ -872,6 +982,7 @@ def run_30d_walk_forward_arena(
         all_tournament_models.keys(),
         key=lambda k: (
             all_tournament_models[k]["tournament_loss_30d"],
+            -all_tournament_models[k]["big_move_hit_rate_30d"],
             -all_tournament_models[k]["hits_30d"],
             all_tournament_models[k]["miss_mae_30d"],
             all_tournament_models[k]["hit_mae_30d"],
@@ -892,6 +1003,12 @@ def run_30d_walk_forward_arena(
     champion_mae_pct = grand_meta["mae_30d"]
     champion_hit_mae_pct = grand_meta["hit_mae_30d"]
     champion_miss_mae_pct = grand_meta["miss_mae_30d"]
+    champion_big_move_hits = grand_meta["big_move_hits_30d"]
+    champion_big_move_total = grand_meta["big_move_total_30d"]
+    champion_big_move_hit_rate_pct = grand_meta["big_move_hit_rate_30d"]
+    champion_big_move_signalled = grand_meta.get("big_move_signalled_30d", 0)
+    champion_big_move_missed = grand_meta.get("big_move_missed_30d", 0)
+    champion_big_move_false_alarms = grand_meta.get("big_move_false_alarms_30d", 0)
     champion_penalty_loss = grand_meta["penalty_loss_30d"]
     runner_up_key = sorted_grand[1]
     runner_up_dir_hit_rate_pct = all_tournament_models[runner_up_key]["hit_rate_30d"]
@@ -1018,13 +1135,13 @@ def run_30d_walk_forward_arena(
     confluence_30d_hits = sum(1 for s in recent_slice if s["confluence_hit"])
     confluence_30d_hit_rate = (confluence_30d_hits / recent_window) * 100.0 if recent_window > 0 else 0.0
     confluence_30d_mae = sum(s["confluence_err"] for s in recent_slice) / recent_window if recent_window > 0 else 0.0
-    c_30d_metrics = compute_3criteria_metrics(recent_slice, "confluence_err", "confluence_hit")
+    c_30d_metrics = compute_3criteria_metrics(recent_slice, "confluence_err", "confluence_hit", pred_ret_key="confluence_ret")
     confluence_30d_penalty_loss = c_30d_metrics["tournament_loss"]
 
     confluence_hits = sum(1 for s in step_records if s["confluence_hit"])
     confluence_hit_rate = (confluence_hits / n_total) * 100.0 if n_total > 0 else 0.0
     confluence_mae = sum(s["confluence_err"] for s in step_records) / n_total if n_total > 0 else 0.0
-    c_full_metrics = compute_3criteria_metrics(step_records, "confluence_err", "confluence_hit")
+    c_full_metrics = compute_3criteria_metrics(step_records, "confluence_err", "confluence_hit", pred_ret_key="confluence_ret")
     confluence_penalty_loss = c_full_metrics["tournament_loss"]
 
     # Operational Grand Champion: Crowned Champion (3-Criteria Winner)
@@ -1048,12 +1165,21 @@ def run_30d_walk_forward_arena(
         "champion_30d_mae_pct": round(champion_mae_pct, 2),
         "champion_30d_hit_mae_pct": round(champion_hit_mae_pct, 2),
         "champion_30d_miss_mae_pct": round(champion_miss_mae_pct, 2),
+        "champion_30d_big_move_hits": champion_big_move_hits,
+        "champion_30d_big_move_total": champion_big_move_total,
+        "champion_30d_big_move_hit_rate_pct": round(champion_big_move_hit_rate_pct, 1),
+        "champion_30d_big_move_signalled": champion_big_move_signalled,
+        "champion_30d_big_move_missed": champion_big_move_missed,
+        "champion_30d_big_move_false_alarms": champion_big_move_false_alarms,
         "champion_30d_penalty_loss": round(champion_penalty_loss, 2),
         "champion_full_hits": confluence_hits,
         "champion_full_hit_rate_pct": round(confluence_hit_rate, 1),
         "champion_full_mae_pct": round(confluence_mae, 2),
         "champion_full_hit_mae_pct": round(c_full_metrics["hit_mae_pct"], 2),
         "champion_full_miss_mae_pct": round(c_full_metrics["miss_mae_pct"], 2),
+        "champion_full_big_move_hits": grand_meta.get("big_move_hits", 0),
+        "champion_full_big_move_total": grand_meta.get("big_move_total", 0),
+        "champion_full_big_move_hit_rate_pct": round(grand_meta.get("big_move_hit_rate", 0.0), 1),
         "champion_full_penalty_loss": round(confluence_penalty_loss, 2),
         "confluence_30d_hits": confluence_30d_hits,
         "confluence_30d_hit_rate_pct": round(confluence_30d_hit_rate, 1),
@@ -1065,6 +1191,9 @@ def run_30d_walk_forward_arena(
         "ml_mae_pct": round(ml_candidate_30d_mae, 2),
         "ml_hit_mae_pct": round(ml_candidate_30d_hit_mae, 2),
         "ml_miss_mae_pct": round(ml_candidate_30d_miss_mae, 2),
+        "ml_30d_big_move_hits": ml_candidate_30d_big_move_hits,
+        "ml_30d_big_move_total": ml_candidate_30d_big_move_total,
+        "ml_30d_big_move_hit_rate_pct": round(ml_candidate_30d_big_move_hit_rate, 1),
         "ml_penalty_loss_30d": round(ml_candidate_30d_penalty, 2),
         "ml_tournament_loss_30d": round(ml_candidate_30d_penalty, 2),
         "ml_full_hits": ml_candidate_hits,
@@ -1072,6 +1201,9 @@ def run_30d_walk_forward_arena(
         "ml_full_mae_pct": round(ml_candidate_mae, 2),
         "ml_full_hit_mae_pct": round(ml_candidate_hit_mae, 2),
         "ml_full_miss_mae_pct": round(ml_candidate_miss_mae, 2),
+        "ml_full_big_move_hits": champ_meta.get("big_move_hits", 0),
+        "ml_full_big_move_total": champ_meta.get("big_move_total", 0),
+        "ml_full_big_move_hit_rate_pct": round(champ_meta.get("big_move_hit_rate", 0.0), 1),
         "ml_full_penalty_loss": round(ml_candidate_penalty, 2),
         "prophet_dir_hits": prophet_30d_hits,
         "prophet_dir_hit_rate_pct": round(prophet_30d_hit_rate, 1),
@@ -1079,6 +1211,9 @@ def run_30d_walk_forward_arena(
         "prophet_mae_pct": round(prophet_30d_mae, 2),
         "prophet_hit_mae_pct": round(prophet_30d_hit_mae, 2),
         "prophet_miss_mae_pct": round(prophet_30d_miss_mae, 2),
+        "prophet_30d_big_move_hits": p_30d["big_move_hits"],
+        "prophet_30d_big_move_total": p_30d["big_move_total"],
+        "prophet_30d_big_move_hit_rate_pct": round(p_30d["big_move_hit_rate_pct"], 1),
         "prophet_penalty_loss_30d": round(prophet_30d_penalty_loss, 2),
         "prophet_tournament_loss_30d": round(prophet_30d_penalty_loss, 2),
         "prophet_full_hits": prophet_hits,
@@ -1086,6 +1221,9 @@ def run_30d_walk_forward_arena(
         "prophet_full_mae_pct": round(prophet_mae, 2),
         "prophet_full_hit_mae_pct": round(prophet_hit_mae, 2),
         "prophet_full_miss_mae_pct": round(prophet_miss_mae, 2),
+        "prophet_full_big_move_hits": p_full["big_move_hits"],
+        "prophet_full_big_move_total": p_full["big_move_total"],
+        "prophet_full_big_move_hit_rate_pct": round(p_full["big_move_hit_rate_pct"], 1),
         "prophet_full_penalty_loss": round(prophet_penalty_loss, 2),
         "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_dir_hits": candidates_meta["Ridge"]["hits_30d"],
@@ -1094,6 +1232,9 @@ def run_30d_walk_forward_arena(
         "ridge_mae_pct": round(candidates_meta["Ridge"]["mae_30d"], 2),
         "ridge_hit_mae_pct": round(candidates_meta["Ridge"]["hit_mae_30d"], 2),
         "ridge_miss_mae_pct": round(candidates_meta["Ridge"]["miss_mae_30d"], 2),
+        "ridge_30d_big_move_hits": candidates_meta["Ridge"]["big_move_hits_30d"],
+        "ridge_30d_big_move_total": candidates_meta["Ridge"]["big_move_total_30d"],
+        "ridge_30d_big_move_hit_rate_pct": round(candidates_meta["Ridge"]["big_move_hit_rate_30d"], 1),
         "ridge_penalty_loss_30d": round(candidates_meta["Ridge"]["penalty_loss_30d"], 2),
         "ridge_tournament_loss_30d": round(candidates_meta["Ridge"]["tournament_loss_30d"], 2),
         "xgboost_30d_hit_rate_pct": round(candidates_meta["XGBoost"]["hit_rate_30d"], 1),
@@ -1103,6 +1244,9 @@ def run_30d_walk_forward_arena(
         "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae_30d"], 2),
         "xgboost_hit_mae_pct": round(candidates_meta["XGBoost"]["hit_mae_30d"], 2),
         "xgboost_miss_mae_pct": round(candidates_meta["XGBoost"]["miss_mae_30d"], 2),
+        "xgboost_30d_big_move_hits": candidates_meta["XGBoost"]["big_move_hits_30d"],
+        "xgboost_30d_big_move_total": candidates_meta["XGBoost"]["big_move_total_30d"],
+        "xgboost_30d_big_move_hit_rate_pct": round(candidates_meta["XGBoost"]["big_move_hit_rate_30d"], 1),
         "xgboost_penalty_loss_30d": round(candidates_meta["XGBoost"]["penalty_loss_30d"], 2),
         "xgboost_tournament_loss_30d": round(candidates_meta["XGBoost"]["tournament_loss_30d"], 2),
         "lightgbm_30d_hit_rate_pct": round(candidates_meta["LightGBM"]["hit_rate_30d"], 1),
@@ -1112,6 +1256,9 @@ def run_30d_walk_forward_arena(
         "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae_30d"], 2),
         "lightgbm_hit_mae_pct": round(candidates_meta["LightGBM"]["hit_mae_30d"], 2),
         "lightgbm_miss_mae_pct": round(candidates_meta["LightGBM"]["miss_mae_30d"], 2),
+        "lightgbm_30d_big_move_hits": candidates_meta["LightGBM"]["big_move_hits_30d"],
+        "lightgbm_30d_big_move_total": candidates_meta["LightGBM"]["big_move_total_30d"],
+        "lightgbm_30d_big_move_hit_rate_pct": round(candidates_meta["LightGBM"]["big_move_hit_rate_30d"], 1),
         "lightgbm_penalty_loss_30d": round(candidates_meta["LightGBM"]["penalty_loss_30d"], 2),
         "lightgbm_tournament_loss_30d": round(candidates_meta["LightGBM"]["tournament_loss_30d"], 2),
         "huber_30d_hit_rate_pct": round(candidates_meta["Huber"]["hit_rate_30d"], 1),
@@ -1121,6 +1268,9 @@ def run_30d_walk_forward_arena(
         "huber_mae_pct": round(candidates_meta["Huber"]["mae_30d"], 2),
         "huber_hit_mae_pct": round(candidates_meta["Huber"]["hit_mae_30d"], 2),
         "huber_miss_mae_pct": round(candidates_meta["Huber"]["miss_mae_30d"], 2),
+        "huber_30d_big_move_hits": candidates_meta["Huber"]["big_move_hits_30d"],
+        "huber_30d_big_move_total": candidates_meta["Huber"]["big_move_total_30d"],
+        "huber_30d_big_move_hit_rate_pct": round(candidates_meta["Huber"]["big_move_hit_rate_30d"], 1),
         "huber_penalty_loss_30d": round(candidates_meta["Huber"]["penalty_loss_30d"], 2),
         "huber_tournament_loss_30d": round(candidates_meta["Huber"]["tournament_loss_30d"], 2),
         "bayesian_ridge_30d_hit_rate_pct": round(candidates_meta["BayesianRidge"]["hit_rate_30d"], 1),
@@ -1130,6 +1280,9 @@ def run_30d_walk_forward_arena(
         "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae_30d"], 2),
         "bayesian_ridge_hit_mae_pct": round(candidates_meta["BayesianRidge"]["hit_mae_30d"], 2),
         "bayesian_ridge_miss_mae_pct": round(candidates_meta["BayesianRidge"]["miss_mae_30d"], 2),
+        "bayesian_ridge_30d_big_move_hits": candidates_meta["BayesianRidge"]["big_move_hits_30d"],
+        "bayesian_ridge_30d_big_move_total": candidates_meta["BayesianRidge"]["big_move_total_30d"],
+        "bayesian_ridge_30d_big_move_hit_rate_pct": round(candidates_meta["BayesianRidge"]["big_move_hit_rate_30d"], 1),
         "bayesian_ridge_penalty_loss_30d": round(candidates_meta["BayesianRidge"]["penalty_loss_30d"], 2),
         "bayesian_ridge_tournament_loss_30d": round(candidates_meta["BayesianRidge"]["tournament_loss_30d"], 2),
         "ml_error_wins": ml_error_wins,

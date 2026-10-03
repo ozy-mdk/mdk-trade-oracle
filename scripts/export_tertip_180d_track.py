@@ -404,6 +404,12 @@ def main() -> None:
                 "champion_30d_mae_pct": tournament.get("champion_30d_mae_pct", tournament.get("champion_mae_pct")),
                 "champion_30d_hit_mae_pct": tournament.get("champion_30d_hit_mae_pct"),
                 "champion_30d_miss_mae_pct": tournament.get("champion_30d_miss_mae_pct"),
+                "champion_30d_big_move_hits": tournament.get("champion_30d_big_move_hits"),
+                "champion_30d_big_move_total": tournament.get("champion_30d_big_move_total"),
+                "champion_30d_big_move_hit_rate_pct": tournament.get("champion_30d_big_move_hit_rate_pct"),
+                "champion_30d_big_move_signalled": tournament.get("champion_30d_big_move_signalled"),
+                "champion_30d_big_move_missed": tournament.get("champion_30d_big_move_missed"),
+                "champion_30d_big_move_false_alarms": tournament.get("champion_30d_big_move_false_alarms"),
                 "champion_full_hits": tournament.get("champion_full_hits"),
                 "champion_full_hit_rate_pct": tournament.get("champion_full_hit_rate_pct"),
                 "champion_full_mae_pct": tournament.get("champion_full_mae_pct"),
@@ -524,6 +530,9 @@ def sync_crowned_yaml(summary_rows: list[dict[str, Any]], yaml_path: Path) -> No
             "recent_30d_mae_pct": r["champion_30d_mae_pct"],
             "recent_30d_hit_mae_pct": r.get("champion_30d_hit_mae_pct"),
             "recent_30d_miss_mae_pct": r.get("champion_30d_miss_mae_pct"),
+            "recent_30d_big_move_hits": r.get("champion_30d_big_move_hits"),
+            "recent_30d_big_move_total": r.get("champion_30d_big_move_total"),
+            "recent_30d_big_move_hit_rate_pct": r.get("champion_30d_big_move_hit_rate_pct"),
             "recent_30d_penalty_loss": r.get("champion_30d_penalty_loss"),
         }
 

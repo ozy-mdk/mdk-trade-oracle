@@ -138,12 +138,30 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const activeMiss = displayLedger.length - activeHits;
   const activeHitRatePct = displayLedger.length > 0 ? (activeHits / displayLedger.length) * 100 : 0;
 
-  // 3 Selection Criteria
+  // Big Move Opportunity Metrics:
+  // Both directionally correct AND suggestion (prediction) was 2% or more
+  const bigMoveRows = displayLedger.filter((r) => Math.abs(r.actual_return_pct) >= 2.0);
+  const bigMoveTotal = bigMoveRows.length;
+  const bigMoveHits = displayLedger.filter(
+    (r) => Math.abs(getRowPredReturn(r)) >= 2.0 && Math.abs(r.actual_return_pct) >= 2.0 && getRowHit(r)
+  ).length;
+  const bigMoveSignalled = displayLedger.filter((r) => Math.abs(getRowPredReturn(r)) >= 2.0).length;
+  const bigMoveMissed = displayLedger.filter(
+    (r) => Math.abs(r.actual_return_pct) >= 2.0 && Math.abs(getRowPredReturn(r)) < 2.0
+  ).length;
+  const bigMoveFalseAlarms = displayLedger.filter(
+    (r) => Math.abs(getRowPredReturn(r)) >= 2.0 && !getRowHit(r)
+  ).length;
+  const bigMoveHitRatePct = bigMoveTotal > 0 ? (bigMoveHits / bigMoveTotal) * 100 : 0;
+
+  // 3 Selection Criteria + Big Move Opportunity Strike Loss
   const activeHitErrors = displayLedger.filter((r) => getRowHit(r)).map((r) => getRowErrPct(r));
   const activeMissErrors = displayLedger.filter((r) => !getRowHit(r)).map((r) => getRowErrPct(r));
   const activeHitMae = activeHitErrors.length > 0 ? activeHitErrors.reduce((a, b) => a + b, 0) / activeHitErrors.length : 0;
   const activeMissMae = activeMissErrors.length > 0 ? activeMissErrors.reduce((a, b) => a + b, 0) / activeMissErrors.length : 0;
-  const active3CritLoss = (100 - activeHitRatePct) + 1.0 * activeHitMae + 2.5 * activeMissMae;
+  const bigMovePenalty = bigMoveTotal > 0 ? (100 - bigMoveHitRatePct) * 0.5 : 0;
+  const falseAlarmPenalty = bigMoveFalseAlarms * 2.0;
+  const active3CritLoss = (100 - activeHitRatePct) + bigMovePenalty + falseAlarmPenalty + 1.0 * activeHitMae + 2.5 * activeMissMae;
 
   const mlHits = displayLedger.filter((r) => r.ml_is_hit).length;
   const mlHitRatePct = displayLedger.length > 0 ? (mlHits / displayLedger.length) * 100 : 0;
@@ -585,6 +603,23 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                   </div>
 
+                  {/* Actionable Big Move Opportunity Strike Rate (≥ ±2% Moves) */}
+                  <div className="p-1.5 px-2 rounded bg-amber-500/10 border border-amber-500/25 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-300 text-[11px] font-semibold flex items-center gap-1">
+                        <span>⚡</span> Actionable Big Move Strike:
+                      </span>
+                      <span className="font-bold text-amber-400 text-xs">
+                        {bigMoveHits}/{bigMoveTotal} ({bigMoveHitRatePct.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[8.5px] text-slate-400 font-mono pt-0.5 border-t border-amber-500/20">
+                      <span>Signalled: <strong className="text-amber-300">{bigMoveSignalled}</strong></span>
+                      <span>Missed: <strong className="text-rose-400">{bigMoveMissed}</strong></span>
+                      <span>False Alarms: <strong className="text-rose-400">{bigMoveFalseAlarms}</strong></span>
+                    </div>
+                  </div>
+
                   {/* Criterion 2: Hit Price Error (Hit MAE) */}
                   <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
                     <span className="text-slate-400 text-[11px]">2. Hit Price Error (MAE):</span>
@@ -601,9 +636,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                   </div>
 
-                  {/* 3-Criteria Composite Loss */}
+                  {/* Composite Tournament Loss */}
                   <div className="flex items-center justify-between p-1.5 px-2 rounded bg-amber-500/10 border border-amber-500/30">
-                    <span className="text-amber-300 font-bold text-[11px]">3-Criteria Tournament Loss:</span>
+                    <span className="text-amber-300 font-bold text-[11px]">Tournament Composite Loss:</span>
                     <span className="font-bold text-amber-400 text-xs">
                       {active3CritLoss.toFixed(2)}
                     </span>
@@ -655,6 +690,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
                     Last 10D: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> /{' '}
                     <span className="text-rose-400 font-bold">{l10Miss}✗</span> ({l10RatePct.toFixed(0)}%)
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold" title="Sessions where |actual return| >= 2.0%">
+                    ⚡ Big Moves: <span className="text-amber-400 font-bold">{bigMoveHits}/{bigMoveTotal} ({bigMoveHitRatePct.toFixed(0)}%)</span>
                   </span>
                 </div>
 
@@ -1155,6 +1193,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-slate-400">
                   Prophet Hit Rate: <span className="text-purple-300 font-bold">{prophetHitRatePct.toFixed(1)}%</span>
                 </span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold" title="Sessions where |actual return| >= 2.0%">
+                  ⚡ Big Moves: <span className="text-amber-400 font-bold">{bigMoveHits}/{bigMoveTotal} ({bigMoveHitRatePct.toFixed(0)}%)</span>
+                </span>
               </div>
             </div>
 
@@ -1187,6 +1228,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   {displayLedger.map((row) => {
                     const isActUp = row.actual_return_pct > 0.02;
                     const isActDown = row.actual_return_pct < -0.02;
+                    const isBigMove = Math.abs(row.actual_return_pct) >= 2.0;
                     const predRet = getRowPredReturn(row);
                     const isPredUp = predRet > 0.02;
                     const isPredDown = predRet < -0.02;
@@ -1198,7 +1240,16 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
                     return (
                       <tr key={row.date} className="hover:bg-slate-800/40 text-slate-300">
-                        <td className="px-2 py-1 text-slate-400 font-bold">{row.date.slice(5)}</td>
+                        <td className="px-2 py-1 text-slate-400 font-bold">
+                          <div className="flex items-center gap-1">
+                            <span>{row.date.slice(5)}</span>
+                            {isBigMove && (
+                              <span className="px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[7px] font-black border border-amber-500/40" title="Big Move (≥ ±2%)">
+                                ⚡2%
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="text-right px-2 py-1 text-white font-semibold">
                           <div>₺{row.actual_price.toFixed(2)}</div>
                           <div
