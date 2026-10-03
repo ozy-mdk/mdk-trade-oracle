@@ -111,8 +111,13 @@ flowchart TD
 
 ### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 17 lean microstructure features, point-in-time FIFO inventory, intraday matched volume, carry FIFO PnL, carry costs, macro rates, and benchmark index momentum. Evaluated dynamically via walk-forward arena tournament with **Directional Hit Rate %** as the primary decision metric.
-- **Trader Workstation Gold Predictive Hub**: Serves real-time live upcoming session ($T+1$) forecasts, directional conviction badges, institutional trade playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`), and 30-Day performance track records directly to the React frontend.
+- **`gold_tertip_daily_forecasts`**: Primary key `(symbol, as_of_date)`. Point-in-time snapshot of the latest $T+1$ forecast for all 30 BIST 30 constituents: `current_price`, `target_price`, `expected_return_pct`, target price bounds `[price_low, price_high]`, `stance`, `conviction`, `playbook`, `ml_champion_type`, `champion_dir_hits`, `champion_dir_hit_rate_pct`, `champion_mae_pct`, `prophet_target_price`, `training_lookback_sessions`, and `crowned_horizon` (`3m`, `6m`, `12m`).
+- **`gold_tertip_walk_forward_backtests`**: Primary key `(symbol, trade_date)`. Session-by-session out-of-sample audited ledger logging actual prices, predicted prices, errors, directional hit flags, winner baseline, regime shocks, and institutional flows for ML and Prophet.
+- **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, and piece-wise sample weighting on extreme moves ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$).
+- **Walk-Forward Candidate Arena**: Benchmarks LightGBM, Ridge, XGBoost, Bayesian Ridge, and Huber against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks, crowning champions via composite loss.
+- **Trader Workstation Modules**:
+  - **Predicted Opportunity Actions (`OpportunityActionsDashboard.tsx`, `GET /api/v1/tertip/opportunities`)**: Pre-market radar ranking highest positive upside and highest negative downside opportunities across all 30 constituents, with tiered conviction badges (`★ High Conviction`), visual bidirectional return gauges, and one-click workstation launch.
+  - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Deep-dive single-stock forecaster with 30D backtest ledger, pillar matrix breakdown, and live $T+1$ actionable playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `BUY ABSORPTION REBOUND`, `STRONG SELL PRESSURE`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
 
 ---
 

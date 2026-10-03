@@ -45,11 +45,15 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
     - `silver_broker_fifo_lot_lifecycle`: Open-to-close lifecycle summary view.
   - Daily sector breadth and 5-window intraday execution splits in Turkish Time (TRT): `Window 1` (day_start) opening 09:55-10:30, `Window 2` (first_reaction) 10:30-11:30, `Window 3` (midday_followup) 11:30-14:30, `Window 4` (afternoon_reaction) 14:30-16:00, `Window 5` (closing_session) closing 16:00-18:15.
   - **Turkish Timezone Mandate**: All data, window partitions, log outputs, and database models operate strictly in **Turkish Time (`Europe/Istanbul` / TRT / UTC+3)** with no Central European Time (CET/CEST) or UTC conversions.
-- **Gold Layer (`gold_institutional_daily_signals`) & Institutional Predictive Hub**:
+- **Gold Layer (`gold_institutional_daily_signals`, `gold_tertip_daily_forecasts`, `gold_tertip_walk_forward_backtests`) & Institutional Predictive Hub**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores persisted to `gold_institutional_daily_signals`.
-  - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, systemic regime shock distance, aggregate institutional net flow, and zero-leakage Prophet univariate baseline expectations.
-  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Bayesian Ridge, and Moving Average baselines on the fly, with champion selection crowned primarily by **Directional Hit Rate %** (evaluated against a calibrated $\pm 0.25\%$ / 25 bps market consolidation deadband, with MAE tie-breaker).
-  - **Trader Workstation Integration**: Real-time signal cards for upcoming session $T+1$ with forecasted flow, credible ranges, directional badges, institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`), and 30-Day performance track records.
+  - **`gold_tertip_daily_forecasts`**: Daily constituent snapshot persisting live T+1 forecast, target price, expected return %, price range bounds `[price_low, price_high]`, stance, playbook, champion type, hit rate %, training lookback sessions, and crowned horizon (`3m`, `6m`, `12m`).
+  - **`gold_tertip_walk_forward_backtests`**: Audited session-by-session out-of-sample backtest ledger across the trailing evaluation horizon.
+  - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, systemic regime shock distance, aggregate institutional net flow, piecewise sample weighting on extreme moves ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$), and zero-leakage Prophet univariate baseline expectations.
+  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Ridge, XGBoost, Bayesian Ridge, and Huber against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks, with champion selection crowned primarily by **Directional Hit Rate %** (evaluated against a calibrated $\pm 0.25\%$ / 25 bps market consolidation deadband, with MAE tie-breaker).
+  - **Trader Workstation Modules**:
+    - **Predicted Opportunity Actions (`OpportunityActionsDashboard.tsx`, `GET /api/v1/tertip/opportunities`)**: Pre-market tactical radar ranking highest upside and downside opportunities across all 30 BIST 30 constituents with tiered conviction badges (`★ High Conviction`), visual bidirectional return gauges, quick filters, and one-click launch.
+    - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Single-stock deep dive with live T+1 signal cards, dynamic horizon badges (`3M`, `6M`, `12M`), 30-day audited ledger, and institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `BUY ABSORPTION REBOUND`, `STRONG SELL PRESSURE`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
 
 ---
 
@@ -62,7 +66,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
    - Captures inventory saturation, cost basis spread, and carried unrealized PnL to forecast liquidation pressure, short squeezes, and defense accumulation.
 2. **21 Lean Zero-Leakage Features**:
    - All predictive features are computed **strictly from prior completed windows / $T-1$ Close data**. Future session information never leaks into training or feature sets.
-   - The training lookback dynamically and strictly anchors backwards 12 months from the evaluation date ($[T - 12\text{ months}, T-1]$).
+   - The training lookback dynamically anchors backwards according to the crowned horizon: 3M (63 sessions), 6M (126 sessions), or 12M (252 sessions).
    - Core lean feature set:
      - *Tertip Inventory Dynamics*: `feat_tertip_inventory_flow_yesterday_tl`, `feat_tertip_unrealized_pnl_yesterday_tl`, `feat_tertip_carry_pnl_yesterday_tl`, `feat_tertip_intraday_pnl_yesterday_tl`.
      - *Aggregate Net Flow & Execution*: `feat_total_inst_net_share_today` (aggregate institutional net flow as % of turnover), execution breakdown shares for MLB, BIG5, KAMU.
@@ -79,16 +83,24 @@ The predictive architecture is centered around the **Tertip Machine Learning For
    - **Composite Tournament Loss**:
      $$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hit\_mae\_pct} + 2.5 \times \text{miss\_mae\_pct}$$
      The champion model and lookback horizon for each equity is crowned strictly by minimizing this composite loss.
-4. **Actionable Trader Playbooks & Dynamic Thresholds**:
+4. **Volatility Calibration & Sample Weighting Scheme**:
+   - Solves the incidence inequality where quiet days outnumber big move days ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$) by applying piecewise sample weights during training:
+     - Quiet days ($|\text{Return}| < 1.0\%$): `0.75x`.
+     - Significant moves ($1.0\% \le |\text{Return}| < 2.0\%$): `2.50x`.
+     - Extreme moves ($|\text{Return}| \ge 2.0\%$): `3.00x`.
+   - Increases sensitivity to breakout sessions without inflating false positives on quiet sessions.
+5. **Actionable Trader Playbooks & Dynamic Thresholds**:
    - Translates predicted flows into actionable context blueprints:
      - **`SQUEEZE_LONG`**: Strong positive flow expectation with heavy competitor delta — follow aggressive opening accumulation.
      - **`MOMENTUM_EXPANSION`**: Extreme opening accumulation — institutional momentum continuation.
+     - **`BUY ABSORPTION REBOUND`**: Buying flow absorbing heavy retail selling pressure — expect sharp mean reversion bounce.
+     - **`STRONG SELL PRESSURE`**: Aggressive institutional distribution — reduce long exposure or enter tactical short.
      - **`LIQUIDITY_FADE`**: High negative flow with deep unrealized gains — expect profit-taking and fade intraday dips.
      - **`DEFENSE_SUPPORT`**: Underwater carried inventory with positive flow — institutional defense accumulation.
      - **`NEUTRAL_WAIT`**: Sub-threshold flow — wait for intraday confirmation.
-5. **Interactive Research & Serving Standards**:
+6. **Interactive Research & Serving Standards**:
    - Clean, professional presentation with zero excessive emojis.
-   - Frontend Predictive Hub displays 30-Day performance ledger, directional hit tally pills, backtest visualizer, and live $T+1$ signal cards.
+   - Frontend Predictive Hub and Opportunity Actions radar display 30-Day performance ledgers, directional hit tally pills, backtest visualizers, and live $T+1$ opportunity ranking.
 
 ---
 

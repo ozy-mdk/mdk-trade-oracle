@@ -139,6 +139,22 @@ $$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hi
 
 The champion model and lookback horizon for each equity is selected by minimizing this composite loss, simultaneously prioritizing directional correctness, price calibration accuracy, and downside drawdown avoidance.
 
+### Volatility Calibration & Sample Weighting Scheme:
+In financial time series, quiet consolidation sessions ($|\Delta| < 1.0\%$) outnumber breakout/expansion sessions ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$) by 3:1 to 4:1. Traditional unweighted MSE loss penalizes errors on the abundant quiet days, causing models to consistently underestimate extreme moves.
+
+To solve this distribution inequality without triggering false breakout alarms on quiet days, models support calibrated piecewise sample weighting during training:
+- **Quiet Consolidation Sessions** ($|\text{Return}| < 1.0\%$): Down-weighted to `0.75x`.
+- **Significant Move Sessions** ($1.0\% \le |\text{Return}| < 2.0\%$): Elevated to `2.50x`.
+- **Extreme Move Sessions** ($|\text{Return}| \ge 2.0\%$): Elevated to `3.00x`.
+
+This expands the model's dynamic range and sensitivity on breakout days while maintaining strict capital preservation and low false-positive rates on consolidation days.
+
+### Multi-Horizon Lookbacks (3M, 6M, 12M):
+High-beta, defense, and momentum equities (e.g. ASELS, ASTOR, TRALT) perform drastically better with adaptive 3M (63 sessions) or 6M (126 sessions) lookbacks because distant 12-month regime data dilutes the current high-volatility algorithmic order flow. The tournament arena dynamically crowns the lookback horizon per stock:
+- **3M Lookback (63 sessions)**: ~40% of BIST 30 equities (fast-adapting momentum & high-beta).
+- **6M Lookback (126 sessions)**: ~33% of BIST 30 equities (cyclical & institutional rotation).
+- **12M Lookback (252 sessions)**: ~27% of BIST 30 equities (macro-congruent large caps like ISCTR, TCELL, PETKM).
+
 ---
 
 ## 7. Actionable Decision Items, Empirical Quantiles & Institutional Trade Playbooks
@@ -157,6 +173,8 @@ Continuous flow forecasts are translated into tradeable decision items calibrate
 ### B. Institutional Execution Playbooks
 - **`SQUEEZE_LONG`**: Positive flow expectation with heavy competitor delta — follow aggressive opening accumulation.
 - **`MOMENTUM_EXPANSION`**: Extreme opening accumulation ($\ge P_{85}$) — institutional momentum continuation.
+- **`BUY ABSORPTION REBOUND`**: Buying flow absorbing heavy retail selling pressure — expect sharp mean reversion bounce.
+- **`STRONG SELL PRESSURE`**: Aggressive institutional distribution — reduce long exposure or enter tactical short.
 - **`LIQUIDITY_FADE`**: High negative flow expectation with BofA holding $> +5\%$ unrealized gains — expect profit-taking and fade intraday dips.
 - **`DEFENSE_SUPPORT`**: Underwater carried inventory ($< -4\%$ cost basis spread) with positive flow — institutional defense accumulation.
 - **`NEUTRAL_WAIT`**: Sub-threshold flow ($|\hat{y}| < P_{25}$) — wait for intraday confirmation.
@@ -168,9 +186,59 @@ Continuous flow forecasts are translated into tradeable decision items calibrate
 The quantitative signals are served directly through an interactive **React 18 + TradingView Lightweight Charts** trading workstation (`frontend/`):
 
 1. **Live Upcoming Session Signal Card ($T+1$)**:
-   - Displays upcoming trade date, forecasted net flow ($TL$), directional conviction badge, and institutional execution playbook.
+   - Displays upcoming trade date, forecasted net flow ($TL$), target price, price range $[P_{\text{low}}, P_{\text{high}}]$, directional conviction badge, and institutional execution playbook.
 2. **30-Day Performance Track Record**:
    - Header summary pill displays overall directional accuracy across the last 30 sessions (e.g. `20/30 (66.7%)`).
    - Detailed ledger table showing session-by-session predicted flow, actual realized flow, prediction error, and transparent `[HIT]` / `[MISS]` status badges.
 3. **Walk-Forward Backtest Visualizer**:
    - Interactive chart plotting realized market flow vs. model predictions across historical sessions.
+
+---
+
+## 9. Predicted Opportunity Actions & Tactical Radar (`OpportunityActionsDashboard.tsx`)
+
+A dedicated workstation tab designed for instant institutional pre-market and intraday opportunity discovery across all 30 BIST 30 constituent equities:
+
+1. **Market Breadth & Bias Ribbon**:
+   - Live constituent bias breakdown (e.g. 15 Bullish / 11 Bearish / 4 Consolidation).
+   - High-conviction move tally ($|\Delta| \ge 2.0\%$) and significant move tally ($|\Delta| \ge 1.0\%$).
+   - As-of session close date targeting upcoming $T+1$ execution.
+2. **Dual Spotlight Decks (Highest Upside vs. Highest Downside)**:
+   - **Top Bullish Setups**: Ranks top 5 equities by expected positive return, displaying target price, expected upside %, playbook strategy, crowned model/horizon, 30D win rate %, and BofA (MLB) net flow TL.
+   - **Top Short / Fade Setups**: Ranks top 5 equities by expected downside, highlighting institutional distribution pressure and profit-taking fade targets.
+3. **Full Universe Opportunity Matrix (All 30 Equities Retained & Highlighted)**:
+   - All 30 equities are kept in a single unified matrix with tiered conviction badges:
+     - **Tier 1: High Conviction** ($|\text{Expected Return}| \ge 2.0\%$): Standout glowing badges (`★ High Conviction`).
+     - **Tier 2: Significant** ($1.0\% \le |\text{Expected Return}| < 2.0\%$): Actionable directional setups.
+     - **Tier 3: Consolidation** ($< 1.0\%$): Range-bound / watch setups.
+   - Bidirectional visual return gauge centered at zero (rose for negative, emerald for positive).
+   - Quick filter pills: `All Equities`, `Big Moves (|Δ| ≥ 2%)`, `Significant (|Δ| ≥ 1%)`, `Bullish Longs`, `Bearish Shorts`, `BofA Buying`, `BofA Selling`.
+   - One-click launch actions to inspect any stock in **Candlestick & Order Flow** or **Gold Predictive Hub**.
+
+---
+
+## 10. Concrete Trader Execution Playbook Workflow
+
+Individual and prop traders utilize the MDK Trading Oracle through a disciplined 3-step execution loop:
+
+```
+┌─────────────────────────────────┐
+│ 1. Pre-Market Scan              │
+│    Predicted Opportunity Actions│ ──► Identify Top 3 Longs & Top 3 Shorts
+│    (Radar & Breadth Ribbon)     │     Check Market Breadth & Big Move Tally
+└─────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│ 2. Microstructure Deep-Dive     │
+│    Gold Predictive Hub          │ ──► Verify Crowned Horizon (3M vs 6M vs 12M)
+│    (Pillars, Inventory, 30D Win)│     Inspect FIFO Tertip Cost Basis & Carry PnL
+└─────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│ 3. Tactical Intraday Execution  │
+│    Candlestick & Order Flow     │ ──► Window 1 (09:55-10:30 TRT): Opening confirmation
+│    (Continuous Aggs, VWAP, Spreads)   Trade against Target Price Range [Low, High]
+└─────────────────────────────────┘
+```
