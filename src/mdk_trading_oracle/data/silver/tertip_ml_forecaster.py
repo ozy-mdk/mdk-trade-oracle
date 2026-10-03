@@ -44,30 +44,41 @@ PROPHET_CACHE_DIR = Path.home() / "data" / "mdk_oracle" / "cache" / "prophet_fea
 PROPHET_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 ABLATION_CACHE_DIR = Path.home() / "data" / "mdk_oracle" / "cache" / "prophet_ablation"
 
-# Lean & Pragmatic Feature Suite (21 Scarce Microstructure, Tertip Inventory, Execution, Shock Distance & Prophet Baseline)
+# 3-Pillar Institutional Microstructure Feature Suite (39 Features)
 FEATURE_COLS = [
-    # Core Valuation & Momentum
-    "feat_cost_spread_pct",
+    # 1. 3-Pillar Cost Spreads %: ((Close - FIFO_Cost) / FIFO_Cost) * 100
+    "feat_mlb_cost_spread_pct",
+    "feat_big5_cost_spread_pct",
+    "feat_kamu_cost_spread_pct",
+
+    # 2. Price Momentum & Acceleration (Stationary Percentage Features)
     "feat_ret_today_pct",
     "feat_ret_yesterday_pct",
-    "feat_mlb_w5_share",
+    "feat_ret_3d_cum_pct",
+    "feat_ret_acceleration_pct",
 
-    # Univariate Baseline Momentum (Prophet 1-Step Prior for Session T, Zero-Leakage)
-    "feat_prophet_ret_today_pct",
+    # 3. Intraday Volatility & Range Expansion
+    "feat_intraday_range_pct",
+    "feat_volatility_pinch_5d_20d",
+    "feat_bollinger_bandwidth_pct",
 
-    # BIST 30 (XU030) Today's Return Dynamics
+    # 4. Benchmark & Macro Regime Shock Distance (Capped at 7 Trading Days)
     "feat_bist30_ret_today_pct",
-
-    # Macro Regime Shock Distance (Sessions elapsed since last positive / negative shock)
     "feat_days_since_pos_shock",
     "feat_days_since_neg_shock",
+    "feat_kamu_post_shock_defense",
 
-    # 3-Month Tertip Inventory Expansion
-    "feat_mlb_tertip_3m_ratio",
-    "feat_big5_tertip_3m_ratio",
-    "feat_kamu_tertip_3m_ratio",
+    # 5. 3-Pillar Closing Session (W5: 16:00-18:15) Flow Shares % of Turnover
+    "feat_mlb_w5_share",
+    "feat_big5_w5_share",
+    "feat_kamu_w5_share",
 
-    # Today's Execution Breakdown (Buy, Sell, Realized PnL)
+    # 6. 3-Pillar Turnover Intensity % (Net Flow / Rolling 20d Median Turnover * 100)
+    "feat_mlb_turnover_intensity",
+    "feat_big5_turnover_intensity",
+    "feat_kamu_turnover_intensity",
+
+    # 7. Today's Execution Breakdown (Buy, Sell, Realized PnL % of Turnover)
     "feat_mlb_buy_share_today",
     "feat_mlb_sell_share_today",
     "feat_mlb_pnl_share_today",
@@ -78,22 +89,19 @@ FEATURE_COLS = [
     "feat_kamu_sell_share_today",
     "feat_kamu_pnl_share_today",
 
-    # Aggregate Institutional Net Order Flow (MLB + Big 5 + Kamu Net Flow as % of Turnover)
+    # 8. Aggregate Institutional Order Flow & Footprint
     "feat_total_inst_net_share_today",
-
-    # Big Move & Breakout Footprint Features
     "feat_bofa_aggression_ratio",
     "feat_tertip_squeeze_delta",
-    "feat_volatility_pinch_5d_20d",
     "feat_tertip_inventory_zscore",
 
-    # Percentage Return Momentum & Velocity Expansion
-    "feat_ret_3d_cum_pct",
-    "feat_ret_5d_cum_pct",
-    "feat_ret_acceleration_pct",
-    "feat_intraday_range_pct",
-    "feat_bofa_turnover_intensity",
-    "feat_bollinger_bandwidth_pct",
+    # 9. 3-Pillar Point-in-Time Tertip Inventory Shares & Profitable Shares
+    "feat_mlb_tertip_share",
+    "feat_big5_tertip_share",
+    "feat_kamu_tertip_share",
+    "feat_mlb_profitable_tertip_share",
+    "feat_big5_profitable_tertip_share",
+    "feat_kamu_profitable_tertip_share",
 ]
 
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
@@ -238,19 +246,21 @@ def extract_3pillar_time_series(
         SELECT 
             trade_date,
             SUM(CASE WHEN broker_id = 'MLB' THEN open_stock_quantity ELSE 0 END) AS mlb_open_qty,
-            MAX(CASE WHEN broker_id = 'MLB' THEN fifo_avg_cost ELSE 0 END) AS fifo_avg_cost,
+            MAX(CASE WHEN broker_id = 'MLB' THEN fifo_avg_cost ELSE 0 END) AS mlb_fifo_cost,
             SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl ELSE 0 END) AS mlb_buy_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN sell_turnover_tl ELSE 0 END) AS mlb_sell_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN total_daily_pnl_tl ELSE 0 END) AS mlb_daily_pnl_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
 
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity ELSE 0 END) AS big5_open_qty,
+            COALESCE(SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity * fifo_avg_cost ELSE 0 END) / NULLIF(SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity ELSE 0 END), 0), 0.0) AS big5_fifo_cost,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl ELSE 0 END) AS big5_buy_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN sell_turnover_tl ELSE 0 END) AS big5_sell_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN total_daily_pnl_tl ELSE 0 END) AS big5_daily_pnl_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl_tl,
 
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity ELSE 0 END) AS kamu_open_qty,
+            COALESCE(SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity * fifo_avg_cost ELSE 0 END) / NULLIF(SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity ELSE 0 END), 0), 0.0) AS kamu_fifo_cost,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl ELSE 0 END) AS kamu_buy_tl,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN sell_turnover_tl ELSE 0 END) AS kamu_sell_tl,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN total_daily_pnl_tl ELSE 0 END) AS kamu_daily_pnl_tl,
@@ -288,12 +298,17 @@ def extract_3pillar_time_series(
         ],
     )
 
-    # 4. MLB Closing Session Window 5 Flow
+    # 4. 3-Pillar Closing Session Window 5 Flow
     df_w5 = db.query_pl(
-        """
-        SELECT trade_date, net_flow_tl as mlb_w5_flow
+        f"""
+        SELECT 
+            trade_date,
+            SUM(CASE WHEN broker_id = 'MLB' THEN net_flow_tl ELSE 0 END) AS mlb_w5_flow,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN net_flow_tl ELSE 0 END) AS big5_w5_flow,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN net_flow_tl ELSE 0 END) AS kamu_w5_flow
         FROM silver_intraday_broker_window_summary
-        WHERE symbol = %s AND broker_id = 'MLB' AND window_name = 'closing_session'
+        WHERE symbol = %s AND window_name = 'closing_session'
+        GROUP BY trade_date
         ORDER BY trade_date ASC;
         """,
         params=[sym],
@@ -332,14 +347,24 @@ def extract_3pillar_time_series(
     if joined.empty:
         return pd.DataFrame()
 
-    # Engineer 26 Scarce Microstructure, Tertip, Execution & BIST 30 Features
+    # Engineer 39 Scarce Microstructure, 3-Pillar Tertip, Execution & Regime Features
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
     tt_today = joined["total_turnover_tl"]
 
-    # 1. BofA Cost Spread %: (Close - BofA FIFO Cost) / BofA FIFO Cost * 100
-    joined["feat_cost_spread_pct"] = np.where(
-        (joined["fifo_avg_cost"] > 0) & (joined["close_price"] > 0),
-        (joined["close_price"] - joined["fifo_avg_cost"]) / joined["fifo_avg_cost"] * 100.0,
+    # 1. 3-Pillar Cost Spreads %: ((Close - FIFO_Cost) / FIFO_Cost) * 100
+    joined["feat_mlb_cost_spread_pct"] = np.where(
+        (joined["mlb_fifo_cost"] > 0) & (joined["close_price"] > 0),
+        (joined["close_price"] - joined["mlb_fifo_cost"]) / joined["mlb_fifo_cost"] * 100.0,
+        0.0,
+    )
+    joined["feat_big5_cost_spread_pct"] = np.where(
+        (joined["big5_fifo_cost"] > 0) & (joined["close_price"] > 0),
+        (joined["close_price"] - joined["big5_fifo_cost"]) / joined["big5_fifo_cost"] * 100.0,
+        0.0,
+    )
+    joined["feat_kamu_cost_spread_pct"] = np.where(
+        (joined["kamu_fifo_cost"] > 0) & (joined["close_price"] > 0),
+        (joined["close_price"] - joined["kamu_fifo_cost"]) / joined["kamu_fifo_cost"] * 100.0,
         0.0,
     )
 
@@ -353,11 +378,6 @@ def extract_3pillar_time_series(
         .clip(-35.0, 35.0)
         .fillna(0.0)
     )
-    joined["feat_ret_5d_cum_pct"] = (
-        ((joined["close_price"] - joined["close_price"].shift(5)) / joined["close_price"].shift(5) * 100.0)
-        .clip(-50.0, 50.0)
-        .fillna(0.0)
-    )
     joined["feat_ret_acceleration_pct"] = (
         (joined["feat_ret_today_pct"] - joined["feat_ret_yesterday_pct"])
         .clip(-25.0, 25.0)
@@ -369,33 +389,24 @@ def extract_3pillar_time_series(
         .fillna(0.0)
     )
 
-    # 3. MLB W5 Closing Session Flow Share
-    joined["feat_mlb_w5_share"] = joined["mlb_w5_flow"].fillna(0) / tt_today
+    # 3. 3-Pillar W5 Closing Session Flow Shares % of Total Turnover
+    joined["feat_mlb_w5_share"] = (joined["mlb_w5_flow"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
+    joined["feat_big5_w5_share"] = (joined["big5_w5_flow"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
+    joined["feat_kamu_w5_share"] = (joined["kamu_w5_flow"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
 
-    # 4. 3-Month (63d) Tertip Inventory Expansion %: (Current Qty - 63d EWMA Qty) / 63d EWMA Qty * 100
-    ewma_q_mlb_63 = joined["mlb_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
-    joined["feat_mlb_tertip_3m_ratio"] = np.where(
-        ewma_q_mlb_63.abs() > 1.0,
-        (joined["mlb_open_qty"].fillna(0) - ewma_q_mlb_63) / ewma_q_mlb_63.abs() * 100.0,
-        0.0,
-    )
-    joined["feat_mlb_tertip_3m_ratio"] = joined["feat_mlb_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+    # 4. 3-Pillar Point-in-Time Tertip Inventory Shares & Profitable Shares %
+    total_inst_qty = (joined["mlb_open_qty"].fillna(0) + joined["big5_open_qty"].fillna(0) + joined["kamu_open_qty"].fillna(0)).replace(0, np.nan)
+    joined["feat_mlb_tertip_share"] = (joined["mlb_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
+    joined["feat_big5_tertip_share"] = (joined["big5_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
+    joined["feat_kamu_tertip_share"] = (joined["kamu_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
 
-    ewma_q_big5_63 = joined["big5_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
-    joined["feat_big5_tertip_3m_ratio"] = np.where(
-        ewma_q_big5_63.abs() > 1.0,
-        (joined["big5_open_qty"].fillna(0) - ewma_q_big5_63) / ewma_q_big5_63.abs() * 100.0,
-        0.0,
-    )
-    joined["feat_big5_tertip_3m_ratio"] = joined["feat_big5_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+    mlb_prof_qty = np.where((joined["mlb_fifo_cost"] > 0) & (joined["close_price"] > joined["mlb_fifo_cost"]), joined["mlb_open_qty"].fillna(0), 0.0)
+    big5_prof_qty = np.where((joined["big5_fifo_cost"] > 0) & (joined["close_price"] > joined["big5_fifo_cost"]), joined["big5_open_qty"].fillna(0), 0.0)
+    kamu_prof_qty = np.where((joined["kamu_fifo_cost"] > 0) & (joined["close_price"] > joined["kamu_fifo_cost"]), joined["kamu_open_qty"].fillna(0), 0.0)
 
-    ewma_q_kamu_63 = joined["kamu_open_qty"].fillna(0).ewm(span=63, adjust=False).mean()
-    joined["feat_kamu_tertip_3m_ratio"] = np.where(
-        ewma_q_kamu_63.abs() > 1.0,
-        (joined["kamu_open_qty"].fillna(0) - ewma_q_kamu_63) / ewma_q_kamu_63.abs() * 100.0,
-        0.0,
-    )
-    joined["feat_kamu_tertip_3m_ratio"] = joined["feat_kamu_tertip_3m_ratio"].clip(-100.0, 100.0).fillna(0.0)
+    joined["feat_mlb_profitable_tertip_share"] = (mlb_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
+    joined["feat_big5_profitable_tertip_share"] = (big5_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
+    joined["feat_kamu_profitable_tertip_share"] = (kamu_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
 
     # 5. Today's Execution Breakdown (Buy, Sell, Realized PnL) normalized by Today's Total Turnover %
     for p in ["mlb", "big5", "kamu"]:
@@ -407,13 +418,17 @@ def extract_3pillar_time_series(
     joined["bist30_return_pct"] = joined["bist30_return_pct"].fillna(0.0)
     joined["feat_bist30_ret_today_pct"] = joined["bist30_return_pct"].clip(-15.0, 15.0)
 
-    # 6. Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%)
+    # 6. Distance (in sessions) from Last Positive Shock (>= +3%) and Last Negative Shock (<= -3%) - Capped at 7 Days
     series_idx = pd.Series(range(len(joined)), index=joined.index)
     pos_shock_idx = series_idx.where(joined["daily_return_pct"] >= 0.03).ffill()
-    joined["feat_days_since_pos_shock"] = (series_idx - pos_shock_idx).fillna(63.0).clip(0.0, 63.0)
+    joined["feat_days_since_pos_shock"] = (series_idx - pos_shock_idx).fillna(7.0).clip(0.0, 7.0)
 
     neg_shock_idx = series_idx.where(joined["daily_return_pct"] <= -0.03).ffill()
-    joined["feat_days_since_neg_shock"] = (series_idx - neg_shock_idx).fillna(63.0).clip(0.0, 63.0)
+    joined["feat_days_since_neg_shock"] = (series_idx - neg_shock_idx).fillna(7.0).clip(0.0, 7.0)
+
+    # 6b. Post-Negative Shock Interactions (Kamu Defense in immediate 3 sessions following negative shock)
+    is_recent_neg_shock = (joined["feat_days_since_neg_shock"] <= 3.0).astype(float)
+    joined["feat_kamu_post_shock_defense"] = (joined["feat_kamu_buy_share_today"] - joined["feat_kamu_sell_share_today"]) * is_recent_neg_shock
 
     # 7. Aggregate Institutional Net Flow Share % of Total Market Turnover
     joined["feat_total_inst_net_share_today"] = (
@@ -446,10 +461,20 @@ def extract_3pillar_time_series(
     mlb_q_std = mlb_q.rolling(30, min_periods=10).std().replace(0, np.nan)
     joined["feat_tertip_inventory_zscore"] = ((mlb_q - mlb_q_mean) / mlb_q_std).clip(-4.0, 4.0).fillna(0.0)
 
-    # 8e. BofA Turnover Intensity % (MLB Flow normalized by rolling 20d median total turnover)
+    # 8e. 3-Pillar Turnover Intensity % (Net Flow normalized by rolling 20d median total turnover)
     tt_20d_median = tt_today.rolling(20, min_periods=5).median().replace(0, np.nan)
-    joined["feat_bofa_turnover_intensity"] = (
+    joined["feat_mlb_turnover_intensity"] = (
         (joined["mlb_flow"].fillna(0) / tt_20d_median * 100.0)
+        .clip(-100.0, 100.0)
+        .fillna(0.0)
+    )
+    joined["feat_big5_turnover_intensity"] = (
+        (joined["big5_flow"].fillna(0) / tt_20d_median * 100.0)
+        .clip(-100.0, 100.0)
+        .fillna(0.0)
+    )
+    joined["feat_kamu_turnover_intensity"] = (
+        (joined["kamu_flow"].fillna(0) / tt_20d_median * 100.0)
         .clip(-100.0, 100.0)
         .fillna(0.0)
     )
@@ -462,9 +487,6 @@ def extract_3pillar_time_series(
         .clip(0.5, 50.0)
         .fillna(5.0)
     )
-
-    # 9. Attach zero-leakage Prophet rolling baseline feature
-    joined = attach_prophet_rolling_features(joined, sym)
 
     return joined
 
@@ -629,28 +651,14 @@ def run_30d_walk_forward_arena(
         big5_action = "BUY" if big5_actual_flow > 0 else "SELL"
         kamu_action = "BUY" if kamu_actual_flow > 0 else "SELL"
 
-        # 1. Base Model: Prophet (strictly trailing lookback pure return series)
+        # 1. Base Model: Baseline Return Drift (Prophet if cached, else EWMA 63d drift)
         if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
             prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
-            prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
-            prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
         else:
             ret_series = train_data["daily_return_pct"].iloc[-train_lookback_sessions:].fillna(0.0) * 100.0
-            p_df = pd.DataFrame({
-                "ds": pd.to_datetime(train_data["trade_date"].iloc[-train_lookback_sessions:]),
-                "y": ret_series,
-            })
-            m_prophet = Prophet(
-                daily_seasonality=False,
-                weekly_seasonality=False,
-                yearly_seasonality=False,
-                changepoint_prior_scale=0.05,
-            )
-            m_prophet.fit(p_df)
-            fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-            prophet_ret = float(fc_prophet.iloc[-1]["yhat"])
-            prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
-            prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
+            prophet_ret = float(ret_series.ewm(span=63).mean().iloc[-1]) if len(ret_series) > 0 else 0.0
+        prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
+        prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
 
         # Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)
         def _check_hit(pred: float, actual: float, tol_delta: float = 0.20, deadband: float = DEADBAND_PCT) -> bool:
@@ -674,9 +682,19 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
+        # Balanced Sample Weighting:
+        # Prevents regression shrinkage to zero on big moves while anchoring quiet sessions (|y| < 1.0%)
+        # with weight 0.75 to suppress quiet-day false alarms.
+        abs_y = y_tr.abs()
+        sample_weights = np.where(
+            abs_y < 1.0,
+            0.75,
+            1.0 + 0.5 * (abs_y - 1.0).clip(upper=3.0),
+        )
+
         # Candidate A: Ridge (tuned regularization alpha=2.0)
         ridge = Ridge(alpha=2.0, random_state=42)
-        ridge.fit(X_tr, y_tr)
+        ridge.fit(X_tr, y_tr, sample_weight=sample_weights)
         pred_ret_ridge = float(ridge.predict(X_prev)[0])
         pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
@@ -693,7 +711,7 @@ def run_30d_walk_forward_arena(
             random_state=42,
             n_jobs=1,
         )
-        xgb.fit(X_tr, y_tr)
+        xgb.fit(X_tr, y_tr, sample_weight=sample_weights)
         pred_ret_xgb = float(xgb.predict(X_prev)[0])
         pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
@@ -712,7 +730,7 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
             verbose=-1,
         )
-        lgbm.fit(X_tr, y_tr)
+        lgbm.fit(X_tr, y_tr, sample_weight=sample_weights)
         pred_ret_lgbm = float(lgbm.predict(X_prev)[0])
         pred_ret_lgbm = max(-10.0, min(10.0, pred_ret_lgbm))
         lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
@@ -724,7 +742,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300)),
         ])
-        huber.fit(X_tr, y_tr)
+        huber.fit(X_tr, y_tr, regressor__sample_weight=sample_weights)
         pred_ret_huber = float(huber.predict(X_prev)[0])
         pred_ret_huber = max(-10.0, min(10.0, pred_ret_huber))
         huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
@@ -736,7 +754,7 @@ def run_30d_walk_forward_arena(
             ("scaler", StandardScaler()),
             ("regressor", BayesianRidge(max_iter=300)),
         ])
-        bayes.fit(X_tr, y_tr)
+        bayes.fit(X_tr, y_tr, regressor__sample_weight=sample_weights)
         pred_ret_bayes = float(bayes.predict(X_prev)[0])
         pred_ret_bayes = max(-10.0, min(10.0, pred_ret_bayes))
         bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
@@ -818,6 +836,10 @@ def run_30d_walk_forward_arena(
                 "hit_mae_pct": 0.0,
                 "miss_mae_pct": 0.0,
                 "mae_pct": 0.0,
+                "sig_move_hits": 0,
+                "sig_move_total": 0,
+                "sig_move_hit_rate_pct": 0.0,
+                "quiet_false_alarms": 0,
                 "big_move_hits": 0,
                 "big_move_total": 0,
                 "big_move_hit_rate_pct": 0.0,
@@ -835,12 +857,21 @@ def run_30d_walk_forward_arena(
         miss_mae_pct = round(float(np.mean(miss_errors)), 2) if miss_errors else 0.0
         total_mae = round(float(np.mean([float(s[err_key]) for s in records])), 2)
 
-        # Actionable Big Move Evaluation:
-        # Market Big Moves: sessions where realized move was >= big_move_thresh (2.0%)
+        # Significant Moves Evaluation: sessions where realized move was >= 1.0%
+        market_sig_moves = [s for s in records if abs(float(s["actual_ret"])) >= 1.0]
+        sig_move_total = len(market_sig_moves)
+        sig_move_hits = sum(1 for s in market_sig_moves if s[hit_key])
+        sig_move_hit_rate_pct = round((sig_move_hits / sig_move_total) * 100.0, 1) if sig_move_total > 0 else 0.0
+
+        # Actionable Big Move Evaluation: sessions where realized move was >= big_move_thresh (2.0%)
         market_big_moves = [s for s in records if abs(float(s["actual_ret"])) >= big_move_thresh]
         big_move_total = len(market_big_moves)
 
+        # Quiet-day false alarms: predicted magnitude >= 1.0% when actual move was minor (< 0.5%)
+        quiet_sessions = [s for s in records if abs(float(s["actual_ret"])) < 0.5]
+
         if pred_ret_key:
+            quiet_false_alarms = sum(1 for s in quiet_sessions if abs(float(s[pred_ret_key])) >= 1.0)
             # Actionable Big Move Hit:
             # Both directionally correct AND suggestion (prediction) was 2% or more
             big_move_hits = sum(
@@ -857,6 +888,7 @@ def run_30d_walk_forward_arena(
                 and not s[hit_key]
             )
         else:
+            quiet_false_alarms = 0
             big_move_hits = sum(1 for s in market_big_moves if s[hit_key])
             big_move_signalled = big_move_total
             big_move_missed = 0
@@ -865,12 +897,18 @@ def run_30d_walk_forward_arena(
         big_move_hit_rate_pct = round((big_move_hits / big_move_total) * 100.0, 1) if big_move_total > 0 else 0.0
 
         # Composite Tournament Loss:
-        # Penalizes overall misses, big move missed opportunities, false alarms on large positions,
-        # hit calibration errors, and miss drawdowns
+        # Heavily rewards getting >= 1.0% moves right (sig_move_penalty),
+        # rewards actionable >= 2.0% big calls, penalizes quiet-day false alarms and miss drawdowns
+        sig_move_penalty = (100.0 - sig_move_hit_rate_pct) * 1.0 if sig_move_total > 0 else 0.0
         big_move_penalty = (100.0 - big_move_hit_rate_pct) * 0.5 if big_move_total > 0 else 0.0
-        false_alarm_penalty = big_move_false_alarms * 2.0
+        false_alarm_penalty = (big_move_false_alarms * 2.0) + (quiet_false_alarms * 1.5)
         composite_loss = round(
-            (100.0 - hit_rate_pct) + big_move_penalty + false_alarm_penalty + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct,
+            (100.0 - hit_rate_pct)
+            + sig_move_penalty
+            + big_move_penalty
+            + false_alarm_penalty
+            + 1.0 * hit_mae_pct
+            + 2.5 * miss_mae_pct,
             2,
         )
 
@@ -880,6 +918,10 @@ def run_30d_walk_forward_arena(
             "hit_mae_pct": hit_mae_pct,
             "miss_mae_pct": miss_mae_pct,
             "mae_pct": total_mae,
+            "sig_move_hits": sig_move_hits,
+            "sig_move_total": sig_move_total,
+            "sig_move_hit_rate_pct": sig_move_hit_rate_pct,
+            "quiet_false_alarms": quiet_false_alarms,
             "big_move_hits": big_move_hits,
             "big_move_total": big_move_total,
             "big_move_hit_rate_pct": big_move_hit_rate_pct,
@@ -911,6 +953,10 @@ def run_30d_walk_forward_arena(
             "hit_mae_30d": m_30d["hit_mae_pct"],
             "miss_mae_30d": m_30d["miss_mae_pct"],
             "mae_30d": m_30d["mae_pct"],
+            "sig_move_hits_30d": m_30d["sig_move_hits"],
+            "sig_move_total_30d": m_30d["sig_move_total"],
+            "sig_move_hit_rate_30d": m_30d["sig_move_hit_rate_pct"],
+            "quiet_false_alarms_30d": m_30d["quiet_false_alarms"],
             "big_move_hits_30d": m_30d["big_move_hits"],
             "big_move_total_30d": m_30d["big_move_total"],
             "big_move_hit_rate_30d": m_30d["big_move_hit_rate_pct"],
@@ -924,6 +970,10 @@ def run_30d_walk_forward_arena(
             "hit_mae": m_full["hit_mae_pct"],
             "miss_mae": m_full["miss_mae_pct"],
             "mae": m_full["mae_pct"],
+            "sig_move_hits": m_full["sig_move_hits"],
+            "sig_move_total": m_full["sig_move_total"],
+            "sig_move_hit_rate": m_full["sig_move_hit_rate_pct"],
+            "quiet_false_alarms": m_full["quiet_false_alarms"],
             "big_move_hits": m_full["big_move_hits"],
             "big_move_total": m_full["big_move_total"],
             "big_move_hit_rate": m_full["big_move_hit_rate_pct"],
@@ -940,7 +990,7 @@ def run_30d_walk_forward_arena(
         }
 
     # Dynamic ML Challenger Selection: Strictly focuses on the LAST 30 DAYS (recent_slice)
-    # 3-Criteria Ranking: Lowest 30-Day Tournament Loss, then Hits descending, then Miss MAE ascending, then Hit MAE ascending
+    # 3-Criteria Ranking: Lowest 30-Day Tournament Loss, then Sig Move Hit Rate descending, then Hits descending, then Miss MAE ascending, then Hit MAE ascending
     m_choice = model_type.lower()
     if m_choice in ("ridge",):
         ml_champion_type = "Ridge"
@@ -957,6 +1007,7 @@ def run_30d_walk_forward_arena(
             candidates_meta.keys(),
             key=lambda k: (
                 candidates_meta[k]["tournament_loss_30d"],
+                -candidates_meta[k]["sig_move_hit_rate_30d"],
                 -candidates_meta[k]["big_move_hit_rate_30d"],
                 -candidates_meta[k]["hits_30d"],
                 candidates_meta[k]["miss_mae_30d"],
@@ -972,6 +1023,10 @@ def run_30d_walk_forward_arena(
     ml_candidate_30d_mae = champ_meta["mae_30d"]
     ml_candidate_30d_hit_mae = champ_meta["hit_mae_30d"]
     ml_candidate_30d_miss_mae = champ_meta["miss_mae_30d"]
+    ml_candidate_30d_sig_move_hits = champ_meta["sig_move_hits_30d"]
+    ml_candidate_30d_sig_move_total = champ_meta["sig_move_total_30d"]
+    ml_candidate_30d_sig_move_hit_rate = champ_meta["sig_move_hit_rate_30d"]
+    ml_candidate_30d_quiet_false_alarms = champ_meta["quiet_false_alarms_30d"]
     ml_candidate_30d_big_move_hits = champ_meta["big_move_hits_30d"]
     ml_candidate_30d_big_move_total = champ_meta["big_move_total_30d"]
     ml_candidate_30d_big_move_hit_rate = champ_meta["big_move_hit_rate_30d"]
@@ -992,6 +1047,10 @@ def run_30d_walk_forward_arena(
         "hit_mae_30d": p_30d["hit_mae_pct"],
         "miss_mae_30d": p_30d["miss_mae_pct"],
         "mae_30d": p_30d["mae_pct"],
+        "sig_move_hits_30d": p_30d["sig_move_hits"],
+        "sig_move_total_30d": p_30d["sig_move_total"],
+        "sig_move_hit_rate_30d": p_30d["sig_move_hit_rate_pct"],
+        "quiet_false_alarms_30d": p_30d.get("quiet_false_alarms", 0),
         "big_move_hits_30d": p_30d["big_move_hits"],
         "big_move_total_30d": p_30d["big_move_total"],
         "big_move_hit_rate_30d": p_30d["big_move_hit_rate_pct"],
@@ -1005,6 +1064,10 @@ def run_30d_walk_forward_arena(
         "hit_mae": p_full["hit_mae_pct"],
         "miss_mae": p_full["miss_mae_pct"],
         "mae": p_full["mae_pct"],
+        "sig_move_hits": p_full["sig_move_hits"],
+        "sig_move_total": p_full["sig_move_total"],
+        "sig_move_hit_rate": p_full["sig_move_hit_rate_pct"],
+        "quiet_false_alarms": p_full.get("quiet_false_alarms", 0),
         "big_move_hits": p_full["big_move_hits"],
         "big_move_total": p_full["big_move_total"],
         "big_move_hit_rate": p_full["big_move_hit_rate_pct"],
@@ -1023,6 +1086,7 @@ def run_30d_walk_forward_arena(
         all_tournament_models.keys(),
         key=lambda k: (
             all_tournament_models[k]["tournament_loss_30d"],
+            -all_tournament_models[k]["sig_move_hit_rate_30d"],
             -all_tournament_models[k]["big_move_hit_rate_30d"],
             -all_tournament_models[k]["hits_30d"],
             all_tournament_models[k]["miss_mae_30d"],
@@ -1206,6 +1270,10 @@ def run_30d_walk_forward_arena(
         "champion_30d_mae_pct": round(champion_mae_pct, 2),
         "champion_30d_hit_mae_pct": round(champion_hit_mae_pct, 2),
         "champion_30d_miss_mae_pct": round(champion_miss_mae_pct, 2),
+        "champion_30d_sig_move_hits": grand_meta.get("sig_move_hits_30d", 0),
+        "champion_30d_sig_move_total": grand_meta.get("sig_move_total_30d", 0),
+        "champion_30d_sig_move_hit_rate_pct": round(grand_meta.get("sig_move_hit_rate_30d", 0.0), 1),
+        "champion_30d_quiet_false_alarms": grand_meta.get("quiet_false_alarms_30d", 0),
         "champion_30d_big_move_hits": champion_big_move_hits,
         "champion_30d_big_move_total": champion_big_move_total,
         "champion_30d_big_move_hit_rate_pct": round(champion_big_move_hit_rate_pct, 1),
@@ -1232,6 +1300,10 @@ def run_30d_walk_forward_arena(
         "ml_mae_pct": round(ml_candidate_30d_mae, 2),
         "ml_hit_mae_pct": round(ml_candidate_30d_hit_mae, 2),
         "ml_miss_mae_pct": round(ml_candidate_30d_miss_mae, 2),
+        "ml_30d_sig_move_hits": ml_candidate_30d_sig_move_hits,
+        "ml_30d_sig_move_total": ml_candidate_30d_sig_move_total,
+        "ml_30d_sig_move_hit_rate_pct": round(ml_candidate_30d_sig_move_hit_rate, 1),
+        "ml_30d_quiet_false_alarms": ml_candidate_30d_quiet_false_alarms,
         "ml_30d_big_move_hits": ml_candidate_30d_big_move_hits,
         "ml_30d_big_move_total": ml_candidate_30d_big_move_total,
         "ml_30d_big_move_hit_rate_pct": round(ml_candidate_30d_big_move_hit_rate, 1),
@@ -1266,6 +1338,10 @@ def run_30d_walk_forward_arena(
         "prophet_full_big_move_total": p_full["big_move_total"],
         "prophet_full_big_move_hit_rate_pct": round(p_full["big_move_hit_rate_pct"], 1),
         "prophet_full_penalty_loss": round(prophet_penalty_loss, 2),
+        "prophet_30d_sig_move_hits": p_30d.get("sig_move_hits", 0),
+        "prophet_30d_sig_move_total": p_30d.get("sig_move_total", 0),
+        "prophet_30d_sig_move_hit_rate_pct": round(p_30d.get("sig_move_hit_rate_pct", 0.0), 1),
+        "prophet_30d_quiet_false_alarms": p_30d.get("quiet_false_alarms", 0),
         "ridge_30d_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
         "ridge_dir_hits": candidates_meta["Ridge"]["hits_30d"],
         "ridge_dir_hit_rate_pct": round(candidates_meta["Ridge"]["hit_rate_30d"], 1),
@@ -1273,6 +1349,10 @@ def run_30d_walk_forward_arena(
         "ridge_mae_pct": round(candidates_meta["Ridge"]["mae_30d"], 2),
         "ridge_hit_mae_pct": round(candidates_meta["Ridge"]["hit_mae_30d"], 2),
         "ridge_miss_mae_pct": round(candidates_meta["Ridge"]["miss_mae_30d"], 2),
+        "ridge_30d_sig_move_hits": candidates_meta["Ridge"]["sig_move_hits_30d"],
+        "ridge_30d_sig_move_total": candidates_meta["Ridge"]["sig_move_total_30d"],
+        "ridge_30d_sig_move_hit_rate_pct": round(candidates_meta["Ridge"]["sig_move_hit_rate_30d"], 1),
+        "ridge_30d_quiet_false_alarms": candidates_meta["Ridge"]["quiet_false_alarms_30d"],
         "ridge_30d_big_move_hits": candidates_meta["Ridge"]["big_move_hits_30d"],
         "ridge_30d_big_move_total": candidates_meta["Ridge"]["big_move_total_30d"],
         "ridge_30d_big_move_hit_rate_pct": round(candidates_meta["Ridge"]["big_move_hit_rate_30d"], 1),
@@ -1285,6 +1365,10 @@ def run_30d_walk_forward_arena(
         "xgboost_mae_pct": round(candidates_meta["XGBoost"]["mae_30d"], 2),
         "xgboost_hit_mae_pct": round(candidates_meta["XGBoost"]["hit_mae_30d"], 2),
         "xgboost_miss_mae_pct": round(candidates_meta["XGBoost"]["miss_mae_30d"], 2),
+        "xgboost_30d_sig_move_hits": candidates_meta["XGBoost"]["sig_move_hits_30d"],
+        "xgboost_30d_sig_move_total": candidates_meta["XGBoost"]["sig_move_total_30d"],
+        "xgboost_30d_sig_move_hit_rate_pct": round(candidates_meta["XGBoost"]["sig_move_hit_rate_30d"], 1),
+        "xgboost_30d_quiet_false_alarms": candidates_meta["XGBoost"]["quiet_false_alarms_30d"],
         "xgboost_30d_big_move_hits": candidates_meta["XGBoost"]["big_move_hits_30d"],
         "xgboost_30d_big_move_total": candidates_meta["XGBoost"]["big_move_total_30d"],
         "xgboost_30d_big_move_hit_rate_pct": round(candidates_meta["XGBoost"]["big_move_hit_rate_30d"], 1),
@@ -1297,6 +1381,10 @@ def run_30d_walk_forward_arena(
         "lightgbm_mae_pct": round(candidates_meta["LightGBM"]["mae_30d"], 2),
         "lightgbm_hit_mae_pct": round(candidates_meta["LightGBM"]["hit_mae_30d"], 2),
         "lightgbm_miss_mae_pct": round(candidates_meta["LightGBM"]["miss_mae_30d"], 2),
+        "lightgbm_30d_sig_move_hits": candidates_meta["LightGBM"]["sig_move_hits_30d"],
+        "lightgbm_30d_sig_move_total": candidates_meta["LightGBM"]["sig_move_total_30d"],
+        "lightgbm_30d_sig_move_hit_rate_pct": round(candidates_meta["LightGBM"]["sig_move_hit_rate_30d"], 1),
+        "lightgbm_30d_quiet_false_alarms": candidates_meta["LightGBM"]["quiet_false_alarms_30d"],
         "lightgbm_30d_big_move_hits": candidates_meta["LightGBM"]["big_move_hits_30d"],
         "lightgbm_30d_big_move_total": candidates_meta["LightGBM"]["big_move_total_30d"],
         "lightgbm_30d_big_move_hit_rate_pct": round(candidates_meta["LightGBM"]["big_move_hit_rate_30d"], 1),
@@ -1309,6 +1397,10 @@ def run_30d_walk_forward_arena(
         "huber_mae_pct": round(candidates_meta["Huber"]["mae_30d"], 2),
         "huber_hit_mae_pct": round(candidates_meta["Huber"]["hit_mae_30d"], 2),
         "huber_miss_mae_pct": round(candidates_meta["Huber"]["miss_mae_30d"], 2),
+        "huber_30d_sig_move_hits": candidates_meta["Huber"]["sig_move_hits_30d"],
+        "huber_30d_sig_move_total": candidates_meta["Huber"]["sig_move_total_30d"],
+        "huber_30d_sig_move_hit_rate_pct": round(candidates_meta["Huber"]["sig_move_hit_rate_30d"], 1),
+        "huber_30d_quiet_false_alarms": candidates_meta["Huber"]["quiet_false_alarms_30d"],
         "huber_30d_big_move_hits": candidates_meta["Huber"]["big_move_hits_30d"],
         "huber_30d_big_move_total": candidates_meta["Huber"]["big_move_total_30d"],
         "huber_30d_big_move_hit_rate_pct": round(candidates_meta["Huber"]["big_move_hit_rate_30d"], 1),
@@ -1321,6 +1413,10 @@ def run_30d_walk_forward_arena(
         "bayesian_ridge_mae_pct": round(candidates_meta["BayesianRidge"]["mae_30d"], 2),
         "bayesian_ridge_hit_mae_pct": round(candidates_meta["BayesianRidge"]["hit_mae_30d"], 2),
         "bayesian_ridge_miss_mae_pct": round(candidates_meta["BayesianRidge"]["miss_mae_30d"], 2),
+        "bayesian_ridge_30d_sig_move_hits": candidates_meta["BayesianRidge"]["sig_move_hits_30d"],
+        "bayesian_ridge_30d_sig_move_total": candidates_meta["BayesianRidge"]["sig_move_total_30d"],
+        "bayesian_ridge_30d_sig_move_hit_rate_pct": round(candidates_meta["BayesianRidge"]["sig_move_hit_rate_30d"], 1),
+        "bayesian_ridge_30d_quiet_false_alarms": candidates_meta["BayesianRidge"]["quiet_false_alarms_30d"],
         "bayesian_ridge_30d_big_move_hits": candidates_meta["BayesianRidge"]["big_move_hits_30d"],
         "bayesian_ridge_30d_big_move_total": candidates_meta["BayesianRidge"]["big_move_total_30d"],
         "bayesian_ridge_30d_big_move_hit_rate_pct": round(candidates_meta["BayesianRidge"]["big_move_hit_rate_30d"], 1),
@@ -1484,6 +1580,7 @@ def get_tertip_ml_forecast(
             candidate_horizons.keys(),
             key=lambda k: (
                 horizon_results[k]["summary"].get("champion_30d_penalty_loss", 999.0),
+                -(horizon_results[k]["summary"].get("champion_30d_sig_move_hit_rate_pct", 0.0)),
                 -(horizon_results[k]["summary"].get("champion_30d_hit_rate_pct", 0.0)),
                 horizon_results[k]["summary"].get("champion_30d_mae_pct", 999.0),
             ),

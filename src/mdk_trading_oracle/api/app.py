@@ -296,6 +296,10 @@ class TournamentSummary(BaseModel):
     champion_30d_big_move_signalled: Optional[int] = None
     champion_30d_big_move_missed: Optional[int] = None
     champion_30d_big_move_false_alarms: Optional[int] = None
+    champion_30d_sig_move_hits: Optional[int] = None
+    champion_30d_sig_move_total: Optional[int] = None
+    champion_30d_sig_move_hit_rate_pct: Optional[float] = None
+    champion_30d_quiet_false_alarms: Optional[int] = None
     champion_30d_penalty_loss: Optional[float] = None
     champion_penalty_loss: Optional[float] = None
     champion_full_hits: Optional[int] = None
@@ -316,6 +320,10 @@ class TournamentSummary(BaseModel):
     ml_hit_rate_pct: float
     ml_hit_mae_pct: Optional[float] = None
     ml_miss_mae_pct: Optional[float] = None
+    ml_30d_sig_move_hits: Optional[int] = None
+    ml_30d_sig_move_total: Optional[int] = None
+    ml_30d_sig_move_hit_rate_pct: Optional[float] = None
+    ml_30d_quiet_false_alarms: Optional[int] = None
     ml_30d_big_move_hits: Optional[int] = None
     ml_30d_big_move_total: Optional[int] = None
     ml_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -331,6 +339,10 @@ class TournamentSummary(BaseModel):
     prophet_hit_rate_pct: float
     prophet_hit_mae_pct: Optional[float] = None
     prophet_miss_mae_pct: Optional[float] = None
+    prophet_30d_sig_move_hits: Optional[int] = None
+    prophet_30d_sig_move_total: Optional[int] = None
+    prophet_30d_sig_move_hit_rate_pct: Optional[float] = None
+    prophet_30d_quiet_false_alarms: Optional[int] = None
     prophet_30d_big_move_hits: Optional[int] = None
     prophet_30d_big_move_total: Optional[int] = None
     prophet_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -348,6 +360,10 @@ class TournamentSummary(BaseModel):
     ridge_mae_pct: Optional[float] = None
     ridge_hit_mae_pct: Optional[float] = None
     ridge_miss_mae_pct: Optional[float] = None
+    ridge_30d_sig_move_hits: Optional[int] = None
+    ridge_30d_sig_move_total: Optional[int] = None
+    ridge_30d_sig_move_hit_rate_pct: Optional[float] = None
+    ridge_30d_quiet_false_alarms: Optional[int] = None
     ridge_30d_big_move_hits: Optional[int] = None
     ridge_30d_big_move_total: Optional[int] = None
     ridge_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -360,6 +376,10 @@ class TournamentSummary(BaseModel):
     xgboost_mae_pct: Optional[float] = None
     xgboost_hit_mae_pct: Optional[float] = None
     xgboost_miss_mae_pct: Optional[float] = None
+    xgboost_30d_sig_move_hits: Optional[int] = None
+    xgboost_30d_sig_move_total: Optional[int] = None
+    xgboost_30d_sig_move_hit_rate_pct: Optional[float] = None
+    xgboost_30d_quiet_false_alarms: Optional[int] = None
     xgboost_30d_big_move_hits: Optional[int] = None
     xgboost_30d_big_move_total: Optional[int] = None
     xgboost_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -372,6 +392,10 @@ class TournamentSummary(BaseModel):
     lightgbm_mae_pct: Optional[float] = None
     lightgbm_hit_mae_pct: Optional[float] = None
     lightgbm_miss_mae_pct: Optional[float] = None
+    lightgbm_30d_sig_move_hits: Optional[int] = None
+    lightgbm_30d_sig_move_total: Optional[int] = None
+    lightgbm_30d_sig_move_hit_rate_pct: Optional[float] = None
+    lightgbm_30d_quiet_false_alarms: Optional[int] = None
     lightgbm_30d_big_move_hits: Optional[int] = None
     lightgbm_30d_big_move_total: Optional[int] = None
     lightgbm_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -384,6 +408,10 @@ class TournamentSummary(BaseModel):
     huber_mae_pct: Optional[float] = None
     huber_hit_mae_pct: Optional[float] = None
     huber_miss_mae_pct: Optional[float] = None
+    huber_30d_sig_move_hits: Optional[int] = None
+    huber_30d_sig_move_total: Optional[int] = None
+    huber_30d_sig_move_hit_rate_pct: Optional[float] = None
+    huber_30d_quiet_false_alarms: Optional[int] = None
     huber_30d_big_move_hits: Optional[int] = None
     huber_30d_big_move_total: Optional[int] = None
     huber_30d_big_move_hit_rate_pct: Optional[float] = None
@@ -396,6 +424,10 @@ class TournamentSummary(BaseModel):
     bayesian_ridge_mae_pct: Optional[float] = None
     bayesian_ridge_hit_mae_pct: Optional[float] = None
     bayesian_ridge_miss_mae_pct: Optional[float] = None
+    bayesian_ridge_30d_sig_move_hits: Optional[int] = None
+    bayesian_ridge_30d_sig_move_total: Optional[int] = None
+    bayesian_ridge_30d_sig_move_hit_rate_pct: Optional[float] = None
+    bayesian_ridge_30d_quiet_false_alarms: Optional[int] = None
     bayesian_ridge_30d_big_move_hits: Optional[int] = None
     bayesian_ridge_30d_big_move_total: Optional[int] = None
     bayesian_ridge_30d_big_move_hit_rate_pct: Optional[float] = None

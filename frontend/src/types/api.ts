@@ -371,6 +371,10 @@ export interface TournamentSummary {
   champion_30d_big_move_signalled?: number;
   champion_30d_big_move_missed?: number;
   champion_30d_big_move_false_alarms?: number;
+  champion_30d_sig_move_hits?: number;
+  champion_30d_sig_move_total?: number;
+  champion_30d_sig_move_hit_rate_pct?: number;
+  champion_30d_quiet_false_alarms?: number;
   champion_30d_penalty_loss?: number;
   champion_penalty_loss?: number;
   champion_full_hits?: number;
@@ -390,6 +394,10 @@ export interface TournamentSummary {
   ml_hit_rate_pct: number;
   ml_hit_mae_pct?: number;
   ml_miss_mae_pct?: number;
+  ml_30d_sig_move_hits?: number;
+  ml_30d_sig_move_total?: number;
+  ml_30d_sig_move_hit_rate_pct?: number;
+  ml_30d_quiet_false_alarms?: number;
   ml_30d_big_move_hits?: number;
   ml_30d_big_move_total?: number;
   ml_30d_big_move_hit_rate_pct?: number;
@@ -405,6 +413,10 @@ export interface TournamentSummary {
   prophet_hit_rate_pct: number;
   prophet_hit_mae_pct?: number;
   prophet_miss_mae_pct?: number;
+  prophet_30d_sig_move_hits?: number;
+  prophet_30d_sig_move_total?: number;
+  prophet_30d_sig_move_hit_rate_pct?: number;
+  prophet_30d_quiet_false_alarms?: number;
   prophet_30d_big_move_hits?: number;
   prophet_30d_big_move_total?: number;
   prophet_30d_big_move_hit_rate_pct?: number;
@@ -422,6 +434,10 @@ export interface TournamentSummary {
   ridge_mae_pct?: number;
   ridge_hit_mae_pct?: number;
   ridge_miss_mae_pct?: number;
+  ridge_30d_sig_move_hits?: number;
+  ridge_30d_sig_move_total?: number;
+  ridge_30d_sig_move_hit_rate_pct?: number;
+  ridge_30d_quiet_false_alarms?: number;
   ridge_30d_big_move_hits?: number;
   ridge_30d_big_move_total?: number;
   ridge_30d_big_move_hit_rate_pct?: number;
@@ -434,6 +450,10 @@ export interface TournamentSummary {
   xgboost_mae_pct?: number;
   xgboost_hit_mae_pct?: number;
   xgboost_miss_mae_pct?: number;
+  xgboost_30d_sig_move_hits?: number;
+  xgboost_30d_sig_move_total?: number;
+  xgboost_30d_sig_move_hit_rate_pct?: number;
+  xgboost_30d_quiet_false_alarms?: number;
   xgboost_30d_big_move_hits?: number;
   xgboost_30d_big_move_total?: number;
   xgboost_30d_big_move_hit_rate_pct?: number;
@@ -446,6 +466,10 @@ export interface TournamentSummary {
   lightgbm_mae_pct?: number;
   lightgbm_hit_mae_pct?: number;
   lightgbm_miss_mae_pct?: number;
+  lightgbm_30d_sig_move_hits?: number;
+  lightgbm_30d_sig_move_total?: number;
+  lightgbm_30d_sig_move_hit_rate_pct?: number;
+  lightgbm_30d_quiet_false_alarms?: number;
   lightgbm_30d_big_move_hits?: number;
   lightgbm_30d_big_move_total?: number;
   lightgbm_30d_big_move_hit_rate_pct?: number;
@@ -458,6 +482,10 @@ export interface TournamentSummary {
   huber_mae_pct?: number;
   huber_hit_mae_pct?: number;
   huber_miss_mae_pct?: number;
+  huber_30d_sig_move_hits?: number;
+  huber_30d_sig_move_total?: number;
+  huber_30d_sig_move_hit_rate_pct?: number;
+  huber_30d_quiet_false_alarms?: number;
   huber_30d_big_move_hits?: number;
   huber_30d_big_move_total?: number;
   huber_30d_big_move_hit_rate_pct?: number;
@@ -470,6 +498,10 @@ export interface TournamentSummary {
   bayesian_ridge_mae_pct?: number;
   bayesian_ridge_hit_mae_pct?: number;
   bayesian_ridge_miss_mae_pct?: number;
+  bayesian_ridge_30d_sig_move_hits?: number;
+  bayesian_ridge_30d_sig_move_total?: number;
+  bayesian_ridge_30d_sig_move_hit_rate_pct?: number;
+  bayesian_ridge_30d_quiet_false_alarms?: number;
   bayesian_ridge_30d_big_move_hits?: number;
   bayesian_ridge_30d_big_move_total?: number;
   bayesian_ridge_30d_big_move_hit_rate_pct?: number;

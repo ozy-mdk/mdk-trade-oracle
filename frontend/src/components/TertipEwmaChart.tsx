@@ -1599,7 +1599,7 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                           <span>CHAMPION: {mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? `TERTIP ML (${mlForecast.tournament_summary.ml_champion_type || 'Auto'})` : 'PROPHET BASE'}</span>
                         </span>
                         <span className="text-[9px] text-slate-400 font-mono">
-                          ({mlForecast.tournament_summary.champion_dir_hits ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? (mlForecast.tournament_summary.ml_dir_hits ?? 17) : (mlForecast.tournament_summary.prophet_dir_hits ?? 13))}/{mlForecast.tournament_summary.total_sessions}d direction correct • MAE {mlForecast.tournament_summary.champion_mae_pct?.toFixed(2) ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? mlForecast.tournament_summary.ml_mae_pct.toFixed(2) : mlForecast.tournament_summary.prophet_mae_pct.toFixed(2))}%)
+                          ({mlForecast.tournament_summary.champion_dir_hits ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? (mlForecast.tournament_summary.ml_dir_hits ?? 17) : (mlForecast.tournament_summary.prophet_dir_hits ?? 13))}/{mlForecast.tournament_summary.total_sessions}d correct • {mlForecast.tournament_summary.champion_30d_sig_move_hits ?? mlForecast.tournament_summary.ml_30d_sig_move_hits ?? 0}/{mlForecast.tournament_summary.champion_30d_sig_move_total ?? mlForecast.tournament_summary.ml_30d_sig_move_total ?? 0} on ≥1% moves [{(mlForecast.tournament_summary.champion_30d_sig_move_hit_rate_pct ?? mlForecast.tournament_summary.ml_30d_sig_move_hit_rate_pct ?? 0).toFixed(0)}%] • MAE {mlForecast.tournament_summary.champion_mae_pct?.toFixed(2) ?? (mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? mlForecast.tournament_summary.ml_mae_pct.toFixed(2) : mlForecast.tournament_summary.prophet_mae_pct.toFixed(2))}%)
                         </span>
                       </div>
 
@@ -1883,24 +1883,44 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                         <span className="text-cyan-400 font-mono">Prior 30 Trading Sessions</span>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-center font-mono">
                         <div className={`p-1.5 rounded border ${mlForecast.tournament_summary.champion === 'TERTIP_ML_CHALLENGER' ? 'bg-emerald-950/40 border-emerald-500/40' : 'bg-slate-950/70 border-slate-800/80'}`}>
-                          <div className="text-[8.5px] text-slate-400">ML Directional Hit ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
+                          <div className="text-[8.5px] text-slate-400">ML Direction ({mlForecast.tournament_summary.ml_champion_type || 'ML'})</div>
                           <div className="text-xs font-bold text-emerald-400 mt-0.5">
                             {(mlForecast.tournament_summary.ml_dir_hit_rate_pct ?? mlForecast.tournament_summary.ml_hit_rate_pct).toFixed(1)}%
                           </div>
                           <div className="text-[8px] text-slate-400">
-                            {mlForecast.tournament_summary.ml_dir_hits ?? Math.round((mlForecast.tournament_summary.ml_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30 days correct
+                            {mlForecast.tournament_summary.ml_dir_hits ?? Math.round((mlForecast.tournament_summary.ml_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30d correct
                           </div>
                         </div>
 
                         <div className={`p-1.5 rounded border ${mlForecast.tournament_summary.champion === 'PROPHET_BASE' ? 'bg-cyan-950/40 border-cyan-500/40' : 'bg-slate-950/70 border-slate-800/80'}`}>
-                          <div className="text-[8.5px] text-slate-400">Prophet Directional Hit</div>
+                          <div className="text-[8.5px] text-slate-400">Prophet Direction</div>
                           <div className="text-xs font-bold text-cyan-400 mt-0.5">
                             {(mlForecast.tournament_summary.prophet_dir_hit_rate_pct ?? mlForecast.tournament_summary.prophet_hit_rate_pct).toFixed(1)}%
                           </div>
                           <div className="text-[8px] text-slate-400">
-                            {mlForecast.tournament_summary.prophet_dir_hits ?? Math.round((mlForecast.tournament_summary.prophet_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30 days correct
+                            {mlForecast.tournament_summary.prophet_dir_hits ?? Math.round((mlForecast.tournament_summary.prophet_hit_rate_pct / 100) * mlForecast.tournament_summary.total_sessions)}/30d correct
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-950/20 p-1.5 rounded border border-amber-500/30">
+                          <div className="text-[8.5px] text-amber-300 font-semibold">Sig Moves (≥1%) Hit</div>
+                          <div className="text-xs font-bold text-amber-400 mt-0.5">
+                            {(mlForecast.tournament_summary.champion_30d_sig_move_hit_rate_pct ?? mlForecast.tournament_summary.ml_30d_sig_move_hit_rate_pct ?? 0).toFixed(1)}%
+                          </div>
+                          <div className="text-[8px] text-amber-200/80 font-medium">
+                            {mlForecast.tournament_summary.champion_30d_sig_move_hits ?? mlForecast.tournament_summary.ml_30d_sig_move_hits ?? 0}/{mlForecast.tournament_summary.champion_30d_sig_move_total ?? mlForecast.tournament_summary.ml_30d_sig_move_total ?? 0} moves
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950/70 p-1.5 rounded border border-slate-800/80">
+                          <div className="text-[8.5px] text-slate-400">Quiet False Alarms</div>
+                          <div className={`text-xs font-bold mt-0.5 ${(mlForecast.tournament_summary.champion_30d_quiet_false_alarms ?? mlForecast.tournament_summary.ml_30d_quiet_false_alarms ?? 0) === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {mlForecast.tournament_summary.champion_30d_quiet_false_alarms ?? mlForecast.tournament_summary.ml_30d_quiet_false_alarms ?? 0}
+                          </div>
+                          <div className="text-[8px] text-slate-500">
+                            {(mlForecast.tournament_summary.champion_30d_quiet_false_alarms ?? mlForecast.tournament_summary.ml_30d_quiet_false_alarms ?? 0) === 0 ? 'Clean (0 false move)' : 'Controlled'}
                           </div>
                         </div>
 
@@ -1962,20 +1982,20 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                         </span>
                         <div className="flex flex-wrap items-center gap-2">
                           {[
-                            { name: 'XGBoost', hits: mlForecast.tournament_summary.xgboost_dir_hits, rate: mlForecast.tournament_summary.xgboost_30d_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct, mae: mlForecast.tournament_summary.xgboost_mae_pct, loss: mlForecast.tournament_summary.xgboost_penalty_loss_30d },
-                            { name: 'LightGBM', hits: mlForecast.tournament_summary.lightgbm_dir_hits, rate: mlForecast.tournament_summary.lightgbm_30d_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_dir_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_hit_rate_pct, mae: mlForecast.tournament_summary.lightgbm_mae_pct, loss: mlForecast.tournament_summary.lightgbm_penalty_loss_30d },
-                            { name: 'Huber', hits: mlForecast.tournament_summary.huber_dir_hits, rate: mlForecast.tournament_summary.huber_30d_hit_rate_pct ?? mlForecast.tournament_summary.huber_dir_hit_rate_pct ?? mlForecast.tournament_summary.huber_hit_rate_pct, mae: mlForecast.tournament_summary.huber_mae_pct, loss: mlForecast.tournament_summary.huber_penalty_loss_30d },
-                            { name: 'BayesianRidge', hits: mlForecast.tournament_summary.bayesian_ridge_dir_hits, rate: mlForecast.tournament_summary.bayesian_ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_hit_rate_pct, mae: mlForecast.tournament_summary.bayesian_ridge_mae_pct, loss: mlForecast.tournament_summary.bayesian_ridge_penalty_loss_30d },
-                            { name: 'Ridge', hits: mlForecast.tournament_summary.ridge_dir_hits, rate: mlForecast.tournament_summary.ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct, mae: mlForecast.tournament_summary.ridge_mae_pct, loss: mlForecast.tournament_summary.ridge_penalty_loss_30d },
+                            { name: 'XGBoost', hits: mlForecast.tournament_summary.xgboost_dir_hits, rate: mlForecast.tournament_summary.xgboost_30d_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_dir_hit_rate_pct ?? mlForecast.tournament_summary.xgboost_hit_rate_pct, sigHits: mlForecast.tournament_summary.xgboost_30d_sig_move_hits, sigTotal: mlForecast.tournament_summary.xgboost_30d_sig_move_total, sigRate: mlForecast.tournament_summary.xgboost_30d_sig_move_hit_rate_pct, quietFa: mlForecast.tournament_summary.xgboost_30d_quiet_false_alarms, mae: mlForecast.tournament_summary.xgboost_mae_pct, loss: mlForecast.tournament_summary.xgboost_tournament_loss_30d ?? mlForecast.tournament_summary.xgboost_penalty_loss_30d },
+                            { name: 'LightGBM', hits: mlForecast.tournament_summary.lightgbm_dir_hits, rate: mlForecast.tournament_summary.lightgbm_30d_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_dir_hit_rate_pct ?? mlForecast.tournament_summary.lightgbm_hit_rate_pct, sigHits: mlForecast.tournament_summary.lightgbm_30d_sig_move_hits, sigTotal: mlForecast.tournament_summary.lightgbm_30d_sig_move_total, sigRate: mlForecast.tournament_summary.lightgbm_30d_sig_move_hit_rate_pct, quietFa: mlForecast.tournament_summary.lightgbm_30d_quiet_false_alarms, mae: mlForecast.tournament_summary.lightgbm_mae_pct, loss: mlForecast.tournament_summary.lightgbm_tournament_loss_30d ?? mlForecast.tournament_summary.lightgbm_penalty_loss_30d },
+                            { name: 'Huber', hits: mlForecast.tournament_summary.huber_dir_hits, rate: mlForecast.tournament_summary.huber_30d_hit_rate_pct ?? mlForecast.tournament_summary.huber_dir_hit_rate_pct ?? mlForecast.tournament_summary.huber_hit_rate_pct, sigHits: mlForecast.tournament_summary.huber_30d_sig_move_hits, sigTotal: mlForecast.tournament_summary.huber_30d_sig_move_total, sigRate: mlForecast.tournament_summary.huber_30d_sig_move_hit_rate_pct, quietFa: mlForecast.tournament_summary.huber_30d_quiet_false_alarms, mae: mlForecast.tournament_summary.huber_mae_pct, loss: mlForecast.tournament_summary.huber_tournament_loss_30d ?? mlForecast.tournament_summary.huber_penalty_loss_30d },
+                            { name: 'BayesianRidge', hits: mlForecast.tournament_summary.bayesian_ridge_dir_hits, rate: mlForecast.tournament_summary.bayesian_ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.bayesian_ridge_hit_rate_pct, sigHits: mlForecast.tournament_summary.bayesian_ridge_30d_sig_move_hits, sigTotal: mlForecast.tournament_summary.bayesian_ridge_30d_sig_move_total, sigRate: mlForecast.tournament_summary.bayesian_ridge_30d_sig_move_hit_rate_pct, quietFa: mlForecast.tournament_summary.bayesian_ridge_30d_quiet_false_alarms, mae: mlForecast.tournament_summary.bayesian_ridge_mae_pct, loss: mlForecast.tournament_summary.bayesian_ridge_tournament_loss_30d ?? mlForecast.tournament_summary.bayesian_ridge_penalty_loss_30d },
+                            { name: 'Ridge', hits: mlForecast.tournament_summary.ridge_dir_hits, rate: mlForecast.tournament_summary.ridge_30d_hit_rate_pct ?? mlForecast.tournament_summary.ridge_dir_hit_rate_pct ?? mlForecast.tournament_summary.ridge_hit_rate_pct, sigHits: mlForecast.tournament_summary.ridge_30d_sig_move_hits, sigTotal: mlForecast.tournament_summary.ridge_30d_sig_move_total, sigRate: mlForecast.tournament_summary.ridge_30d_sig_move_hit_rate_pct, quietFa: mlForecast.tournament_summary.ridge_30d_quiet_false_alarms, mae: mlForecast.tournament_summary.ridge_mae_pct, loss: mlForecast.tournament_summary.ridge_tournament_loss_30d ?? mlForecast.tournament_summary.ridge_penalty_loss_30d },
                           ].filter(m => m.rate !== undefined).map((m, idx, arr) => {
                             const isChamp = mlForecast.tournament_summary.ml_champion_type === m.name;
                             return (
                               <React.Fragment key={m.name}>
                                 <span
-                                  className={isChamp ? 'text-amber-300 font-bold' : 'text-slate-400'}
-                                  title={m.loss !== undefined ? `Option 2 Penalty Loss: ${m.loss.toFixed(2)}% | MAE: ${m.mae?.toFixed(2)}%` : undefined}
+                                  className={isChamp ? 'text-amber-300 font-bold bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/30' : 'text-slate-400'}
+                                  title={`Tournament Loss: ${m.loss?.toFixed(2)} | Overall 30D: ${m.hits}/30d (${m.rate?.toFixed(1)}%) | Sig Moves (≥1%): ${m.sigHits ?? 0}/${m.sigTotal ?? 0} (${(m.sigRate ?? 0).toFixed(1)}%) | Quiet False Alarms: ${m.quietFa ?? 0} | MAE: ${m.mae?.toFixed(2)}%`}
                                 >
-                                  {m.name}: {m.hits !== undefined ? `${m.hits}/30d` : ''} ({m.rate?.toFixed(1)}%{m.loss !== undefined ? `, L: ${m.loss.toFixed(1)}%` : (m.mae !== undefined ? `, ${m.mae.toFixed(1)}%` : '')})
+                                  {m.name}: {m.hits !== undefined ? `${m.hits}/30d` : ''} ({m.rate?.toFixed(0)}% • ≥1%: {(m.sigRate ?? 0).toFixed(0)}%{m.loss !== undefined ? `, L: ${m.loss.toFixed(1)}` : ''})
                                   {isChamp && ' 👑'}
                                 </span>
                                 {idx < arr.length - 1 && <span className="text-slate-600">|</span>}
@@ -2058,10 +2078,15 @@ export const TertipEwmaChart: React.FC<TertipEwmaChartProps> = ({
                                   </td>
                                   <td className="text-right px-1.5 py-1 text-white font-semibold">
                                     <div>₺{row.actual_price.toFixed(2)}</div>
-                                    <div className={`text-[8px] font-bold ${
+                                    <div className={`text-[8px] font-bold flex items-center justify-end gap-1 ${
                                       isActUp ? 'text-emerald-400' : (isActDown ? 'text-rose-400' : 'text-slate-400')
                                     }`}>
-                                      {isActUp ? '▲ UP +' : (isActDown ? '▼ DOWN ' : '■ FLAT ')}{row.actual_return_pct.toFixed(2)}%
+                                      {Math.abs(row.actual_return_pct) >= 1.0 && (
+                                        <span className="px-1 py-0.2 rounded text-[7px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                          ≥1%
+                                        </span>
+                                      )}
+                                      <span>{isActUp ? '▲ UP +' : (isActDown ? '▼ DOWN ' : '■ FLAT ')}{row.actual_return_pct.toFixed(2)}%</span>
                                     </div>
                                   </td>
                                   <td className="text-right px-1.5 py-1">
