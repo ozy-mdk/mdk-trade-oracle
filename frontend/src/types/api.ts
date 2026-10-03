@@ -585,6 +585,41 @@ export interface TertipMlForecastResponse {
   calculated_at: string;
 }
 
+export interface OpportunityItem {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  as_of_date: string;
+  current_price: number;
+  target_price: number;
+  expected_return_pct: number;
+  price_low: number;
+  price_high: number;
+  stance: string;
+  conviction?: string;
+  playbook?: string;
+  ml_champion_type?: string;
+  champion_dir_hits?: number;
+  champion_dir_hit_rate_pct?: number;
+  champion_mae_pct?: number;
+  crowned_horizon?: string;
+  training_lookback_sessions?: number;
+  mlb_net_flow_tl: number;
+  mlb_turnover_tl: number;
+  tier: 'HIGH_CONVICTION_LONG' | 'HIGH_CONVICTION_SHORT' | 'MODERATE_LONG' | 'MODERATE_SHORT' | 'MILD_LONG' | 'MILD_SHORT' | 'CONSOLIDATION' | string;
+  action_type: 'LONG' | 'SHORT' | 'NEUTRAL' | string;
+}
 
-
-
+export interface OpportunityActionsResponse {
+  as_of_date: string;
+  total_constituents: number;
+  bullish_count: number;
+  bearish_count: number;
+  neutral_count: number;
+  avg_expected_return_pct: number;
+  high_conviction_count: number;
+  significant_moves_count: number;
+  top_longs: OpportunityItem[];
+  top_shorts: OpportunityItem[];
+  opportunities: OpportunityItem[];
+}

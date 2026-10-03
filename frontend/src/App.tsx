@@ -6,6 +6,7 @@ import { TertipDashboard } from './components/TertipDashboard';
 import { EventStudyDashboard } from './components/EventStudyDashboard';
 import { TimeWindowTerminal } from './components/TimeWindowTerminal';
 import { OracleHubDashboard } from './components/OracleHubDashboard';
+import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import {
   LineChart,
   Boxes,
@@ -15,10 +16,11 @@ import {
   ChevronDown,
   Cpu,
   Database,
+  Compass,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -270,6 +272,7 @@ export const App: React.FC = () => {
             { id: 'event', label: 'Event Study Scanner', icon: Binary },
             { id: 'timewindow', label: 'Time Window Terminal', icon: Clock },
             { id: 'oracle', label: 'Gold Predictive Hub', icon: Sparkles },
+            { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -330,6 +333,14 @@ export const App: React.FC = () => {
           <OracleHubDashboard
             symbol={selectedSymbol}
             onSelectSymbol={handleSelectSymbol}
+          />
+        )}
+
+        {activeTab === 'opportunities' && (
+          <OpportunityActionsDashboard
+            onSelectSymbol={handleSelectSymbol}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            currentTradeDate={selectedDate}
           />
         )}
       </main>

@@ -13,6 +13,7 @@ import {
   TertipTimeseriesPoint,
   ShockDayItem,
   TertipMlForecastResponse,
+  OpportunityActionsResponse,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -186,4 +187,14 @@ export async function fetchTertipMlForecast(
   return res.json();
 }
 
-
+export async function fetchPredictedOpportunities(
+  targetDate?: string
+): Promise<OpportunityActionsResponse> {
+  let url = `${BASE_URL}/api/v1/tertip/opportunities`;
+  if (targetDate) {
+    url += `?target_date=${encodeURIComponent(targetDate)}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch predicted opportunities');
+  return res.json();
+}
