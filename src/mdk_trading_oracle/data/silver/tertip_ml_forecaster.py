@@ -1622,12 +1622,13 @@ def get_tertip_ml_forecast(
             feature_cols=active_features,
             train_lookback_sessions=train_lookback_sessions,
         )
-    else:
         # 'default': Automatically apply pre-calibrated champion configuration (model + horizon)
         calibrated = get_calibrated_model_selection(db, sym)
         if calibrated:
             train_lookback_sessions = calibrated["training_lookback_sessions"]
             crowned_horizon = calibrated["crowned_horizon"]
+            if m_type == "auto" and "ml_champion_type" in calibrated:
+                m_type = calibrated["ml_champion_type"]
         else:
             train_lookback_sessions = 252
             crowned_horizon = "12m"
@@ -1642,6 +1643,13 @@ def get_tertip_ml_forecast(
 
     tournament["crowned_horizon"] = crowned_horizon
     tournament["training_lookback_sessions"] = train_lookback_sessions
+    if calibrated and "ml_champion_type" in calibrated:
+        tournament["ml_champion_type"] = calibrated["ml_champion_type"]
+        tournament["champion_label"] = f"Crowned Champion ({calibrated['ml_champion_type']})"
+        if calibrated.get("champion_dir_hit_rate_pct") is not None:
+            tournament["champion_dir_hit_rate_pct"] = float(calibrated["champion_dir_hit_rate_pct"])
+        if calibrated.get("champion_dir_hits") is not None:
+            tournament["champion_dir_hits"] = int(calibrated["champion_dir_hits"])
     if horizon_comparison:
         tournament["horizon_comparison"] = horizon_comparison
 
