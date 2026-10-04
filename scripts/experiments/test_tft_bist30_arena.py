@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
-import sys
 import time
 import warnings
 from pathlib import Path
@@ -27,12 +25,10 @@ import numpy as np
 import pandas as pd
 from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.metrics import QuantileLoss
-import torch
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
-    FEATURE_COLS,
     _check_hit,
     attach_prophet_rolling_features,
     extract_3pillar_time_series,
@@ -133,7 +129,7 @@ def run_tft_bist30_arena(n_eval: int = 30) -> pd.DataFrame:
     symbols = sorted(df_panel["symbol"].unique())
 
     print("=" * 115)
-    print(f"30-CONSTITUENT UNIVERSAL TFT TOURNAMENT ARENA")
+    print("30-CONSTITUENT UNIVERSAL TFT TOURNAMENT ARENA")
     print(f"Evaluation Window: {len(eval_dates)} Sessions ({eval_dates[0]} to {eval_dates[-1]})")
     print(f"Total Constituents: {len(symbols)} Equities")
     print(f"Device: {ACCELERATOR.upper()}")
@@ -168,19 +164,14 @@ def run_tft_bist30_arena(n_eval: int = 30) -> pd.DataFrame:
     # Clip extreme outlier returns to [-10, 10]
     df_panel["daily_return_pct"] = df_panel["daily_return_pct"].clip(-10.0, 10.0)
 
-    # Find the time_idx corresponding to evaluation start
-    first_eval_date = pd.to_datetime(eval_dates[0])
-    eval_start_idx = df_panel[df_panel["trade_date"] == first_eval_date]["time_idx"].min()
-    max_time_idx = df_panel["time_idx"].max()
-
-    tft_predictions: list[dict[str, Any]] = []
+    tft_predictions: list[dict] = []
 
     # Sequence parameters
     max_encoder_length = 5  # trailing 5 sessions
     max_prediction_length = 1
 
     print(f"Encoder Sequence Length: {max_encoder_length} sessions")
-    print(f"Training lookback horizon: FULL EXPANDING HISTORY (~33,000 pooled multi-stock samples) - Unweighted Quantile Loss")
+    print("Training lookback horizon: FULL EXPANDING HISTORY (~33,000 pooled multi-stock samples) - Unweighted Quantile Loss")
     print("-" * 115)
 
     # Walk-forward loop over evaluation sessions

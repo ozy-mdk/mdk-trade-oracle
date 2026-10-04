@@ -2,7 +2,7 @@ _metadata:
   description: Crowned Tertip Confluence models and training lookback horizons selected
     via 3-Criteria Tournament Arena (Directional Hit %, Hit Calibration Error %, Miss
     Drawdown Error %).
-  calibration_date: '2026-10-03'
+  calibration_date: '2026-10-04'
   eval_window: 180d_walk_forward
   selection_metric: 3_criteria_tournament_loss
 symbols:
@@ -41,12 +41,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 0.0
     recent_30d_penalty_loss: 133.02
   ASELS:
-    model: XGBoost
-    horizon: 3m
-    training_lookback_sessions: 63
-    recent_30d_hits: 20
-    recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 1.94
+    model: TFT
+    horizon: full
+    training_lookback_sessions: 1000
+    recent_30d_hits: 19
+    recent_30d_hit_rate_pct: 63.3
+    recent_30d_mae_pct: 2.04
     recent_30d_hit_mae_pct: 1.56
     recent_30d_miss_mae_pct: 2.7
     recent_30d_sig_move_hits: 15
@@ -75,12 +75,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 20.0
     recent_30d_penalty_loss: 146.94
   BIMAS:
-    model: BayesianRidge
-    horizon: 3m
-    training_lookback_sessions: 63
-    recent_30d_hits: 20
-    recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 1.48
+    model: TFT
+    horizon: full
+    training_lookback_sessions: 1000
+    recent_30d_hits: 22
+    recent_30d_hit_rate_pct: 73.3
+    recent_30d_mae_pct: 1.26
     recent_30d_hit_mae_pct: 0.81
     recent_30d_miss_mae_pct: 2.82
     recent_30d_sig_move_hits: 11
@@ -143,12 +143,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 0.0
     recent_30d_penalty_loss: 124.52
   EREGL:
-    model: BayesianRidge
-    horizon: 12m
-    training_lookback_sessions: 252
-    recent_30d_hits: 19
-    recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 1.83
+    model: GaussianProcess
+    horizon: 6m
+    training_lookback_sessions: 126
+    recent_30d_hits: 20
+    recent_30d_hit_rate_pct: 66.7
+    recent_30d_mae_pct: 2.01
     recent_30d_hit_mae_pct: 1.18
     recent_30d_miss_mae_pct: 2.97
     recent_30d_sig_move_hits: 11
@@ -194,12 +194,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 0.0
     recent_30d_penalty_loss: 106.95
   GUBRF:
-    model: Ridge
-    horizon: 6m
-    training_lookback_sessions: 126
+    model: TFT
+    horizon: full
+    training_lookback_sessions: 1000
     recent_30d_hits: 19
     recent_30d_hit_rate_pct: 63.3
-    recent_30d_mae_pct: 3.13
+    recent_30d_mae_pct: 2.75
     recent_30d_hit_mae_pct: 2.86
     recent_30d_miss_mae_pct: 3.59
     recent_30d_sig_move_hits: 15
@@ -211,12 +211,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 29.4
     recent_30d_penalty_loss: 131.13
   ISCTR:
-    model: Ridge
-    horizon: 12m
-    training_lookback_sessions: 252
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 3.25
+    model: TFT
+    horizon: full
+    training_lookback_sessions: 1000
+    recent_30d_hits: 16
+    recent_30d_hit_rate_pct: 53.3
+    recent_30d_mae_pct: 2.29
     recent_30d_hit_mae_pct: 2.07
     recent_30d_miss_mae_pct: 4.79
     recent_30d_sig_move_hits: 11
@@ -330,12 +330,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 0.0
     recent_30d_penalty_loss: 140.28
   SASA:
-    model: Ridge
+    model: GaussianProcess
     horizon: 6m
     training_lookback_sessions: 126
-    recent_30d_hits: 18
-    recent_30d_hit_rate_pct: 60.0
-    recent_30d_mae_pct: 4.61
+    recent_30d_hits: 21
+    recent_30d_hit_rate_pct: 70.0
+    recent_30d_mae_pct: 2.94
     recent_30d_hit_mae_pct: 2.85
     recent_30d_miss_mae_pct: 7.24
     recent_30d_sig_move_hits: 13
@@ -483,12 +483,12 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 16.7
     recent_30d_penalty_loss: 136.72
   VAKBN:
-    model: XGBoost
-    horizon: 3m
-    training_lookback_sessions: 63
-    recent_30d_hits: 17
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 3.45
+    model: TFT
+    horizon: full
+    training_lookback_sessions: 1000
+    recent_30d_hits: 18
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 3.17
     recent_30d_hit_mae_pct: 3.0
     recent_30d_miss_mae_pct: 4.04
     recent_30d_sig_move_hits: 12

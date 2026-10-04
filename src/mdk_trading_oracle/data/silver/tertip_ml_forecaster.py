@@ -24,6 +24,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from prophet import Prophet
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel
 from sklearn.linear_model import BayesianRidge, HuberRegressor, Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -1792,6 +1794,21 @@ def get_tertip_ml_forecast(
             ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300)),
         ])
     elif ml_champion_type == "BayesianRidge":
+        live_ml = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", BayesianRidge(max_iter=300)),
+        ])
+    elif ml_champion_type in ("GaussianProcess", "GPR"):
+        live_ml = Pipeline([
+            ("scaler", StandardScaler()),
+            ("regressor", GaussianProcessRegressor(
+                kernel=Matern(nu=1.5) + WhiteKernel(noise_level=0.5),
+                alpha=1e-2,
+                random_state=42,
+            )),
+        ])
+    elif ml_champion_type == "TFT":
+        # For TFT, use robust Bayesian ensemble anchor if standalone single-stock fit
         live_ml = Pipeline([
             ("scaler", StandardScaler()),
             ("regressor", BayesianRidge(max_iter=300)),

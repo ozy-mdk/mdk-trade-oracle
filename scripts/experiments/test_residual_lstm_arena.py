@@ -20,14 +20,13 @@ from __future__ import annotations
 import argparse
 import time
 import warnings
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import StandardScaler
 import torch
 import torch.nn as nn
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 from mdk_trading_oracle.core.db import PostgresManager
