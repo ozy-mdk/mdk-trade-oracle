@@ -244,6 +244,16 @@ class MedallionPipeline:
         initialize_gold_schema(self.db)
         gold_res = self.gold_engineer.run_all()
 
+        # Update Gold Layer Tertip ML Forecasts & Walk-Forward Backtests for the Frontend
+        try:
+            logger.info("Updating Gold Layer Tertip ML Forecasts & Opportunity Hub...")
+            from mdk_trading_oracle.data.gold.tertip_forecasts import update_gold_tertip_forecasts
+
+            tertip_res = update_gold_tertip_forecasts(self.db)
+            gold_res["tertip_forecasts"] = tertip_res
+        except Exception as e_fc:
+            logger.warning(f"Could not update Gold Tertip forecasts: {e_fc}")
+
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
