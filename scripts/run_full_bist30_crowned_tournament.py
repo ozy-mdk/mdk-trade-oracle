@@ -163,7 +163,6 @@ def main() -> None:
 
         old_meta = old_config.get(sym, {})
         old_model = f"{old_meta.get('model', 'None')} ({old_meta.get('horizon', '?')})"
-        old_hits = old_meta.get("recent_30d_hits", 0)
         old_rate = old_meta.get("recent_30d_hit_rate_pct", 0.0)
         old_mae = old_meta.get("recent_30d_mae_pct", 0.0)
 
