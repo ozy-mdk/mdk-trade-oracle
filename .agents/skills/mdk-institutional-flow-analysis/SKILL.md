@@ -116,12 +116,31 @@ Step 30: Train on [Day 1 … 249] ──► Predict Day 250 ──────�
 ```
 
 ### Candidate Paradigms Benchmarked:
-1. `Ridge`: L2-regularized linear model with strong generalization and structural stability.
-2. `XGBoost`: Gradient boosting decision trees capturing non-linear feature interactions with low variance.
-3. `BayesianRidge`: Analytical conjugate prior regression providing robust posterior distributions.
-4. `Huber`: Robust M-estimator resilient against outlier volatility spikes.
-5. `LightGBM`: Gradient boosting with leaf-wise splitting.
+1. `XGBoost`: Gradient boosting decision trees capturing non-linear feature interactions with low variance. Exceptionally strong on high-beta momentum stocks (`ASELS`, `ASTOR`, `YKBNK`, `TUPRS`).
+2. `LightGBM`: Leaf-wise gradient boosting optimized for split speed and asymmetric flows (`GARAN` 80.0%, `TOASO` 80.0%, `SAHOL`).
+3. `BayesianRidge`: Analytical conjugate prior regression providing robust posterior distributions on liquid bank/conglomerate giants (`AKBNK`, `BIMAS`, `KCHOL`, `FROTO`).
+4. `Huber`: Robust M-estimator resilient against outlier volatility spikes (`PETKM` 76.7%, `PGSUS`, `TCELL`).
+5. `Ridge`: L2-regularized linear model with strong generalization and structural stability (`GUBRF`, `ISCTR`, `SASA`).
 6. `Prophet`: Zero-leakage univariate prior baseline.
+
+> [!IMPORTANT]
+> **Strict Retirement of Deep Neural/Transformer Architectures (`TFT`)**:
+> Experimental evaluation confirmed that deep sequence models like Temporal Fusion Transformer (TFT) impose severe runtime latency bottlenecks (>70 seconds per stock vs ~4 ms for tabular models) while suffering from regime drift over BIST order flow. Under proper multi-horizon lookback calibration, **`XGBoost (3m)` decisively beat TFT on `ASELS`** (66.7% directional hits vs 63.3%, 1.94% MAE vs 2.04%, and 78.9% significant move accuracy). Deep neural networks are permanently retired from production crowning in favor of lean, microsecond-latency tabular models.
+
+### Automated BIST 30 Tournament Execution:
+To benchmark all 30 BIST 30 stocks across 15 candidate configurations (5 models $\times$ 3 horizons) and crown models via composite loss:
+```bash
+.venv/bin/python scripts/run_full_bist30_crowned_tournament.py
+```
+This script acts as the automated tournament referee: it computes out-of-sample directional hits, hit MAE, and miss MAE over the trailing 30 evaluation sessions, selects the champion for each equity, writes the results to `config/tertip_crowned_models.yaml`, and synchronizes `gold_tertip_daily_forecasts`.
+
+### Strategic Tournament Crowning vs. Daily Pipeline Execution:
+1. **Periodic Strategic Crowning (`scripts/run_full_bist30_crowned_tournament.py`)**:
+   - Run occasionally (e.g. quarterly, or after major macro interest rate or regulatory regime shifts).
+   - Establishes the champion model and lookback horizon per stock in `config/tertip_crowned_models.yaml`.
+2. **Daily Incremental Pipeline (`scripts/run_pipeline.py --target all`)**:
+   - Run daily (or whenever newly arrived raw trades are ingested).
+   - Consumes the crowned configuration, updates Bronze and Silver tables, automatically audits past completed days into `gold_tertip_walk_forward_backtests`, generates live $T+1$ opportunity snapshots in `gold_tertip_daily_forecasts`, and invalidates frontend caches for instant (~4 ms) trader workstation serving.
 
 ### The 3 Core Tournament Selection Criteria:
 1. **Criterion 1: Percentage of Directional Hits (`hit_rate_pct`)**
