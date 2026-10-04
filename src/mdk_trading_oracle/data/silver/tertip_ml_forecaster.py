@@ -118,15 +118,17 @@ logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 logging.getLogger("prophet").setLevel(logging.WARNING)
 logging.getLogger("lightgbm").setLevel(logging.WARNING)
 
-# In-memory cache for fast UI serving (TTL 30 seconds to stay fresh)
+# In-memory cache for fast UI serving (TTL 24 hours, automatically invalidated on new data via clear_forecast_cache)
 _FORECAST_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-CACHE_TTL_SECONDS = 30.0
+_PILLAR_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+CACHE_TTL_SECONDS = 86400.0
 
 
 def clear_forecast_cache() -> None:
     """Clear in-memory forecast cache to ensure fresh computation."""
-    global _FORECAST_CACHE
+    global _FORECAST_CACHE, _PILLAR_CACHE
     _FORECAST_CACHE.clear()
+    _PILLAR_CACHE.clear()
     logger.info("Cleared Tertip ML Forecaster in-memory cache.")
 
 
@@ -496,6 +498,12 @@ def extract_3pillar_time_series(
 def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, Any]]:
     """Build the 3-Pillar status scorecard for the live session."""
     sym = symbol.upper()
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if sym in _PILLAR_CACHE:
+        cached_ts, cached_matrix = _PILLAR_CACHE[sym]
+        if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
+            return cached_matrix
+
     pillars_meta = [
         {"key": "MLB", "name": "Bank of America (MLB)", "desc": "Foreign Algo Powerhouse"},
         {"key": "BIG5", "name": "Top 5 Domestic Desks", "desc": "YKR, IYM, AKM, GRM, ZRY"},
@@ -576,6 +584,7 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
             "price_up_pct": round(price_up_pct, 1),
         })
 
+    _PILLAR_CACHE[sym] = (now_ts, matrix)
     return matrix
 
 
@@ -1494,6 +1503,357 @@ def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> d
     return None
 
 
+def _get_precomputed_forecast_from_db(
+    db: PostgresManager,
+    symbol: str,
+    selected_composition: str = "champion",
+) -> dict[str, Any] | None:
+    """Hydrate full forecast response directly from precomputed gold layer tables in <30ms."""
+    try:
+        sym = symbol.upper()
+        # 1. Query latest live T+1 forecast from gold_tertip_daily_forecasts
+        cur = db.execute("""
+            SELECT symbol, as_of_date, current_price, target_price, expected_return_pct,
+                   price_low, price_high, stance, conviction, playbook,
+                   ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                   prophet_target_price, prophet_expected_return_pct,
+                   calculated_at, training_lookback_sessions, crowned_horizon
+            FROM gold_tertip_daily_forecasts
+            WHERE symbol = %s
+        """, (sym,))
+        f_row = cur.fetchone()
+        if not f_row:
+            return None
+
+        # 2. Query audited walk-forward ledger from gold_tertip_walk_forward_backtests
+        cur_res = db.execute("""
+            SELECT trade_date, actual_price, actual_return_pct, bist30_ret_pct,
+                   ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
+                   prophet_pred_price, prophet_pred_return_pct, prophet_direction, prophet_err_pct, prophet_is_hit,
+                   winner, is_shock_day, shock_type, days_since_pos_shock, days_since_neg_shock,
+                   mlb_action, mlb_flow_tl, mlb_buy_tl, mlb_sell_tl, mlb_pnl_tl,
+                   big5_action, big5_flow_tl, big5_buy_tl, big5_sell_tl, big5_pnl_tl,
+                   kamu_action, kamu_flow_tl, kamu_buy_tl, kamu_sell_tl, kamu_pnl_tl,
+                   training_lookback_sessions
+            FROM gold_tertip_walk_forward_backtests
+            WHERE symbol = %s
+            ORDER BY trade_date ASC
+        """, (sym,))
+        db_rows = cur_res.fetchall()
+        if not db_rows:
+            return None
+
+        # 3. Assemble Walk-Forward Ledger
+        c_w_ml = 0.70
+        c_w_p = 0.30
+        ledger = []
+        for r in db_rows:
+            r_date = str(r[0]).split(" ")[0]
+            act_price = float(r[1])
+            act_ret = float(r[2])
+            ml_ret_row = float(r[5] or 0.0)
+            p_ret_row = float(r[10] or 0.0)
+            c_ret_row = c_w_ml * ml_ret_row + c_w_p * p_ret_row
+            prev_p_row = act_price / (1.0 + act_ret / 100.0) if (1.0 + act_ret / 100.0) != 0 else act_price
+            c_price_row = prev_p_row * (1.0 + c_ret_row / 100.0)
+            c_err_row = abs(c_price_row - act_price) / act_price * 100.0 if act_price > 0 else 0.0
+            c_hit_row = _check_hit(c_ret_row, act_ret)
+            c_dir_row = "UP" if c_ret_row > DEADBAND_PCT else ("DOWN" if c_ret_row < -DEADBAND_PCT else "FLAT")
+
+            ledger.append({
+                "date": r_date,
+                "actual_price": round(act_price, 2),
+                "actual_return_pct": round(act_ret, 2),
+                "bist30_ret_pct": round(float(r[3] or 0.0), 2),
+                "confluence_pred_price": round(c_price_row, 2),
+                "confluence_pred_return_pct": round(c_ret_row, 2),
+                "confluence_direction": c_dir_row,
+                "confluence_err_pct": round(c_err_row, 2),
+                "confluence_is_hit": bool(c_hit_row),
+                "champion_pred_price": round(float(r[4] or 0.0), 2),
+                "champion_pred_return_pct": round(ml_ret_row, 2),
+                "champion_direction": r[6],
+                "champion_err_pct": round(float(r[7] or 0.0), 2),
+                "champion_is_hit": bool(r[8]),
+                "convex_weight_ml": c_w_ml,
+                "convex_weight_prophet": c_w_p,
+                "ml_pred_price": round(float(r[4] or 0.0), 2),
+                "ml_pred_return_pct": round(ml_ret_row, 2),
+                "ml_direction": r[6],
+                "ml_err_pct": round(float(r[7] or 0.0), 2),
+                "ml_is_hit": bool(r[8]),
+                "prophet_pred_price": round(float(r[9] or 0.0), 2),
+                "prophet_pred_return_pct": round(p_ret_row, 2),
+                "prophet_direction": r[11],
+                "prophet_err_pct": round(float(r[12] or 0.0), 2),
+                "prophet_is_hit": bool(r[13]),
+                "winner": r[14],
+                "is_shock_day": bool(r[15]),
+                "shock_type": r[16],
+                "days_since_pos_shock": int(r[17] or 63),
+                "days_since_neg_shock": int(r[18] or 63),
+                "mlb_action": r[19],
+                "mlb_flow_tl": round(float(r[20] or 0.0), 1),
+                "mlb_buy_tl": round(float(r[21] or 0.0), 1),
+                "mlb_sell_tl": round(float(r[22] or 0.0), 1),
+                "mlb_pnl_tl": round(float(r[23] or 0.0), 1),
+                "big5_action": r[24],
+                "big5_flow_tl": round(float(r[25] or 0.0), 1),
+                "big5_buy_tl": round(float(r[26] or 0.0), 1),
+                "big5_sell_tl": round(float(r[27] or 0.0), 1),
+                "big5_pnl_tl": round(float(r[28] or 0.0), 1),
+                "kamu_action": r[29],
+                "kamu_flow_tl": round(float(r[30] or 0.0), 1),
+                "kamu_buy_tl": round(float(r[31] or 0.0), 1),
+                "kamu_sell_tl": round(float(r[32] or 0.0), 1),
+                "kamu_pnl_tl": round(float(r[33] or 0.0), 1),
+                "training_lookback_sessions": int(r[34] or 252),
+            })
+
+        # Trailing 30 evaluation stats
+        last_30 = ledger[-30:] if len(ledger) >= 30 else ledger
+        tot_30 = len(last_30)
+        ml_hits_30 = sum(1 for x in last_30 if x["ml_is_hit"])
+        p_hits_30 = sum(1 for x in last_30 if x["prophet_is_hit"])
+        ml_mae_30 = sum(x["ml_err_pct"] for x in last_30) / tot_30 if tot_30 > 0 else 0.0
+        p_mae_30 = sum(x["prophet_err_pct"] for x in last_30) / tot_30 if tot_30 > 0 else 0.0
+        ml_wins_cnt = sum(1 for x in last_30 if x["winner"] == "TERTIP_ML_CHALLENGER")
+        p_wins_cnt = tot_30 - ml_wins_cnt
+
+        champ_model = str(f_row[10])
+        champ_hits = int(f_row[11] if f_row[11] is not None else ml_hits_30)
+        champ_hit_rate = float(f_row[12] if f_row[12] is not None else (ml_hits_30 / tot_30 * 100.0 if tot_30 > 0 else 0.0))
+        champ_mae = float(f_row[13] if f_row[13] is not None else ml_mae_30)
+        train_lb = int(f_row[17] if f_row[17] is not None else 252)
+        crowned_horizon = str(f_row[18] if f_row[18] is not None else "12m")
+
+        tournament = {
+            "champion": "TERTIP_ML_CHALLENGER",
+            "champion_label": f"Crowned Champion ({champ_model})",
+            "ml_champion_type": champ_model,
+            "crowned_horizon": crowned_horizon,
+            "training_lookback_sessions": train_lb,
+            "selection_window_sessions": 30,
+            "champion_dir_hits": champ_hits,
+            "champion_dir_hit_rate_pct": round(champ_hit_rate, 1),
+            "champion_mae_pct": round(champ_mae, 2),
+            "ml_dir_hits": ml_hits_30,
+            "ml_dir_hit_rate_pct": round((ml_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
+            "ml_hit_rate_pct": round((ml_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
+            "ml_mae_pct": round(ml_mae_30, 2),
+            "prophet_dir_hits": p_hits_30,
+            "prophet_dir_hit_rate_pct": round((p_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
+            "prophet_hit_rate_pct": round((p_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
+            "prophet_mae_pct": round(p_mae_30, 2),
+            "ml_wins": ml_wins_cnt,
+            "prophet_wins": p_wins_cnt,
+            "total_sessions": tot_30,
+            "convex_weight_ml": c_w_ml,
+            "convex_weight_prophet": c_w_p,
+        }
+
+        # 4. Pillar Matrix (uses cached _PILLAR_CACHE)
+        pillar_matrix = get_pillar_live_matrix(db, sym)
+
+        # 5. Pillar Execution Details (Today vs Yesterday)
+        big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
+        kamu_in = ", ".join(f"'{b}'" for b in KAMU_BROKERS)
+        df_inv = db.query_pl(f"""
+            SELECT 
+                trade_date,
+                SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl ELSE 0 END) AS mlb_buy_tl,
+                SUM(CASE WHEN broker_id = 'MLB' THEN sell_turnover_tl ELSE 0 END) AS mlb_sell_tl,
+                SUM(CASE WHEN broker_id = 'MLB' THEN (buy_turnover_tl - sell_turnover_tl) ELSE 0 END) AS mlb_flow,
+                SUM(CASE WHEN broker_id = 'MLB' THEN total_daily_pnl_tl ELSE 0 END) AS mlb_daily_pnl_tl,
+                SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
+
+                SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl ELSE 0 END) AS big5_buy_tl,
+                SUM(CASE WHEN broker_id IN ({big5_in}) THEN sell_turnover_tl ELSE 0 END) AS big5_sell_tl,
+                SUM(CASE WHEN broker_id IN ({big5_in}) THEN (buy_turnover_tl - sell_turnover_tl) ELSE 0 END) AS big5_flow,
+                SUM(CASE WHEN broker_id IN ({big5_in}) THEN total_daily_pnl_tl ELSE 0 END) AS big5_daily_pnl_tl,
+                SUM(CASE WHEN broker_id IN ({big5_in}) THEN unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl_tl,
+
+                SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl ELSE 0 END) AS kamu_buy_tl,
+                SUM(CASE WHEN broker_id IN ({kamu_in}) THEN sell_turnover_tl ELSE 0 END) AS kamu_sell_tl,
+                SUM(CASE WHEN broker_id IN ({kamu_in}) THEN (buy_turnover_tl - sell_turnover_tl) ELSE 0 END) AS kamu_flow,
+                SUM(CASE WHEN broker_id IN ({kamu_in}) THEN total_daily_pnl_tl ELSE 0 END) AS kamu_daily_pnl_tl,
+                SUM(CASE WHEN broker_id IN ({kamu_in}) THEN unrealized_pnl_tl ELSE 0 END) AS kamu_unrealized_pnl_tl
+            FROM silver_broker_fifo_daily
+            WHERE symbol = %s
+            GROUP BY trade_date
+            ORDER BY trade_date DESC
+            LIMIT 2;
+        """, params=[sym])
+
+        inv_today = df_inv.row(0, named=True) if len(df_inv) >= 1 else {}
+        inv_yest = df_inv.row(1, named=True) if len(df_inv) >= 2 else inv_today
+        t_date = str(inv_today.get("trade_date", ""))
+        y_date = str(inv_yest.get("trade_date", ""))
+
+        pillar_execution = {
+            "today_date": t_date,
+            "yesterday_date": y_date,
+            "mlb": {
+                "today": {
+                    "buy_tl": round(float(inv_today.get("mlb_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_today.get("mlb_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_today.get("mlb_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_today.get("mlb_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_today.get("mlb_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+                "yesterday": {
+                    "buy_tl": round(float(inv_yest.get("mlb_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_yest.get("mlb_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_yest.get("mlb_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_yest.get("mlb_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_yest.get("mlb_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+            },
+            "big5": {
+                "today": {
+                    "buy_tl": round(float(inv_today.get("big5_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_today.get("big5_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_today.get("big5_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_today.get("big5_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_today.get("big5_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+                "yesterday": {
+                    "buy_tl": round(float(inv_yest.get("big5_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_yest.get("big5_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_yest.get("big5_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_yest.get("big5_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_yest.get("big5_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+            },
+            "kamu": {
+                "today": {
+                    "buy_tl": round(float(inv_today.get("kamu_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_today.get("kamu_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_today.get("kamu_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_today.get("kamu_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_today.get("kamu_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+                "yesterday": {
+                    "buy_tl": round(float(inv_yest.get("kamu_buy_tl", 0.0) or 0.0), 2),
+                    "sell_tl": round(float(inv_yest.get("kamu_sell_tl", 0.0) or 0.0), 2),
+                    "net_flow_tl": round(float(inv_yest.get("kamu_flow", 0.0) or 0.0), 2),
+                    "daily_pnl_tl": round(float(inv_yest.get("kamu_daily_pnl_tl", 0.0) or 0.0), 2),
+                    "unrealized_pnl_tl": round(float(inv_yest.get("kamu_unrealized_pnl_tl", 0.0) or 0.0), 2),
+                },
+            },
+        }
+
+        # 6. BIST 30 Trend & Shock Distance
+        bench_pl = db.query_pl("""
+            SELECT trade_date, daily_return_pct, days_since_last_positive_shock, days_since_last_negative_shock
+            FROM silver_daily_benchmark_index
+            WHERE trade_date <= %s
+            ORDER BY trade_date DESC LIMIT 3;
+        """, params=[t_date or str(f_row[1])])
+
+        bist30_today = round(float(bench_pl["daily_return_pct"][0] * 100.0), 2) if len(bench_pl) >= 1 else 0.0
+        bist30_yest = round(float(bench_pl["daily_return_pct"][1] * 100.0), 2) if len(bench_pl) >= 2 else 0.0
+        bist30_before = round(float(bench_pl["daily_return_pct"][2] * 100.0), 2) if len(bench_pl) >= 3 else 0.0
+        pos_shock = int(bench_pl["days_since_last_positive_shock"][0]) if len(bench_pl) >= 1 else 63
+        neg_shock = int(bench_pl["days_since_last_negative_shock"][0]) if len(bench_pl) >= 1 else 63
+
+        bist30_trend = {
+            "today_pct": bist30_today,
+            "yesterday_pct": bist30_yest,
+            "day_before_pct": bist30_before,
+        }
+
+        def _derive_stance(ret_val: float) -> tuple[str, str, str]:
+            if ret_val >= 2.0:
+                return "STRONG_BUY", "STRONG BUY ACCUMULATION", "emerald"
+            elif ret_val > DEADBAND_PCT:
+                return "BUY", "BUY ABSORPTION REBOUND", "teal"
+            elif ret_val <= -2.0:
+                return "STRONG_SELL", "STRONG SELL PRESSURE", "rose"
+            elif ret_val < -DEADBAND_PCT:
+                return "SELL", "DISTRIBUTION FADE", "orange"
+            else:
+                return "NEUTRAL", "NEUTRAL CONSOLIDATION", "slate"
+
+        current_price = float(f_row[2])
+        target_price = float(f_row[3])
+        expected_ret = float(f_row[4])
+        price_low = float(f_row[5])
+        price_high = float(f_row[6])
+        prophet_target_price = float(f_row[14] if f_row[14] is not None else current_price)
+        prophet_ret_pct = float(f_row[15] if f_row[15] is not None else 0.0)
+
+        stance, stance_badge, stance_color = _derive_stance(expected_ret)
+        prophet_stance, prophet_stance_badge, prophet_stance_color = _derive_stance(prophet_ret_pct)
+
+        # Composition selection:
+        if selected_composition == "pure_ml":
+            target_price = round(float(f_row[3]), 2)
+            expected_ret = round(float(f_row[4]), 2)
+            stance, stance_badge, stance_color = _derive_stance(expected_ret)
+        elif selected_composition == "pure_prophet":
+            target_price = round(prophet_target_price, 2)
+            expected_ret = round(prophet_ret_pct, 2)
+            stance, stance_badge, stance_color = prophet_stance, prophet_stance_badge, prophet_stance_color
+
+        playbook_headline = f"Projecting {stance_badge} towards ₺{target_price:.2f} ({expected_ret:+.2f}%)"
+        playbook_rationale = (
+            f"As of {f_row[1]}, {sym} closed at ₺{current_price:.2f}. "
+            f"The 30-day walk-forward arena crowns Crowned Champion ({champ_model}) "
+            f"based on superior directional accuracy ({champ_hits} of 30 sessions directionally correct, "
+            f"{champ_hit_rate:.1f}%, MAE: {champ_mae:.2f}%). "
+            f"Institutional synthesis projects next session trading between ₺{price_low:.2f} and ₺{price_high:.2f}."
+        )
+
+        return {
+            "symbol": sym,
+            "champion": "TERTIP_ML_CHALLENGER",
+            "champion_label": f"Crowned Champion ({champ_model})",
+            "as_of_date": str(f_row[1]),
+            "latest_close_price": round(current_price, 2),
+            "target_price": round(target_price, 2),
+            "expected_return_pct": round(expected_ret, 2),
+            "champion_target_price": round(float(f_row[3]), 2),
+            "champion_expected_return_pct": round(float(f_row[4]), 2),
+            "confluence_target_price": round(float(f_row[3]), 2),
+            "confluence_expected_return_pct": round(float(f_row[4]), 2),
+            "convex_weight_ml": c_w_ml,
+            "convex_weight_prophet": c_w_p,
+            "ml_target_price": round(float(f_row[3]), 2),
+            "ml_expected_return_pct": round(float(f_row[4]), 2),
+            "ml_stance": stance,
+            "ml_stance_badge": stance_badge,
+            "ml_stance_color": stance_color,
+            "price_low": round(price_low, 2),
+            "price_high": round(price_high, 2),
+            "stance": stance,
+            "stance_badge": stance_badge,
+            "stance_color": stance_color,
+            "prophet_target_price": round(prophet_target_price, 2),
+            "prophet_expected_return_pct": round(prophet_ret_pct, 2),
+            "prophet_stance": prophet_stance,
+            "prophet_stance_badge": prophet_stance_badge,
+            "prophet_stance_color": prophet_stance_color,
+            "days_since_last_positive_shock": pos_shock,
+            "days_since_last_negative_shock": neg_shock,
+            "bist30_trend": bist30_trend,
+            "playbook_headline": playbook_headline,
+            "playbook_rationale": playbook_rationale,
+            "features_mode": "lean",
+            "active_features_count": len(FEATURE_COLS),
+            "train_lookback_sessions": train_lb,
+            "active_features": list(FEATURE_COLS),
+            "tournament_summary": tournament,
+            "pillar_matrix": pillar_matrix,
+            "pillar_execution": pillar_execution,
+            "walk_forward_ledger": ledger,
+            "calculated_at": str(f_row[16]),
+        }
+    except Exception as e:
+        logger.warning(f"Fast-path database hydration for {symbol} failed, falling back to compute: {e}")
+        return None
+
+
 def get_tertip_ml_forecast(
     db: PostgresManager,
     symbol: str,
@@ -1531,6 +1891,15 @@ def get_tertip_ml_forecast(
         cached_ts, cached_data = _FORECAST_CACHE[cache_key]
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
+
+    # Fast-path: Check database precomputed gold tables first for default lookback mode
+    if not force_refresh and lb_mode == "default":
+        precomputed = _get_precomputed_forecast_from_db(db, sym, selected_composition=selected_composition)
+        if precomputed is not None:
+            c_champ = precomputed["tournament_summary"]["ml_champion_type"].lower()
+            if m_type in ("auto", "champion", c_champ):
+                _FORECAST_CACHE[cache_key] = (now_ts, precomputed)
+                return precomputed
 
     # Resolve active feature set (strictly lean 21 features)
     active_features = list(feature_cols) if feature_cols is not None else list(FEATURE_COLS)
@@ -1622,6 +1991,7 @@ def get_tertip_ml_forecast(
             feature_cols=active_features,
             train_lookback_sessions=train_lookback_sessions,
         )
+    else:
         # 'default': Automatically apply pre-calibrated champion configuration (model + horizon)
         calibrated = get_calibrated_model_selection(db, sym)
         if calibrated:
@@ -1633,12 +2003,13 @@ def get_tertip_ml_forecast(
             train_lookback_sessions = 252
             crowned_horizon = "12m"
 
+        arena_train_lb = min(252, train_lookback_sessions)
         ledger, tournament, _ = run_30d_walk_forward_arena(
             df,
             n_sessions=n_eval_sessions,
             model_type=m_type,
             feature_cols=active_features,
-            train_lookback_sessions=train_lookback_sessions,
+            train_lookback_sessions=arena_train_lb,
         )
 
     tournament["crowned_horizon"] = crowned_horizon
