@@ -12,6 +12,7 @@ Provides ultra-low latency REST endpoints and WebSocket streams for:
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -552,6 +553,93 @@ class OpportunityActionsResponse(BaseModel):
     top_longs: List[OpportunityItem]
     top_shorts: List[OpportunityItem]
     opportunities: List[OpportunityItem]
+
+
+class WeekStartBacktestItem(BaseModel):
+    trade_date: str
+    prior_date: str
+    actual_price: float
+    actual_return_pct: float
+    bist30_ret_pct: float
+    ml_pred_price: float
+    ml_pred_return_pct: float
+    ml_direction: str
+    ml_err_pct: float
+    ml_is_hit: bool
+    weekend_carry_cost_bps: float
+    fri_w5_mlb_share_pct: float
+    wtd_mlb_net_flow_tl: float
+    ml_champion_type: str
+
+
+class WeekStartForecastResponse(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    as_of_date: str
+    target_date: str
+    current_price: float
+    target_price: float
+    expected_return_pct: float
+    price_low: float
+    price_high: float
+    stance: str
+    conviction: str
+    playbook: str
+    ml_champion_type: str
+    champion_dir_hits: Optional[int] = None
+    champion_dir_hit_rate_pct: Optional[float] = None
+    champion_mae_pct: Optional[float] = None
+    weekend_carry_cost_bps: float = 0.0
+    fri_w5_mlb_share_pct: float = 0.0
+    wtd_mlb_net_flow_tl: float = 0.0
+    training_lookback_weeks: int = 52
+    crowned_horizon: str = "12m"
+    calculated_at: str
+    backtest_ledger: List[WeekStartBacktestItem] = []
+
+
+class WeekStartOpportunityItem(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    as_of_date: str
+    target_date: str
+    current_price: float
+    target_price: float
+    expected_return_pct: float
+    price_low: float
+    price_high: float
+    stance: str
+    conviction: Optional[str] = None
+    playbook: Optional[str] = None
+    ml_champion_type: Optional[str] = None
+    champion_dir_hits: Optional[int] = None
+    champion_dir_hit_rate_pct: Optional[float] = None
+    champion_mae_pct: Optional[float] = None
+    crowned_horizon: Optional[str] = None
+    training_lookback_weeks: Optional[int] = None
+    weekend_carry_cost_bps: float = 0.0
+    fri_w5_mlb_share_pct: float = 0.0
+    wtd_mlb_net_flow_tl: float = 0.0
+    tier: str
+    action_type: str
+
+
+class WeekStartOpportunitiesResponse(BaseModel):
+    as_of_date: str
+    target_date: str
+    total_constituents: int
+    bullish_count: int
+    bearish_count: int
+    neutral_count: int
+    avg_expected_return_pct: float
+    high_conviction_count: int
+    significant_moves_count: int
+    avg_weekend_carry_bps: float
+    top_longs: List[WeekStartOpportunityItem]
+    top_shorts: List[WeekStartOpportunityItem]
+    opportunities: List[WeekStartOpportunityItem]
 
 
 class TertipTimeseriesPoint(BaseModel):
@@ -1853,6 +1941,262 @@ def get_tertip_predicted_opportunities(
         raise
     except Exception as e:
         logger.error(f"Error generating predicted opportunity actions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Week Start (Monday Day Close) Predictive Hub Endpoints ────────────────────
+
+@app.get("/api/v1/week-start/forecast", response_model=WeekStartForecastResponse)
+def get_week_start_forecast_endpoint(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+) -> WeekStartForecastResponse:
+    """Return live T+1 Monday forecast card and trailing walk-forward backtest ledger."""
+    sym = symbol.strip().upper()
+    try:
+        query_fc = """
+            SELECT f.symbol, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector,
+                   f.as_of_date, f.target_date, f.current_price, f.target_price, f.expected_return_pct,
+                   f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
+                   f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
+                   f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl,
+                   f.training_lookback_weeks, f.crowned_horizon, f.calculated_at
+            FROM gold_week_start_daily_forecasts f
+            LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
+            WHERE f.symbol = %(symbol)s
+            ORDER BY f.as_of_date DESC
+            LIMIT 1;
+        """
+        rows = db.query_pl(query_fc, {"symbol": sym}).to_dicts()
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"No week start forecast found for {sym}")
+
+        fc = rows[0]
+
+        # Query trailing walk-forward backtests
+        query_bt = """
+            SELECT trade_date, prior_date, actual_price, actual_return_pct, bist30_ret_pct,
+                   ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
+                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type
+            FROM gold_week_start_walk_forward_backtests
+            WHERE symbol = %(symbol)s
+            ORDER BY trade_date DESC
+            LIMIT 20;
+        """
+        bt_rows = db.query_pl(query_bt, {"symbol": sym}).to_dicts()
+
+        backtest_ledger = [
+            WeekStartBacktestItem(
+                trade_date=str(b["trade_date"]),
+                prior_date=str(b["prior_date"]),
+                actual_price=float(b.get("actual_price") or 0.0),
+                actual_return_pct=float(b.get("actual_return_pct") or 0.0),
+                bist30_ret_pct=float(b.get("bist30_ret_pct") or 0.0),
+                ml_pred_price=float(b.get("ml_pred_price") or 0.0),
+                ml_pred_return_pct=float(b.get("ml_pred_return_pct") or 0.0),
+                ml_direction=str(b.get("ml_direction") or "NEUTRAL"),
+                ml_err_pct=float(b.get("ml_err_pct") or 0.0),
+                ml_is_hit=bool(b.get("ml_is_hit")),
+                weekend_carry_cost_bps=float(b.get("weekend_carry_cost_bps") or 0.0),
+                fri_w5_mlb_share_pct=float(b.get("fri_w5_mlb_share_pct") or 0.0),
+                wtd_mlb_net_flow_tl=float(b.get("wtd_mlb_net_flow_tl") or 0.0),
+                ml_champion_type=str(b.get("ml_champion_type") or "Auto"),
+            )
+            for b in bt_rows
+        ]
+
+        return WeekStartForecastResponse(
+            symbol=str(fc["symbol"]),
+            company_name=str(fc.get("company_name") or fc["symbol"]),
+            sector=str(fc.get("sector") or "Equities"),
+            as_of_date=str(fc["as_of_date"]),
+            target_date=str(fc["target_date"]),
+            current_price=float(fc.get("current_price") or 0.0),
+            target_price=float(fc.get("target_price") or 0.0),
+            expected_return_pct=float(fc.get("expected_return_pct") or 0.0),
+            price_low=float(fc.get("price_low") or 0.0),
+            price_high=float(fc.get("price_high") or 0.0),
+            stance=str(fc.get("stance") or "NEUTRAL"),
+            conviction=str(fc.get("conviction") or ""),
+            playbook=str(fc.get("playbook") or ""),
+            ml_champion_type=str(fc.get("ml_champion_type") or "Auto"),
+            champion_dir_hits=int(fc.get("champion_dir_hits") or 0) if fc.get("champion_dir_hits") is not None else None,
+            champion_dir_hit_rate_pct=round(float(fc["champion_dir_hit_rate_pct"]), 1) if fc.get("champion_dir_hit_rate_pct") is not None else None,
+            champion_mae_pct=round(float(fc["champion_mae_pct"]), 2) if fc.get("champion_mae_pct") is not None else None,
+            weekend_carry_cost_bps=float(fc.get("weekend_carry_cost_bps") or 0.0),
+            fri_w5_mlb_share_pct=float(fc.get("fri_w5_mlb_share_pct") or 0.0),
+            wtd_mlb_net_flow_tl=float(fc.get("wtd_mlb_net_flow_tl") or 0.0),
+            training_lookback_weeks=int(fc.get("training_lookback_weeks") or 52),
+            crowned_horizon=str(fc.get("crowned_horizon") or "12m"),
+            calculated_at=str(fc.get("calculated_at") or ""),
+            backtest_ledger=backtest_ledger,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching week start forecast for {sym}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/week-start/opportunities", response_model=WeekStartOpportunitiesResponse)
+def get_week_start_opportunities(
+    target_date: Optional[str] = Query(None, description="Optional target date YYYY-MM-DD"),
+) -> WeekStartOpportunitiesResponse:
+    """Return all constituent predicted Monday opportunities ranked by expected return."""
+    try:
+        date_clause = "WHERE as_of_date = %(target_date)s" if target_date else "WHERE as_of_date = (SELECT MAX(as_of_date) FROM gold_week_start_daily_forecasts)"
+        params = {"target_date": target_date} if target_date else {}
+
+        query = f"""
+            WITH target_scope AS (
+                SELECT symbol, as_of_date, target_date, current_price, target_price, expected_return_pct,
+                       price_low, price_high, stance, conviction, playbook,
+                       ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                       crowned_horizon, training_lookback_weeks,
+                       weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl
+                FROM gold_week_start_daily_forecasts
+                {date_clause}
+            )
+            SELECT f.symbol, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector,
+                   f.as_of_date, f.target_date, f.current_price, f.target_price, f.expected_return_pct,
+                   f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
+                   f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
+                   f.crowned_horizon, f.training_lookback_weeks,
+                   f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl
+            FROM target_scope f
+            LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
+            ORDER BY f.expected_return_pct DESC;
+        """
+        raw_rows = db.query_pl(query, params).to_dicts()
+        if not raw_rows:
+            raise HTTPException(status_code=404, detail="No predicted week start opportunities found")
+
+        items: List[WeekStartOpportunityItem] = []
+        for r in raw_rows:
+            exp_ret = float(r.get("expected_return_pct") or 0.0)
+            if exp_ret >= 2.0:
+                tier = "HIGH_CONVICTION_LONG"
+                action_type = "LONG"
+            elif exp_ret <= -2.0:
+                tier = "HIGH_CONVICTION_SHORT"
+                action_type = "SHORT"
+            elif exp_ret >= 1.0:
+                tier = "MODERATE_LONG"
+                action_type = "LONG"
+            elif exp_ret <= -1.0:
+                tier = "MODERATE_SHORT"
+                action_type = "SHORT"
+            elif exp_ret > 0.25:
+                tier = "MILD_LONG"
+                action_type = "LONG"
+            elif exp_ret < -0.25:
+                tier = "MILD_SHORT"
+                action_type = "SHORT"
+            else:
+                tier = "CONSOLIDATION"
+                action_type = "NEUTRAL"
+
+            items.append(
+                WeekStartOpportunityItem(
+                    symbol=str(r["symbol"]),
+                    company_name=str(r.get("company_name") or r["symbol"]),
+                    sector=str(r.get("sector") or "Equities"),
+                    as_of_date=str(r["as_of_date"]),
+                    target_date=str(r["target_date"]),
+                    current_price=float(r.get("current_price") or 0.0),
+                    target_price=float(r.get("target_price") or 0.0),
+                    expected_return_pct=round(exp_ret, 2),
+                    price_low=float(r.get("price_low") or 0.0),
+                    price_high=float(r.get("price_high") or 0.0),
+                    stance=str(r.get("stance") or "NEUTRAL"),
+                    conviction=str(r.get("conviction") or ""),
+                    playbook=str(r.get("playbook") or ""),
+                    ml_champion_type=str(r.get("ml_champion_type") or "Auto"),
+                    champion_dir_hits=int(r.get("champion_dir_hits") or 0) if r.get("champion_dir_hits") is not None else None,
+                    champion_dir_hit_rate_pct=round(float(r["champion_dir_hit_rate_pct"]), 1) if r.get("champion_dir_hit_rate_pct") is not None else None,
+                    champion_mae_pct=round(float(r["champion_mae_pct"]), 2) if r.get("champion_mae_pct") is not None else None,
+                    crowned_horizon=str(r.get("crowned_horizon") or "12m"),
+                    training_lookback_weeks=int(r.get("training_lookback_weeks") or 52),
+                    weekend_carry_cost_bps=round(float(r.get("weekend_carry_cost_bps") or 0.0), 1),
+                    fri_w5_mlb_share_pct=round(float(r.get("fri_w5_mlb_share_pct") or 0.0), 2),
+                    wtd_mlb_net_flow_tl=round(float(r.get("wtd_mlb_net_flow_tl") or 0.0), 0),
+                    tier=tier,
+                    action_type=action_type,
+                )
+            )
+
+        bullish = [i for i in items if i.action_type == "LONG"]
+        bearish = [i for i in items if i.action_type == "SHORT"]
+        neutral = [i for i in items if i.action_type == "NEUTRAL"]
+        high_conviction = [i for i in items if "HIGH_CONVICTION" in i.tier]
+        sig_moves = [i for i in items if abs(i.expected_return_pct) >= 1.0]
+
+        top_longs = sorted([i for i in items if i.expected_return_pct > 0.0], key=lambda x: x.expected_return_pct, reverse=True)[:5]
+        top_shorts = sorted([i for i in items if i.expected_return_pct < 0.0], key=lambda x: x.expected_return_pct)[:5]
+
+        avg_ret = round(float(np.mean([i.expected_return_pct for i in items])), 2) if items else 0.0
+        avg_carry = round(float(np.mean([i.weekend_carry_cost_bps for i in items])), 1) if items else 0.0
+
+        return WeekStartOpportunitiesResponse(
+            as_of_date=items[0].as_of_date,
+            target_date=items[0].target_date,
+            total_constituents=len(items),
+            bullish_count=len(bullish),
+            bearish_count=len(bearish),
+            neutral_count=len(neutral),
+            avg_expected_return_pct=avg_ret,
+            high_conviction_count=len(high_conviction),
+            significant_moves_count=len(sig_moves),
+            avg_weekend_carry_bps=avg_carry,
+            top_longs=top_longs,
+            top_shorts=top_shorts,
+            opportunities=items,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating week start opportunities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/week-start/backtest", response_model=List[WeekStartBacktestItem])
+def get_week_start_backtest(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+    limit: int = Query(30, le=100, description="Max backtest records"),
+) -> List[WeekStartBacktestItem]:
+    """Return historical walk-forward backtest ledger for a specific symbol."""
+    sym = symbol.strip().upper()
+    try:
+        query_bt = """
+            SELECT trade_date, prior_date, actual_price, actual_return_pct, bist30_ret_pct,
+                   ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
+                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type
+            FROM gold_week_start_walk_forward_backtests
+            WHERE symbol = %(symbol)s
+            ORDER BY trade_date DESC
+            LIMIT %(limit)s;
+        """
+        bt_rows = db.query_pl(query_bt, {"symbol": sym, "limit": limit}).to_dicts()
+        return [
+            WeekStartBacktestItem(
+                trade_date=str(b["trade_date"]),
+                prior_date=str(b["prior_date"]),
+                actual_price=float(b.get("actual_price") or 0.0),
+                actual_return_pct=float(b.get("actual_return_pct") or 0.0),
+                bist30_ret_pct=float(b.get("bist30_ret_pct") or 0.0),
+                ml_pred_price=float(b.get("ml_pred_price") or 0.0),
+                ml_pred_return_pct=float(b.get("ml_pred_return_pct") or 0.0),
+                ml_direction=str(b.get("ml_direction") or "NEUTRAL"),
+                ml_err_pct=float(b.get("ml_err_pct") or 0.0),
+                ml_is_hit=bool(b.get("ml_is_hit")),
+                weekend_carry_cost_bps=float(b.get("weekend_carry_cost_bps") or 0.0),
+                fri_w5_mlb_share_pct=float(b.get("fri_w5_mlb_share_pct") or 0.0),
+                wtd_mlb_net_flow_tl=float(b.get("wtd_mlb_net_flow_tl") or 0.0),
+                ml_champion_type=str(b.get("ml_champion_type") or "Auto"),
+            )
+            for b in bt_rows
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching backtest ledger for {sym}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

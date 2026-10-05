@@ -7,6 +7,7 @@ import { EventStudyDashboard } from './components/EventStudyDashboard';
 import { TimeWindowTerminal } from './components/TimeWindowTerminal';
 import { OracleHubDashboard } from './components/OracleHubDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
+import { WeekStartDashboard } from './components/WeekStartDashboard';
 import {
   LineChart,
   Boxes,
@@ -17,10 +18,11 @@ import {
   Cpu,
   Database,
   Compass,
+  Calendar,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities' | 'weekstart'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -269,10 +271,11 @@ export const App: React.FC = () => {
           {[
             { id: 'candles', label: 'Candlestick & Order Flow', icon: LineChart },
             { id: 'tertip', label: 'FIFO Tertip Inventory', icon: Boxes },
-            { id: 'event', label: 'Event Study Scanner', icon: Binary },
-            { id: 'timewindow', label: 'Time Window Terminal', icon: Clock },
             { id: 'oracle', label: 'Gold Predictive Hub', icon: Sparkles },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
+            { id: 'weekstart', label: 'Week Start Predictive Hub', icon: Calendar },
+            { id: 'event', label: 'Event Study Scanner', icon: Binary },
+            { id: 'timewindow', label: 'Time Window Terminal', icon: Clock },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -341,6 +344,14 @@ export const App: React.FC = () => {
             onSelectSymbol={handleSelectSymbol}
             onNavigateTab={(tab) => setActiveTab(tab)}
             currentTradeDate={selectedDate}
+          />
+        )}
+
+        {activeTab === 'weekstart' && (
+          <WeekStartDashboard
+            symbol={selectedSymbol}
+            onSelectSymbol={handleSelectSymbol}
+            onNavigateTab={(tab) => setActiveTab(tab as any)}
           />
         )}
       </main>

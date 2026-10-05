@@ -623,3 +623,90 @@ export interface OpportunityActionsResponse {
   top_shorts: OpportunityItem[];
   opportunities: OpportunityItem[];
 }
+
+export interface WeekStartBacktestItem {
+  trade_date: string;
+  prior_date: string;
+  actual_price: number;
+  actual_return_pct: number;
+  bist30_ret_pct: number;
+  ml_pred_price: number;
+  ml_pred_return_pct: number;
+  ml_direction: string;
+  ml_err_pct: number;
+  ml_is_hit: boolean;
+  weekend_carry_cost_bps: number;
+  fri_w5_mlb_share_pct: number;
+  wtd_mlb_net_flow_tl: number;
+  ml_champion_type: string;
+}
+
+export interface WeekStartForecastResponse {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  as_of_date: string;
+  target_date: string;
+  current_price: number;
+  target_price: number;
+  expected_return_pct: number;
+  price_low: number;
+  price_high: number;
+  stance: string;
+  conviction: string;
+  playbook: string;
+  ml_champion_type: string;
+  champion_dir_hits?: number;
+  champion_dir_hit_rate_pct?: number;
+  champion_mae_pct?: number;
+  weekend_carry_cost_bps: number;
+  fri_w5_mlb_share_pct: number;
+  wtd_mlb_net_flow_tl: number;
+  training_lookback_weeks: number;
+  crowned_horizon: string;
+  calculated_at: string;
+  backtest_ledger: WeekStartBacktestItem[];
+}
+
+export interface WeekStartOpportunityItem {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  as_of_date: string;
+  target_date: string;
+  current_price: number;
+  target_price: number;
+  expected_return_pct: number;
+  price_low: number;
+  price_high: number;
+  stance: string;
+  conviction?: string;
+  playbook?: string;
+  ml_champion_type?: string;
+  champion_dir_hits?: number;
+  champion_dir_hit_rate_pct?: number;
+  champion_mae_pct?: number;
+  crowned_horizon?: string;
+  training_lookback_weeks?: number;
+  weekend_carry_cost_bps: number;
+  fri_w5_mlb_share_pct: number;
+  wtd_mlb_net_flow_tl: number;
+  tier: string;
+  action_type: string;
+}
+
+export interface WeekStartOpportunitiesResponse {
+  as_of_date: string;
+  target_date: string;
+  total_constituents: number;
+  bullish_count: number;
+  bearish_count: number;
+  neutral_count: number;
+  avg_expected_return_pct: number;
+  high_conviction_count: number;
+  significant_moves_count: number;
+  avg_weekend_carry_bps: number;
+  top_longs: WeekStartOpportunityItem[];
+  top_shorts: WeekStartOpportunityItem[];
+  opportunities: WeekStartOpportunityItem[];
+}
