@@ -219,7 +219,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
 
         # Extract recent data
         df = extract_3pillar_time_series(db, sym, lookback_days=int((train_lb + 60) * 1.5))
-        if df.empty or len(df) < 30:
+        if df.empty or len(df) < 15:
             continue
 
         df = attach_prophet_rolling_features(df, sym, n_history_needed=50)
@@ -233,7 +233,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         X_tr_full = tr_full[FEATURE_COLS].iloc[:-1]
         y_tr_full = y_tr_full.iloc[:-1]
 
-        if len(X_tr_full) < 20:
+        if len(X_tr_full) < 10:
             continue
 
         # Fit Champion Model

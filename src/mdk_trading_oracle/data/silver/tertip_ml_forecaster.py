@@ -238,7 +238,7 @@ def extract_3pillar_time_series(
         params=[sym],
     )
 
-    if len(df_prices) < 35:
+    if len(df_prices) < 15:
         return pd.DataFrame()
 
     big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
