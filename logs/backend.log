@@ -1,51 +1,39 @@
-INFO:     Started server process [27070]
+INFO:     Started server process [2368]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:54036 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54037 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54044 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54039 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54046 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54035 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54048 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54038 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54054 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54055 - "GET /api/v1/week-start/forecast?symbol=THYAO HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54102 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54103 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54104 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54107 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54109 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54111 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54106 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54113 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54105 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54117 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54116 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54121 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54122 - "GET /api/v1/week-start/forecast?symbol=THYAO HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54124 - "HEAD /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54127 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54153 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54154 - "GET /api/v1/week-start/forecast?symbol=THYAO HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54160 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54161 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54163 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54168 - "GET /api/v1/week-start/forecast?symbol=TRALT HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:54169 - "GET /api/v1/week-start/forecast?symbol=TRALT HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:54171 - "GET /api/v1/week-start/forecast?symbol=ASELS HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54172 - "GET /api/v1/week-start/forecast?symbol=AKBNK HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54175 - "GET /api/v1/week-start/forecast?symbol=TCELL HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54177 - "GET /api/v1/tertip/opportunities?target_date=2026-09-30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54179 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54181 - "GET /api/v1/event-study/scan?broker_id=MLB&symbol=TCELL&min_flow_tl=50000000&limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54183 - "GET /api/v1/time-window/analyze?symbol=TCELL&broker_id=MLB&trade_date=2026-09-30 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54185 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54191 - "GET /api/v1/week-start/opportunities HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54192 - "GET /api/v1/week-start/forecast?symbol=TCELL HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56277 - "GET /api/v1/week-start/forecast?symbol=SASA HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49394 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49398 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49395 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49402 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49397 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49396 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49404 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49406 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49410 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49409 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49393 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49412 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49415 - "GET /api/v1/tertip/opportunities?target_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49417 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49422 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49425 - "GET /api/v1/tertip/opportunities?target_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49427 - "GET /api/v1/tertip/opportunities?target_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49429 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49446 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49452 - "GET /api/v1/tertip/opportunities?target_date=2026-10-06 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49458 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49462 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49464 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49466 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49470 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49495 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49512 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49513 - "GET /api/v1/tertip/opportunities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49515 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49517 - "GET /api/v1/tertip/ml-forecast?symbol=SASA&model_type=auto HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [27070]
+INFO:     Finished server process [2368]

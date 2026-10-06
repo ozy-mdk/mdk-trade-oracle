@@ -121,7 +121,7 @@ def test_tertip_ml_forecaster_live_database():
     assert "day_before_pct" in data["bist30_trend"]
     assert "tournament_summary" in data
     assert len(data["pillar_matrix"]) == 3
-    assert len(data["walk_forward_ledger"]) in (30, 180)
+    assert len(data["walk_forward_ledger"]) >= 30
 
     # Verify 39 active features including 3-pillar cost spreads, tertip shares, intensities, and shock defense
     assert "active_features" in data

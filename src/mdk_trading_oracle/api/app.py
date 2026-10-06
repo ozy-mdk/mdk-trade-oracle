@@ -1812,10 +1812,11 @@ def get_tertip_ml_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Force bypass cache and recalculate live"),
     model_type: str = Query("auto", description="Model type: auto, xgboost, or ridge"),
+    target_date: Optional[str] = Query(None, description="Optional target session date YYYY-MM-DD"),
 ) -> TertipMlForecastResponse:
     """Return live T+1 forecast (Prophet vs 3-Pillar ML Challenger) and 30-day walk-forward track."""
     try:
-        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh, model_type=model_type)
+        data = get_tertip_ml_forecast(db, symbol, force_refresh=fresh, model_type=model_type, target_date=target_date)
         if "error" in data:
             raise HTTPException(status_code=404, detail=data["error"])
         return TertipMlForecastResponse(**data)

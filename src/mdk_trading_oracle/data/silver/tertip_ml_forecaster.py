@@ -1507,20 +1507,36 @@ def _get_precomputed_forecast_from_db(
     db: PostgresManager,
     symbol: str,
     selected_composition: str = "champion",
+    target_date: str | None = None,
 ) -> dict[str, Any] | None:
     """Hydrate full forecast response directly from precomputed gold layer tables in <30ms."""
     try:
         sym = symbol.upper()
         # 1. Query latest live T+1 forecast from gold_tertip_daily_forecasts
-        cur = db.execute("""
-            SELECT symbol, as_of_date, current_price, target_price, expected_return_pct,
-                   price_low, price_high, stance, conviction, playbook,
-                   ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
-                   prophet_target_price, prophet_expected_return_pct,
-                   calculated_at, training_lookback_sessions, crowned_horizon
-            FROM gold_tertip_daily_forecasts
-            WHERE symbol = %s
-        """, (sym,))
+        if target_date:
+            cur = db.execute("""
+                SELECT symbol, as_of_date, current_price, target_price, expected_return_pct,
+                       price_low, price_high, stance, conviction, playbook,
+                       ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                       prophet_target_price, prophet_expected_return_pct,
+                       calculated_at, training_lookback_sessions, crowned_horizon
+                FROM gold_tertip_daily_forecasts
+                WHERE symbol = %s AND as_of_date = %s
+                ORDER BY calculated_at DESC
+                LIMIT 1;
+            """, (sym, target_date))
+        else:
+            cur = db.execute("""
+                SELECT symbol, as_of_date, current_price, target_price, expected_return_pct,
+                       price_low, price_high, stance, conviction, playbook,
+                       ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                       prophet_target_price, prophet_expected_return_pct,
+                       calculated_at, training_lookback_sessions, crowned_horizon
+                FROM gold_tertip_daily_forecasts
+                WHERE symbol = %s
+                ORDER BY as_of_date DESC, calculated_at DESC
+                LIMIT 1;
+            """, (sym,))
         f_row = cur.fetchone()
         if not f_row:
             return None
@@ -1864,6 +1880,7 @@ def get_tertip_ml_forecast(
     n_eval_sessions: int = 30,
     lookback_mode: str = "default",
     selected_composition: str = "champion",
+    target_date: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate live upcoming session (T+1) forecast and walk-forward track.
@@ -1884,7 +1901,7 @@ def get_tertip_ml_forecast(
     m_type = model_type.lower()
     lb_mode = str(lookback_mode).lower()
     now_ts = datetime.now(timezone.utc).timestamp()
-    cache_key = f"{sym}:{m_type}:{train_lookback_sessions}:{n_eval_sessions}:{lb_mode}"
+    cache_key = f"{sym}:{m_type}:{train_lookback_sessions}:{n_eval_sessions}:{lb_mode}:{target_date or 'latest'}"
 
     # Check cache (bypassed if force_refresh is True)
     if not force_refresh and cache_key in _FORECAST_CACHE:
@@ -1894,7 +1911,9 @@ def get_tertip_ml_forecast(
 
     # Fast-path: Check database precomputed gold tables first for default lookback mode
     if not force_refresh and lb_mode == "default":
-        precomputed = _get_precomputed_forecast_from_db(db, sym, selected_composition=selected_composition)
+        precomputed = _get_precomputed_forecast_from_db(
+            db, sym, selected_composition=selected_composition, target_date=target_date
+        )
         if precomputed is not None:
             c_champ = precomputed["tournament_summary"]["ml_champion_type"].lower()
             if m_type in ("auto", "champion", c_champ):
