@@ -56,11 +56,12 @@ def test_bist30_ingestion_and_point_in_time_query(temp_db):
         assert res["periods_rows"] >= 45
         assert res["active_symbols_count"] == 30
 
-        # 1. Test active constituents
+        # 1. Test active constituents (Q4 2026: TRMET in, DSTKF out)
         active_symbols = ingestor.get_bist30_symbols(active_only=True)
         assert len(active_symbols) == 30
         assert "TRALT" in active_symbols
-        assert "DSTKF" in active_symbols
+        assert "TRMET" in active_symbols
+        assert "DSTKF" not in active_symbols
         assert "MGROS" in active_symbols
         assert "GUBRF" in active_symbols
         assert "ARCLK" not in active_symbols
@@ -71,12 +72,13 @@ def test_bist30_ingestion_and_point_in_time_query(temp_db):
         assert len(pit_2022) == 30
         assert "ARCLK" in pit_2022
         assert "DSTKF" not in pit_2022
+        assert "TRMET" not in pit_2022
 
-        # 3. Test historical point-in-time: 2024-05-01
-        pit_2024 = ingestor.get_bist30_symbols(as_of_date="2024-05-01")
-        assert len(pit_2024) == 30
-        assert "BRSAN" in pit_2024
-        assert "ARCLK" not in pit_2024
+        # 3. Test historical point-in-time: 2026-08-01 (Q3 2026: DSTKF was active, TRMET was not)
+        pit_2026_q3 = ingestor.get_bist30_symbols(as_of_date="2026-08-01")
+        assert len(pit_2026_q3) == 30
+        assert "DSTKF" in pit_2026_q3
+        assert "TRMET" not in pit_2026_q3
     else:
         # Fallback synthetic test
         with tempfile.TemporaryDirectory() as td:
@@ -114,5 +116,6 @@ def test_bist30_symbol_resolution_with_db(temp_db):
         active_syms = ingestor.get_bist30_symbols(active_only=True)
         assert len(active_syms) == 30
         assert "TRALT" in active_syms
-        assert "DSTKF" in active_syms
+        assert "TRMET" in active_syms
+        assert "DSTKF" not in active_syms
         assert "THYAO" in active_syms
