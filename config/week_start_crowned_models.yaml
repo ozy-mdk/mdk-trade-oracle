@@ -75,20 +75,20 @@ symbols:
     recent_20w_sig_total: 12
     recent_20w_sig_rate_pct: 50.0
     recent_20w_penalty_loss: 58.38
-  DSTKF:
-    symbol: DSTKF
+  TRMET:
+    symbol: TRMET
     model: BayesianRidge
     horizon: 6m
     training_lookback_weeks: 26
-    recent_20w_hits: 14
-    recent_20w_hit_rate_pct: 70.0
-    recent_20w_mae_pct: 4.2
-    recent_20w_hit_mae_pct: 2.85
-    recent_20w_miss_mae_pct: 7.37
-    recent_20w_sig_hits: 14
-    recent_20w_sig_total: 19
-    recent_20w_sig_rate_pct: 73.7
-    recent_20w_penalty_loss: 51.28
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 3.1
+    recent_20w_hit_mae_pct: 2.1
+    recent_20w_miss_mae_pct: 4.95
+    recent_20w_sig_hits: 10
+    recent_20w_sig_total: 15
+    recent_20w_sig_rate_pct: 66.7
+    recent_20w_penalty_loss: 55.0
   EKGYO:
     symbol: EKGYO
     model: XGBoost

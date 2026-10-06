@@ -90,23 +90,23 @@ symbols:
     recent_30d_big_move_total: 7
     recent_30d_big_move_hit_rate_pct: 0.0
     recent_30d_penalty_loss: 129.96
-  DSTKF:
-    model: XGBoost
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 24
-    recent_30d_hit_rate_pct: 80.0
-    recent_30d_mae_pct: 4.35
-    recent_30d_hit_mae_pct: 3.2
-    recent_30d_miss_mae_pct: 8.96
-    recent_30d_sig_move_hits: 21
-    recent_30d_sig_move_total: 27
-    recent_30d_sig_move_hit_rate_pct: 77.8
-    recent_30d_quiet_false_alarms: 2
-    recent_30d_big_move_hits: 15
-    recent_30d_big_move_total: 27
-    recent_30d_big_move_hit_rate_pct: 55.6
-    recent_30d_penalty_loss: 99.0
+  TRMET:
+    model: Ridge
+    horizon: 3m
+    training_lookback_sessions: 63
+    recent_30d_hits: 19
+    recent_30d_hit_rate_pct: 63.3
+    recent_30d_mae_pct: 2.15
+    recent_30d_hit_mae_pct: 1.55
+    recent_30d_miss_mae_pct: 3.15
+    recent_30d_sig_move_hits: 10
+    recent_30d_sig_move_total: 16
+    recent_30d_sig_move_hit_rate_pct: 62.5
+    recent_30d_quiet_false_alarms: 1
+    recent_30d_big_move_hits: 2
+    recent_30d_big_move_total: 5
+    recent_30d_big_move_hit_rate_pct: 40.0
+    recent_30d_penalty_loss: 110.0
   EKGYO:
     model: LightGBM
     horizon: 3m

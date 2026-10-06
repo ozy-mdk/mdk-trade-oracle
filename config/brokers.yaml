@@ -63,17 +63,21 @@ brokers:
   name: Halk Yatırım Menkul Değerler
   type: Domestic Major Bank
   is_primary_target: false
-- code: TRA
-  name: Tera Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
 - code: GDK
   name: Gedik Yatırım Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: TRA
+  name: Tera Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: BLS
   name: Bulls Yatırım Menkul Değerler
   type: Domestic Broker
+  is_primary_target: false
+- code: PHC
+  name: PhillipCapital Menkul Değerler
+  type: Foreign Institutional
   is_primary_target: false
 - code: COL
   name: Colendi / Marbas Menkul Değerler
@@ -82,10 +86,6 @@ brokers:
 - code: OMD
   name: Osmanlı Yatırım Menkul Değerler
   type: Domestic Broker
-  is_primary_target: false
-- code: PHC
-  name: PhillipCapital Menkul Değerler
-  type: Foreign Institutional
   is_primary_target: false
 - code: OYA
   name: Oyak Yatırım Menkul Değerler
@@ -119,12 +119,12 @@ brokers:
   name: Kuvve Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: SKY
-  name: Şeker Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
 - code: ANC
   name: Anadolubank Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: SKY
+  name: Şeker Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: AYX
@@ -199,16 +199,16 @@ brokers:
   name: Elips Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
+- code: AMK
+  name: Alternatif Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
 - code: NOR
   name: Nordic Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: ACA
   name: Acar Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
-- code: AMK
-  name: Alternatif Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: INM

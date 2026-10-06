@@ -1465,6 +1465,13 @@ class BronzeIngestor:
                     [sym, sym, "Diversified"],
                 )
 
+        # Demote constituents that exited the active index
+        placeholders = ", ".join(["?"] * len(active_symbols))
+        conn.execute(
+            f"UPDATE bronze_instruments SET index_name = 'BIST' WHERE index_name = 'BIST30' AND symbol != 'XU030' AND symbol NOT IN ({placeholders});",
+            active_symbols,
+        )
+
         logger.debug(f"Synced {len(active_symbols)} active BIST 30 instruments in `bronze_instruments`.")
 
     def get_bist30_symbols(
