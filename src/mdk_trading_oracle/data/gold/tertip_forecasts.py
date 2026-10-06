@@ -366,6 +366,13 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
 
         success_count += 1
 
+    # Purge exited constituents for active periods (e.g. DSTKF as of 2026-10-01)
+    db.execute("""
+        DELETE FROM gold_tertip_daily_forecasts
+        WHERE as_of_date >= '2026-10-01'
+          AND symbol NOT IN (SELECT symbol FROM bronze_bist30_membership WHERE is_active = TRUE);
+    """)
+
     # Invalidate in-memory cache so UI serves fresh data immediately
     clear_forecast_cache()
     elapsed = (datetime.now() - start_time).total_seconds()
