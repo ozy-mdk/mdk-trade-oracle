@@ -450,7 +450,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     Live Upcoming Session (T+1) Forecast
                   </span>
                   <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    TARGET: {forecast.as_of_date}
+                    AS OF: {forecast.as_of_date} CLOSE → NEXT SESSION (T+1)
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
                     activeModel === 'champion'
