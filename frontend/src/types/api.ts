@@ -710,3 +710,113 @@ export interface WeekStartOpportunitiesResponse {
   top_shorts: WeekStartOpportunityItem[];
   opportunities: WeekStartOpportunityItem[];
 }
+
+export interface MultiHorizonBacktestItem {
+  trade_date: string;
+  target_date_start: string;
+  target_date_end: string;
+  current_price: number;
+  actual_avg_price: number;
+  actual_return_pct: number;
+  pred_avg_price: number;
+  pred_return_pct: number;
+  pred_direction: string;
+  actual_direction: string;
+  err_pct: number;
+  is_hit: boolean;
+  is_pending?: boolean;
+  champion_model?: string;
+  actual_training_sessions?: number;
+  target_lookback_sessions?: number;
+  actual_training_months?: number;
+  data_sufficiency_status?: string;
+}
+
+export interface MultiHorizonMeta {
+  horizon: string;
+  horizon_days: number;
+  crowned_model: string;
+  crowned_horizon: string;
+  training_lookback_sessions: number;
+  target_lookback_months?: number;
+  target_lookback_sessions?: number;
+  min_required_train_sessions?: number;
+  hit_rate_pct: number;
+  hits: number;
+  total_evals: number;
+  eval_sessions_requested?: number;
+  sessions_skipped_insufficient?: number;
+  sessions_with_partial_history?: number;
+  sessions_with_full_history?: number;
+  min_training_sessions_used?: number;
+  max_training_sessions_used?: number;
+  data_sufficiency_pct?: number;
+  mae_pct: number;
+  hit_mae_pct: number;
+  miss_mae_pct: number;
+  loss: number;
+}
+
+export interface MultiHorizonLiveForecast {
+  horizon: string;
+  horizon_days: number;
+  as_of_date: string;
+  current_price: number;
+  target_price: number;
+  expected_return_pct: number;
+  price_low: number;
+  price_high: number;
+  stance: string;
+  conviction: string;
+  playbook: string;
+  champion_model: string;
+  training_lookback_sessions: number;
+  actual_training_sessions?: number;
+  actual_training_months?: number;
+  target_training_months?: number;
+  actual_window_desc?: string;
+  data_sufficiency_status?: string;
+}
+
+export interface MultiHorizonItem {
+  meta: MultiHorizonMeta;
+  live_forecast: MultiHorizonLiveForecast;
+  backtest_ledger: MultiHorizonBacktestItem[];
+}
+
+export interface MultiHorizonForecastResponse {
+  status: string;
+  symbol: string;
+  company_name?: string;
+  sector?: string;
+  as_of_date: string;
+  current_price: number;
+  calculated_at: string;
+  horizons: Record<string, MultiHorizonItem>;
+}
+
+export interface MultiHorizonOpportunitiesResponse {
+  horizon: string;
+  total_constituents: number;
+  opportunities: Array<{
+    symbol: string;
+    company_name: string;
+    sector: string;
+    as_of_date: string;
+    current_price: number;
+    target_price: number;
+    expected_return_pct: number;
+    price_low: number;
+    price_high: number;
+    stance: string;
+    conviction: string;
+    playbook: string;
+    ml_champion_type: string;
+    champion_dir_hits: number;
+    champion_total_evals: number;
+    champion_dir_hit_rate_pct: number;
+    champion_mae_pct: number;
+    crowned_horizon: string;
+  }>;
+}
+

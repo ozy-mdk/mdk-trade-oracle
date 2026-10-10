@@ -17,6 +17,9 @@ import {
   WeekStartForecastResponse,
   WeekStartOpportunitiesResponse,
   WeekStartBacktestItem,
+  MultiHorizonForecastResponse,
+  MultiHorizonBacktestItem,
+  MultiHorizonOpportunitiesResponse,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -230,3 +233,31 @@ export async function fetchWeekStartBacktest(
   if (!res.ok) throw new Error('Failed to fetch week start backtest');
   return res.json();
 }
+
+export async function fetchMultiHorizonForecast(
+  symbol: string,
+  fresh: boolean = false
+): Promise<MultiHorizonForecastResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}`);
+  if (!res.ok) throw new Error('Failed to fetch multi-horizon forecast');
+  return res.json();
+}
+
+export async function fetchMultiHorizonBacktest(
+  symbol: string,
+  horizon: string = '3d',
+  limit: number = 30
+): Promise<MultiHorizonBacktestItem[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/backtest?symbol=${encodeURIComponent(symbol)}&horizon=${encodeURIComponent(horizon)}&limit=${limit}`);
+  if (!res.ok) throw new Error('Failed to fetch multi-horizon backtest');
+  return res.json();
+}
+
+export async function fetchMultiHorizonOpportunities(
+  horizon: string = '5d'
+): Promise<MultiHorizonOpportunitiesResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/opportunities?horizon=${encodeURIComponent(horizon)}`);
+  if (!res.ok) throw new Error('Failed to fetch multi-horizon opportunities');
+  return res.json();
+}
+

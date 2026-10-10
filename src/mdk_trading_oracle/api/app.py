@@ -642,6 +642,87 @@ class WeekStartOpportunitiesResponse(BaseModel):
     opportunities: List[WeekStartOpportunityItem]
 
 
+class MultiHorizonBacktestItem(BaseModel):
+    trade_date: str
+    target_date_start: str
+    target_date_end: str
+    current_price: float
+    actual_avg_price: float
+    actual_return_pct: float
+    pred_avg_price: float
+    pred_return_pct: float
+    pred_direction: str
+    actual_direction: str
+    err_pct: float
+    is_hit: bool
+    is_pending: bool = False
+    champion_model: Optional[str] = None
+    actual_training_sessions: Optional[int] = None
+    target_lookback_sessions: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    data_sufficiency_status: Optional[str] = "FULL"
+
+
+class MultiHorizonMeta(BaseModel):
+    horizon: str
+    horizon_days: int
+    crowned_model: str
+    crowned_horizon: str
+    training_lookback_sessions: int
+    hit_rate_pct: float
+    hits: int
+    total_evals: int
+    eval_sessions_requested: int = 180
+    sessions_skipped_insufficient: int = 0
+    sessions_with_partial_history: int = 0
+    sessions_with_full_history: int = 0
+    min_training_sessions_used: int = 0
+    max_training_sessions_used: int = 0
+    data_sufficiency_pct: float = 100.0
+    mae_pct: float
+    hit_mae_pct: float
+    miss_mae_pct: float
+    loss: float
+
+
+class MultiHorizonLiveForecast(BaseModel):
+    horizon: str
+    horizon_days: int
+    as_of_date: str
+    current_price: float
+    target_price: float
+    expected_return_pct: float
+    price_low: float
+    price_high: float
+    stance: str
+    conviction: str
+    playbook: str
+    champion_model: str
+    training_lookback_sessions: int
+    actual_training_sessions: int = 126
+    actual_training_months: float = 6.0
+    target_training_months: float = 6.0
+    actual_window_desc: str = ""
+    data_sufficiency_status: str = "FULL"
+
+
+class MultiHorizonItem(BaseModel):
+    meta: MultiHorizonMeta
+    live_forecast: MultiHorizonLiveForecast
+    backtest_ledger: List[MultiHorizonBacktestItem] = []
+
+
+class MultiHorizonForecastResponse(BaseModel):
+    status: str
+    symbol: str
+    company_name: Optional[str] = None
+    sector: Optional[str] = None
+    as_of_date: str
+    current_price: float
+    calculated_at: str
+    horizons: Dict[str, MultiHorizonItem]
+
+
 class TertipTimeseriesPoint(BaseModel):
     time: int
     trade_date: str
@@ -2198,6 +2279,135 @@ def get_week_start_backtest(
         ]
     except Exception as e:
         logger.error(f"Error fetching backtest ledger for {sym}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Multi-Horizon ML Forecaster Endpoints (3d, 5d, 10d, 15d, 30d) ─────────────
+
+@app.get("/api/v1/tertip/multi-horizon/forecast", response_model=MultiHorizonForecastResponse)
+def get_multi_horizon_forecast_endpoint(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+    fresh: bool = Query(False, description="Bypass in-memory cache"),
+) -> MultiHorizonForecastResponse:
+    """Return forward multi-horizon predictions (3d, 5d, 10d, 15d, 30d) and walk-forward track."""
+    sym = symbol.strip().upper()
+    try:
+        from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+            clear_multi_horizon_cache,
+            get_multi_horizon_forecaster_payload,
+        )
+
+        if fresh:
+            clear_multi_horizon_cache()
+
+        data = get_multi_horizon_forecaster_payload(db, sym)
+        if data.get("status") != "success":
+            raise HTTPException(status_code=404, detail=data.get("message", f"Forecast unavailable for {sym}"))
+
+        # Enrich with company metadata
+        inst_row = db.query_pl(
+            "SELECT name, sector FROM bronze_instruments WHERE symbol = %s LIMIT 1",
+            params=[sym],
+        ).to_dicts()
+        if inst_row:
+            data["company_name"] = inst_row[0].get("name") or sym
+            data["sector"] = inst_row[0].get("sector") or "Equities"
+        else:
+            data["company_name"] = sym
+            data["sector"] = "Equities"
+
+        return MultiHorizonForecastResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing multi-horizon forecast for {sym}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tertip/multi-horizon/backtest", response_model=List[MultiHorizonBacktestItem])
+def get_multi_horizon_backtest_endpoint(
+    symbol: str = Query("THYAO", description="Stock symbol"),
+    horizon: str = Query("3d", description="Horizon: 3d, 5d, 10d, 15d, 30d"),
+    limit: int = Query(30, le=100, description="Max backtest records"),
+) -> List[MultiHorizonBacktestItem]:
+    """Return historical walk-forward backtest ledger for a specific symbol and horizon."""
+    sym = symbol.strip().upper()
+    h_key = horizon.strip().lower()
+    try:
+        query_bt = """
+            SELECT trade_date, target_date_start, target_date_end, current_price,
+                   actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
+                   pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model
+            FROM gold_tertip_multi_horizon_backtests
+            WHERE symbol = %(symbol)s AND horizon = %(horizon)s
+            ORDER BY trade_date DESC
+            LIMIT %(limit)s;
+        """
+        bt_rows = db.query_pl(query_bt, {"symbol": sym, "horizon": h_key, "limit": limit}).to_dicts()
+        if not bt_rows:
+            # Fall back to live generator if database table is not yet populated
+            from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+                get_multi_horizon_forecaster_payload,
+            )
+            payload = get_multi_horizon_forecaster_payload(db, sym)
+            h_data = payload.get("horizons", {}).get(h_key, {})
+            ledger = h_data.get("backtest_ledger", [])
+            return [MultiHorizonBacktestItem(**b) for b in ledger[:limit]]
+
+        return [
+            MultiHorizonBacktestItem(
+                trade_date=str(b["trade_date"]),
+                target_date_start=str(b.get("target_date_start") or b["trade_date"]),
+                target_date_end=str(b.get("target_date_end") or b["trade_date"]),
+                current_price=float(b.get("current_price") or 0.0),
+                actual_avg_price=float(b.get("actual_avg_price") or 0.0),
+                actual_return_pct=float(b.get("actual_return_pct") or 0.0),
+                pred_avg_price=float(b.get("pred_avg_price") or 0.0),
+                pred_return_pct=float(b.get("pred_return_pct") or 0.0),
+                pred_direction=str(b.get("pred_direction") or "NEUTRAL"),
+                actual_direction=str(b.get("actual_direction") or "NEUTRAL"),
+                err_pct=float(b.get("err_pct") or 0.0),
+                is_hit=bool(b.get("is_hit")),
+                is_pending=bool(b.get("is_pending", False)),
+                champion_model=str(b.get("champion_model") or "Auto"),
+            )
+            for b in bt_rows
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching multi-horizon backtest for {sym} ({h_key}): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tertip/multi-horizon/opportunities")
+def get_multi_horizon_opportunities_endpoint(
+    horizon: str = Query("5d", description="Horizon key: 3d, 5d, 10d, 15d, 30d"),
+) -> Dict[str, Any]:
+    """Return all constituent predictions for a given forward horizon ranked by expected return."""
+    h_key = horizon.strip().lower()
+    try:
+        query_opp = """
+            WITH latest_fc AS (
+                SELECT symbol, as_of_date, horizon, horizon_days, current_price, target_price,
+                       expected_return_pct, price_low, price_high, stance, conviction, playbook,
+                       ml_champion_type, champion_dir_hits, champion_total_evals,
+                       champion_dir_hit_rate_pct, champion_mae_pct, crowned_horizon
+                FROM gold_tertip_multi_horizon_forecasts
+                WHERE horizon = %(horizon)s
+                  AND as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_multi_horizon_forecasts WHERE horizon = %(horizon)s)
+            )
+            SELECT f.*, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector
+            FROM latest_fc f
+            LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
+            ORDER BY f.expected_return_pct DESC;
+        """
+        rows = db.query_pl(query_opp, {"horizon": h_key}).to_dicts()
+        return {
+            "horizon": h_key,
+            "total_constituents": len(rows),
+            "opportunities": rows,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching multi-horizon opportunities ({h_key}): {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

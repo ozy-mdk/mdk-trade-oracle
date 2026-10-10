@@ -3,8 +3,9 @@
 > vite
 
 
-  VITE v5.4.21  ready in 201 ms
+  VITE v5.4.21  ready in 112 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://192.168.178.55:5173/
-8:40:02 PM [vite] hmr update /src/components/OracleHubDashboard.tsx, /src/index.css
+9:06:18 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
+9:06:40 PM [vite] page reload src/types/api.ts

@@ -8,6 +8,7 @@ import { TimeWindowTerminal } from './components/TimeWindowTerminal';
 import { OracleHubDashboard } from './components/OracleHubDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import { WeekStartDashboard } from './components/WeekStartDashboard';
+import { MultiHorizonDashboard } from './components/MultiHorizonDashboard';
 import {
   LineChart,
   Boxes,
@@ -19,10 +20,11 @@ import {
   Database,
   Compass,
   Calendar,
+  Layers,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities' | 'weekstart'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities' | 'weekstart' | 'multihorizon'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -274,6 +276,7 @@ export const App: React.FC = () => {
             { id: 'oracle', label: 'Gold Predictive Hub', icon: Sparkles },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
             { id: 'weekstart', label: 'Week Start Predictive Hub', icon: Calendar },
+            { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
             { id: 'event', label: 'Event Study Scanner', icon: Binary },
             { id: 'timewindow', label: 'Time Window Terminal', icon: Clock },
           ].map((tab) => {
@@ -349,6 +352,14 @@ export const App: React.FC = () => {
 
         {activeTab === 'weekstart' && (
           <WeekStartDashboard
+            symbol={selectedSymbol}
+            onSelectSymbol={handleSelectSymbol}
+            onNavigateTab={(tab) => setActiveTab(tab as any)}
+          />
+        )}
+
+        {activeTab === 'multihorizon' && (
+          <MultiHorizonDashboard
             symbol={selectedSymbol}
             onSelectSymbol={handleSelectSymbol}
             onNavigateTab={(tab) => setActiveTab(tab as any)}

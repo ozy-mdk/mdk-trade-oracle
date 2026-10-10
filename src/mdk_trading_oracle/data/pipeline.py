@@ -264,6 +264,18 @@ class MedallionPipeline:
         except Exception as e_ws:
             logger.warning(f"Could not update Gold Week Start forecasts: {e_ws}")
 
+        # Update Gold Layer Multi-Horizon Forecasts & Backtests (3d, 5d, 10d, 15d, 30d)
+        try:
+            logger.info("Updating Gold Layer Multi-Horizon Forecasts (3d, 5d, 10d, 15d, 30d)...")
+            from mdk_trading_oracle.data.gold.tertip_multi_horizon import (
+                update_gold_tertip_multi_horizon_forecasts,
+            )
+
+            mh_res = update_gold_tertip_multi_horizon_forecasts(self.db)
+            gold_res["multi_horizon_forecasts"] = mh_res
+        except Exception as e_mh:
+            logger.warning(f"Could not update Gold Multi-Horizon forecasts: {e_mh}")
+
         conn = self.db.get_connection()
         signals_count = conn.execute("SELECT COUNT(*) FROM gold_institutional_daily_signals;").fetchone()[0]
         elapsed = (datetime.now() - start_time).total_seconds()
