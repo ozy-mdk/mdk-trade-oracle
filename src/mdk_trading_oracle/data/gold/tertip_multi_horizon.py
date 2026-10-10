@@ -116,17 +116,14 @@ def update_gold_tertip_multi_horizon_forecasts(
     crowned_cfg = load_crowned_multi_horizon_config()
     symbols_cfg = crowned_cfg.get("symbols", {})
 
-    # Determine universe to update
+    # Determine universe to update: strictly active BIST 30 members
     if symbols:
         target_symbols = [s.upper() for s in symbols]
-    elif symbols_cfg:
-        target_symbols = list(symbols_cfg.keys())
     else:
-        # Default to BIST 30 symbols
         rows = db.query_pl(
-            "SELECT DISTINCT symbol FROM bronze_bist30_membership ORDER BY symbol ASC"
+            "SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC"
         ).to_pandas()
-        target_symbols = rows["symbol"].tolist() if not rows.empty else ["THYAO", "ASELS", "GARAN", "AKBNK", "ISCTR"]
+        target_symbols = rows["symbol"].tolist() if not rows.empty else list(symbols_cfg.keys())
 
     updated_count = 0
     errors = []
@@ -134,7 +131,7 @@ def update_gold_tertip_multi_horizon_forecasts(
     for sym in target_symbols:
         try:
             sym_comp = symbols_cfg.get(sym, DEFAULT_CHAMPIONS)
-            payload = get_multi_horizon_forecaster_payload(db, sym, selected_composition=sym_comp)
+            payload = get_multi_horizon_forecaster_payload(db, sym, selected_composition=sym_comp, n_eval_sessions=60)
             if payload.get("status") != "success":
                 continue
 

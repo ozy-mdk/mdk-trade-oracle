@@ -859,7 +859,7 @@ def run_30d_walk_forward_arena(
         })
 
     n_total = len(step_records)
-    recent_window = min(30, n_total)
+    recent_window = min(n_sessions, n_total)
     recent_slice = step_records[-recent_window:]
 
     # 3-Criteria Tournament Selection Loss:
@@ -1683,20 +1683,21 @@ def _get_precomputed_forecast_from_db(
                 "data_sufficiency_status": str(r[36] or "FULL"),
             })
 
-        # Trailing 30 evaluation stats
-        last_30 = ledger[-30:] if len(ledger) >= 30 else ledger
-        tot_30 = len(last_30)
-        ml_hits_30 = sum(1 for x in last_30 if x["ml_is_hit"])
-        p_hits_30 = sum(1 for x in last_30 if x["prophet_is_hit"])
-        ml_mae_30 = sum(x["ml_err_pct"] for x in last_30) / tot_30 if tot_30 > 0 else 0.0
-        p_mae_30 = sum(x["prophet_err_pct"] for x in last_30) / tot_30 if tot_30 > 0 else 0.0
-        ml_wins_cnt = sum(1 for x in last_30 if x["winner"] == "TERTIP_ML_CHALLENGER")
-        p_wins_cnt = tot_30 - ml_wins_cnt
+        # Trailing evaluation stats (evaluated over up to 60 retrospective sessions if available)
+        eval_window_n = min(60, len(ledger))
+        last_eval = ledger[-eval_window_n:] if len(ledger) >= eval_window_n else ledger
+        tot_eval = len(last_eval)
+        ml_hits_eval = sum(1 for x in last_eval if x["ml_is_hit"])
+        p_hits_eval = sum(1 for x in last_eval if x["prophet_is_hit"])
+        ml_mae_eval = sum(x["ml_err_pct"] for x in last_eval) / tot_eval if tot_eval > 0 else 0.0
+        p_mae_eval = sum(x["prophet_err_pct"] for x in last_eval) / tot_eval if tot_eval > 0 else 0.0
+        ml_wins_cnt = sum(1 for x in last_eval if x["winner"] == "TERTIP_ML_CHALLENGER")
+        p_wins_cnt = tot_eval - ml_wins_cnt
 
         champ_model = str(f_row[10])
-        champ_hits = int(f_row[11] if f_row[11] is not None else ml_hits_30)
-        champ_hit_rate = float(f_row[12] if f_row[12] is not None else (ml_hits_30 / tot_30 * 100.0 if tot_30 > 0 else 0.0))
-        champ_mae = float(f_row[13] if f_row[13] is not None else ml_mae_30)
+        champ_hits = int(f_row[11] if f_row[11] is not None else ml_hits_eval)
+        champ_hit_rate = float(f_row[12] if f_row[12] is not None else (ml_hits_eval / tot_eval * 100.0 if tot_eval > 0 else 0.0))
+        champ_mae = float(f_row[13] if f_row[13] is not None else ml_mae_eval)
         train_lb = int(f_row[17] if f_row[17] is not None else 252)
         crowned_horizon = str(f_row[18] if f_row[18] is not None else "12m")
         act_train_sess = int(f_row[19] if len(f_row) > 19 and f_row[19] is not None else train_lb)
@@ -1715,21 +1716,21 @@ def _get_precomputed_forecast_from_db(
             "target_training_months": round(train_lb / 21.0, 1),
             "actual_window_desc": window_desc,
             "data_sufficiency_status": suff_status,
-            "selection_window_sessions": 30,
+            "selection_window_sessions": tot_eval,
             "champion_dir_hits": champ_hits,
             "champion_dir_hit_rate_pct": round(champ_hit_rate, 1),
             "champion_mae_pct": round(champ_mae, 2),
-            "ml_dir_hits": ml_hits_30,
-            "ml_dir_hit_rate_pct": round((ml_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
-            "ml_hit_rate_pct": round((ml_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
-            "ml_mae_pct": round(ml_mae_30, 2),
-            "prophet_dir_hits": p_hits_30,
-            "prophet_dir_hit_rate_pct": round((p_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
-            "prophet_hit_rate_pct": round((p_hits_30 / tot_30 * 100.0), 1) if tot_30 > 0 else 0.0,
-            "prophet_mae_pct": round(p_mae_30, 2),
+            "ml_dir_hits": ml_hits_eval,
+            "ml_dir_hit_rate_pct": round((ml_hits_eval / tot_eval * 100.0), 1) if tot_eval > 0 else 0.0,
+            "ml_hit_rate_pct": round((ml_hits_eval / tot_eval * 100.0), 1) if tot_eval > 0 else 0.0,
+            "ml_mae_pct": round(ml_mae_eval, 2),
+            "prophet_dir_hits": p_hits_eval,
+            "prophet_dir_hit_rate_pct": round((p_hits_eval / tot_eval * 100.0), 1) if tot_eval > 0 else 0.0,
+            "prophet_hit_rate_pct": round((p_hits_eval / tot_eval * 100.0), 1) if tot_eval > 0 else 0.0,
+            "prophet_mae_pct": round(p_mae_eval, 2),
             "ml_wins": ml_wins_cnt,
             "prophet_wins": p_wins_cnt,
-            "total_sessions": tot_30,
+            "total_sessions": tot_eval,
             "convex_weight_ml": c_w_ml,
             "convex_weight_prophet": c_w_p,
         }

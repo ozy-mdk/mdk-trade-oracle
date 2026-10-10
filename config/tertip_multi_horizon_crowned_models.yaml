@@ -257,27 +257,6 @@ symbols:
       model: BayesianRidge
       horizon: 12m
       training_lookback_sessions: 252
-  DSTKF:
-    3d:
-      model: LightGBM
-      horizon: 3m
-      training_lookback_sessions: 63
-    5d:
-      model: XGBoost
-      horizon: 6m
-      training_lookback_sessions: 126
-    10d:
-      model: BayesianRidge
-      horizon: 6m
-      training_lookback_sessions: 126
-    15d:
-      model: Ridge
-      horizon: 12m
-      training_lookback_sessions: 252
-    30d:
-      model: BayesianRidge
-      horizon: 12m
-      training_lookback_sessions: 252
   EKGYO:
     3d:
       model: LightGBM

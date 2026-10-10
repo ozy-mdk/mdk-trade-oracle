@@ -114,17 +114,8 @@ def main() -> None:
     if args.symbol:
         symbols = [args.symbol.upper()]
     else:
-        # Load from config/tertip_crowned_models.yaml if exists, or query from DB
-        tertip_cfg_path = Path("config/tertip_crowned_models.yaml")
-        if tertip_cfg_path.exists():
-            with open(tertip_cfg_path, "r", encoding="utf-8") as f:
-                t_cfg = yaml.safe_load(f)
-            symbols = sorted(list(t_cfg.get("symbols", {}).keys()))
-        else:
-            rows = db.query_df(
-                "SELECT DISTINCT symbol FROM bronze_instruments WHERE is_active = TRUE ORDER BY symbol LIMIT 30;"
-            )
-            symbols = rows["symbol"].tolist()
+        res = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC")
+        symbols = res["symbol"].to_list()
 
     logger.info("Starting Week Start Tournament for %d symbols across %d Mondays...", len(symbols), args.weeks)
     t0 = time.time()

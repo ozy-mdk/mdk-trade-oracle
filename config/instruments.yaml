@@ -225,8 +225,8 @@ instruments:
   index: BIST100
   lot_multiplier: 1.0
 - symbol: TRMET
-  name: TRMET BIST Equity
-  sector: Equities
+  name: Tureks Turunç Madencilik İç ve Dış Ticaret A.Ş.
+  sector: Materials & Mining
   index: BIST30
   lot_multiplier: 1.0
 - symbol: ZPLIBF
@@ -30184,13 +30184,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ALDUKF1
-  name: ALDUKF1 BIST Equity
+- symbol: ESIGKV
+  name: ESIGKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESIGKV
-  name: ESIGKV BIST Equity
+- symbol: ALDUKF1
+  name: ALDUKF1 BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -32829,13 +32829,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BIAYEV
-  name: BIAYEV BIST Equity
+- symbol: TMIWVV
+  name: TMIWVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TMIWVV
-  name: TMIWVV BIST Equity
+- symbol: BIAYEV
+  name: BIAYEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -35259,13 +35259,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EPIPRV
-  name: EPIPRV BIST Equity
+- symbol: AGALBV
+  name: AGALBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AGALBV
-  name: AGALBV BIST Equity
+- symbol: EPIPRV
+  name: EPIPRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -35369,13 +35369,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EIBJIV
-  name: EIBJIV BIST Equity
+- symbol: MTIQQV
+  name: MTIQQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MTIQQV
-  name: MTIQQV BIST Equity
+- symbol: EIBJIV
+  name: EIBJIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -35914,13 +35914,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: NDBURV
-  name: NDBURV BIST Equity
+- symbol: EYBVEV
+  name: EYBVEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EYBVEV
-  name: EYBVEV BIST Equity
+- symbol: NDBURV
+  name: NDBURV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -36304,13 +36304,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ABSMXV
-  name: ABSMXV BIST Equity
+- symbol: YPAPZV
+  name: YPAPZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YPAPZV
-  name: YPAPZV BIST Equity
+- symbol: ABSMXV
+  name: ABSMXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -36784,13 +36784,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IYSFGV
-  name: IYSFGV BIST Equity
+- symbol: TARAGV
+  name: TARAGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TARAGV
-  name: TARAGV BIST Equity
+- symbol: IYSFGV
+  name: IYSFGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -37189,13 +37189,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EDBVMV
-  name: EDBVMV BIST Equity
+- symbol: AGSOEV
+  name: AGSOEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AGSOEV
-  name: AGSOEV BIST Equity
+- symbol: EDBVMV
+  name: EDBVMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -38724,13 +38724,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EKSJHV
-  name: EKSJHV BIST Equity
+- symbol: PRBCNV
+  name: PRBCNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PRBCNV
-  name: PRBCNV BIST Equity
+- symbol: EKSJHV
+  name: EKSJHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -39399,13 +39399,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PLSRRV
-  name: PLSRRV BIST Equity
+- symbol: PTABKV
+  name: PTABKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PTABKV
-  name: PTABKV BIST Equity
+- symbol: PLSRRV
+  name: PLSRRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -39689,13 +39689,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: FRAKWV
-  name: FRAKWV BIST Equity
+- symbol: YKRBAV
+  name: YKRBAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YKRBAV
-  name: YKRBAV BIST Equity
+- symbol: FRAKWV
+  name: FRAKWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -39889,13 +39889,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TAAEXV
-  name: TAAEXV BIST Equity
+- symbol: AGSNWV
+  name: AGSNWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AGSNWV
-  name: AGSNWV BIST Equity
+- symbol: TAAEXV
+  name: TAAEXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -40214,13 +40214,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SASLQV
-  name: SASLQV BIST Equity
+- symbol: GA1JOV
+  name: GA1JOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GA1JOV
-  name: GA1JOV BIST Equity
+- symbol: SASLQV
+  name: SASLQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -40284,13 +40284,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YPACKV
-  name: YPACKV BIST Equity
+- symbol: VBAEQV
+  name: VBAEQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: VBAEQV
-  name: VBAEQV BIST Equity
+- symbol: YPACKV
+  name: YPACKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -40299,13 +40299,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TAIJHV
-  name: TAIJHV BIST Equity
+- symbol: APSURV
+  name: APSURV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: APSURV
-  name: APSURV BIST Equity
+- symbol: TAIJHV
+  name: TAIJHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -40654,13 +40654,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SEIVNV
-  name: SEIVNV BIST Equity
+- symbol: IVBFYV
+  name: IVBFYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IVBFYV
-  name: IVBFYV BIST Equity
+- symbol: SEIVNV
+  name: SEIVNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41089,13 +41089,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EFIHBV
-  name: EFIHBV BIST Equity
+- symbol: DJSYYV
+  name: DJSYYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TDIQGV
-  name: TDIQGV BIST Equity
+- symbol: EFIHBV
+  name: EFIHBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41104,8 +41104,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: DJSYYV
-  name: DJSYYV BIST Equity
+- symbol: TDIQGV
+  name: TDIQGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41269,11 +41269,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KCACNV
-  name: KCACNV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: FRSUIV
   name: FRSUIV BIST Equity
   sector: Equities
@@ -41281,6 +41276,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: ICABLV
   name: ICABLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KCACNV
+  name: KCACNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41509,11 +41509,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TYACJV
-  name: TYACJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: PGRPOV
   name: PGRPOV BIST Equity
   sector: Equities
@@ -41524,8 +41519,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SOBQYV
-  name: SOBQYV BIST Equity
+- symbol: PGBQYV
+  name: PGBQYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41534,8 +41529,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PGBQYV
-  name: PGBQYV BIST Equity
+- symbol: SOBQYV
+  name: SOBQYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TYACJV
+  name: TYACJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: XABWBV
+  name: XABWBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41544,8 +41549,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: XABWBV
-  name: XABWBV BIST Equity
+- symbol: ABAIYV
+  name: ABAIYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41556,11 +41561,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: EFIWMV
   name: EFIWMV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ABAIYV
-  name: ABAIYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41884,13 +41884,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MGASFV
-  name: MGASFV BIST Equity
+- symbol: GUBUQV
+  name: GUBUQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GUBUQV
-  name: GUBUQV BIST Equity
+- symbol: MGASFV
+  name: MGASFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -41944,13 +41944,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TARASV
-  name: TARASV BIST Equity
+- symbol: PGAYKV
+  name: PGAYKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PGAYKV
-  name: PGAYKV BIST Equity
+- symbol: TARASV
+  name: TARASV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42099,13 +42099,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TP1WCV
-  name: TP1WCV BIST Equity
+- symbol: RGBQSV
+  name: RGBQSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: RGBQSV
-  name: RGBQSV BIST Equity
+- symbol: TP1WCV
+  name: TP1WCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42284,11 +42284,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: DJIXPV
-  name: DJIXPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: MRIILV
   name: MRIILV BIST Equity
   sector: Equities
@@ -42301,6 +42296,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: ELABHV
   name: ELABHV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: DJIXPV
+  name: DJIXPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42604,13 +42604,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PBBUBV
-  name: PBBUBV BIST Equity
+- symbol: KRBVRV
+  name: KRBVRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KRBVRV
-  name: KRBVRV BIST Equity
+- symbol: PBBUBV
+  name: PBBUBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42689,13 +42689,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MDIPCV
-  name: MDIPCV BIST Equity
+- symbol: MDIACV
+  name: MDIACV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MDIACV
-  name: MDIACV BIST Equity
+- symbol: MDIPCV
+  name: MDIPCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42709,13 +42709,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: CTIHBV
-  name: CTIHBV BIST Equity
+- symbol: MSICBV
+  name: MSICBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MSICBV
-  name: MSICBV BIST Equity
+- symbol: CTIHBV
+  name: CTIHBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42799,13 +42799,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ACIQYV
-  name: ACIQYV BIST Equity
+- symbol: VBIWIV
+  name: VBIWIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: VBIWIV
-  name: VBIWIV BIST Equity
+- symbol: ACIQYV
+  name: ACIQYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42829,13 +42829,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TAIJZV
-  name: TAIJZV BIST Equity
+- symbol: KMIGGV
+  name: KMIGGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KMIGGV
-  name: KMIGGV BIST Equity
+- symbol: TAIJZV
+  name: TAIJZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -42889,6 +42889,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: NXBGOV
+  name: NXBGOV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: CUBDUV
   name: CUBDUV BIST Equity
   sector: Equities
@@ -42896,11 +42901,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: DKBTAV
   name: DKBTAV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: NXBGOV
-  name: NXBGOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43019,13 +43019,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MDIABV
-  name: MDIABV BIST Equity
+- symbol: GXIVAV
+  name: GXIVAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXIVAV
-  name: GXIVAV BIST Equity
+- symbol: MDIABV
+  name: MDIABV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43049,13 +43049,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESIWNV
-  name: ESIWNV BIST Equity
+- symbol: BSIWAV
+  name: BSIWAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BSIWAV
-  name: BSIWAV BIST Equity
+- symbol: ESIWNV
+  name: ESIWNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43129,13 +43129,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GFIUVV
-  name: GFIUVV BIST Equity
+- symbol: ESIWJV
+  name: ESIWJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESIWJV
-  name: ESIWJV BIST Equity
+- symbol: GFIUVV
+  name: GFIUVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43214,13 +43214,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AAIVSV
-  name: AAIVSV BIST Equity
+- symbol: TVIWPV
+  name: TVIWPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TVIWPV
-  name: TVIWPV BIST Equity
+- symbol: AAIVSV
+  name: AAIVSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43459,11 +43459,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SDIQYV
-  name: SDIQYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: GXIFWV
   name: GXIFWV BIST Equity
   sector: Equities
@@ -43481,6 +43476,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: SOIMTV
   name: SOIMTV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SDIQYV
+  name: SDIQYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43524,16 +43524,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ITITPV
-  name: ITITPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: VBIEUV
-  name: VBIEUV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: AOIZKV
   name: AOIZKV BIST Equity
   sector: Equities
@@ -43541,6 +43531,16 @@ instruments:
   lot_multiplier: 1.0
 - symbol: NVIDCV
   name: NVIDCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ITITPV
+  name: ITITPV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: VBIEUV
+  name: VBIEUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43559,13 +43559,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GAABXV
-  name: GAABXV BIST Equity
+- symbol: UA1DLV
+  name: UA1DLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: UA1DLV
-  name: UA1DLV BIST Equity
+- symbol: GAABXV
+  name: GAABXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43689,13 +43689,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GFIFXV
-  name: GFIFXV BIST Equity
+- symbol: SPIMSV
+  name: SPIMSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SPIMSV
-  name: SPIMSV BIST Equity
+- symbol: GFIFXV
+  name: GFIFXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43839,18 +43839,33 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TK1KPV
-  name: TK1KPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: XABWNV
   name: XABWNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: PGALQV
+  name: PGALQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: AGAKJV
+  name: AGAKJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TK1KPV
+  name: TK1KPV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: PGRAIV
   name: PGRAIV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: NAIXWV
+  name: NAIXWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43861,21 +43876,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: ABAISV
   name: ABAISV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AGAKJV
-  name: AGAKJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: PGALQV
-  name: PGALQV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: NAIXWV
-  name: NAIXWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43904,13 +43904,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MRIJJV
-  name: MRIJJV BIST Equity
+- symbol: AZIDDV
+  name: AZIDDV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EFIHUV
-  name: EFIHUV BIST Equity
+- symbol: MRIJJV
+  name: MRIJJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43919,18 +43919,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AZIDDV
-  name: AZIDDV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: SEIGMV
-  name: SEIGMV BIST Equity
+- symbol: EFIHUV
+  name: EFIHUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: TNIURV
   name: TNIURV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SEIGMV
+  name: SEIGMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -43974,13 +43974,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOSQPV
-  name: AOSQPV BIST Equity
+- symbol: SOIMKV
+  name: SOIMKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SOIMKV
-  name: SOIMKV BIST Equity
+- symbol: AOSQPV
+  name: AOSQPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44004,13 +44004,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ITITQV
-  name: ITITQV BIST Equity
+- symbol: EIIMRV
+  name: EIIMRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EIIMRV
-  name: EIIMRV BIST Equity
+- symbol: ITITQV
+  name: ITITQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44039,8 +44039,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GAILWV
-  name: GAILWV BIST Equity
+- symbol: MSIRCV
+  name: MSIRCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44049,8 +44049,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MSIRCV
-  name: MSIRCV BIST Equity
+- symbol: GAILWV
+  name: GAILWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44064,13 +44064,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TMIXTV
-  name: TMIXTV BIST Equity
+- symbol: GFIUWV
+  name: GFIUWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GFIUWV
-  name: GFIUWV BIST Equity
+- symbol: TMIXTV
+  name: TMIXTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44329,13 +44329,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AMSBSV
-  name: AMSBSV BIST Equity
+- symbol: AOBHHV
+  name: AOBHHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOBHHV
-  name: AOBHHV BIST Equity
+- symbol: AMSBSV
+  name: AMSBSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44394,23 +44394,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MRIYIV
-  name: MRIYIV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: ESIHIV
   name: ESIHIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ER1WFV
-  name: ER1WFV BIST Equity
+- symbol: MRIYIV
+  name: MRIYIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: DKBCYV
-  name: DKBCYV BIST Equity
+- symbol: ER1WFV
+  name: ER1WFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44421,6 +44416,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: TTRASV
   name: TTRASV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: DKBCYV
+  name: DKBCYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44484,6 +44484,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: UAITAV
+  name: UAITAV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: EOIRAV
   name: EOIRAV BIST Equity
   sector: Equities
@@ -44491,11 +44496,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: TAIZCV
   name: TAIZCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: UAITAV
-  name: UAITAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44534,13 +44534,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TVIEXV
-  name: TVIEXV BIST Equity
+- symbol: FRSLFV
+  name: FRSLFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: FRSLFV
-  name: FRSLFV BIST Equity
+- symbol: TVIEXV
+  name: TVIEXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44549,18 +44549,33 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: UD1DNV
-  name: UD1DNV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: TL1JTV
   name: TL1JTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: UD1DNV
+  name: UD1DNV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: YK1WYV
   name: YK1WYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EFIHVV
+  name: EFIHVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SEIWBV
+  name: SEIWBV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EFIWUV
+  name: EFIWUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44576,21 +44591,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: MRIYOV
   name: MRIYOV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EFIHVV
-  name: EFIHVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EFIWUV
-  name: EFIWUV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: SEIWBV
-  name: SEIWBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44844,23 +44844,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EEIRBV
-  name: EEIRBV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: ITITKV
   name: ITITKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ELIMWV
-  name: ELIMWV BIST Equity
+- symbol: ACIRAV
+  name: ACIRAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ACIRAV
-  name: ACIRAV BIST Equity
+- symbol: EEIRBV
+  name: EEIRBV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ELIMWV
+  name: ELIMWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44894,13 +44894,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KBIRAV
-  name: KBIRAV BIST Equity
+- symbol: AZISFV
+  name: AZISFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AZISFV
-  name: AZISFV BIST Equity
+- symbol: KBIRAV
+  name: KBIRAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -44949,13 +44949,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PSIIKV
-  name: PSIIKV BIST Equity
+- symbol: ESIWLV
+  name: ESIWLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESIWLV
-  name: ESIWLV BIST Equity
+- symbol: PSIIKV
+  name: PSIIKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45004,23 +45004,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GAILSV
-  name: GAILSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: AZIDCV
   name: AZIDCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GFIUXV
-  name: GFIUXV BIST Equity
+- symbol: CUITTV
+  name: CUITTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: CUITTV
-  name: CUITTV BIST Equity
+- symbol: GAILSV
+  name: GAILSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: GFIUXV
+  name: GFIUXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45049,23 +45049,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MRIYPV
-  name: MRIYPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: PSIXUV
   name: PSIXUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: NVISFV
-  name: NVISFV BIST Equity
+- symbol: MRIYPV
+  name: MRIYPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: EFIHWV
   name: EFIHWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: NVISFV
+  name: NVISFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45149,13 +45149,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PXSPCV
-  name: PXSPCV BIST Equity
+- symbol: EUSKYV
+  name: EUSKYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EUSKYV
-  name: EUSKYV BIST Equity
+- symbol: PXSPCV
+  name: PXSPCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45219,18 +45219,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: FOITKV
-  name: FOITKV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: IVIYOV
-  name: IVIYOV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: MSIRDV
   name: MSIRDV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EOIRBV
+  name: EOIRBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45239,13 +45234,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: IVIYOV
+  name: IVIYOV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: TVIWXV
   name: TVIWXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EOIRBV
-  name: EOIRBV BIST Equity
+- symbol: FOITKV
+  name: FOITKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45279,6 +45279,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: TMIXVV
+  name: TMIXVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: KBIRBV
   name: KBIRBV BIST Equity
   sector: Equities
@@ -45291,11 +45296,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: VBIWGV
   name: VBIWGV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TMIXVV
-  name: TMIXVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45334,11 +45334,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BSIWCV
-  name: BSIWCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: MTIRDV
   name: MTIRDV BIST Equity
   sector: Equities
@@ -45346,6 +45341,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: GAILYV
   name: GAILYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BSIWCV
+  name: BSIWCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45359,13 +45359,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PBSNVV
-  name: PBSNVV BIST Equity
+- symbol: AOBHJV
+  name: AOBHJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOBHJV
-  name: AOBHJV BIST Equity
+- symbol: PBSNVV
+  name: PBSNVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45399,6 +45399,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: ITITLV
+  name: ITITLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: YNITFV
   name: YNITFV BIST Equity
   sector: Equities
@@ -45406,11 +45411,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: KMIVTV
   name: KMIVTV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ITITLV
-  name: ITITLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45459,13 +45459,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TBIRFV
-  name: TBIRFV BIST Equity
+- symbol: PSIIFV
+  name: PSIIFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PSIIFV
-  name: PSIIFV BIST Equity
+- symbol: TBIRFV
+  name: TBIRFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45509,18 +45509,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: MRIYJV
+  name: MRIYJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: EFIXBV
   name: EFIXBV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GGIPRV
-  name: GGIPRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: SEIVWV
-  name: SEIVWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45529,8 +45524,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MRIYJV
-  name: MRIYJV BIST Equity
+- symbol: SEIVWV
+  name: SEIVWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: GGIPRV
+  name: GGIPRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45559,8 +45559,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESIHJV
-  name: ESIHJV BIST Equity
+- symbol: SDIRBV
+  name: SDIRBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45569,8 +45569,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SDIRBV
-  name: SDIRBV BIST Equity
+- symbol: ESIHJV
+  name: ESIHJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45624,13 +45624,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TL1VWV
-  name: TL1VWV BIST Equity
+- symbol: MSBWAV
+  name: MSBWAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MSBWAV
-  name: MSBWAV BIST Equity
+- symbol: TL1VWV
+  name: TL1VWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45729,8 +45729,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PSIXPV
-  name: PSIXPV BIST Equity
+- symbol: SYIVJV
+  name: SYIVJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45739,8 +45739,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SYIVJV
-  name: SYIVJV BIST Equity
+- symbol: GFIUYV
+  name: GFIUYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45754,13 +45754,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GFIUYV
-  name: GFIUYV BIST Equity
+- symbol: EPIQRV
+  name: EPIQRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EPIQRV
-  name: EPIQRV BIST Equity
+- symbol: PSIXPV
+  name: PSIXPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45794,18 +45794,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: TAIYXV
+  name: TAIYXV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: EEIQWV
   name: EEIQWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXIVCV
-  name: GXIVCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TAIYXV
-  name: TAIYXV BIST Equity
+- symbol: TBIRGV
+  name: TBIRGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45814,13 +45814,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AS1WWV
-  name: AS1WWV BIST Equity
+- symbol: GXIVCV
+  name: GXIVCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TBIRGV
-  name: TBIRGV BIST Equity
+- symbol: AS1WWV
+  name: AS1WWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -45949,6 +45949,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: GXIUZV
+  name: GXIUZV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: PSIXWV
   name: PSIXWV BIST Equity
   sector: Equities
@@ -45961,11 +45966,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: FOITFV
   name: FOITFV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GXIUZV
-  name: GXIUZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46059,11 +46059,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BSIWDV
-  name: BSIWDV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: SEIVXV
   name: SEIVXV BIST Equity
   sector: Equities
@@ -46071,6 +46066,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: SDIQVV
   name: SDIQVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BSIWDV
+  name: BSIWDV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46139,13 +46139,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXIFZV
-  name: GXIFZV BIST Equity
+- symbol: GGIPYV
+  name: GGIPYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GGIPYV
-  name: GGIPYV BIST Equity
+- symbol: GXIFZV
+  name: GXIFZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46259,13 +46259,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PBSNSV
-  name: PBSNSV BIST Equity
+- symbol: GXIUTV
+  name: GXIUTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXIUTV
-  name: GXIUTV BIST Equity
+- symbol: PBSNSV
+  name: PBSNSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46274,13 +46274,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SYIVEV
-  name: SYIVEV BIST Equity
+- symbol: TBIRAV
+  name: TBIRAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EFIWWV
-  name: EFIWWV BIST Equity
+- symbol: TMIXQV
+  name: TMIXQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46289,8 +46289,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TBIRAV
-  name: TBIRAV BIST Equity
+- symbol: EFIWWV
+  name: EFIWWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46299,8 +46299,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TMIXQV
-  name: TMIXQV BIST Equity
+- symbol: SYIVEV
+  name: SYIVEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46354,13 +46354,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXIULV
-  name: GXIULV BIST Equity
+- symbol: AXAKSV
+  name: AXAKSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AXAKSV
-  name: AXAKSV BIST Equity
+- symbol: GXIULV
+  name: GXIULV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46384,13 +46384,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TT1GIV
-  name: TT1GIV BIST Equity
+- symbol: TK1XMV
+  name: TK1XMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TK1XMV
-  name: TK1XMV BIST Equity
+- symbol: TT1GIV
+  name: TT1GIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46399,13 +46399,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SDIQLV
-  name: SDIQLV BIST Equity
+- symbol: TCSHLV
+  name: TCSHLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TCSHLV
-  name: TCSHLV BIST Equity
+- symbol: SDIQLV
+  name: SDIQLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46539,13 +46539,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YKRAUV
-  name: YKRAUV BIST Equity
+- symbol: IVAAXV
+  name: IVAAXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IVAAXV
-  name: IVAAXV BIST Equity
+- symbol: YKRAUV
+  name: YKRAUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46734,13 +46734,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TPRPGV
-  name: TPRPGV BIST Equity
+- symbol: TO1WQV
+  name: TO1WQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TO1WQV
-  name: TO1WQV BIST Equity
+- symbol: TPRPGV
+  name: TPRPGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46919,13 +46919,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IVAAVV
-  name: IVAAVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: MRIHZV
-  name: MRIHZV BIST Equity
+- symbol: AOSPPV
+  name: AOSPPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -46934,8 +46929,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOSPPV
-  name: AOSPPV BIST Equity
+- symbol: MRIHZV
+  name: MRIHZV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: IVAAVV
+  name: IVAAVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47089,13 +47089,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ITISIV
-  name: ITISIV BIST Equity
+- symbol: YK1WDV
+  name: YK1WDV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1WDV
-  name: YK1WDV BIST Equity
+- symbol: ITISIV
+  name: ITISIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47319,13 +47319,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TLBROV
-  name: TLBROV BIST Equity
+- symbol: CX1PBV
+  name: CX1PBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: CX1PBV
-  name: CX1PBV BIST Equity
+- symbol: TLBROV
+  name: TLBROV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47349,13 +47349,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GXAECV
-  name: GXAECV BIST Equity
+- symbol: MRIIPV
+  name: MRIIPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: MRIIPV
-  name: MRIIPV BIST Equity
+- symbol: GXAECV
+  name: GXAECV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47454,6 +47454,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: AOSPSV
+  name: AOSPSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: ESBRZV
   name: ESBRZV BIST Equity
   sector: Equities
@@ -47461,11 +47466,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: MGRPDV
   name: MGRPDV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AOSPSV
-  name: AOSPSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47539,11 +47539,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GAABYV
-  name: GAABYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: SLALLV
   name: SLALLV BIST Equity
   sector: Equities
@@ -47551,6 +47546,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: ELABMV
   name: ELABMV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: GAABYV
+  name: GAABYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47784,13 +47784,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BI1WDV
-  name: BI1WDV BIST Equity
+- symbol: ESBDFV
+  name: ESBDFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ESBDFV
-  name: ESBDFV BIST Equity
+- symbol: BI1WDV
+  name: BI1WDV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47829,13 +47829,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: UD1SFV
-  name: UD1SFV BIST Equity
+- symbol: AX1WUV
+  name: AX1WUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AX1WUV
-  name: AX1WUV BIST Equity
+- symbol: UD1SFV
+  name: UD1SFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47849,13 +47849,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GA1WTV
-  name: GA1WTV BIST Equity
+- symbol: TK1LCV
+  name: TK1LCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TK1LCV
-  name: TK1LCV BIST Equity
+- symbol: GA1WTV
+  name: GA1WTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -47909,6 +47909,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: MT1QWV
+  name: MT1QWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: NV1QRV
   name: NV1QRV BIST Equity
   sector: Equities
@@ -47916,11 +47921,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: TRACKV
   name: TRACKV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: MT1QWV
-  name: MT1QWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48014,13 +48014,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: XABFTV
-  name: XABFTV BIST Equity
+- symbol: BSIVOV
+  name: BSIVOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BSIVOV
-  name: BSIVOV BIST Equity
+- symbol: XABFTV
+  name: XABFTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48029,13 +48029,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SLAYOV
-  name: SLAYOV BIST Equity
+- symbol: YK1KHV
+  name: YK1KHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1KHV
-  name: YK1KHV BIST Equity
+- symbol: SLAYOV
+  name: SLAYOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48089,13 +48089,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TRACEV
-  name: TRACEV BIST Equity
+- symbol: TA1SOV
+  name: TA1SOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TA1SOV
-  name: TA1SOV BIST Equity
+- symbol: TRACEV
+  name: TRACEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48139,13 +48139,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PLSDQV
-  name: PLSDQV BIST Equity
+- symbol: BISUFV
+  name: BISUFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BISUFV
-  name: BISUFV BIST Equity
+- symbol: PLSDQV
+  name: PLSDQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48164,23 +48164,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GA1KKV
-  name: GA1KKV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: KC1WLV
   name: KC1WLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: UDADVV
-  name: UDADVV BIST Equity
+- symbol: GA1KKV
+  name: GA1KKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: SA1JTV
   name: SA1JTV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: UDADVV
+  name: UDADVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48224,13 +48224,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BBSUZV
-  name: BBSUZV BIST Equity
+- symbol: ABAVIV
+  name: ABAVIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ABAVIV
-  name: ABAVIV BIST Equity
+- symbol: BBSUZV
+  name: BBSUZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48299,13 +48299,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GA1JUV
-  name: GA1JUV BIST Equity
+- symbol: TS1BBV
+  name: TS1BBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TS1BBV
-  name: TS1BBV BIST Equity
+- symbol: GA1JUV
+  name: GA1JUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48329,18 +48329,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AP1QRV
-  name: AP1QRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: ELACMV
   name: ELACMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: AP1QRV
+  name: AP1QRV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: SSABNV
   name: SSABNV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TWSFEV
+  name: TWSFEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48351,11 +48356,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: MRIXVV
   name: MRIXVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TWSFEV
-  name: TWSFEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48404,11 +48404,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PE1WLV
-  name: PE1WLV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: MT1QSV
   name: MT1QSV BIST Equity
   sector: Equities
@@ -48416,6 +48411,16 @@ instruments:
   lot_multiplier: 1.0
 - symbol: PG1JQV
   name: PG1JQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: PE1WLV
+  name: PE1WLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EF1GSV
+  name: EF1GSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48431,11 +48436,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: PTAQHV
   name: PTAQHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EF1GSV
-  name: EF1GSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48464,8 +48464,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TVAQBV
-  name: TVAQBV BIST Equity
+- symbol: KHBIYV
+  name: KHBIYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48474,13 +48474,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KHBIYV
-  name: KHBIYV BIST Equity
+- symbol: TVAQBV
+  name: TVAQBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: GAACWV
   name: GAACWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SA1JEV
+  name: SA1JEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48494,16 +48499,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SA1JEV
-  name: SA1JEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AZ1QSV
-  name: AZ1QSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: XOSFPV
   name: XOSFPV BIST Equity
   sector: Equities
@@ -48514,8 +48509,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: AZ1QSV
+  name: AZ1QSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: AXAKLV
   name: AXAKLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TRAPUV
+  name: TRAPUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48529,11 +48534,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TRAPUV
-  name: TRAPUV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: NV1QSV
   name: NV1QSV BIST Equity
   sector: Equities
@@ -48544,8 +48544,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TA1EHV
-  name: TA1EHV BIST Equity
+- symbol: XABWLV
+  name: XABWLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48554,8 +48554,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: XABWLV
-  name: XABWLV BIST Equity
+- symbol: TA1EHV
+  name: TA1EHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48564,8 +48564,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AXAKOV
-  name: AXAKOV BIST Equity
+- symbol: NAIXKV
+  name: NAIXKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48574,8 +48574,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: NAIXKV
-  name: NAIXKV BIST Equity
+- symbol: AXAKOV
+  name: AXAKOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48589,33 +48589,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: ICAQBV
+  name: ICAQBV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: ER1ITV
   name: ER1ITV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: XOSTSV
-  name: XOSTSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AOSPXV
-  name: AOSPXV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: MS1QVV
-  name: MS1QVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ATAHSV
-  name: ATAHSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: XOSTQV
-  name: XOSTQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48624,18 +48604,33 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ICAQBV
-  name: ICAQBV BIST Equity
+- symbol: XOSTQV
+  name: XOSTQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ATAHSV
+  name: ATAHSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: AOSPXV
+  name: AOSPXV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: XOSTSV
+  name: XOSTSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: MS1QVV
+  name: MS1QVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: IS1WJV
   name: IS1WJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: YPBJRV
-  name: YPBJRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48649,13 +48644,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TA1SMV
-  name: TA1SMV BIST Equity
+- symbol: YPBJRV
+  name: YPBJRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: EF1TSV
   name: EF1TSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TA1SMV
+  name: TA1SMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48669,23 +48669,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: RHSRJV
-  name: RHSRJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TO1WEV
-  name: TO1WEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: UASBWV
   name: UASBWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: RHSRJV
+  name: RHSRJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: NDBUQV
   name: NDBUQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TO1WEV
+  name: TO1WEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48709,16 +48709,6 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IVABJV
-  name: IVABJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AOBGQV
-  name: AOBGQV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: TO1IVV
   name: TO1IVV BIST Equity
   sector: Equities
@@ -48729,13 +48719,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: XABUZV
-  name: XABUZV BIST Equity
+- symbol: IVABJV
+  name: IVABJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BBSUSV
-  name: BBSUSV BIST Equity
+- symbol: AOBGQV
+  name: AOBGQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48744,8 +48734,18 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EIBJJV
-  name: EIBJJV BIST Equity
+- symbol: AXSNWV
+  name: AXSNWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BBSUSV
+  name: BBSUSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: XABUZV
+  name: XABUZV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48754,8 +48754,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AXSNWV
-  name: AXSNWV BIST Equity
+- symbol: EIBJJV
+  name: EIBJJV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48774,13 +48774,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: VBASCV
-  name: VBASCV BIST Equity
+- symbol: VWSUOV
+  name: VWSUOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TEAJWV
-  name: TEAJWV BIST Equity
+- symbol: VBASCV
+  name: VBASCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48789,13 +48789,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: VWSUOV
-  name: VWSUOV BIST Equity
+- symbol: TEAJWV
+  name: TEAJWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ATBENV
-  name: ATBENV BIST Equity
+- symbol: YPBVBV
+  name: YPBVBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48809,8 +48809,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YPBVBV
-  name: YPBVBV BIST Equity
+- symbol: ATBENV
+  name: ATBENV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48819,18 +48819,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IZ1VJV
-  name: IZ1VJV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: EK1JGV
   name: EK1JGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: CBBRNV
-  name: CBBRNV BIST Equity
+- symbol: IZ1VJV
+  name: IZ1VJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: AOSQCV
+  name: AOSQCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: FRBRPV
+  name: FRBRPV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48844,13 +48849,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOSQCV
-  name: AOSQCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: FRBRPV
-  name: FRBRPV BIST Equity
+- symbol: CBBRNV
+  name: CBBRNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48869,13 +48869,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: STSPXV
-  name: STSPXV BIST Equity
+- symbol: TA1ERV
+  name: TA1ERV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TA1ERV
-  name: TA1ERV BIST Equity
+- symbol: ER1JDV
+  name: ER1JDV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48884,8 +48884,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ER1JDV
-  name: ER1JDV BIST Equity
+- symbol: STSPXV
+  name: STSPXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48909,18 +48909,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TK1KHV
-  name: TK1KHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: ABSWXV
   name: ABSWXV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: BISUIV
-  name: BISUIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48929,23 +48919,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BBSUOV
-  name: BBSUOV BIST Equity
+- symbol: TK1KHV
+  name: TK1KHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ABSWVV
-  name: ABSWVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: UAIRQV
-  name: UAIRQV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: NQSQAV
-  name: NQSQAV BIST Equity
+- symbol: BISUIV
+  name: BISUIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48954,18 +48934,33 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: BBSUOV
+  name: BBSUOV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: GF1FSV
   name: GF1FSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ATRAUV
-  name: ATRAUV BIST Equity
+- symbol: NQSQAV
+  name: NQSQAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: ER1VWV
-  name: ER1VWV BIST Equity
+- symbol: UAIRQV
+  name: UAIRQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ABSWVV
+  name: ABSWVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ATRAUV
+  name: ATRAUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48976,6 +48971,11 @@ instruments:
   lot_multiplier: 1.0
 - symbol: NDBFHV
   name: NDBFHV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ER1VWV
+  name: ER1VWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -48999,6 +48999,11 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: AB1WWV
+  name: AB1WWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: EK1JDV
   name: EK1JDV BIST Equity
   sector: Equities
@@ -49006,11 +49011,6 @@ instruments:
   lot_multiplier: 1.0
 - symbol: PG1JCV
   name: PG1JCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AB1WWV
-  name: AB1WWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49024,8 +49024,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: APBHEV
-  name: APBHEV BIST Equity
+- symbol: PG1JNV
+  name: PG1JNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49034,23 +49034,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PG1JNV
-  name: PG1JNV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: GABJLV
   name: GABJLV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YNICHV
-  name: YNICHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: MSIQOV
-  name: MSIQOV BIST Equity
+- symbol: APBHEV
+  name: APBHEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49059,13 +49049,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TEAJQV
-  name: TEAJQV BIST Equity
+- symbol: MSIQOV
+  name: MSIQOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AP1QSV
-  name: AP1QSV BIST Equity
+- symbol: YNICHV
+  name: YNICHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49074,8 +49064,53 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: AP1QSV
+  name: AP1QSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: FR1IXV
   name: FR1IXV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TEAJQV
+  name: TEAJQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SA1IVV
+  name: SA1IVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TA1EMV
+  name: TA1EMV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: DJSYTV
+  name: DJSYTV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ER1IQV
+  name: ER1IQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EUSLPV
+  name: EUSLPV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TORAEV
+  name: TORAEV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ER1IRV
+  name: ER1IRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49089,43 +49124,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: DJSYTV
-  name: DJSYTV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EUSLPV
-  name: EUSLPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
 - symbol: STBDHV
   name: STBDHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TORAEV
-  name: TORAEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: SA1IVV
-  name: SA1IVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ER1IRV
-  name: ER1IRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ER1IQV
-  name: ER1IQV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TA1EMV
-  name: TA1EMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49159,13 +49159,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TOBJEV
-  name: TOBJEV BIST Equity
+- symbol: GOSVVV
+  name: GOSVVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GGIPEV
-  name: GGIPEV BIST Equity
+- symbol: TOBJEV
+  name: TOBJEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49174,13 +49174,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: GOSVVV
-  name: GOSVVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: IVBESV
-  name: IVBESV BIST Equity
+- symbol: GGIPEV
+  name: GGIPEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49194,13 +49189,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SL1KFV
-  name: SL1KFV BIST Equity
+- symbol: IVBESV
+  name: IVBESV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PESVAV
-  name: PESVAV BIST Equity
+- symbol: SL1KFV
+  name: SL1KFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49209,8 +49204,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: NQSQIV
-  name: NQSQIV BIST Equity
+- symbol: UA1RWV
+  name: UA1RWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49219,23 +49214,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: UA1RWV
-  name: UA1RWV BIST Equity
+- symbol: NQSQIV
+  name: NQSQIV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: RHSCLV
-  name: RHSCLV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GOSJCV
-  name: GOSJCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: BMSUIV
-  name: BMSUIV BIST Equity
+- symbol: PESVAV
+  name: PESVAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49249,18 +49234,28 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: GOSJCV
+  name: GOSJCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: RHSCLV
+  name: RHSCLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BMSUIV
+  name: BMSUIV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: AOSQAV
   name: AOSQAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EYIMBV
-  name: EYIMBV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: YNISCV
-  name: YNISCV BIST Equity
+- symbol: STBSXV
+  name: STBSXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49269,8 +49264,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: STBSXV
-  name: STBSXV BIST Equity
+- symbol: EYIMBV
+  name: EYIMBV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49284,13 +49279,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TKSMTV
-  name: TKSMTV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TDIPSV
-  name: TDIPSV BIST Equity
+- symbol: YNISCV
+  name: YNISCV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49299,18 +49289,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: TDIPSV
+  name: TDIPSV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: EFBBRV
   name: EFBBRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TP1WNV
-  name: TP1WNV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: MG1GXV
-  name: MG1GXV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49319,8 +49304,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SLAMEV
-  name: SLAMEV BIST Equity
+- symbol: MG1GXV
+  name: MG1GXV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TKSMTV
+  name: TKSMTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49329,43 +49319,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BISUHV
-  name: BISUHV BIST Equity
+- symbol: TP1WNV
+  name: TP1WNV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SARPOV
-  name: SARPOV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KBIPSV
-  name: KBIPSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: DKSPYV
-  name: DKSPYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: BBSUQV
-  name: BBSUQV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ATSHVV
-  name: ATSHVV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ABAVAV
-  name: ABAVAV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: SSAPRV
-  name: SSAPRV BIST Equity
+- symbol: SLAMEV
+  name: SLAMEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49374,8 +49334,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: NQBSLV
-  name: NQBSLV BIST Equity
+- symbol: ATSHVV
+  name: ATSHVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SSAPRV
+  name: SSAPRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49389,8 +49354,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KMIUZV
-  name: KMIUZV BIST Equity
+- symbol: BISUHV
+  name: BISUHV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49399,23 +49364,58 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: FOIRXV
-  name: FOIRXV BIST Equity
+- symbol: SARPOV
+  name: SARPOV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: SSACBV
-  name: SSACBV BIST Equity
+- symbol: BBSUQV
+  name: BBSUQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BBSUMV
-  name: BBSUMV BIST Equity
+- symbol: KBIPSV
+  name: KBIPSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EK1WDV
-  name: EK1WDV BIST Equity
+- symbol: DKSPYV
+  name: DKSPYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: NQBSLV
+  name: NQBSLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ABAVAV
+  name: ABAVAV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KMIUZV
+  name: KMIUZV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BMSHLV
+  name: BMSHLV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: PGSGTV
+  name: PGSGTV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: GFAHPV
+  name: GFAHPV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KRBVMV
+  name: KRBVMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49424,13 +49424,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TYABHV
-  name: TYABHV BIST Equity
+- symbol: BBSULV
+  name: BBSULV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1JQV
-  name: YK1JQV BIST Equity
+- symbol: TYABFV
+  name: TYABFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49439,8 +49439,73 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: EK1WDV
+  name: EK1WDV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: TYRANV
   name: TYRANV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: FOIRXV
+  name: FOIRXV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KBIPRV
+  name: KBIPRV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KDSVCV
+  name: KDSVCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TYABGV
+  name: TYABGV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: PG1JHV
+  name: PG1JHV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: BBSUMV
+  name: BBSUMV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: YK1JQV
+  name: YK1JQV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: SSACBV
+  name: SSACBV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TYABHV
+  name: TYABHV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: XABVCV
+  name: XABVCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: XABGCV
+  name: XABGCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: NXBVRV
+  name: NXBVRV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49454,98 +49519,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: BBSULV
-  name: BBSULV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KDSVCV
-  name: KDSVCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KRBVMV
-  name: KRBVMV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: PG1JHV
-  name: PG1JHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: BMSHLV
-  name: BMSHLV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: XABGCV
-  name: XABGCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: XABVCV
-  name: XABVCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: NXBVRV
-  name: NXBVRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TYABGV
-  name: TYABGV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GFAHPV
-  name: GFAHPV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TYABFV
-  name: TYABFV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: PGSGTV
-  name: PGSGTV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KBIPRV
-  name: KBIPRV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: YK1JHV
-  name: YK1JHV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TT1GKV
-  name: TT1GKV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TA1ELV
-  name: TA1ELV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: IZ1VCV
-  name: IZ1VCV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TL1IYV
-  name: TL1IYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ESBBWV
-  name: ESBBWV BIST Equity
+- symbol: EX1DWV
+  name: EX1DWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49554,53 +49529,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TA1EGV
-  name: TA1EGV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KR1VYV
-  name: KR1VYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EX1DWV
-  name: EX1DWV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GA1JKV
-  name: GA1JKV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TO1ITV
-  name: TO1ITV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TP1WEV
-  name: TP1WEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: PG1JEV
-  name: PG1JEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TKBJNV
-  name: TKBJNV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ER1IYV
-  name: ER1IYV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EDSMVV
-  name: EDSMVV BIST Equity
+- symbol: GF1FUV
+  name: GF1FUV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49609,23 +49539,23 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TO1ISV
-  name: TO1ISV BIST Equity
+- symbol: YK1JGV
+  name: YK1JGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1JIV
-  name: YK1JIV BIST Equity
+- symbol: PG1JEV
+  name: PG1JEV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TL1IVV
-  name: TL1IVV BIST Equity
+- symbol: TA1EGV
+  name: TA1EGV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AOSPTV
-  name: AOSPTV BIST Equity
+- symbol: TT1GKV
+  name: TT1GKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49634,33 +49564,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: IS1JOV
-  name: IS1JOV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: GF1FUV
-  name: GF1FUV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TL1JEV
-  name: TL1JEV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TK1WWV
-  name: TK1WWV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: KC1WIV
-  name: KC1WIV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: EF1GDV
-  name: EF1GDV BIST Equity
+- symbol: AOSPTV
+  name: AOSPTV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49669,23 +49574,13 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EI1ISV
-  name: EI1ISV BIST Equity
+- symbol: EK1JKV
+  name: EK1JKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EDBJUV
-  name: EDBJUV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: TL1JDV
-  name: TL1JDV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AG1WJV
-  name: AG1WJV BIST Equity
+- symbol: ESBBWV
+  name: ESBBWV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49694,8 +49589,38 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1WFV
-  name: YK1WFV BIST Equity
+- symbol: TK1WWV
+  name: TK1WWV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TL1IYV
+  name: TL1IYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EF1GDV
+  name: EF1GDV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TKBJNV
+  name: TKBJNV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EDBJUV
+  name: EDBJUV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TO1ITV
+  name: TO1ITV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TO1ISV
+  name: TO1ISV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49704,13 +49629,68 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
+- symbol: GA1JKV
+  name: GA1JKV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
 - symbol: TO1IQV
   name: TO1IQV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: PG1JDV
-  name: PG1JDV BIST Equity
+- symbol: EI1ISV
+  name: EI1ISV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KR1VYV
+  name: KR1VYV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: IZ1VCV
+  name: IZ1VCV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TP1WEV
+  name: TP1WEV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: IS1JOV
+  name: IS1JOV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TL1JDV
+  name: TL1JDV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: YK1JHV
+  name: YK1JHV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: YK1JIV
+  name: YK1JIV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KC1WIV
+  name: KC1WIV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TL1JEV
+  name: TL1JEV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: YK1WFV
+  name: YK1WFV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49719,23 +49699,38 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: EK1JKV
-  name: EK1JKV BIST Equity
+- symbol: TL1IVV
+  name: TL1IVV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: YK1JGV
-  name: YK1JGV BIST Equity
+- symbol: TA1ELV
+  name: TA1ELV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: EDSMVV
+  name: EDSMVV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: AG1WJV
+  name: AG1WJV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: PG1JDV
+  name: PG1JDV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ER1IYV
+  name: ER1IYV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: AFIPSV
   name: AFIPSV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AOBVSV
-  name: AOBVSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49749,23 +49744,8 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: KMIEZV
-  name: KMIEZV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: ASBUOV
-  name: ASBUOV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: AOBVAV
-  name: AOBVAV BIST Equity
-  sector: Equities
-  index: BIST100
-  lot_multiplier: 1.0
-- symbol: STBDMV
-  name: STBDMV BIST Equity
+- symbol: AOBVSV
+  name: AOBVSV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
@@ -49774,18 +49754,38 @@ instruments:
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: AXAKMV
-  name: AXAKMV BIST Equity
+- symbol: STBDMV
+  name: STBDMV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
-- symbol: TNIDKV
-  name: TNIDKV BIST Equity
+- symbol: AOBVAV
+  name: AOBVAV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0
 - symbol: TVIFEV
   name: TVIFEV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: KMIEZV
+  name: KMIEZV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: AXAKMV
+  name: AXAKMV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: ASBUOV
+  name: ASBUOV BIST Equity
+  sector: Equities
+  index: BIST100
+  lot_multiplier: 1.0
+- symbol: TNIDKV
+  name: TNIDKV BIST Equity
   sector: Equities
   index: BIST100
   lot_multiplier: 1.0

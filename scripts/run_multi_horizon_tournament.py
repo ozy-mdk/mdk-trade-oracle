@@ -122,7 +122,7 @@ def main() -> None:
     db = PostgresManager()
 
     if args.all_bist30:
-        rows = db.query_pl("SELECT DISTINCT symbol FROM bronze_bist30_membership ORDER BY symbol ASC").to_pandas()
+        rows = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC").to_pandas()
         target_symbols = rows["symbol"].tolist()
     elif args.symbols:
         target_symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
