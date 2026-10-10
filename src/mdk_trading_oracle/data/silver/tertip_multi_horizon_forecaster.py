@@ -36,7 +36,6 @@ from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
-    FEATURE_COLS,
     extract_3pillar_time_series,
 )
 
@@ -87,11 +86,16 @@ def clear_multi_horizon_cache() -> None:
     logger.info("Cleared Multi-Horizon Forecaster in-memory cache.")
 
 
-def compute_forward_average_return(
+def get_horizon_deadband(n_days: int) -> float:
+    """Calibrate consolidation deadband proportionately with time horizon volatility."""
+    return float(round(min(1.50, 0.25 * math.sqrt(n_days)), 2))
+
+
+def compute_forward_terminal_return(
     close_prices: pd.Series,
     n_days: int,
 ) -> tuple[pd.Series, pd.Series]:
-    """Compute forward N-day average price and percentage return.
+    """Compute forward N-day terminal price and percentage return (P_{t+N} - P_t) / P_t * 100.
 
     Parameters
     ----------
@@ -103,17 +107,68 @@ def compute_forward_average_return(
     Returns
     -------
     tuple[pd.Series, pd.Series]
-        (fwd_avg_prices, fwd_avg_returns_pct)
+        (fwd_terminal_prices, fwd_terminal_returns_pct)
         Values will be NaN for the last n_days rows where future prices do not exist yet.
     """
     if len(close_prices) < n_days:
         nans = pd.Series([np.nan] * len(close_prices), index=close_prices.index)
         return nans, nans
 
-    rev = close_prices.iloc[::-1]
-    fwd_avg_price = rev.rolling(window=n_days, min_periods=n_days).mean().shift(1).iloc[::-1]
-    fwd_avg_ret = (fwd_avg_price - close_prices) / close_prices * 100.0
-    return fwd_avg_price, fwd_avg_ret
+    fwd_terminal_price = close_prices.shift(-n_days)
+    fwd_terminal_ret = (fwd_terminal_price - close_prices) / close_prices * 100.0
+    return fwd_terminal_price, fwd_terminal_ret
+
+
+# Backwards compatibility alias
+compute_forward_average_return = compute_forward_terminal_return
+
+
+def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Enrich 3-pillar time series with multi-horizon momentum, trend alignment,
+    and cumulative institutional flow features (strictly zero data leakage).
+    """
+    df = df.copy()
+
+    # 1. Multi-Day Trailing Price Momentum (%)
+    df["feat_close_ret_3d"] = ((df["close_price"] - df["close_price"].shift(3)) / df["close_price"].shift(3) * 100.0).fillna(0.0)
+    df["feat_close_ret_5d"] = ((df["close_price"] - df["close_price"].shift(5)) / df["close_price"].shift(5) * 100.0).fillna(0.0)
+    df["feat_close_ret_10d"] = ((df["close_price"] - df["close_price"].shift(10)) / df["close_price"].shift(10) * 100.0).fillna(0.0)
+    df["feat_close_ret_20d"] = ((df["close_price"] - df["close_price"].shift(20)) / df["close_price"].shift(20) * 100.0).fillna(0.0)
+
+    # 2. Moving Average Trend Slopes & Distance (%)
+    sma10 = df["close_price"].rolling(10, min_periods=5).mean()
+    sma20 = df["close_price"].rolling(20, min_periods=10).mean()
+    sma50 = df["close_price"].rolling(50, min_periods=20).mean()
+    df["feat_price_vs_sma10_pct"] = ((df["close_price"] - sma10) / sma10 * 100.0).fillna(0.0)
+    df["feat_price_vs_sma20_pct"] = ((df["close_price"] - sma20) / sma20 * 100.0).fillna(0.0)
+    df["feat_price_vs_sma50_pct"] = ((df["close_price"] - sma50) / sma50 * 100.0).fillna(0.0)
+
+    # 3. Cumulative Multi-Day BofA & Institutional Net Flow Shares (%)
+    turnover_3d = df["total_turnover_tl"].rolling(3, min_periods=1).sum().replace(0, np.nan)
+    turnover_5d = df["total_turnover_tl"].rolling(5, min_periods=1).sum().replace(0, np.nan)
+    turnover_10d = df["total_turnover_tl"].rolling(10, min_periods=1).sum().replace(0, np.nan)
+
+    mlb_3d_flow = df["mlb_flow"].rolling(3, min_periods=1).sum()
+    df["feat_mlb_flow_3d_share"] = (mlb_3d_flow / turnover_3d * 100.0).fillna(0.0)
+
+    mlb_5d_flow = df["mlb_flow"].rolling(5, min_periods=1).sum()
+    df["feat_mlb_flow_5d_share"] = (mlb_5d_flow / turnover_5d * 100.0).fillna(0.0)
+
+    mlb_10d_flow = df["mlb_flow"].rolling(10, min_periods=1).sum()
+    df["feat_mlb_flow_10d_share"] = (mlb_10d_flow / turnover_10d * 100.0).fillna(0.0)
+
+    big5_5d_flow = df["big5_flow"].rolling(5, min_periods=1).sum()
+    df["feat_big5_flow_5d_share"] = (big5_5d_flow / turnover_5d * 100.0).fillna(0.0)
+
+    inst_5d_flow = mlb_5d_flow + big5_5d_flow
+    df["feat_total_inst_5d_share"] = (inst_5d_flow / turnover_5d * 100.0).fillna(0.0)
+
+    # 4. Multi-Day Realized Volatility (%)
+    df["feat_stock_vol_10d"] = (df["daily_return_pct"].rolling(10, min_periods=5).std() * np.sqrt(252) * 100.0).fillna(0.0)
+    df["feat_stock_vol_20d"] = (df["daily_return_pct"].rolling(20, min_periods=10).std() * np.sqrt(252) * 100.0).fillna(0.0)
+
+    feature_cols = [c for c in df.columns if c.startswith("feat_")]
+    return df, feature_cols
 
 
 def _check_hit(
@@ -191,15 +246,16 @@ def evaluate_horizon_walk_forward(
         samples i where i + n_days <= t. This ensures zero data leakage.
     """
     n_days = HORIZON_MAP.get(horizon_key, 3)
-    f_cols = [c for c in FEATURE_COLS if c in df.columns]
+    df, f_cols = engineer_multi_horizon_features(df)
+    deadband = get_horizon_deadband(n_days)
 
     fwd_avg_price_col = f"fwd_avg_price_{horizon_key}"
     fwd_avg_ret_col = f"fwd_avg_ret_{horizon_key}"
 
     if fwd_avg_ret_col not in df.columns:
-        p_avg, r_avg = compute_forward_average_return(df["close_price"], n_days)
-        df[fwd_avg_price_col] = p_avg
-        df[fwd_avg_ret_col] = r_avg
+        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days)
+        df[fwd_avg_price_col] = p_term
+        df[fwd_avg_ret_col] = r_term
 
     n_total = len(df)
     max_eval_idx = n_total - n_days - 1
@@ -300,15 +356,15 @@ def evaluate_horizon_walk_forward(
         err_pct = abs(pred_avg_price - actual_avg_price) / actual_avg_price * 100.0
         all_errors.append(err_pct)
 
-        is_hit = _check_hit(pred_ret, actual_ret, tol_delta=0.25)
+        is_hit = _check_hit(pred_ret, actual_ret, tol_delta=0.25, deadband=deadband)
         if is_hit:
             hits += 1
             hit_errors.append(err_pct)
         else:
             miss_errors.append(err_pct)
 
-        pred_dir = "BUY" if pred_ret > 0.25 else ("SELL" if pred_ret < -0.25 else "NEUTRAL")
-        actual_dir = "BUY" if actual_ret > 0.25 else ("SELL" if actual_ret < -0.25 else "NEUTRAL")
+        pred_dir = "BUY" if pred_ret > deadband else ("SELL" if pred_ret < -deadband else "NEUTRAL")
+        actual_dir = "BUY" if actual_ret > deadband else ("SELL" if actual_ret < -deadband else "NEUTRAL")
 
         ledger.append({
             "trade_date": trade_date,
@@ -376,15 +432,16 @@ def generate_live_horizon_forecast(
         If completed sessions are fewer than 3 months (63 sessions), live predictions are hard-stopped.
     """
     n_days = HORIZON_MAP.get(horizon_key, 3)
-    f_cols = [c for c in FEATURE_COLS if c in df.columns]
+    df, f_cols = engineer_multi_horizon_features(df)
+    deadband = get_horizon_deadband(n_days)
 
     fwd_avg_price_col = f"fwd_avg_price_{horizon_key}"
     fwd_avg_ret_col = f"fwd_avg_ret_{horizon_key}"
 
     if fwd_avg_ret_col not in df.columns:
-        p_avg, r_avg = compute_forward_average_return(df["close_price"], n_days)
-        df[fwd_avg_price_col] = p_avg
-        df[fwd_avg_ret_col] = r_avg
+        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days)
+        df[fwd_avg_price_col] = p_term
+        df[fwd_avg_ret_col] = r_term
 
     n_total = len(df)
     latest_row = df.iloc[-1]
@@ -468,24 +525,24 @@ def generate_live_horizon_forecast(
     price_high = target_price * (1.0 + (1.645 * horizon_vol / 100.0))
 
     # Stance & Conviction
-    if expected_ret > 0.50:
+    if expected_ret > deadband:
         stance = "BULLISH"
-    elif expected_ret < -0.50:
+    elif expected_ret < -deadband:
         stance = "BEARISH"
     else:
         stance = "NEUTRAL"
 
     if expected_ret >= 3.0:
         conviction = "STRONG_BUY"
-    elif expected_ret >= 1.0:
+    elif expected_ret >= max(1.0, deadband):
         conviction = "BUY"
-    elif expected_ret > 0.25:
+    elif expected_ret > deadband:
         conviction = "WEAK_BUY"
     elif expected_ret <= -3.0:
         conviction = "STRONG_SELL"
-    elif expected_ret <= -1.0:
+    elif expected_ret <= -max(1.0, deadband):
         conviction = "SELL"
-    elif expected_ret < -0.25:
+    elif expected_ret < -deadband:
         conviction = "WEAK_SELL"
     else:
         conviction = "NEUTRAL"
@@ -493,11 +550,11 @@ def generate_live_horizon_forecast(
     # Multi-Horizon Tactical Playbook Formulation
     if expected_ret >= 2.5:
         playbook = "EXPANSION_ACCUMULATION"
-    elif expected_ret >= 1.0:
+    elif expected_ret >= deadband:
         playbook = "SWING_LONG_MOMENTUM"
     elif expected_ret <= -2.5:
         playbook = "INSTITUTIONAL_DISTRIBUTION_FADE"
-    elif expected_ret <= -1.0:
+    elif expected_ret <= -deadband:
         playbook = "TACTICAL_SHORT_ROTATION"
     else:
         playbook = "RANGE_BOUND_CONSOLIDATION"
@@ -529,6 +586,7 @@ def get_multi_horizon_forecaster_payload(
     symbol: str,
     selected_composition: dict[str, dict[str, Any]] | None = None,
     n_eval_sessions: int = 180,
+    force_recompute: bool = False,
 ) -> dict[str, Any]:
     """Generate comprehensive multi-horizon forecast payload across all 5 windows.
 
@@ -538,7 +596,7 @@ def get_multi_horizon_forecaster_payload(
     cache_key = f"{sym}_multi_horizon_{n_eval_sessions}"
     now_ts = datetime.now(timezone.utc).timestamp()
 
-    if cache_key in _MULTI_HORIZON_CACHE:
+    if not force_recompute and cache_key in _MULTI_HORIZON_CACHE:
         cached_ts, cached_data = _MULTI_HORIZON_CACHE[cache_key]
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
@@ -570,7 +628,7 @@ def get_multi_horizon_forecaster_payload(
 
         # Check if pre-computed backtest ledger exists in database
         db_rows = []
-        if db is not None:
+        if db is not None and not force_recompute:
             try:
                 db_res = db.query_pl(
                     """

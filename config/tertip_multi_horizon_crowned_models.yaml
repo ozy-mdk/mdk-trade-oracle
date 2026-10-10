@@ -3,7 +3,7 @@ _metadata:
     trading sessions
   calibrated_at: '2026-10-10'
   selection_metric: 3_criteria_tournament_loss
-  updated_at: '2026-10-10T20:52:21.200593'
+  updated_at: '2026-10-10T23:11:34.800396'
 symbols:
   AEFES:
     3d:
@@ -343,25 +343,60 @@ symbols:
       training_lookback_sessions: 252
   GARAN:
     3d:
-      model: LightGBM
+      model: BayesianRidge
       horizon: 3m
       training_lookback_sessions: 63
+      hit_rate_pct: 63.3
+      mae_pct: 2.24
+      hit_mae_pct: 1.81
+      miss_mae_pct: 2.98
+      loss: 45.93
+      hits: 38
+      total_evals: 60
     5d:
-      model: XGBoost
-      horizon: 6m
-      training_lookback_sessions: 126
+      model: BayesianRidge
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 58.3
+      mae_pct: 2.6
+      hit_mae_pct: 1.91
+      miss_mae_pct: 3.58
+      loss: 52.52
+      hits: 35
+      total_evals: 60
     10d:
       model: BayesianRidge
-      horizon: 6m
-      training_lookback_sessions: 126
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 76.7
+      mae_pct: 3.27
+      hit_mae_pct: 2.37
+      miss_mae_pct: 6.23
+      loss: 41.28
+      hits: 46
+      total_evals: 60
     15d:
-      model: Ridge
-      horizon: 12m
-      training_lookback_sessions: 252
-    30d:
       model: BayesianRidge
-      horizon: 12m
-      training_lookback_sessions: 252
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 76.7
+      mae_pct: 4.24
+      hit_mae_pct: 3.76
+      miss_mae_pct: 5.8
+      loss: 41.6
+      hits: 46
+      total_evals: 60
+    30d:
+      model: XGBoost
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 71.7
+      mae_pct: 3.93
+      hit_mae_pct: 3.13
+      miss_mae_pct: 5.96
+      loss: 46.36
+      hits: 43
+      total_evals: 60
   GUBRF:
     3d:
       model: LightGBM
@@ -763,60 +798,60 @@ symbols:
       training_lookback_sessions: 252
   THYAO:
     3d:
-      model: BayesianRidge
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 56.7
-      mae_pct: 1.8
-      hit_mae_pct: 1.3
-      miss_mae_pct: 2.44
-      loss: 50.74
-      hits: 17
-      total_evals: 30
-    5d:
       model: XGBoost
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 73.3
-      mae_pct: 2.0
-      hit_mae_pct: 1.62
-      miss_mae_pct: 3.04
-      loss: 35.9
-      hits: 22
-      total_evals: 30
-    10d:
-      model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
+      hit_rate_pct: 66.7
+      mae_pct: 2.45
+      hit_mae_pct: 1.85
+      miss_mae_pct: 3.64
+      loss: 44.3
+      hits: 40
+      total_evals: 60
+    5d:
+      model: XGBoost
+      horizon: 18m
+      training_lookback_sessions: 378
       hit_rate_pct: 70.0
-      mae_pct: 2.57
-      hit_mae_pct: 2.2
-      miss_mae_pct: 3.42
-      loss: 40.75
-      hits: 21
-      total_evals: 30
+      mae_pct: 2.36
+      hit_mae_pct: 2.03
+      miss_mae_pct: 3.13
+      loss: 39.85
+      hits: 42
+      total_evals: 60
+    10d:
+      model: LightGBM
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 68.3
+      mae_pct: 3.27
+      hit_mae_pct: 2.29
+      miss_mae_pct: 5.38
+      loss: 47.4
+      hits: 41
+      total_evals: 60
     15d:
-      model: BayesianRidge
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 56.7
-      mae_pct: 2.82
-      hit_mae_pct: 1.09
-      miss_mae_pct: 5.08
-      loss: 57.12
-      hits: 17
-      total_evals: 30
+      model: XGBoost
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 58.3
+      mae_pct: 3.87
+      hit_mae_pct: 1.63
+      miss_mae_pct: 7.01
+      loss: 60.83
+      hits: 35
+      total_evals: 60
     30d:
       model: BayesianRidge
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 76.7
-      mae_pct: 2.15
-      hit_mae_pct: 1.55
-      miss_mae_pct: 4.14
-      loss: 35.24
-      hits: 23
-      total_evals: 30
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 65.0
+      mae_pct: 6.01
+      hit_mae_pct: 4.53
+      miss_mae_pct: 8.76
+      loss: 61.43
+      hits: 39
+      total_evals: 60
   TKFEN:
     3d:
       model: LightGBM

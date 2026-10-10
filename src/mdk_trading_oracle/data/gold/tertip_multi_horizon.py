@@ -131,7 +131,9 @@ def update_gold_tertip_multi_horizon_forecasts(
     for sym in target_symbols:
         try:
             sym_comp = symbols_cfg.get(sym, DEFAULT_CHAMPIONS)
-            payload = get_multi_horizon_forecaster_payload(db, sym, selected_composition=sym_comp, n_eval_sessions=60)
+            payload = get_multi_horizon_forecaster_payload(
+                db, sym, selected_composition=sym_comp, n_eval_sessions=60, force_recompute=True
+            )
             if payload.get("status") != "success":
                 continue
 
