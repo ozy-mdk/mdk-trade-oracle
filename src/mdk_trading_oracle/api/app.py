@@ -679,6 +679,9 @@ class MultiHorizonMeta(BaseModel):
     min_training_sessions_used: int = 0
     max_training_sessions_used: int = 0
     data_sufficiency_pct: float = 100.0
+    target_lookback_months: Optional[int] = None
+    target_lookback_sessions: Optional[int] = None
+    min_required_train_sessions: Optional[int] = None
     mae_pct: float
     hit_mae_pct: float
     miss_mae_pct: float
