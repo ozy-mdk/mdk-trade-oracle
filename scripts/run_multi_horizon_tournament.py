@@ -19,6 +19,15 @@ Usage:
 
 from __future__ import annotations
 
+import os
+
+# Prevent OpenMP / BLAS thread contention and deadlocks on macOS
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import argparse
 from datetime import datetime
 from typing import Any
@@ -153,10 +162,10 @@ def main() -> None:
 
     logger.info(
         f"🚀 Running Multi-Horizon Tournament for {len(target_symbols)} equities "
-        f"({args.eval_sessions} sessions) across 6 parallel workers..."
+        f"({args.eval_sessions} sessions) across 4 parallel workers..."
     )
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(_worker_multi_horizon, (sym, args.eval_sessions)): sym for sym in target_symbols}
         for future in concurrent.futures.as_completed(futures):
             sym = futures[future]
