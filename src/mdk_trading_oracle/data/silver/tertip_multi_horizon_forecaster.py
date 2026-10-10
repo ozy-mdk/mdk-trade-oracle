@@ -568,14 +568,96 @@ def get_multi_horizon_forecaster_payload(
         lb_sessions = cfg.get("lookback", cfg.get("training_lookback_sessions", 126))
         horizon_lb_str = cfg.get("horizon", "6m")
 
-        # 1. Run Walk-Forward Out-Of-Sample Backtest (up to 180 eligible sessions)
-        bt_eval = evaluate_horizon_walk_forward(
-            df=df,
-            horizon_key=h_key,
-            model_name=champ_model,
-            train_lookback_sessions=lb_sessions,
-            n_eval_sessions=n_eval_sessions,
-        )
+        # Check if pre-computed backtest ledger exists in database
+        db_rows = []
+        if db is not None:
+            try:
+                db_res = db.query_pl(
+                    """
+                    SELECT trade_date, target_date_start, target_date_end, current_price,
+                           actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
+                           pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
+                           actual_training_sessions, data_sufficiency_status
+                    FROM gold_tertip_multi_horizon_backtests
+                    WHERE symbol = %s AND horizon = %s
+                    ORDER BY trade_date ASC;
+                    """,
+                    params=[sym, h_key],
+                )
+                if len(db_res) > 0:
+                    db_rows = db_res.to_dicts()
+            except Exception as e:
+                logger.debug(f"Could not load precomputed backtests from DB: {e}")
+
+        if db_rows:
+            # Reconstruct bt_eval from persisted records
+            completed = [r for r in db_rows if not r.get("is_pending")]
+            hits = sum(1 for r in completed if r.get("is_hit"))
+            total = len(completed)
+            hit_rate = round(hits / max(1, total) * 100.0, 1)
+            errs = [float(r.get("err_pct", 0.0)) for r in completed]
+            hit_errs = [float(r.get("err_pct", 0.0)) for r in completed if r.get("is_hit")]
+            miss_errs = [float(r.get("err_pct", 0.0)) for r in completed if not r.get("is_hit")]
+            mae = round(float(np.mean(errs)), 2) if errs else 0.0
+            h_mae = round(float(np.mean(hit_errs)), 2) if hit_errs else 0.0
+            m_mae = round(float(np.mean(miss_errs)), 2) if miss_errs else 0.0
+            loss = round((100.0 - hit_rate) + 1.0 * h_mae + 2.5 * m_mae, 2)
+
+            partial_cnt = sum(1 for r in db_rows if r.get("data_sufficiency_status") == "PARTIAL_HISTORY")
+            full_cnt = sum(1 for r in db_rows if r.get("data_sufficiency_status") != "PARTIAL_HISTORY")
+            train_sess_list = [r.get("actual_training_sessions") for r in db_rows if r.get("actual_training_sessions")]
+
+            ledger = []
+            for r in db_rows:
+                act_s = r.get("actual_training_sessions") or lb_sessions
+                ledger.append({
+                    "trade_date": str(r["trade_date"]),
+                    "target_date_start": str(r["target_date_start"]),
+                    "target_date_end": str(r["target_date_end"]),
+                    "current_price": float(r["current_price"] or 0.0),
+                    "actual_avg_price": float(r["actual_avg_price"] or 0.0),
+                    "actual_return_pct": float(r["actual_return_pct"] or 0.0),
+                    "pred_avg_price": float(r["pred_avg_price"] or 0.0),
+                    "pred_return_pct": float(r["pred_return_pct"] or 0.0),
+                    "pred_direction": r.get("pred_direction") or "NEUTRAL",
+                    "actual_direction": r.get("actual_direction") or "NEUTRAL",
+                    "err_pct": float(r["err_pct"] or 0.0),
+                    "is_hit": bool(r.get("is_hit", False)),
+                    "is_pending": bool(r.get("is_pending", False)),
+                    "champion_model": r.get("champion_model") or champ_model,
+                    "actual_training_sessions": act_s,
+                    "target_lookback_sessions": lb_sessions,
+                    "actual_training_months": round(act_s / 21.0, 1),
+                    "data_sufficiency_status": r.get("data_sufficiency_status") or "FULL",
+                })
+
+            bt_eval = {
+                "hit_rate_pct": hit_rate,
+                "hits": hits,
+                "total_evals": total,
+                "eval_sessions_requested": len(db_rows),
+                "sessions_skipped_insufficient": 0,
+                "sessions_with_partial_history": partial_cnt,
+                "sessions_with_full_history": full_cnt,
+                "min_training_sessions_used": min(train_sess_list) if train_sess_list else lb_sessions,
+                "max_training_sessions_used": max(train_sess_list) if train_sess_list else lb_sessions,
+                "data_sufficiency_pct": round(full_cnt / max(1, (full_cnt + partial_cnt)) * 100.0, 1),
+                "target_lookback_months": lb_sessions // 21,
+                "mae_pct": mae,
+                "hit_mae_pct": h_mae,
+                "miss_mae_pct": m_mae,
+                "loss": loss,
+                "ledger": ledger,
+            }
+        else:
+            # Fall back to dynamic walk-forward evaluation
+            bt_eval = evaluate_horizon_walk_forward(
+                df=df,
+                horizon_key=h_key,
+                model_name=champ_model,
+                train_lookback_sessions=lb_sessions,
+                n_eval_sessions=n_eval_sessions,
+            )
 
         # 2. Generate Live T+1 Upcoming Forecast
         live_fc = generate_live_horizon_forecast(
