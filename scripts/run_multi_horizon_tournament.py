@@ -111,6 +111,16 @@ def run_tournament_for_symbol(
     return symbol_champions
 
 
+def _worker_multi_horizon(args_tuple: tuple[str, int]) -> tuple[str, dict[str, Any]]:
+    sym, eval_sessions = args_tuple
+    db = PostgresManager()
+    try:
+        champs = run_tournament_for_symbol(db, sym, eval_sessions=eval_sessions)
+        return sym, champs
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Multi-Horizon Tournament Referee")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols")
@@ -139,10 +149,24 @@ def main() -> None:
     if "symbols" not in cfg:
         cfg["symbols"] = {}
 
-    for sym in target_symbols:
-        champs = run_tournament_for_symbol(db, sym, eval_sessions=args.eval_sessions)
-        if champs:
-            cfg["symbols"][sym] = champs
+    import concurrent.futures
+
+    logger.info(
+        f"🚀 Running Multi-Horizon Tournament for {len(target_symbols)} equities "
+        f"({args.eval_sessions} sessions) across 6 parallel workers..."
+    )
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(_worker_multi_horizon, (sym, args.eval_sessions)): sym for sym in target_symbols}
+        for future in concurrent.futures.as_completed(futures):
+            sym = futures[future]
+            try:
+                sym_res, champs = future.result()
+                if champs:
+                    cfg["symbols"][sym_res] = champs
+                    logger.info(f"✅ Completed Multi-Horizon Tournament for {sym_res}")
+            except Exception as e:
+                logger.error(f"❌ Error during tournament for {sym}: {e}")
 
     cfg["_metadata"]["updated_at"] = datetime.now().isoformat()
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:

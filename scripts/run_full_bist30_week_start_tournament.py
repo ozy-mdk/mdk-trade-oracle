@@ -102,6 +102,16 @@ def run_tournament_for_symbol(
     return best_config
 
 
+def _worker_week_start(args_tuple: tuple[str, int]) -> tuple[str, dict[str, Any] | None]:
+    sym, n_weeks = args_tuple
+    db = PostgresManager()
+    try:
+        crowned = run_tournament_for_symbol(db, sym, n_weeks=n_weeks)
+        return sym, crowned
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run BIST 30 Full-Constituent Week Start Tournament")
     parser.add_argument("--weeks", type=int, default=20, help="Walk-forward evaluation window in Mondays (default: 20)")
@@ -117,33 +127,35 @@ def main() -> None:
         res = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC")
         symbols = res["symbol"].to_list()
 
-    logger.info("Starting Week Start Tournament for %d symbols across %d Mondays...", len(symbols), args.weeks)
+    logger.info("Starting Week Start Tournament for %d symbols across %d Mondays on 6 workers...", len(symbols), args.weeks)
     t0 = time.time()
 
     results: dict[str, Any] = {}
-    for idx, sym in enumerate(symbols, 1):
-        t_sym = time.time()
-        crowned = run_tournament_for_symbol(db, sym, n_weeks=args.weeks)
-        dur = time.time() - t_sym
+    import concurrent.futures
 
-        if crowned:
-            results[sym] = crowned
-            logger.info(
-                "[%d/%d] %s -> CROWNED %s (%s, %dw) | Hit Rate: %.1f%% (%d/%d) | Loss: %.2f (took %.1fs)",
-                idx,
-                len(symbols),
-                sym,
-                crowned["model"],
-                crowned["horizon"],
-                crowned["training_lookback_weeks"],
-                crowned["recent_20w_hit_rate_pct"],
-                crowned["recent_20w_hits"],
-                args.weeks,
-                crowned["recent_20w_penalty_loss"],
-                dur,
-            )
-        else:
-            logger.warning("[%d/%d] %s -> FAILED / Insufficient data", idx, len(symbols), sym)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(_worker_week_start, (sym, args.weeks)): sym for sym in symbols}
+        for future in concurrent.futures.as_completed(futures):
+            sym = futures[future]
+            try:
+                sym_res, crowned = future.result()
+                if crowned:
+                    results[sym_res] = crowned
+                    logger.info(
+                        "✅ %s -> CROWNED %s (%s, %dw) | Hit Rate: %.1f%% (%d/%d) | Loss: %.2f",
+                        sym_res,
+                        crowned["model"],
+                        crowned["horizon"],
+                        crowned["training_lookback_weeks"],
+                        crowned["recent_20w_hit_rate_pct"],
+                        crowned["recent_20w_hits"],
+                        args.weeks,
+                        crowned["recent_20w_penalty_loss"],
+                    )
+                else:
+                    logger.warning("❌ %s -> Insufficient data / skipped", sym_res)
+            except Exception as e:
+                logger.error("Error evaluating %s: %s", sym, e)
 
     # Save to config
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)

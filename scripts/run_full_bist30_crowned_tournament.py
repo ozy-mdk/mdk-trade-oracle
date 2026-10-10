@@ -254,6 +254,16 @@ def run_tournament_for_symbol(
     return best_config
 
 
+def _worker_crowned_tournament(args_tuple: tuple[str, int]) -> tuple[str, dict[str, Any] | None]:
+    sym, n_sessions = args_tuple
+    db = PostgresManager()
+    try:
+        res = run_tournament_for_symbol(db, sym, n_sessions=n_sessions)
+        return sym, res
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Full BIST 30 Tournament")
     parser.add_argument("--symbols", nargs="*", help="Optional subset of symbols to evaluate")
@@ -276,53 +286,58 @@ def main() -> None:
         res = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC;")
         eval_symbols = res["symbol"].to_list() if not res.is_empty() else sorted(list(old_config.keys()))
 
-    logger.info(f"Starting Full BIST 30 Tournament for {len(eval_symbols)} equities over {args.sessions} retrospective sessions...")
+    logger.info(f"Starting Full BIST 30 Tournament for {len(eval_symbols)} equities over {args.sessions} retrospective sessions across 6 workers...")
     logger.info("Candidates: XGBoost, LightGBM, BayesianRidge, Huber, Ridge across [3M, 6M, 12M, 18M, 24M]")
     t_start = time.time()
 
     new_results: dict[str, Any] = {}
     scorecard_rows: list[dict[str, Any]] = []
 
-    for idx, sym in enumerate(eval_symbols, 1):
-        sym_t0 = time.time()
-        print(f"\n[{idx:02d}/{len(eval_symbols):02d}] Benchmarking {sym} across 25 configurations ({args.sessions}d)...", flush=True)
-        res = run_tournament_for_symbol(db, sym, n_sessions=args.sessions)
-        if not res:
-            continue
+    import concurrent.futures
 
-        sym_elapsed = time.time() - sym_t0
-        new_results[sym] = res
+    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(_worker_crowned_tournament, (sym, args.sessions)): sym for sym in eval_symbols}
+        for future in concurrent.futures.as_completed(futures):
+            sym = futures[future]
+            try:
+                sym_res, res = future.result()
+                if not res:
+                    continue
 
-        old_meta = old_config.get(sym, {})
-        old_model = f"{old_meta.get('model', 'None')} ({old_meta.get('horizon', '?')})"
-        old_rate = old_meta.get("recent_30d_hit_rate_pct", 0.0)
-        old_mae = old_meta.get("recent_30d_mae_pct", 0.0)
+                new_results[sym_res] = res
 
-        new_model = f"{res['model']} ({res['horizon']})"
-        new_hits = res["recent_30d_hits"]
-        new_rate = res["recent_30d_hit_rate_pct"]
-        new_mae = res["recent_30d_mae_pct"]
-        hit_delta = new_rate - old_rate
+                old_meta = old_config.get(sym_res, {})
+                old_model = f"{old_meta.get('model', 'None')} ({old_meta.get('horizon', '?')})"
+                old_rate = old_meta.get("recent_30d_hit_rate_pct", 0.0)
+                old_mae = old_meta.get("recent_30d_mae_pct", 0.0)
 
-        print(
-            f"   -> Winner: {new_model:<18} | Hits: {new_hits}/{args.sessions} ({new_rate:>4.1f}%) | "
-            f"MAE: {new_mae:>4.2f}% | SigRate: {res['recent_30d_sig_move_hit_rate_pct']:>4.1f}% | "
-            f"Loss: {res['recent_30d_penalty_loss']:>6.2f} ({sym_elapsed:.1f}s)",
-            flush=True,
-        )
+                new_model = f"{res['model']} ({res['horizon']})"
+                new_hits = res["recent_30d_hits"]
+                new_rate = res["recent_30d_hit_rate_pct"]
+                new_mae = res["recent_30d_mae_pct"]
+                hit_delta = new_rate - old_rate
 
-        scorecard_rows.append({
-            "Stock": sym,
-            "Incumbent": old_model,
-            "Old Hit%": f"{old_rate:.1f}%",
-            "Old MAE%": f"{old_mae:.2f}%",
-            "New Champion": new_model,
-            "New Hit%": f"{new_rate:.1f}%",
-            "New MAE%": f"{new_mae:.2f}%",
-            "Hit% Delta": f"{'+' if hit_delta > 0 else ''}{hit_delta:.1f}%",
-            "Sig Move Hit%": f"{res['recent_30d_sig_move_hit_rate_pct']:.1f}%",
-            "Loss": f"{res['recent_30d_penalty_loss']:.2f}",
-        })
+                print(
+                    f"   -> [{sym_res}] Winner: {new_model:<18} | Hits: {new_hits}/{args.sessions} ({new_rate:>4.1f}%) | "
+                    f"MAE: {new_mae:>4.2f}% | SigRate: {res['recent_30d_sig_move_hit_rate_pct']:>4.1f}% | "
+                    f"Loss: {res['recent_30d_penalty_loss']:>6.2f}",
+                    flush=True,
+                )
+
+                scorecard_rows.append({
+                    "Stock": sym_res,
+                    "Incumbent": old_model,
+                    "Old Hit%": f"{old_rate:.1f}%",
+                    "Old MAE%": f"{old_mae:.2f}%",
+                    "New Champion": new_model,
+                    "New Hit%": f"{new_rate:.1f}%",
+                    "New MAE%": f"{new_mae:.2f}%",
+                    "Hit% Delta": f"{'+' if hit_delta > 0 else ''}{hit_delta:.1f}%",
+                    "Sig Move Hit%": f"{res['recent_30d_sig_move_hit_rate_pct']:.1f}%",
+                    "Loss": f"{res['recent_30d_penalty_loss']:.2f}",
+                })
+            except Exception as e:
+                logger.error(f"Error evaluating {sym}: {e}")
 
     # Print Final Scorecard Table
     df_sc = pd.DataFrame(scorecard_rows)
