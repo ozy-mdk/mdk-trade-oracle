@@ -69,6 +69,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         prophet_expected_return_pct DOUBLE PRECISION,
         training_lookback_sessions INTEGER DEFAULT 252,
         crowned_horizon VARCHAR(16) DEFAULT '12m',
+        actual_training_sessions INTEGER DEFAULT 252,
+        data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, as_of_date)
     );
@@ -111,6 +113,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         kamu_pnl_tl DOUBLE PRECISION,
         ml_champion_type VARCHAR(32),
         training_lookback_sessions INTEGER DEFAULT 252,
+        actual_training_sessions INTEGER DEFAULT 252,
+        data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, trade_date)
     );
@@ -122,13 +126,13 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         price_low, price_high, stance, conviction, playbook,
         ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
         prophet_target_price, prophet_expected_return_pct,
-        training_lookback_sessions, crowned_horizon, calculated_at
+        training_lookback_sessions, crowned_horizon, actual_training_sessions, data_sufficiency_status, calculated_at
     ) VALUES (
         %(symbol)s, %(as_of_date)s, %(current_price)s, %(target_price)s, %(expected_return_pct)s,
         %(price_low)s, %(price_high)s, %(stance)s, %(conviction)s, %(playbook)s,
         %(ml_champion_type)s, %(champion_dir_hits)s, %(champion_dir_hit_rate_pct)s, %(champion_mae_pct)s,
         %(prophet_target_price)s, %(prophet_expected_return_pct)s,
-        %(training_lookback_sessions)s, %(crowned_horizon)s, CURRENT_TIMESTAMP
+        %(training_lookback_sessions)s, %(crowned_horizon)s, %(actual_training_sessions)s, %(data_sufficiency_status)s, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, as_of_date) DO UPDATE SET
         current_price = EXCLUDED.current_price,
         target_price = EXCLUDED.target_price,
@@ -146,6 +150,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         prophet_expected_return_pct = EXCLUDED.prophet_expected_return_pct,
         training_lookback_sessions = EXCLUDED.training_lookback_sessions,
         crowned_horizon = EXCLUDED.crowned_horizon,
+        actual_training_sessions = EXCLUDED.actual_training_sessions,
+        data_sufficiency_status = EXCLUDED.data_sufficiency_status,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -158,7 +164,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         mlb_action, mlb_flow_tl, mlb_buy_tl, mlb_sell_tl, mlb_pnl_tl,
         big5_action, big5_flow_tl, big5_buy_tl, big5_sell_tl, big5_pnl_tl,
         kamu_action, kamu_flow_tl, kamu_buy_tl, kamu_sell_tl, kamu_pnl_tl,
-        ml_champion_type, training_lookback_sessions, calculated_at
+        ml_champion_type, training_lookback_sessions, actual_training_sessions, data_sufficiency_status, calculated_at
     ) VALUES (
         %(symbol)s, %(trade_date)s, %(actual_price)s, %(actual_return_pct)s, %(bist30_ret_pct)s,
         %(ml_pred_price)s, %(ml_pred_return_pct)s, %(ml_direction)s, %(ml_err_pct)s, %(ml_is_hit)s,
@@ -167,7 +173,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         %(mlb_action)s, %(mlb_flow_tl)s, %(mlb_buy_tl)s, %(mlb_sell_tl)s, %(mlb_pnl_tl)s,
         %(big5_action)s, %(big5_flow_tl)s, %(big5_buy_tl)s, %(big5_sell_tl)s, %(big5_pnl_tl)s,
         %(kamu_action)s, %(kamu_flow_tl)s, %(kamu_buy_tl)s, %(kamu_sell_tl)s, %(kamu_pnl_tl)s,
-        %(ml_champion_type)s, %(training_lookback_sessions)s, CURRENT_TIMESTAMP
+        %(ml_champion_type)s, %(training_lookback_sessions)s, %(actual_training_sessions)s, %(data_sufficiency_status)s, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, trade_date) DO UPDATE SET
         actual_price = EXCLUDED.actual_price,
         actual_return_pct = EXCLUDED.actual_return_pct,
@@ -204,6 +210,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         kamu_pnl_tl = EXCLUDED.kamu_pnl_tl,
         ml_champion_type = EXCLUDED.ml_champion_type,
         training_lookback_sessions = EXCLUDED.training_lookback_sessions,
+        actual_training_sessions = EXCLUDED.actual_training_sessions,
+        data_sufficiency_status = EXCLUDED.data_sufficiency_status,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -219,7 +227,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
 
         # Extract recent data
         df = extract_3pillar_time_series(db, sym, lookback_days=int((train_lb + 60) * 1.5))
-        if df.empty or len(df) < 15:
+        if df.empty or len(df) < 63:
+            logger.warning(f"Insufficient training history for {sym}: {len(df)} sessions (< 63 sessions / 3 months minimum). Hard stopping.")
             continue
 
         df = attach_prophet_rolling_features(df, sym, n_history_needed=50)
@@ -233,8 +242,20 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         X_tr_full = tr_full[FEATURE_COLS].iloc[:-1]
         y_tr_full = y_tr_full.iloc[:-1]
 
-        if len(X_tr_full) < 10:
-            continue
+        if len(X_tr_full) < 63:
+            # Check if overall df has enough data
+            valid_rows = df.dropna(subset=FEATURE_COLS)
+            if len(valid_rows) < 63:
+                logger.warning(f"Constituent {sym} has only {len(valid_rows)} valid training rows (< 63). Hard stopping.")
+                continue
+            # Adapt to available history
+            tr_full = valid_rows.iloc[-train_lb:].copy()
+            y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
+            X_tr_full = tr_full[FEATURE_COLS].iloc[:-1]
+            y_tr_full = y_tr_full.iloc[:-1]
+
+        actual_train_sessions = len(X_tr_full)
+        data_sufficiency_status = "FULL" if actual_train_sessions >= train_lb else "PARTIAL_HISTORY"
 
         # Fit Champion Model
         if model_name == "XGBoost":
@@ -298,6 +319,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             "prophet_expected_return_pct": round(prophet_ret, 2),
             "training_lookback_sessions": train_lb,
             "crowned_horizon": h_name,
+            "actual_training_sessions": actual_train_sessions,
+            "data_sufficiency_status": data_sufficiency_status,
         })
 
         # Check if the latest completed session T has realized ground truth to append to walk_forward_backtests
@@ -362,6 +385,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
                 "kamu_pnl_tl": round(float(latest_row.get("kamu_daily_pnl_tl", 0.0) or 0.0), 1),
                 "ml_champion_type": model_name,
                 "training_lookback_sessions": train_lb,
+                "actual_training_sessions": actual_train_sessions,
+                "data_sufficiency_status": data_sufficiency_status,
             })
 
         success_count += 1

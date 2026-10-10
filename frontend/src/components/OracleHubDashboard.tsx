@@ -253,8 +253,13 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                 Gold Tertip Predictive Hub
               </span>
               <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                {tournament?.crowned_horizon?.toUpperCase() || '3M'} LOOKBACK ({forecast?.train_lookback_sessions ?? 63} SESSIONS)
+                {forecast?.actual_window_desc || `${tournament?.crowned_horizon?.toUpperCase() || '3M'} LOOKBACK (${forecast?.actual_training_sessions ?? forecast?.train_lookback_sessions ?? 63} SESSIONS)`}
               </span>
+              {Boolean(forecast?.data_sufficiency_status && forecast.data_sufficiency_status !== 'FULL') && (
+                <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                  {forecast?.data_sufficiency_status}
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-slate-400">
               Institutional Order-Flow Walk-Forward Tournament & Multi-Horizon Confluence Engine
@@ -661,7 +666,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
 
               {/* Arena Details */}
               <div className="text-[9.5px] font-mono text-slate-500 pt-2 border-t border-slate-800 mt-2 flex items-center justify-between">
-                <span>Training: Last {tournament?.crowned_horizon?.toUpperCase() || '3M'} ({forecast.train_lookback_sessions ?? 63}d)</span>
+                <span>Training: {forecast.actual_window_desc || `Last ${tournament?.crowned_horizon?.toUpperCase() || '3M'} (${forecast.actual_training_sessions ?? forecast.train_lookback_sessions ?? 63}d)`}</span>
                 <span>Active Feats: {forecast.active_features_count ?? 21}</span>
               </div>
             </div>
@@ -1212,6 +1217,9 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     <th className="text-center px-2 py-1.5 text-cyan-300">
                       {activeModel === 'champion' ? 'Champion Hit?' : activeModel === 'ml' ? 'ML Hit?' : 'Prophet Hit?'}
                     </th>
+                    <th className="text-center px-2 py-1.5 text-slate-400">
+                      Window
+                    </th>
                     {activeModel !== 'ml' && (
                       <th className="text-right px-2 py-1.5 text-indigo-400">ML Alone</th>
                     )}
@@ -1289,6 +1297,16 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                             <span>{isRowHit ? '✓' : '✗'}</span>
                             <span>{isRowHit ? 'CORRECT' : 'WRONG'}</span>
                           </span>
+                        </td>
+                        <td className="text-center px-2 py-1 text-[8px] font-mono">
+                          {row.actual_training_sessions ? (
+                            <span className={row.data_sufficiency_status === 'FULL' ? 'text-slate-400' : 'text-amber-400 font-semibold'}>
+                              {row.actual_training_sessions}d
+                              {row.data_sufficiency_status !== 'FULL' && ` (${row.data_sufficiency_status})`}
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
                         </td>
                         {activeModel !== 'ml' && (
                           <td className="text-right px-2 py-1 text-slate-300">

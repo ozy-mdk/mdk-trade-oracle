@@ -51,8 +51,8 @@ def run_tournament_for_symbol(
     """Run weekly walk-forward arena across all candidate models and horizons for a single equity."""
     sym = symbol.upper()
     df = extract_week_start_time_series(db, sym)
-    if df.empty or len(df) < (n_weeks + 25):
-        logger.warning("Skipping %s: Insufficient historical weekly data (%d rows)", sym, len(df))
+    if df.empty or len(df) < 13:
+        logger.warning("Skipping %s: Insufficient historical weekly data (%d rows < 13 weeks / 3 months minimum)", sym, len(df))
         return None
 
     best_config: dict[str, Any] | None = None

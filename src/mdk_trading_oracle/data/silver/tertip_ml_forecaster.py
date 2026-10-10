@@ -109,6 +109,16 @@ FEATURE_COLS = [
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
 
+# Multi-Horizon Lookbacks and 3-Month Minimum Training Hard Stop
+MIN_TRAIN_SESSIONS: int = 63  # 3 market months minimum training hard stop
+LOOKBACK_MAP: dict[str, int] = {
+    "3m": 63,
+    "6m": 126,
+    "12m": 252,
+    "18m": 378,
+    "24m": 504,
+}
+
 # Neutral Consolidation Deadband % (+/- 0.25% / 25 bps)
 DEADBAND_PCT: float = 0.25
 
@@ -642,9 +652,31 @@ def run_30d_walk_forward_arena(
             df[col] = 0.0
 
     step_records: list[dict[str, Any]] = []
+    sessions_skipped_insufficient = 0
+    sessions_with_partial_history = 0
+    sessions_with_full_history = 0
+    actual_sessions_list: list[int] = []
 
     for idx in range(len(df) - n_sessions, len(df)):
         train_data = df.iloc[:idx].copy()
+        available_history = len(train_data)
+
+        # 3-Month Minimum Training Data Hard Stop (63 trading sessions)
+        if available_history < MIN_TRAIN_SESSIONS:
+            sessions_skipped_insufficient += 1
+            continue
+
+        actual_training_sessions = min(available_history, train_lookback_sessions)
+        actual_training_months = round(actual_training_sessions / 21.0, 1)
+        actual_sessions_list.append(actual_training_sessions)
+
+        if actual_training_sessions < train_lookback_sessions:
+            data_sufficiency_status = "PARTIAL_HISTORY"
+            sessions_with_partial_history += 1
+        else:
+            data_sufficiency_status = "FULL"
+            sessions_with_full_history += 1
+
         test_row = df.iloc[idx]
         prev_row = df.iloc[idx - 1]
 
@@ -666,7 +698,7 @@ def run_30d_walk_forward_arena(
         if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
             prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
         else:
-            ret_series = train_data["daily_return_pct"].iloc[-train_lookback_sessions:].fillna(0.0) * 100.0
+            ret_series = train_data["daily_return_pct"].iloc[-actual_training_sessions:].fillna(0.0) * 100.0
             prophet_ret = float(ret_series.ewm(span=63).mean().iloc[-1]) if len(ret_series) > 0 else 0.0
         prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
         prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
@@ -686,8 +718,8 @@ def run_30d_walk_forward_arena(
 
         prophet_hit = _check_hit(prophet_ret, actual_ret)
 
-        # 2. ML Candidate Features (strictly trailing train_lookback_sessions)
-        tr_clean = train_data.iloc[-train_lookback_sessions:].dropna(subset=f_cols).copy()
+        # 2. ML Candidate Features (strictly trailing actual_training_sessions)
+        tr_clean = train_data.iloc[-actual_training_sessions:].dropna(subset=f_cols).copy()
         y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
         X_tr = tr_clean[f_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
@@ -820,6 +852,10 @@ def run_30d_walk_forward_arena(
             "lgbm_model": lgbm,
             "huber_model": huber,
             "bayes_model": bayes,
+            "actual_training_sessions": actual_training_sessions,
+            "actual_training_months": actual_training_months,
+            "target_lookback_sessions": train_lookback_sessions,
+            "data_sufficiency_status": data_sufficiency_status,
         })
 
     n_total = len(step_records)
@@ -1245,6 +1281,10 @@ def run_30d_walk_forward_arena(
             "kamu_sell_tl": round(float(test_row["kamu_sell_tl"]) if ("kamu_sell_tl" in test_row and pd.notna(test_row["kamu_sell_tl"])) else 0.0, 1),
             "kamu_pnl_tl": round(float(test_row["kamu_daily_pnl_tl"]) if ("kamu_daily_pnl_tl" in test_row and pd.notna(test_row["kamu_daily_pnl_tl"])) else 0.0, 1),
             "training_lookback_sessions": train_lookback_sessions,
+            "actual_training_sessions": s.get("actual_training_sessions", train_lookback_sessions),
+            "actual_training_months": s.get("actual_training_months", round(train_lookback_sessions / 21.0, 1)),
+            "target_lookback_sessions": train_lookback_sessions,
+            "data_sufficiency_status": s.get("data_sufficiency_status", "FULL"),
         })
 
     # Confluence Metrics (30-day and full-history)
@@ -1439,6 +1479,17 @@ def run_30d_walk_forward_arena(
         "prophet_wins": prophet_error_wins,
         "training_lookback_sessions": train_lookback_sessions,
         "total_sessions": len(ledger),
+        "sessions_skipped_insufficient": sessions_skipped_insufficient,
+        "sessions_with_partial_history": sessions_with_partial_history,
+        "sessions_with_full_history": sessions_with_full_history,
+        "data_sufficiency_pct": round(
+            sessions_with_full_history / max(1, (sessions_with_full_history + sessions_with_partial_history)) * 100.0, 1
+        ),
+        "actual_training_sessions": min(actual_sessions_list) if actual_sessions_list else train_lookback_sessions,
+        "actual_training_months": round((min(actual_sessions_list) if actual_sessions_list else train_lookback_sessions) / 21.0, 1),
+        "target_lookback_sessions": train_lookback_sessions,
+        "target_lookback_months": round(train_lookback_sessions / 21.0, 1),
+        "data_sufficiency_status": "FULL" if sessions_with_partial_history == 0 and sessions_skipped_insufficient == 0 else "PARTIAL_HISTORY",
     }
 
     return ledger, tournament_summary, champion_ml_model
@@ -1519,7 +1570,8 @@ def _get_precomputed_forecast_from_db(
                        price_low, price_high, stance, conviction, playbook,
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
                        prophet_target_price, prophet_expected_return_pct,
-                       calculated_at, training_lookback_sessions, crowned_horizon
+                       calculated_at, training_lookback_sessions, crowned_horizon,
+                       actual_training_sessions, data_sufficiency_status
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s AND as_of_date = %s
                 ORDER BY calculated_at DESC
@@ -1531,7 +1583,8 @@ def _get_precomputed_forecast_from_db(
                        price_low, price_high, stance, conviction, playbook,
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
                        prophet_target_price, prophet_expected_return_pct,
-                       calculated_at, training_lookback_sessions, crowned_horizon
+                       calculated_at, training_lookback_sessions, crowned_horizon,
+                       actual_training_sessions, data_sufficiency_status
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s
                 ORDER BY as_of_date DESC, calculated_at DESC
@@ -1550,7 +1603,7 @@ def _get_precomputed_forecast_from_db(
                    mlb_action, mlb_flow_tl, mlb_buy_tl, mlb_sell_tl, mlb_pnl_tl,
                    big5_action, big5_flow_tl, big5_buy_tl, big5_sell_tl, big5_pnl_tl,
                    kamu_action, kamu_flow_tl, kamu_buy_tl, kamu_sell_tl, kamu_pnl_tl,
-                   training_lookback_sessions
+                   training_lookback_sessions, actual_training_sessions, data_sufficiency_status
             FROM gold_tertip_walk_forward_backtests
             WHERE symbol = %s
             ORDER BY trade_date ASC
@@ -1624,6 +1677,10 @@ def _get_precomputed_forecast_from_db(
                 "kamu_sell_tl": round(float(r[32] or 0.0), 1),
                 "kamu_pnl_tl": round(float(r[33] or 0.0), 1),
                 "training_lookback_sessions": int(r[34] or 252),
+                "actual_training_sessions": int(r[35] or r[34] or 252),
+                "actual_training_months": round(int(r[35] or r[34] or 252) / 21.0, 1),
+                "target_lookback_sessions": int(r[34] or 252),
+                "data_sufficiency_status": str(r[36] or "FULL"),
             })
 
         # Trailing 30 evaluation stats
@@ -1642,6 +1699,10 @@ def _get_precomputed_forecast_from_db(
         champ_mae = float(f_row[13] if f_row[13] is not None else ml_mae_30)
         train_lb = int(f_row[17] if f_row[17] is not None else 252)
         crowned_horizon = str(f_row[18] if f_row[18] is not None else "12m")
+        act_train_sess = int(f_row[19] if len(f_row) > 19 and f_row[19] is not None else train_lb)
+        suff_status = str(f_row[20] if len(f_row) > 20 and f_row[20] is not None else "FULL")
+        act_train_months = round(act_train_sess / 21.0, 1)
+        window_desc = f"{act_train_sess} sess (~{act_train_months}M)"
 
         tournament = {
             "champion": "TERTIP_ML_CHALLENGER",
@@ -1649,6 +1710,11 @@ def _get_precomputed_forecast_from_db(
             "ml_champion_type": champ_model,
             "crowned_horizon": crowned_horizon,
             "training_lookback_sessions": train_lb,
+            "actual_training_sessions": act_train_sess,
+            "actual_training_months": act_train_months,
+            "target_training_months": round(train_lb / 21.0, 1),
+            "actual_window_desc": window_desc,
+            "data_sufficiency_status": suff_status,
             "selection_window_sessions": 30,
             "champion_dir_hits": champ_hits,
             "champion_dir_hit_rate_pct": round(champ_hit_rate, 1),
@@ -1858,6 +1924,11 @@ def _get_precomputed_forecast_from_db(
             "features_mode": "lean",
             "active_features_count": len(FEATURE_COLS),
             "train_lookback_sessions": train_lb,
+            "actual_training_sessions": act_train_sess,
+            "actual_training_months": act_train_months,
+            "target_training_months": round(train_lb / 21.0, 1),
+            "actual_window_desc": window_desc,
+            "data_sufficiency_status": suff_status,
             "active_features": list(FEATURE_COLS),
             "tournament_summary": tournament,
             "pillar_matrix": pillar_matrix,
@@ -1924,8 +1995,8 @@ def get_tertip_ml_forecast(
     active_features = list(feature_cols) if feature_cols is not None else list(FEATURE_COLS)
 
     # Determine needed calendar days to cover eval sessions + training lookback + burn-in
-    max_train_lb = 252
-    needed_calendar_days = max(550, int((n_eval_sessions + max_train_lb + 75) * 1.5))
+    max_train_lb = 504
+    needed_calendar_days = max(1100, int((n_eval_sessions + max_train_lb + 75) * 1.5))
     df = extract_3pillar_time_series(db, sym, lookback_days=needed_calendar_days)
     if df.empty or len(df) < (n_eval_sessions + 35):
         return {"error": f"Insufficient historical data for symbol {sym}"}
@@ -1938,7 +2009,13 @@ def get_tertip_ml_forecast(
     horizon_comparison: dict[str, Any] = {}
 
     if lb_mode == "auto":
-        candidate_horizons = {"3m": 63, "6m": 126, "12m": 252}
+        candidate_horizons = {
+            "3m": 63,
+            "6m": 126,
+            "12m": 252,
+            "18m": 378,
+            "24m": 504,
+        }
         horizon_results: dict[str, Any] = {}
         for h_key, h_lb in candidate_horizons.items():
             h_ledger, h_summary, _ = run_30d_walk_forward_arena(
@@ -2010,6 +2087,26 @@ def get_tertip_ml_forecast(
             feature_cols=active_features,
             train_lookback_sessions=train_lookback_sessions,
         )
+    elif lb_mode in ("18m", "378"):
+        train_lookback_sessions = 378
+        crowned_horizon = "18m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
+    elif lb_mode in ("24m", "504"):
+        train_lookback_sessions = 504
+        crowned_horizon = "24m"
+        ledger, tournament, _ = run_30d_walk_forward_arena(
+            df,
+            n_sessions=n_eval_sessions,
+            model_type=m_type,
+            feature_cols=active_features,
+            train_lookback_sessions=train_lookback_sessions,
+        )
     else:
         # 'default': Automatically apply pre-calibrated champion configuration (model + horizon)
         calibrated = get_calibrated_model_selection(db, sym)
@@ -2022,7 +2119,7 @@ def get_tertip_ml_forecast(
             train_lookback_sessions = 252
             crowned_horizon = "12m"
 
-        arena_train_lb = min(252, train_lookback_sessions)
+        arena_train_lb = train_lookback_sessions
         ledger, tournament, _ = run_30d_walk_forward_arena(
             df,
             n_sessions=n_eval_sessions,
@@ -2140,10 +2237,26 @@ def get_tertip_ml_forecast(
     latest_price = float(latest_row["close_price"])
     latest_date_str = str(latest_row["trade_date"]).split(" ")[0]
 
-    # 1. Stationary Prophet Return Baseline for T+1 (fitted on trailing 12 months daily returns)
-    ret_history = df["daily_return_pct"].iloc[-train_lookback_sessions:].fillna(0.0) * 100.0
+    # 3-Month Minimum Training Data Hard Stop for Live Forecast
+    if len(df) < MIN_TRAIN_SESSIONS:
+        return {
+            "status": "error",
+            "error": "insufficient_history",
+            "message": f"Insufficient trading history for {sym}: has {len(df)} sessions, minimum {MIN_TRAIN_SESSIONS} sessions (3 months) required.",
+            "data_sufficiency_status": "INSUFFICIENT",
+            "symbol": sym,
+        }
+
+    actual_live_sessions = min(len(df), train_lookback_sessions)
+    actual_live_months = round(actual_live_sessions / 21.0, 1)
+    target_live_months = round(train_lookback_sessions / 21.0, 1)
+    live_window_desc = f"{actual_live_sessions} sess (~{actual_live_months}M)"
+    live_sufficiency_status = "FULL" if actual_live_sessions >= train_lookback_sessions else "PARTIAL_ADAPTED"
+
+    # 1. Stationary Prophet Return Baseline for T+1 (fitted strictly on actual_live_sessions)
+    ret_history = df["daily_return_pct"].iloc[-actual_live_sessions:].fillna(0.0) * 100.0
     p_df = pd.DataFrame({
-        "ds": pd.to_datetime(df["trade_date"].iloc[-train_lookback_sessions:]),
+        "ds": pd.to_datetime(df["trade_date"].iloc[-actual_live_sessions:]),
         "y": ret_history,
     })
     m_prophet = Prophet(
@@ -2157,8 +2270,8 @@ def get_tertip_ml_forecast(
     prophet_ret_pct = float(fc_prophet.iloc[-1]["yhat"])
     prophet_target_price = latest_price * (1.0 + prophet_ret_pct / 100.0)
 
-    # 2. ML Challenger Prediction for T+1 (fitted on trailing 12 months / 252 sessions up to session T)
-    tr_full = df.iloc[-train_lookback_sessions:].dropna(subset=active_features).copy()
+    # 2. ML Challenger Prediction for T+1 (fitted strictly on actual_live_sessions)
+    tr_full = df.iloc[-actual_live_sessions:].dropna(subset=active_features).copy()
     y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
     X_tr_full = tr_full[active_features].iloc[:-1]
     y_tr_full = y_tr_full.iloc[:-1]
@@ -2392,6 +2505,11 @@ def get_tertip_ml_forecast(
         "features_mode": "lean",
         "active_features_count": len(active_features),
         "train_lookback_sessions": train_lookback_sessions,
+        "actual_training_sessions": actual_live_sessions,
+        "actual_training_months": actual_live_months,
+        "target_training_months": target_live_months,
+        "actual_window_desc": live_window_desc,
+        "data_sufficiency_status": live_sufficiency_status,
         "active_features": active_features,
         "tournament_summary": tournament,
         "pillar_matrix": pillar_matrix,

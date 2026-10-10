@@ -275,7 +275,13 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
                       </span>
                       <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                         {(op.crowned_horizon || '12m').toUpperCase()} • {op.ml_champion_type}
+                        {op.actual_training_sessions ? ` (${op.actual_training_sessions}d)` : ''}
                       </span>
+                      {Boolean(op.data_sufficiency_status && op.data_sufficiency_status !== 'FULL') && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {op.data_sufficiency_status}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400 truncate max-w-[240px]">
                       {op.company_name}
@@ -368,7 +374,13 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
                       </span>
                       <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
                         {(op.crowned_horizon || '12m').toUpperCase()} • {op.ml_champion_type}
+                        {op.actual_training_sessions ? ` (${op.actual_training_sessions}d)` : ''}
                       </span>
+                      {Boolean(op.data_sufficiency_status && op.data_sufficiency_status !== 'FULL') && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          {op.data_sufficiency_status}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-400 truncate max-w-[240px]">
                       {op.company_name}
@@ -667,9 +679,16 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
 
                       {/* Champion Model & Horizon */}
                       <td className="py-3 px-3 text-center">
-                        <span className="text-[11px] font-semibold text-cyan-300 bg-cyan-950/40 border border-cyan-500/30 px-2 py-0.5 rounded">
-                          {op.ml_champion_type} ({(op.crowned_horizon || '12m').toUpperCase()})
-                        </span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[11px] font-semibold text-cyan-300 bg-cyan-950/40 border border-cyan-500/30 px-2 py-0.5 rounded">
+                            {op.ml_champion_type} ({(op.crowned_horizon || '12m').toUpperCase()})
+                          </span>
+                          {Boolean(op.actual_training_sessions) && (
+                            <span className={`text-[8.5px] font-mono ${op.data_sufficiency_status === 'FULL' ? 'text-slate-400' : 'text-amber-400 font-semibold'}`}>
+                              {op.actual_training_sessions}d ({op.data_sufficiency_status})
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* 30D Hit Rate */}

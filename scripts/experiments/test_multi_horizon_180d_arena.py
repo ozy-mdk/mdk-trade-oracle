@@ -43,6 +43,8 @@ LOOKBACK_HORIZONS = {
     "3M_63d": 63,
     "6M_126d": 126,
     "12M_252d": 252,
+    "18M_378d": 378,
+    "24M_504d": 504,
 }
 
 
@@ -144,7 +146,7 @@ def run_horizon_walk_forward(
         X_tr = X_tr[valid_mask]
         y_tr = y_tr[valid_mask]
 
-        if len(X_tr) < 25:
+        if len(X_tr) < 63:
             continue
 
         # Fit Ridge

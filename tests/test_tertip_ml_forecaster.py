@@ -13,47 +13,48 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
 
 def test_run_30d_walk_forward_arena_synthetic():
     """Test walk-forward engine logic on synthetic DataFrame."""
-    dates = pd.date_range("2026-01-01", periods=65)
+    n_points = 85
+    dates = pd.date_range("2026-01-01", periods=n_points)
     np.random.seed(42)
 
     data_dict = {
         "trade_date": dates,
-        "close_price": np.cumsum(np.random.randn(65)) + 100.0,
-        "daily_return_pct": np.random.randn(65) * 0.02,
-        "total_turnover_tl": np.random.uniform(1e8, 5e8, 65),
-        "fifo_avg_cost": np.ones(65) * 98.0,
-        "feat_cost_spread_pct": np.random.randn(65) * 2.0,
-        "feat_ret_today_pct": np.random.randn(65) * 1.5,
-        "feat_ret_yesterday_pct": np.random.randn(65) * 1.5,
-        "feat_mlb_w5_share": np.random.randn(65) * 0.03,
-        "feat_prophet_ret_today_pct": np.random.randn(65) * 1.5,
-        "bist30_return_pct": np.random.randn(65) * 1.5,
-        "feat_bist30_ret_today_pct": np.random.randn(65) * 1.5,
-        "feat_mlb_tertip_3m_ratio": np.random.randn(65) * 5.0,
-        "feat_big5_tertip_3m_ratio": np.random.randn(65) * 4.0,
-        "feat_kamu_tertip_3m_ratio": np.random.randn(65) * 3.0,
-        "mlb_flow": np.random.randn(65) * 1e7,
-        "big5_flow": np.random.randn(65) * 2e7,
-        "kamu_flow": np.random.randn(65) * 5e6,
-        "mlb_buy_tl": np.random.uniform(1e7, 3e7, 65),
-        "mlb_sell_tl": np.random.uniform(1e7, 3e7, 65),
-        "mlb_daily_pnl_tl": np.random.randn(65) * 5e5,
-        "big5_buy_tl": np.random.uniform(2e7, 5e7, 65),
-        "big5_sell_tl": np.random.uniform(2e7, 5e7, 65),
-        "big5_daily_pnl_tl": np.random.randn(65) * 1e6,
-        "kamu_buy_tl": np.random.uniform(1e7, 4e7, 65),
-        "kamu_sell_tl": np.random.uniform(1e7, 4e7, 65),
-        "kamu_daily_pnl_tl": np.random.randn(65) * 8e5,
-        "feat_days_since_pos_shock": np.random.uniform(0, 63, 65),
-        "feat_days_since_neg_shock": np.random.uniform(0, 63, 65),
-        "feat_total_inst_net_share_today": np.random.randn(65) * 5.0,
+        "close_price": np.cumsum(np.random.randn(n_points)) + 100.0,
+        "daily_return_pct": np.random.randn(n_points) * 0.02,
+        "total_turnover_tl": np.random.uniform(1e8, 5e8, n_points),
+        "fifo_avg_cost": np.ones(n_points) * 98.0,
+        "feat_cost_spread_pct": np.random.randn(n_points) * 2.0,
+        "feat_ret_today_pct": np.random.randn(n_points) * 1.5,
+        "feat_ret_yesterday_pct": np.random.randn(n_points) * 1.5,
+        "feat_mlb_w5_share": np.random.randn(n_points) * 0.03,
+        "feat_prophet_ret_today_pct": np.random.randn(n_points) * 1.5,
+        "bist30_return_pct": np.random.randn(n_points) * 1.5,
+        "feat_bist30_ret_today_pct": np.random.randn(n_points) * 1.5,
+        "feat_mlb_tertip_3m_ratio": np.random.randn(n_points) * 5.0,
+        "feat_big5_tertip_3m_ratio": np.random.randn(n_points) * 4.0,
+        "feat_kamu_tertip_3m_ratio": np.random.randn(n_points) * 3.0,
+        "mlb_flow": np.random.randn(n_points) * 1e7,
+        "big5_flow": np.random.randn(n_points) * 2e7,
+        "kamu_flow": np.random.randn(n_points) * 5e6,
+        "mlb_buy_tl": np.random.uniform(1e7, 3e7, n_points),
+        "mlb_sell_tl": np.random.uniform(1e7, 3e7, n_points),
+        "mlb_daily_pnl_tl": np.random.randn(n_points) * 5e5,
+        "big5_buy_tl": np.random.uniform(2e7, 5e7, n_points),
+        "big5_sell_tl": np.random.uniform(2e7, 5e7, n_points),
+        "big5_daily_pnl_tl": np.random.randn(n_points) * 1e6,
+        "kamu_buy_tl": np.random.uniform(1e7, 4e7, n_points),
+        "kamu_sell_tl": np.random.uniform(1e7, 4e7, n_points),
+        "kamu_daily_pnl_tl": np.random.randn(n_points) * 8e5,
+        "feat_days_since_pos_shock": np.random.uniform(0, 63, n_points),
+        "feat_days_since_neg_shock": np.random.uniform(0, 63, n_points),
+        "feat_total_inst_net_share_today": np.random.randn(n_points) * 5.0,
     }
 
     # Add 9 today's execution share features
     for p in ["mlb", "big5", "kamu"]:
-        data_dict[f"feat_{p}_buy_share_today"] = np.random.randn(65) * 5.0
-        data_dict[f"feat_{p}_sell_share_today"] = np.random.randn(65) * 5.0
-        data_dict[f"feat_{p}_pnl_share_today"] = np.random.randn(65) * 1.0
+        data_dict[f"feat_{p}_buy_share_today"] = np.random.randn(n_points) * 5.0
+        data_dict[f"feat_{p}_sell_share_today"] = np.random.randn(n_points) * 5.0
+        data_dict[f"feat_{p}_pnl_share_today"] = np.random.randn(n_points) * 1.0
 
     df = pd.DataFrame(data_dict)
 

@@ -51,6 +51,9 @@ def initialize_week_start_tables(db: PostgresManager) -> None:
         wtd_mlb_net_flow_tl DOUBLE PRECISION,
         training_lookback_weeks INTEGER DEFAULT 52,
         crowned_horizon VARCHAR(16) DEFAULT '12m',
+        actual_training_weeks INTEGER DEFAULT 52,
+        actual_training_months DOUBLE PRECISION,
+        data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, as_of_date)
     );
@@ -73,6 +76,9 @@ def initialize_week_start_tables(db: PostgresManager) -> None:
         ml_champion_type VARCHAR(32),
         training_lookback_weeks INTEGER DEFAULT 52,
         crowned_horizon VARCHAR(16) DEFAULT '12m',
+        actual_training_weeks INTEGER DEFAULT 52,
+        actual_training_months DOUBLE PRECISION,
+        data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, trade_date)
     );
@@ -103,13 +109,13 @@ def sync_week_start_forecasts_from_yaml(
         price_low, price_high, stance, conviction, playbook,
         ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
         weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl,
-        training_lookback_weeks, crowned_horizon, calculated_at
+        training_lookback_weeks, crowned_horizon, actual_training_weeks, actual_training_months, data_sufficiency_status, calculated_at
     ) VALUES (
         %(symbol)s, %(as_of_date)s, %(target_date)s, %(current_price)s, %(target_price)s, %(expected_return_pct)s,
         %(price_low)s, %(price_high)s, %(stance)s, %(conviction)s, %(playbook)s,
         %(ml_champion_type)s, %(champion_dir_hits)s, %(champion_dir_hit_rate_pct)s, %(champion_mae_pct)s,
         %(weekend_carry_cost_bps)s, %(fri_w5_mlb_share_pct)s, %(wtd_mlb_net_flow_tl)s,
-        %(training_lookback_weeks)s, %(crowned_horizon)s, CURRENT_TIMESTAMP
+        %(training_lookback_weeks)s, %(crowned_horizon)s, %(actual_training_weeks)s, %(actual_training_months)s, %(data_sufficiency_status)s, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, as_of_date) DO UPDATE SET
         target_date = EXCLUDED.target_date,
         current_price = EXCLUDED.current_price,
@@ -129,6 +135,9 @@ def sync_week_start_forecasts_from_yaml(
         wtd_mlb_net_flow_tl = EXCLUDED.wtd_mlb_net_flow_tl,
         training_lookback_weeks = EXCLUDED.training_lookback_weeks,
         crowned_horizon = EXCLUDED.crowned_horizon,
+        actual_training_weeks = EXCLUDED.actual_training_weeks,
+        actual_training_months = EXCLUDED.actual_training_months,
+        data_sufficiency_status = EXCLUDED.data_sufficiency_status,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -137,12 +146,14 @@ def sync_week_start_forecasts_from_yaml(
         symbol, trade_date, prior_date, actual_price, actual_return_pct, bist30_ret_pct,
         ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
         weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl,
-        ml_champion_type, training_lookback_weeks, crowned_horizon, calculated_at
+        ml_champion_type, training_lookback_weeks, crowned_horizon,
+        actual_training_weeks, actual_training_months, data_sufficiency_status, calculated_at
     ) VALUES (
         %(symbol)s, %(trade_date)s, %(prior_date)s, %(actual_price)s, %(actual_return_pct)s, %(bist30_ret_pct)s,
         %(ml_pred_price)s, %(ml_pred_return_pct)s, %(ml_direction)s, %(ml_err_pct)s, %(ml_is_hit)s,
         %(weekend_carry_cost_bps)s, %(fri_w5_mlb_share_pct)s, %(wtd_mlb_net_flow_tl)s,
-        %(ml_champion_type)s, %(training_lookback_weeks)s, %(crowned_horizon)s, CURRENT_TIMESTAMP
+        %(ml_champion_type)s, %(training_lookback_weeks)s, %(crowned_horizon)s,
+        %(actual_training_weeks)s, %(actual_training_months)s, %(data_sufficiency_status)s, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, trade_date) DO UPDATE SET
         prior_date = EXCLUDED.prior_date,
         actual_price = EXCLUDED.actual_price,
@@ -159,6 +170,9 @@ def sync_week_start_forecasts_from_yaml(
         ml_champion_type = EXCLUDED.ml_champion_type,
         training_lookback_weeks = EXCLUDED.training_lookback_weeks,
         crowned_horizon = EXCLUDED.crowned_horizon,
+        actual_training_weeks = EXCLUDED.actual_training_weeks,
+        actual_training_months = EXCLUDED.actual_training_months,
+        data_sufficiency_status = EXCLUDED.data_sufficiency_status,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -189,7 +203,7 @@ def sync_week_start_forecasts_from_yaml(
 
         # 2. Compute backtest ledger
         df = extract_week_start_time_series(db, sym)
-        if not df.empty and len(df) >= (20 + 15):
+        if not df.empty and len(df) >= 13:
             _, _, ledger_records = run_weekly_walk_forward_arena(df, n_weeks=20, lookback_weeks=lb_weeks)
             prefix = champion_model.lower()
             for rec in ledger_records:
@@ -218,6 +232,9 @@ def sync_week_start_forecasts_from_yaml(
                     "ml_champion_type": champion_model,
                     "training_lookback_weeks": lb_weeks,
                     "crowned_horizon": crowned_horizon,
+                    "actual_training_weeks": rec.get("actual_training_weeks", lb_weeks),
+                    "actual_training_months": rec.get("actual_training_months", round(lb_weeks / 4.33, 1)),
+                    "data_sufficiency_status": rec.get("data_sufficiency_status", "FULL"),
                 }
                 db.execute(upsert_backtest_sql, row)
 

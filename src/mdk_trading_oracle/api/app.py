@@ -9,6 +9,7 @@ Provides ultra-low latency REST endpoints and WebSocket streams for:
 - Live Gold Predictive Forecasts, Credible Intervals & Playbook Signals
 """
 
+import math
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,36 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import get_tertip_ml_forecast
 
 logger = get_logger("mdk_oracle.api")
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if (math.isnan(f) or math.isinf(f)) else f
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_opt_float(val: Any) -> Optional[float]:
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        return None if (math.isnan(f) or math.isinf(f)) else f
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_opt_int(val: Any) -> Optional[int]:
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        return None if (math.isnan(f) or math.isinf(f)) else int(f)
+    except (ValueError, TypeError):
+        return None
 
 app = FastAPI(
     title="MDK Trading Oracle API",
@@ -268,6 +299,9 @@ class WalkForwardLedgerItem(BaseModel):
     kamu_buy_tl: Optional[float] = 0.0
     kamu_sell_tl: Optional[float] = 0.0
     kamu_pnl_tl: Optional[float] = 0.0
+    actual_training_sessions: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    data_sufficiency_status: Optional[str] = "FULL"
 
 
 class TournamentSummary(BaseModel):
@@ -277,6 +311,13 @@ class TournamentSummary(BaseModel):
     crowned_horizon: Optional[str] = "12m"
     training_lookback_sessions: Optional[int] = 252
     selection_window_sessions: Optional[int] = 30
+    sessions_skipped_insufficient: Optional[int] = 0
+    sessions_with_partial_history: Optional[int] = 0
+    sessions_with_full_history: Optional[int] = 0
+    data_sufficiency_pct: Optional[float] = 100.0
+    actual_training_sessions: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    data_sufficiency_status: Optional[str] = "FULL"
     convex_weight_ml: Optional[float] = None
     convex_weight_prophet: Optional[float] = None
     champion_dir_hits: Optional[int] = None
@@ -511,6 +552,11 @@ class TertipMlForecastResponse(BaseModel):
     features_mode: Optional[str] = "lean"
     active_features_count: Optional[int] = 17
     train_lookback_sessions: Optional[int] = 252
+    actual_training_sessions: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    target_training_months: Optional[float] = None
+    actual_window_desc: Optional[str] = None
+    data_sufficiency_status: Optional[str] = "FULL"
     active_features: Optional[List[str]] = None
     excluded_features: Optional[List[str]] = None
     calculated_at: str
@@ -535,6 +581,9 @@ class OpportunityItem(BaseModel):
     champion_mae_pct: Optional[float] = None
     crowned_horizon: Optional[str] = None
     training_lookback_sessions: Optional[int] = None
+    actual_training_sessions: Optional[int] = None
+    actual_window_desc: Optional[str] = None
+    data_sufficiency_status: Optional[str] = "FULL"
     mlb_net_flow_tl: float = 0.0
     mlb_turnover_tl: float = 0.0
     tier: str
@@ -570,6 +619,9 @@ class WeekStartBacktestItem(BaseModel):
     fri_w5_mlb_share_pct: float
     wtd_mlb_net_flow_tl: float
     ml_champion_type: str
+    actual_training_weeks: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    data_sufficiency_status: Optional[str] = "FULL"
 
 
 class WeekStartForecastResponse(BaseModel):
@@ -595,6 +647,11 @@ class WeekStartForecastResponse(BaseModel):
     wtd_mlb_net_flow_tl: float = 0.0
     training_lookback_weeks: int = 52
     crowned_horizon: str = "12m"
+    actual_training_weeks: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    target_training_months: Optional[float] = None
+    actual_window_desc: Optional[str] = None
+    data_sufficiency_status: Optional[str] = "FULL"
     calculated_at: str
     backtest_ledger: List[WeekStartBacktestItem] = []
 
@@ -619,6 +676,10 @@ class WeekStartOpportunityItem(BaseModel):
     champion_mae_pct: Optional[float] = None
     crowned_horizon: Optional[str] = None
     training_lookback_weeks: Optional[int] = None
+    actual_training_weeks: Optional[int] = None
+    actual_training_months: Optional[float] = None
+    actual_window_desc: Optional[str] = None
+    data_sufficiency_status: Optional[str] = "FULL"
     weekend_carry_cost_bps: float = 0.0
     fri_w5_mlb_share_pct: float = 0.0
     wtd_mlb_net_flow_tl: float = 0.0
@@ -1925,7 +1986,8 @@ def get_tertip_predicted_opportunities(
                 SELECT symbol, as_of_date, current_price, target_price, expected_return_pct, 
                        price_low, price_high, stance, conviction, playbook,
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
-                       crowned_horizon, training_lookback_sessions
+                       crowned_horizon, training_lookback_sessions,
+                       actual_training_sessions, data_sufficiency_status
                 FROM gold_tertip_daily_forecasts
                 {date_clause}
             )
@@ -1934,6 +1996,7 @@ def get_tertip_predicted_opportunities(
                    f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
                    f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
                    f.crowned_horizon, f.training_lookback_sessions,
+                   f.actual_training_sessions, f.data_sufficiency_status,
                    COALESCE(b.net_flow_tl, 0.0) as mlb_net_flow_tl,
                    COALESCE(b.total_turnover_tl, 0.0) as mlb_turnover_tl
             FROM target_scope f
@@ -1971,6 +2034,9 @@ def get_tertip_predicted_opportunities(
                 tier = "CONSOLIDATION"
                 action_type = "NEUTRAL"
 
+            act_sess = int(r.get("actual_training_sessions") or r.get("training_lookback_sessions") or 252)
+            act_desc = f"{act_sess} sessions ({act_sess / 21.0:.1f}M)"
+
             items.append(
                 OpportunityItem(
                     symbol=str(r["symbol"]),
@@ -1991,6 +2057,9 @@ def get_tertip_predicted_opportunities(
                     champion_mae_pct=round(float(r["champion_mae_pct"]), 2) if r.get("champion_mae_pct") is not None else None,
                     crowned_horizon=str(r.get("crowned_horizon") or "12m"),
                     training_lookback_sessions=int(r.get("training_lookback_sessions") or 252),
+                    actual_training_sessions=act_sess,
+                    actual_window_desc=act_desc,
+                    data_sufficiency_status=str(r.get("data_sufficiency_status") or "FULL"),
                     mlb_net_flow_tl=float(r.get("mlb_net_flow_tl") or 0.0),
                     mlb_turnover_tl=float(r.get("mlb_turnover_tl") or 0.0),
                     tier=tier,
@@ -2044,7 +2113,8 @@ def get_week_start_forecast_endpoint(
                    f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
                    f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
                    f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl,
-                   f.training_lookback_weeks, f.crowned_horizon, f.calculated_at
+                   f.training_lookback_weeks, f.crowned_horizon,
+                   f.actual_training_weeks, f.actual_training_months, f.data_sufficiency_status, f.calculated_at
             FROM gold_week_start_daily_forecasts f
             LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
             WHERE f.symbol = %(symbol)s
@@ -2061,7 +2131,8 @@ def get_week_start_forecast_endpoint(
         query_bt = """
             SELECT trade_date, prior_date, actual_price, actual_return_pct, bist30_ret_pct,
                    ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
-                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type
+                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type,
+                   actual_training_weeks, actual_training_months, data_sufficiency_status
             FROM gold_week_start_walk_forward_backtests
             WHERE symbol = %(symbol)s
             ORDER BY trade_date DESC
@@ -2073,21 +2144,31 @@ def get_week_start_forecast_endpoint(
             WeekStartBacktestItem(
                 trade_date=str(b["trade_date"]),
                 prior_date=str(b["prior_date"]),
-                actual_price=float(b.get("actual_price") or 0.0),
-                actual_return_pct=float(b.get("actual_return_pct") or 0.0),
-                bist30_ret_pct=float(b.get("bist30_ret_pct") or 0.0),
-                ml_pred_price=float(b.get("ml_pred_price") or 0.0),
-                ml_pred_return_pct=float(b.get("ml_pred_return_pct") or 0.0),
+                actual_price=_safe_float(b.get("actual_price")),
+                actual_return_pct=_safe_float(b.get("actual_return_pct")),
+                bist30_ret_pct=_safe_float(b.get("bist30_ret_pct")),
+                ml_pred_price=_safe_float(b.get("ml_pred_price")),
+                ml_pred_return_pct=_safe_float(b.get("ml_pred_return_pct")),
                 ml_direction=str(b.get("ml_direction") or "NEUTRAL"),
-                ml_err_pct=float(b.get("ml_err_pct") or 0.0),
+                ml_err_pct=_safe_float(b.get("ml_err_pct")),
                 ml_is_hit=bool(b.get("ml_is_hit")),
-                weekend_carry_cost_bps=float(b.get("weekend_carry_cost_bps") or 0.0),
-                fri_w5_mlb_share_pct=float(b.get("fri_w5_mlb_share_pct") or 0.0),
-                wtd_mlb_net_flow_tl=float(b.get("wtd_mlb_net_flow_tl") or 0.0),
+                weekend_carry_cost_bps=_safe_float(b.get("weekend_carry_cost_bps")),
+                fri_w5_mlb_share_pct=_safe_float(b.get("fri_w5_mlb_share_pct")),
+                wtd_mlb_net_flow_tl=_safe_float(b.get("wtd_mlb_net_flow_tl")),
                 ml_champion_type=str(b.get("ml_champion_type") or "Auto"),
+                actual_training_weeks=_safe_opt_int(b.get("actual_training_weeks")),
+                actual_training_months=_safe_opt_float(b.get("actual_training_months")),
+                data_sufficiency_status=str(b.get("data_sufficiency_status") or "FULL"),
             )
             for b in bt_rows
         ]
+
+        act_weeks = _safe_opt_int(fc.get("actual_training_weeks")) or int(fc.get("training_lookback_weeks") or 52)
+        act_months = _safe_opt_float(fc.get("actual_training_months")) or round(act_weeks / 4.33, 1)
+        tgt_weeks = int(fc.get("training_lookback_weeks") or 52)
+        tgt_months = round(tgt_weeks / 4.33, 1)
+        window_desc = f"{act_weeks}W ({act_months:.1f}M) / Target {tgt_weeks}W"
+        suff_status = str(fc.get("data_sufficiency_status") or "FULL")
 
         return WeekStartForecastResponse(
             symbol=str(fc["symbol"]),
@@ -2110,8 +2191,13 @@ def get_week_start_forecast_endpoint(
             weekend_carry_cost_bps=float(fc.get("weekend_carry_cost_bps") or 0.0),
             fri_w5_mlb_share_pct=float(fc.get("fri_w5_mlb_share_pct") or 0.0),
             wtd_mlb_net_flow_tl=float(fc.get("wtd_mlb_net_flow_tl") or 0.0),
-            training_lookback_weeks=int(fc.get("training_lookback_weeks") or 52),
+            training_lookback_weeks=tgt_weeks,
             crowned_horizon=str(fc.get("crowned_horizon") or "12m"),
+            actual_training_weeks=act_weeks,
+            actual_training_months=act_months,
+            target_training_months=tgt_months,
+            actual_window_desc=window_desc,
+            data_sufficiency_status=suff_status,
             calculated_at=str(fc.get("calculated_at") or ""),
             backtest_ledger=backtest_ledger,
         )
@@ -2137,7 +2223,8 @@ def get_week_start_opportunities(
                        price_low, price_high, stance, conviction, playbook,
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
                        crowned_horizon, training_lookback_weeks,
-                       weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl
+                       weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl,
+                       actual_training_weeks, actual_training_months, data_sufficiency_status
                 FROM gold_week_start_daily_forecasts
                 {date_clause}
             )
@@ -2146,7 +2233,8 @@ def get_week_start_opportunities(
                    f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
                    f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
                    f.crowned_horizon, f.training_lookback_weeks,
-                   f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl
+                   f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl,
+                   f.actual_training_weeks, f.actual_training_months, f.data_sufficiency_status
             FROM target_scope f
             LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
             ORDER BY f.expected_return_pct DESC;
@@ -2180,6 +2268,12 @@ def get_week_start_opportunities(
                 tier = "CONSOLIDATION"
                 action_type = "NEUTRAL"
 
+            act_w = int(r.get("actual_training_weeks") or r.get("training_lookback_weeks") or 52)
+            act_m = float(r.get("actual_training_months") or round(act_w / 4.33, 1))
+            tgt_w = int(r.get("training_lookback_weeks") or 52)
+            act_desc = f"{act_w}W ({act_m:.1f}M) / Target {tgt_w}W"
+            suff_status = str(r.get("data_sufficiency_status") or "FULL")
+
             items.append(
                 WeekStartOpportunityItem(
                     symbol=str(r["symbol"]),
@@ -2200,7 +2294,11 @@ def get_week_start_opportunities(
                     champion_dir_hit_rate_pct=round(float(r["champion_dir_hit_rate_pct"]), 1) if r.get("champion_dir_hit_rate_pct") is not None else None,
                     champion_mae_pct=round(float(r["champion_mae_pct"]), 2) if r.get("champion_mae_pct") is not None else None,
                     crowned_horizon=str(r.get("crowned_horizon") or "12m"),
-                    training_lookback_weeks=int(r.get("training_lookback_weeks") or 52),
+                    training_lookback_weeks=tgt_w,
+                    actual_training_weeks=act_w,
+                    actual_training_months=act_m,
+                    actual_window_desc=act_desc,
+                    data_sufficiency_status=suff_status,
                     weekend_carry_cost_bps=round(float(r.get("weekend_carry_cost_bps") or 0.0), 1),
                     fri_w5_mlb_share_pct=round(float(r.get("fri_w5_mlb_share_pct") or 0.0), 2),
                     wtd_mlb_net_flow_tl=round(float(r.get("wtd_mlb_net_flow_tl") or 0.0), 0),
@@ -2254,7 +2352,8 @@ def get_week_start_backtest(
         query_bt = """
             SELECT trade_date, prior_date, actual_price, actual_return_pct, bist30_ret_pct,
                    ml_pred_price, ml_pred_return_pct, ml_direction, ml_err_pct, ml_is_hit,
-                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type
+                   weekend_carry_cost_bps, fri_w5_mlb_share_pct, wtd_mlb_net_flow_tl, ml_champion_type,
+                   actual_training_weeks, actual_training_months, data_sufficiency_status
             FROM gold_week_start_walk_forward_backtests
             WHERE symbol = %(symbol)s
             ORDER BY trade_date DESC
@@ -2265,18 +2364,21 @@ def get_week_start_backtest(
             WeekStartBacktestItem(
                 trade_date=str(b["trade_date"]),
                 prior_date=str(b["prior_date"]),
-                actual_price=float(b.get("actual_price") or 0.0),
-                actual_return_pct=float(b.get("actual_return_pct") or 0.0),
-                bist30_ret_pct=float(b.get("bist30_ret_pct") or 0.0),
-                ml_pred_price=float(b.get("ml_pred_price") or 0.0),
-                ml_pred_return_pct=float(b.get("ml_pred_return_pct") or 0.0),
+                actual_price=_safe_float(b.get("actual_price")),
+                actual_return_pct=_safe_float(b.get("actual_return_pct")),
+                bist30_ret_pct=_safe_float(b.get("bist30_ret_pct")),
+                ml_pred_price=_safe_float(b.get("ml_pred_price")),
+                ml_pred_return_pct=_safe_float(b.get("ml_pred_return_pct")),
                 ml_direction=str(b.get("ml_direction") or "NEUTRAL"),
-                ml_err_pct=float(b.get("ml_err_pct") or 0.0),
+                ml_err_pct=_safe_float(b.get("ml_err_pct")),
                 ml_is_hit=bool(b.get("ml_is_hit")),
-                weekend_carry_cost_bps=float(b.get("weekend_carry_cost_bps") or 0.0),
-                fri_w5_mlb_share_pct=float(b.get("fri_w5_mlb_share_pct") or 0.0),
-                wtd_mlb_net_flow_tl=float(b.get("wtd_mlb_net_flow_tl") or 0.0),
+                weekend_carry_cost_bps=_safe_float(b.get("weekend_carry_cost_bps")),
+                fri_w5_mlb_share_pct=_safe_float(b.get("fri_w5_mlb_share_pct")),
+                wtd_mlb_net_flow_tl=_safe_float(b.get("wtd_mlb_net_flow_tl")),
                 ml_champion_type=str(b.get("ml_champion_type") or "Auto"),
+                actual_training_weeks=_safe_opt_int(b.get("actual_training_weeks")),
+                actual_training_months=_safe_opt_float(b.get("actual_training_months")),
+                data_sufficiency_status=str(b.get("data_sufficiency_status") or "FULL"),
             )
             for b in bt_rows
         ]

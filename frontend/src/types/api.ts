@@ -341,6 +341,9 @@ export interface WalkForwardLedgerItem {
   kamu_buy_tl?: number;
   kamu_sell_tl?: number;
   kamu_pnl_tl?: number;
+  actual_training_sessions?: number;
+  actual_training_months?: number;
+  data_sufficiency_status?: 'FULL' | 'PARTIAL_HISTORY' | 'PARTIAL_ADAPTED' | string;
 }
 
 export interface TournamentSummary {
@@ -351,6 +354,13 @@ export interface TournamentSummary {
   crowned_horizon?: string;
   training_lookback_sessions?: number;
   selection_window_sessions?: number;
+  sessions_skipped_insufficient?: number;
+  sessions_with_partial_history?: number;
+  sessions_with_full_history?: number;
+  data_sufficiency_pct?: number;
+  actual_training_sessions?: number;
+  actual_training_months?: number;
+  data_sufficiency_status?: string;
   convex_weight_ml?: number;
   convex_weight_prophet?: number;
   champion_dir_hits?: number;
@@ -580,6 +590,11 @@ export interface TertipMlForecastResponse {
   features_mode?: string;
   active_features_count?: number;
   train_lookback_sessions?: number;
+  actual_training_sessions?: number;
+  actual_training_months?: number;
+  target_training_months?: number;
+  actual_window_desc?: string;
+  data_sufficiency_status?: string;
   active_features?: string[];
   excluded_features?: string[];
   calculated_at: string;
@@ -604,6 +619,9 @@ export interface OpportunityItem {
   champion_mae_pct?: number;
   crowned_horizon?: string;
   training_lookback_sessions?: number;
+  actual_training_sessions?: number;
+  actual_window_desc?: string;
+  data_sufficiency_status?: string;
   mlb_net_flow_tl: number;
   mlb_turnover_tl: number;
   tier: 'HIGH_CONVICTION_LONG' | 'HIGH_CONVICTION_SHORT' | 'MODERATE_LONG' | 'MODERATE_SHORT' | 'MILD_LONG' | 'MILD_SHORT' | 'CONSOLIDATION' | string;
@@ -639,6 +657,9 @@ export interface WeekStartBacktestItem {
   fri_w5_mlb_share_pct: number;
   wtd_mlb_net_flow_tl: number;
   ml_champion_type: string;
+  actual_training_weeks?: number;
+  actual_training_months?: number;
+  data_sufficiency_status?: string;
 }
 
 export interface WeekStartForecastResponse {
@@ -664,6 +685,11 @@ export interface WeekStartForecastResponse {
   wtd_mlb_net_flow_tl: number;
   training_lookback_weeks: number;
   crowned_horizon: string;
+  actual_training_weeks?: number;
+  actual_training_months?: number;
+  target_training_months?: number;
+  actual_window_desc?: string;
+  data_sufficiency_status?: string;
   calculated_at: string;
   backtest_ledger: WeekStartBacktestItem[];
 }
@@ -688,6 +714,10 @@ export interface WeekStartOpportunityItem {
   champion_mae_pct?: number;
   crowned_horizon?: string;
   training_lookback_weeks?: number;
+  actual_training_weeks?: number;
+  actual_training_months?: number;
+  actual_window_desc?: string;
+  data_sufficiency_status?: string;
   weekend_carry_cost_bps: number;
   fri_w5_mlb_share_pct: number;
   wtd_mlb_net_flow_tl: number;

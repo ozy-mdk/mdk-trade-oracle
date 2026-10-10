@@ -46,7 +46,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("bist30_tournament")
 
 CONFIG_PATH = Path("config/tertip_crowned_models.yaml")
-HORIZONS = {"3m": 63, "6m": 126, "12m": 252}
+HORIZONS = {"3m": 63, "6m": 126, "12m": 252, "18m": 378, "24m": 504}
 CANDIDATE_MODELS = ["XGBoost", "LightGBM", "BayesianRidge", "Huber", "Ridge"]
 
 
@@ -57,9 +57,9 @@ def run_tournament_for_symbol(
 ) -> dict[str, Any] | None:
     """Run walk-forward arena across all candidate models and horizons for a single equity."""
     sym = symbol.upper()
-    df = extract_3pillar_time_series(db, sym, lookback_days=500)
-    if df.empty or len(df) < (n_sessions + 35):
-        logger.warning(f"Skipping {sym}: Insufficient historical data ({len(df)} rows)")
+    df = extract_3pillar_time_series(db, sym, lookback_days=1000)
+    if df.empty or len(df) < 63:
+        logger.warning(f"Skipping {sym}: Insufficient historical data ({len(df)} rows < 63 sessions / 3 months minimum)")
         return None
 
     df = attach_prophet_rolling_features(df, sym, n_history_needed=n_sessions + 40)

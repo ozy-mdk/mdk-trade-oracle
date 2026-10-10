@@ -79,10 +79,15 @@ WEEK_START_FEATURES = [
 # Market Consolidation Deadband (+/- 0.25% / 25 bps)
 DEADBAND_PCT: float = 0.25
 
+# Minimum training weeks hard stop (3 months = ~13 trading weeks)
+MIN_WEEKLY_TRAIN_WEEKS: int = 13
+
 # Multi-Horizon Lookbacks for Weekly Cycles
 WEEKLY_HORIZONS = {
+    "3m": 13,    # ~3 months (13 trading weeks)
     "6m": 26,    # ~6 months (26 trading weeks)
     "12m": 52,   # ~12 months (52 trading weeks)
+    "18m": 78,   # ~18 months (78 trading weeks)
     "24m": 104,  # ~24 months (104 trading weeks)
 }
 
@@ -394,11 +399,11 @@ def run_weekly_walk_forward_arena(
     lookback_weeks: int = 52,
 ) -> tuple[pd.DataFrame, dict[str, Any], list[dict[str, Any]]]:
     """Execute walk-forward out-of-sample evaluation across candidate models."""
-    if df.empty or len(df) < (n_weeks + 15):
+    if df.empty or len(df) < MIN_WEEKLY_TRAIN_WEEKS:
         return pd.DataFrame(), {}, []
 
     total_len = len(df)
-    eval_indices = list(range(total_len - n_weeks, total_len))
+    eval_indices = list(range(max(0, total_len - n_weeks), total_len))
 
     model_preds: dict[str, list[float]] = {m: [] for m in CANDIDATE_MODELS}
     actual_returns: list[float] = []
@@ -410,9 +415,36 @@ def run_weekly_walk_forward_arena(
     carry_bps_list: list[float] = []
     w5_mlb_shares: list[float] = []
     wtd_mlb_flows: list[float] = []
+    actual_training_weeks_list: list[int] = []
+    actual_training_months_list: list[float] = []
+    data_sufficiency_status_list: list[str] = []
+
+    weeks_skipped_insufficient = 0
+    weeks_with_partial_history = 0
+    weeks_with_full_history = 0
 
     for idx in eval_indices:
-        train_df = df.iloc[max(0, idx - lookback_weeks) : idx]
+        # Check available training history before this week
+        available_weeks = idx
+        if available_weeks < MIN_WEEKLY_TRAIN_WEEKS:
+            # HARD STOP: insufficient training data (< 13 weeks = 3 months)
+            weeks_skipped_insufficient += 1
+            continue
+
+        train_start = max(0, idx - lookback_weeks)
+        train_df = df.iloc[train_start:idx]
+        actual_train_len = len(train_df)
+        if actual_train_len < MIN_WEEKLY_TRAIN_WEEKS:
+            weeks_skipped_insufficient += 1
+            continue
+
+        if actual_train_len >= lookback_weeks:
+            weeks_with_full_history += 1
+            suff_status = "FULL"
+        else:
+            weeks_with_partial_history += 1
+            suff_status = "PARTIAL_HISTORY"
+
         test_row = df.iloc[idx]
 
         X_train = train_df[WEEK_START_FEATURES].values
@@ -431,6 +463,9 @@ def run_weekly_walk_forward_arena(
         carry_bps_list.append(float(test_row.get("feat_weekend_carry_cost_bps") or 0.0))
         w5_mlb_shares.append(float(test_row.get("feat_fri_w5_mlb_share") or 0.0))
         wtd_mlb_flows.append(float(test_row.get("wtd_mlb_net_flow_tl") or 0.0))
+        actual_training_weeks_list.append(actual_train_len)
+        actual_training_months_list.append(round(actual_train_len / 4.33, 1))
+        data_sufficiency_status_list.append(suff_status)
 
         for m_name in CANDIDATE_MODELS:
             model = build_candidate_model(m_name)
@@ -444,6 +479,10 @@ def run_weekly_walk_forward_arena(
                 logger.warning("Fit error for %s on week %s: %s", m_name, test_row['target_monday_date'], e)
                 pred = 0.0
             model_preds[m_name].append(pred)
+
+    valid_eval_count = len(actual_returns)
+    if valid_eval_count == 0:
+        return df, {}, []
 
     summary: dict[str, Any] = {}
     ledger_records: list[dict[str, Any]] = []
@@ -481,7 +520,7 @@ def run_weekly_walk_forward_arena(
                 if is_hit:
                     sig_hits += 1
 
-        hit_rate = (hits / n_weeks) * 100.0
+        hit_rate = (hits / valid_eval_count) * 100.0 if valid_eval_count > 0 else 0.0
         mae = float(np.mean(all_errors)) if all_errors else 0.0
         hit_mae = float(np.mean(hit_errors)) if hit_errors else 0.0
         miss_mae = float(np.mean(miss_errors)) if miss_errors else 0.0
@@ -498,8 +537,15 @@ def run_weekly_walk_forward_arena(
         summary[f"{prefix}_sig_rate_pct"] = float(round(sig_rate, 1))
         summary[f"{prefix}_tournament_loss"] = float(round(loss, 2))
 
+    data_sufficiency_pct = (weeks_with_full_history / valid_eval_count * 100.0) if valid_eval_count > 0 else 0.0
+    summary["weeks_skipped_insufficient"] = weeks_skipped_insufficient
+    summary["weeks_with_partial_history"] = weeks_with_partial_history
+    summary["weeks_with_full_history"] = weeks_with_full_history
+    summary["data_sufficiency_pct"] = float(round(data_sufficiency_pct, 1))
+    summary["target_lookback_weeks"] = lookback_weeks
+
     # Build backtest ledger records for all evaluated sessions
-    for i in range(n_weeks):
+    for i in range(valid_eval_count):
         y_true = actual_returns[i]
         rec = {
             "trade_date": trade_dates[i],
@@ -511,6 +557,9 @@ def run_weekly_walk_forward_arena(
             "weekend_carry_cost_bps": round(carry_bps_list[i], 1),
             "fri_w5_mlb_share_pct": round(w5_mlb_shares[i], 2),
             "wtd_mlb_net_flow_tl": round(wtd_mlb_flows[i], 0),
+            "actual_training_weeks": actual_training_weeks_list[i],
+            "actual_training_months": actual_training_months_list[i],
+            "data_sufficiency_status": data_sufficiency_status_list[i],
         }
         for m_name in CANDIDATE_MODELS:
             pred = model_preds[m_name][i]
@@ -568,11 +617,18 @@ def predict_live_week_start(
     """Generate live out-of-sample forecast for upcoming Monday session."""
     sym = symbol.upper()
     df = extract_week_start_time_series(db, sym)
-    if df.empty or len(df) < (lookback_weeks + 5):
+    if df.empty or len(df) < MIN_WEEKLY_TRAIN_WEEKS:
         return None
 
-    # Train model on the latest lookback_weeks completed weeks
-    train_df = df.iloc[-lookback_weeks:]
+    # Adapt training lookback if total history < lookback_weeks (while >= 13 weeks)
+    actual_weeks = min(lookback_weeks, len(df))
+    actual_months = round(actual_weeks / 4.33, 1)
+    target_months = round(lookback_weeks / 4.33, 1)
+    suff_status = "FULL" if len(df) >= lookback_weeks else "PARTIAL_HISTORY"
+    window_desc = f"{actual_weeks}W ({actual_months:.1f}M) / Target {lookback_weeks}W"
+
+    # Train model on the latest available weeks
+    train_df = df.iloc[-actual_weeks:]
     X_train = train_df[WEEK_START_FEATURES].values
     y_train = train_df["target_return_pct"].values
     weights = compute_sample_weights(y_train)
@@ -640,6 +696,11 @@ def predict_live_week_start(
         "ml_champion_type": champion_model,
         "crowned_horizon": crowned_horizon,
         "training_lookback_weeks": lookback_weeks,
+        "actual_training_weeks": actual_weeks,
+        "actual_training_months": actual_months,
+        "target_training_months": target_months,
+        "actual_window_desc": window_desc,
+        "data_sufficiency_status": suff_status,
         "weekend_carry_cost_bps": round(float(latest_row["feat_weekend_carry_cost_bps"]), 1),
         "fri_w5_mlb_share_pct": round(float(latest_row["feat_fri_w5_mlb_share"]), 2),
         "wtd_mlb_net_flow_tl": round(float(latest_row["wtd_mlb_net_flow_tl"]), 0),
