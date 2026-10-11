@@ -3,7 +3,7 @@ _metadata:
     trading sessions
   calibrated_at: '2026-10-10'
   selection_metric: 3_criteria_tournament_loss
-  updated_at: '2026-10-11T15:21:27.116343'
+  updated_at: '2026-10-11T16:54:32.153064'
 symbols:
   AEFES:
     3d:
@@ -1957,10 +1957,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 65.0
-      mae_pct: 4.11
-      hit_mae_pct: 2.55
-      miss_mae_pct: 7.02
-      loss: 55.11
+      mae_pct: 4.24
+      hit_mae_pct: 2.5
+      miss_mae_pct: 7.1
+      loss: 58.0
       hits: 39
       total_evals: 60
     5d:
@@ -1968,32 +1968,32 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 70.0
-      mae_pct: 4.74
-      hit_mae_pct: 3.6
-      miss_mae_pct: 7.4
-      loss: 52.09
+      mae_pct: 4.52
+      hit_mae_pct: 3.53
+      miss_mae_pct: 7.09
+      loss: 49.05
       hits: 42
       total_evals: 60
     10d:
       model: LightGBM
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 66.7
-      mae_pct: 7.5
-      hit_mae_pct: 5.27
-      miss_mae_pct: 11.98
-      loss: 68.54
-      hits: 40
+      horizon: 6m
+      training_lookback_sessions: 126
+      hit_rate_pct: 68.3
+      mae_pct: 7.35
+      hit_mae_pct: 5.24
+      miss_mae_pct: 13.41
+      loss: 64.58
+      hits: 41
       total_evals: 60
     15d:
       model: BayesianRidge
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 91.7
-      mae_pct: 6.59
-      hit_mae_pct: 6.18
-      miss_mae_pct: 11.1
-      loss: 42.25
+      mae_pct: 6.16
+      hit_mae_pct: 5.74
+      miss_mae_pct: 10.32
+      loss: 40.91
       hits: 55
       total_evals: 60
     30d:
@@ -2001,9 +2001,9 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 80.0
-      mae_pct: 7.2
-      hit_mae_pct: 6.04
-      miss_mae_pct: 11.81
-      loss: 55.56
+      mae_pct: 7.0
+      hit_mae_pct: 5.68
+      miss_mae_pct: 12.35
+      loss: 56.26
       hits: 48
       total_evals: 60

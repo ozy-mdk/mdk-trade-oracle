@@ -432,13 +432,27 @@ def evaluate_horizon_walk_forward(
         })
 
     total_evals = len(ledger)
-    hit_rate_pct = (hits / total_evals * 100.0) if total_evals > 0 else 0.0
-    mae_pct = float(np.mean(all_errors)) if all_errors else 0.0
-    hit_mae_pct = float(np.mean(hit_errors)) if hit_errors else mae_pct
-    miss_mae_pct = float(np.mean(miss_errors)) if miss_errors else mae_pct
+    if total_evals > 1:
+        eval_weights = np.linspace(0.5, 1.5, total_evals)
+        eval_weights /= np.mean(eval_weights)
+    else:
+        eval_weights = np.ones(total_evals)
 
-    # 3-Criteria Composite Loss: (100 - hit_rate) + 1.0 * hit_mae + 2.5 * miss_mae
-    composite_loss = (100.0 - hit_rate_pct) + (1.0 * hit_mae_pct) + (2.5 * miss_mae_pct)
+    hits_arr = np.array([1.0 if row.get("is_hit") else 0.0 for row in ledger])
+    errors_arr = np.array([float(row.get("err_pct", 0.0)) for row in ledger])
+
+    hits = int(np.sum(hits_arr))
+    hit_rate_pct = (hits / total_evals * 100.0) if total_evals > 0 else 0.0
+    weighted_hit_rate_pct = float(np.sum(hits_arr * eval_weights) / np.sum(eval_weights) * 100.0) if total_evals > 0 else 0.0
+
+    hit_mask = hits_arr == 1.0
+    miss_mask = hits_arr == 0.0
+    mae_pct = float(np.average(errors_arr, weights=eval_weights)) if total_evals > 0 else 0.0
+    hit_mae_pct = float(np.average(errors_arr[hit_mask], weights=eval_weights[hit_mask])) if np.any(hit_mask) else mae_pct
+    miss_mae_pct = float(np.average(errors_arr[miss_mask], weights=eval_weights[miss_mask])) if np.any(miss_mask) else mae_pct
+
+    # Recency-weighted 3-Criteria Composite Loss: (100 - weighted_hit_rate) + 1.0 * hit_mae + 2.5 * miss_mae
+    composite_loss = (100.0 - weighted_hit_rate_pct) + (1.0 * hit_mae_pct) + (2.5 * miss_mae_pct)
     data_sufficiency_pct = round((sessions_with_full_history / total_evals * 100.0), 1) if total_evals > 0 else 0.0
 
     return {

@@ -236,8 +236,13 @@ During short-horizon tuning on AKBNK, ASELS, and ISCTR, candidate intraday ratio
 
 ### E. Multi-Horizon Candidate Arena & Crowning (`scripts/run_multi_horizon_tournament.py`):
 Evaluates candidate models (`BayesianRidge`, `LightGBM`, `XGBoost`, `Ridge`, `Huber`) across 5 training lookbacks (3M: 63s, 6M: 126s, 12M: 252s, 18M: 378s, 24M: 504s) for each of the 5 forward horizons.
-- Champion selection minimizes 3-criteria composite tournament loss over trailing 60 evaluation sessions:
-  `Tournament Loss = (100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct`
+- **Recency-Weighted 3-Criteria Composite Loss**:
+  - Evaluation weights scale linearly across the evaluation horizon:
+    `eval_weights = np.linspace(0.5, 1.5, total_evals) / mean(eval_weights)`
+  - *Quantitative Rationale*: Prevents models from winning crowns purely on stale profits from 3 months ago while failing modern market regimes. On YKBNK 10D, recency weighting disqualified sluggish 24M lookbacks and crowned LightGBM 6M, boosting recent-20-session hit rate from 35.0% to 75.0% (and full-window win rate to 68.3%).
+  - Composite formula:
+    `Tournament Loss = (100.0 - weighted_hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct`
+  - Unweighted directional hits and hit rates are preserved in output records and UI ledgers for transparent auditing.
 - Crowned models persisted to `config/tertip_multi_horizon_crowned_models.yaml`, `gold_tertip_multi_horizon_forecasts`, and `gold_tertip_multi_horizon_backtests`.
 - Fast execution via multiprocessing with single-threaded OpenMP/BLAS controls preventing Apple Silicon thread contention.
 
