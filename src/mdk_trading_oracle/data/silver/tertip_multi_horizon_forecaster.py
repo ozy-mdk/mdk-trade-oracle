@@ -682,15 +682,19 @@ def get_multi_horizon_forecaster_payload(
             try:
                 db_res = db.query_pl(
                     """
-                    SELECT trade_date, target_date_start, target_date_end, current_price,
-                           actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
-                           pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
-                           actual_training_sessions, data_sufficiency_status
-                    FROM gold_tertip_multi_horizon_backtests
-                    WHERE symbol = %s AND horizon = %s
+                    SELECT * FROM (
+                        SELECT trade_date, target_date_start, target_date_end, current_price,
+                               actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
+                               pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
+                               actual_training_sessions, data_sufficiency_status
+                        FROM gold_tertip_multi_horizon_backtests
+                        WHERE symbol = %s AND horizon = %s AND (champion_model = %s OR champion_model IS NULL)
+                        ORDER BY trade_date DESC
+                        LIMIT %s
+                    ) sub
                     ORDER BY trade_date ASC;
                     """,
-                    params=[sym, h_key],
+                    params=[sym, h_key, champ_model, n_eval_sessions],
                 )
                 if len(db_res) > 0:
                     db_rows = db_res.to_dicts()

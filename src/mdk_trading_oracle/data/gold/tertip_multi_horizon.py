@@ -209,7 +209,11 @@ def update_gold_tertip_multi_horizon_forecasts(
                     ],
                 )
 
-                # 2. Upsert backtest ledger
+                # 2. Replace backtest ledger with newly evaluated champion ledger
+                db.execute(
+                    "DELETE FROM gold_tertip_multi_horizon_backtests WHERE symbol = %s AND horizon = %s;",
+                    params=[sym, h_key],
+                )
                 for b in ledger:
                     t_date = str(b.get("trade_date"))[:10]
                     db.execute(
