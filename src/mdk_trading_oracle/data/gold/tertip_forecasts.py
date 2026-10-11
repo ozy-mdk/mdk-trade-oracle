@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import lightgbm as lgb
+import numpy as np
 import pandas as pd
 import yaml
 from sklearn.linear_model import BayesianRidge, HuberRegressor, Ridge
@@ -25,6 +26,7 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     FEATURE_COLS,
     _check_hit,
     attach_prophet_rolling_features,
+    calibrate_expected_return,
     clear_forecast_cache,
     extract_3pillar_time_series,
 )
@@ -257,21 +259,33 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         actual_train_sessions = len(X_tr_full)
         data_sufficiency_status = "FULL" if actual_train_sessions >= train_lb else "PARTIAL_HISTORY"
 
+        sample_weights = np.where(
+            np.abs(y_tr_full) >= 2.0,
+            6.0,
+            np.where(np.abs(y_tr_full) >= 1.0, 3.5, 0.5),
+        )
+
         # Fit Champion Model
         if model_name == "XGBoost":
             model = XGBRegressor(n_estimators=45, max_depth=2, learning_rate=0.03, subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=1)
+            model.fit(X_tr_full, y_tr_full, sample_weight=sample_weights)
         elif model_name == "LightGBM":
             model = lgb.LGBMRegressor(n_estimators=45, max_depth=3, learning_rate=0.03, num_leaves=7, subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=1, verbose=-1)
+            model.fit(X_tr_full, y_tr_full, sample_weight=sample_weights)
         elif model_name == "BayesianRidge":
             model = Pipeline([("scaler", StandardScaler()), ("regressor", BayesianRidge(max_iter=300))])
+            model.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights)
         elif model_name == "Huber":
             model = Pipeline([("scaler", StandardScaler()), ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300))])
+            model.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights)
         else:
             model = Ridge(alpha=2.0, random_state=42)
+            model.fit(X_tr_full, y_tr_full, sample_weight=sample_weights)
 
-        model.fit(X_tr_full, y_tr_full)
-        pred_ret = float(model.predict(pd.DataFrame([latest_row[FEATURE_COLS]]))[0])
-        pred_ret = max(-10.0, min(10.0, pred_ret))
+        raw_pred_ret = float(model.predict(pd.DataFrame([latest_row[FEATURE_COLS]]))[0])
+        raw_pred_ret = max(-10.0, min(10.0, raw_pred_ret))
+        latest_atr = float(latest_row.get("atr_14d_pct", 2.5))
+        pred_ret = calibrate_expected_return(raw_pred_ret, latest_atr, deadband=DEADBAND_PCT)
         target_price = latest_price * (1.0 + pred_ret / 100.0)
 
         # Range bounds using 20d volatility
@@ -331,7 +345,10 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
 
             # Predict on session T-1 for session T
             x_prev = prev_session_row[FEATURE_COLS]
-            pred_prev_ret = float(model.predict(pd.DataFrame([x_prev]))[0])
+            raw_prev_ret = float(model.predict(pd.DataFrame([x_prev]))[0])
+            raw_prev_ret = max(-10.0, min(10.0, raw_prev_ret))
+            prev_atr = float(prev_session_row.get("atr_14d_pct", 2.5))
+            pred_prev_ret = calibrate_expected_return(raw_prev_ret, prev_atr, deadband=DEADBAND_PCT)
             pred_prev_price = p_close * (1.0 + pred_prev_ret / 100.0)
             err_pct = abs(pred_prev_price - latest_price) / latest_price * 100.0
             is_hit = _check_hit(pred_prev_ret, realized_ret)
