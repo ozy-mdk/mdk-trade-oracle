@@ -3,7 +3,7 @@ _metadata:
     trading sessions
   calibrated_at: '2026-10-10'
   selection_metric: 3_criteria_tournament_loss
-  updated_at: '2026-10-11T16:54:32.153064'
+  updated_at: '2026-10-11T17:09:05.385310'
 symbols:
   AEFES:
     3d:
@@ -11,10 +11,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 55.0
-      mae_pct: 3.25
-      hit_mae_pct: 2.72
-      miss_mae_pct: 3.91
-      loss: 57.49
+      mae_pct: 3.21
+      hit_mae_pct: 2.75
+      miss_mae_pct: 3.86
+      loss: 53.93
       hits: 33
       total_evals: 60
     5d:
@@ -22,10 +22,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 58.3
-      mae_pct: 5.86
-      hit_mae_pct: 3.74
-      miss_mae_pct: 8.83
-      loss: 67.48
+      mae_pct: 6.14
+      hit_mae_pct: 3.72
+      miss_mae_pct: 9.02
+      loss: 72.04
       hits: 35
       total_evals: 60
     10d:
@@ -33,10 +33,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 61.7
-      mae_pct: 7.03
-      hit_mae_pct: 3.83
-      miss_mae_pct: 12.16
-      loss: 72.57
+      mae_pct: 7.28
+      hit_mae_pct: 3.92
+      miss_mae_pct: 11.91
+      loss: 75.69
       hits: 37
       total_evals: 60
     15d:
@@ -44,10 +44,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 66.7
-      mae_pct: 7.01
-      hit_mae_pct: 5.3
-      miss_mae_pct: 10.43
-      loss: 64.72
+      mae_pct: 7.02
+      hit_mae_pct: 5.24
+      miss_mae_pct: 11.49
+      loss: 62.53
       hits: 40
       total_evals: 60
     30d:
@@ -55,67 +55,67 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 66.7
-      mae_pct: 7.23
-      hit_mae_pct: 4.42
-      miss_mae_pct: 12.85
-      loss: 69.87
+      mae_pct: 7.62
+      hit_mae_pct: 4.26
+      miss_mae_pct: 13.18
+      loss: 74.84
       hits: 40
       total_evals: 60
   AKBNK:
     3d:
-      model: BayesianRidge
+      model: LightGBM
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 61.7
-      mae_pct: 3.65
-      hit_mae_pct: 2.26
-      miss_mae_pct: 5.9
-      loss: 55.33
+      mae_pct: 3.81
+      hit_mae_pct: 2.58
+      miss_mae_pct: 6.1
+      loss: 52.76
       hits: 37
       total_evals: 60
     5d:
-      model: XGBoost
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 60.0
-      mae_pct: 4.34
-      hit_mae_pct: 2.76
-      miss_mae_pct: 6.71
-      loss: 59.53
-      hits: 36
+      model: LightGBM
+      horizon: 6m
+      training_lookback_sessions: 126
+      hit_rate_pct: 63.3
+      mae_pct: 4.9
+      hit_mae_pct: 3.66
+      miss_mae_pct: 7.56
+      loss: 54.48
+      hits: 38
       total_evals: 60
     10d:
       model: Huber
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 81.7
-      mae_pct: 5.78
-      hit_mae_pct: 4.77
-      miss_mae_pct: 10.28
-      loss: 48.81
-      hits: 49
+      hit_rate_pct: 80.0
+      mae_pct: 5.99
+      hit_mae_pct: 5.12
+      miss_mae_pct: 9.13
+      loss: 49.78
+      hits: 48
       total_evals: 60
     15d:
       model: BayesianRidge
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 83.3
-      mae_pct: 5.55
-      hit_mae_pct: 4.32
-      miss_mae_pct: 11.71
-      loss: 50.27
+      mae_pct: 5.57
+      hit_mae_pct: 4.3
+      miss_mae_pct: 11.59
+      loss: 50.72
       hits: 50
       total_evals: 60
     30d:
       model: Huber
       horizon: 24m
       training_lookback_sessions: 504
-      hit_rate_pct: 83.3
-      mae_pct: 4.87
-      hit_mae_pct: 4.23
-      miss_mae_pct: 8.08
-      loss: 41.09
-      hits: 50
+      hit_rate_pct: 81.7
+      mae_pct: 4.68
+      hit_mae_pct: 3.86
+      miss_mae_pct: 7.75
+      loss: 44.24
+      hits: 49
       total_evals: 60
   AKSEN:
     3d:
@@ -186,32 +186,32 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 55.0
-      mae_pct: 3.88
-      hit_mae_pct: 3.06
-      miss_mae_pct: 4.89
-      loss: 60.29
+      mae_pct: 3.83
+      hit_mae_pct: 2.92
+      miss_mae_pct: 4.87
+      loss: 61.81
       hits: 33
       total_evals: 60
     5d:
       model: Huber
       horizon: 18m
       training_lookback_sessions: 378
-      hit_rate_pct: 71.7
-      mae_pct: 5.64
-      hit_mae_pct: 4.0
-      miss_mae_pct: 9.8
-      loss: 56.83
-      hits: 43
+      hit_rate_pct: 68.3
+      mae_pct: 5.79
+      hit_mae_pct: 4.01
+      miss_mae_pct: 9.34
+      loss: 60.72
+      hits: 41
       total_evals: 60
     10d:
       model: Huber
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 60.0
-      mae_pct: 6.99
+      mae_pct: 7.07
       hit_mae_pct: 4.13
-      miss_mae_pct: 11.28
-      loss: 72.34
+      miss_mae_pct: 11.39
+      loss: 73.14
       hits: 36
       total_evals: 60
     15d:
@@ -219,10 +219,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 63.3
-      mae_pct: 7.52
-      hit_mae_pct: 4.69
-      miss_mae_pct: 12.41
-      loss: 72.38
+      mae_pct: 6.67
+      hit_mae_pct: 4.77
+      miss_mae_pct: 10.74
+      loss: 63.38
       hits: 38
       total_evals: 60
     30d:
@@ -230,33 +230,33 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 68.3
-      mae_pct: 6.94
-      hit_mae_pct: 4.36
-      miss_mae_pct: 12.52
-      loss: 67.32
+      mae_pct: 6.59
+      hit_mae_pct: 4.33
+      miss_mae_pct: 12.77
+      loss: 63.02
       hits: 41
       total_evals: 60
   ASTOR:
     3d:
-      model: Huber
+      model: XGBoost
       horizon: 12m
       training_lookback_sessions: 252
-      hit_rate_pct: 56.7
-      mae_pct: 8.7
-      hit_mae_pct: 4.63
-      miss_mae_pct: 14.03
-      loss: 83.03
-      hits: 34
+      hit_rate_pct: 50.0
+      mae_pct: 8.71
+      hit_mae_pct: 5.85
+      miss_mae_pct: 11.65
+      loss: 84.26
+      hits: 30
       total_evals: 60
     5d:
       model: BayesianRidge
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 53.3
-      mae_pct: 9.79
-      hit_mae_pct: 6.02
-      miss_mae_pct: 14.1
-      loss: 87.95
+      mae_pct: 10.79
+      hit_mae_pct: 7.12
+      miss_mae_pct: 14.98
+      loss: 91.23
       hits: 32
       total_evals: 60
     10d:
@@ -264,10 +264,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 55.0
-      mae_pct: 13.73
-      hit_mae_pct: 7.65
-      miss_mae_pct: 21.15
-      loss: 105.52
+      mae_pct: 15.09
+      hit_mae_pct: 8.89
+      miss_mae_pct: 22.25
+      loss: 110.93
       hits: 33
       total_evals: 60
     15d:
@@ -275,10 +275,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 55.0
-      mae_pct: 16.43
-      hit_mae_pct: 7.3
-      miss_mae_pct: 27.58
-      loss: 121.25
+      mae_pct: 19.89
+      hit_mae_pct: 8.2
+      miss_mae_pct: 34.03
+      loss: 138.53
       hits: 33
       total_evals: 60
     30d:
@@ -286,10 +286,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 60.0
-      mae_pct: 15.57
-      hit_mae_pct: 15.48
-      miss_mae_pct: 15.71
-      loss: 94.76
+      mae_pct: 17.64
+      hit_mae_pct: 18.84
+      miss_mae_pct: 15.44
+      loss: 92.63
       hits: 36
       total_evals: 60
   BIMAS:
@@ -298,10 +298,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 55.0
-      mae_pct: 2.46
-      hit_mae_pct: 2.37
-      miss_mae_pct: 2.56
-      loss: 53.76
+      mae_pct: 2.57
+      hit_mae_pct: 2.43
+      miss_mae_pct: 2.72
+      loss: 57.68
       hits: 33
       total_evals: 60
     5d:
@@ -309,10 +309,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 63.3
-      mae_pct: 3.81
-      hit_mae_pct: 2.27
-      miss_mae_pct: 6.46
-      loss: 55.08
+      mae_pct: 4.01
+      hit_mae_pct: 2.22
+      miss_mae_pct: 6.79
+      loss: 58.47
       hits: 38
       total_evals: 60
     10d:
@@ -320,10 +320,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 68.3
-      mae_pct: 4.85
-      hit_mae_pct: 3.28
-      miss_mae_pct: 8.24
-      loss: 55.54
+      mae_pct: 4.76
+      hit_mae_pct: 3.21
+      miss_mae_pct: 7.95
+      loss: 55.82
       hits: 41
       total_evals: 60
     15d:
@@ -331,10 +331,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 70.0
-      mae_pct: 4.39
-      hit_mae_pct: 2.42
-      miss_mae_pct: 8.99
-      loss: 54.89
+      mae_pct: 4.57
+      hit_mae_pct: 2.37
+      miss_mae_pct: 9.47
+      loss: 57.03
       hits: 42
       total_evals: 60
     30d:
@@ -342,10 +342,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 88.3
-      mae_pct: 4.73
-      hit_mae_pct: 4.19
-      miss_mae_pct: 8.82
-      loss: 37.9
+      mae_pct: 4.46
+      hit_mae_pct: 3.94
+      miss_mae_pct: 8.7
+      loss: 36.45
       hits: 53
       total_evals: 60
   BRSAN:
@@ -438,10 +438,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 61.7
-      mae_pct: 4.7
-      hit_mae_pct: 2.81
-      miss_mae_pct: 7.74
-      loss: 60.51
+      mae_pct: 4.69
+      hit_mae_pct: 2.98
+      miss_mae_pct: 7.49
+      loss: 59.65
       hits: 37
       total_evals: 60
     5d:
@@ -449,44 +449,44 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 70.0
-      mae_pct: 6.11
-      hit_mae_pct: 4.05
-      miss_mae_pct: 10.93
-      loss: 61.38
+      mae_pct: 5.91
+      hit_mae_pct: 4.08
+      miss_mae_pct: 10.33
+      loss: 59.2
       hits: 42
       total_evals: 60
     10d:
       model: Huber
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 90.0
-      mae_pct: 4.74
-      hit_mae_pct: 4.06
-      miss_mae_pct: 10.8
-      loss: 41.07
-      hits: 54
+      hit_rate_pct: 91.7
+      mae_pct: 4.41
+      hit_mae_pct: 4.0
+      miss_mae_pct: 10.01
+      loss: 35.88
+      hits: 55
       total_evals: 60
     15d:
       model: BayesianRidge
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 83.3
-      mae_pct: 5.1
-      hit_mae_pct: 3.82
-      miss_mae_pct: 11.53
-      loss: 49.31
+      mae_pct: 5.01
+      hit_mae_pct: 3.59
+      miss_mae_pct: 11.69
+      loss: 50.35
       hits: 50
       total_evals: 60
     30d:
-      model: XGBoost
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 66.7
-      mae_pct: 6.27
-      hit_mae_pct: 4.57
-      miss_mae_pct: 9.66
-      loss: 62.07
-      hits: 40
+      model: LightGBM
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 73.3
+      mae_pct: 6.33
+      hit_mae_pct: 4.43
+      miss_mae_pct: 12.0
+      loss: 59.6
+      hits: 44
       total_evals: 60
   ENKAI:
     3d:
@@ -494,43 +494,43 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 71.7
-      mae_pct: 3.43
-      hit_mae_pct: 2.55
-      miss_mae_pct: 5.65
-      loss: 45.02
+      mae_pct: 3.63
+      hit_mae_pct: 2.57
+      miss_mae_pct: 6.23
+      loss: 47.12
       hits: 43
       total_evals: 60
     5d:
       model: Huber
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 70.0
-      mae_pct: 3.93
-      hit_mae_pct: 2.3
-      miss_mae_pct: 7.72
-      loss: 51.61
-      hits: 42
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 68.3
+      mae_pct: 4.18
+      hit_mae_pct: 2.7
+      miss_mae_pct: 7.29
+      loss: 53.03
+      hits: 41
       total_evals: 60
     10d:
       model: Huber
       horizon: 12m
       training_lookback_sessions: 252
-      hit_rate_pct: 71.7
-      mae_pct: 6.53
-      hit_mae_pct: 4.98
-      miss_mae_pct: 10.44
-      loss: 59.41
-      hits: 43
+      hit_rate_pct: 73.3
+      mae_pct: 6.66
+      hit_mae_pct: 4.99
+      miss_mae_pct: 11.26
+      loss: 59.82
+      hits: 44
       total_evals: 60
     15d:
       model: Huber
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 63.3
-      mae_pct: 7.05
-      hit_mae_pct: 4.47
-      miss_mae_pct: 11.5
-      loss: 69.88
+      mae_pct: 6.74
+      hit_mae_pct: 4.59
+      miss_mae_pct: 11.47
+      loss: 64.6
       hits: 38
       total_evals: 60
     30d:
@@ -538,10 +538,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 58.3
-      mae_pct: 8.32
-      hit_mae_pct: 4.89
-      miss_mae_pct: 13.12
-      loss: 79.35
+      mae_pct: 8.18
+      hit_mae_pct: 5.36
+      miss_mae_pct: 12.62
+      loss: 75.66
       hits: 35
       total_evals: 60
   EREGL:
@@ -550,10 +550,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 61.7
-      mae_pct: 3.3
-      hit_mae_pct: 3.8
-      miss_mae_pct: 2.49
-      loss: 48.36
+      mae_pct: 3.29
+      hit_mae_pct: 3.83
+      miss_mae_pct: 2.24
+      loss: 43.58
       hits: 37
       total_evals: 60
     5d:
@@ -562,9 +562,9 @@ symbols:
       training_lookback_sessions: 504
       hit_rate_pct: 61.7
       mae_pct: 4.1
-      hit_mae_pct: 4.58
-      miss_mae_pct: 3.33
-      loss: 51.23
+      hit_mae_pct: 4.56
+      miss_mae_pct: 3.17
+      loss: 46.06
       hits: 37
       total_evals: 60
     10d:
@@ -572,10 +572,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 55.0
-      mae_pct: 7.73
-      hit_mae_pct: 5.02
-      miss_mae_pct: 11.04
-      loss: 77.61
+      mae_pct: 7.12
+      hit_mae_pct: 4.86
+      miss_mae_pct: 10.26
+      loss: 72.37
       hits: 33
       total_evals: 60
     15d:
@@ -583,10 +583,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 46.7
-      mae_pct: 7.49
-      hit_mae_pct: 2.44
-      miss_mae_pct: 11.91
-      loss: 85.54
+      mae_pct: 6.74
+      hit_mae_pct: 2.22
+      miss_mae_pct: 12.06
+      loss: 78.3
       hits: 28
       total_evals: 60
     30d:
@@ -595,9 +595,9 @@ symbols:
       training_lookback_sessions: 504
       hit_rate_pct: 38.3
       mae_pct: 11.29
-      hit_mae_pct: 4.43
-      miss_mae_pct: 15.55
-      loss: 104.98
+      hit_mae_pct: 4.73
+      miss_mae_pct: 15.69
+      loss: 103.79
       hits: 23
       total_evals: 60
   FROTO:
@@ -607,31 +607,31 @@ symbols:
       training_lookback_sessions: 126
       hit_rate_pct: 65.0
       mae_pct: 2.91
-      hit_mae_pct: 1.76
+      hit_mae_pct: 1.88
       miss_mae_pct: 5.05
-      loss: 49.38
+      loss: 47.12
       hits: 39
       total_evals: 60
     5d:
       model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 70.0
-      mae_pct: 3.41
-      hit_mae_pct: 2.13
-      miss_mae_pct: 6.39
-      loss: 48.1
-      hits: 42
+      horizon: 12m
+      training_lookback_sessions: 252
+      hit_rate_pct: 63.3
+      mae_pct: 3.21
+      hit_mae_pct: 2.26
+      miss_mae_pct: 5.18
+      loss: 47.81
+      hits: 38
       total_evals: 60
     10d:
       model: LightGBM
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 51.7
-      mae_pct: 4.11
-      hit_mae_pct: 2.18
-      miss_mae_pct: 6.16
-      loss: 65.92
+      mae_pct: 3.85
+      hit_mae_pct: 2.35
+      miss_mae_pct: 5.95
+      loss: 58.94
       hits: 31
       total_evals: 60
     15d:
@@ -639,10 +639,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 71.7
-      mae_pct: 3.87
-      hit_mae_pct: 2.52
-      miss_mae_pct: 7.3
-      loss: 49.09
+      mae_pct: 4.0
+      hit_mae_pct: 2.66
+      miss_mae_pct: 7.35
+      loss: 49.62
       hits: 43
       total_evals: 60
     30d:
@@ -650,10 +650,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 68.3
-      mae_pct: 5.46
-      hit_mae_pct: 4.11
-      miss_mae_pct: 8.39
-      loss: 56.75
+      mae_pct: 4.62
+      hit_mae_pct: 3.34
+      miss_mae_pct: 7.87
+      loss: 51.16
       hits: 41
       total_evals: 60
   GARAN:
@@ -662,10 +662,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 65.0
-      mae_pct: 2.88
-      hit_mae_pct: 2.23
-      miss_mae_pct: 4.09
-      loss: 47.44
+      mae_pct: 3.11
+      hit_mae_pct: 2.43
+      miss_mae_pct: 4.5
+      loss: 46.81
       hits: 39
       total_evals: 60
     5d:
@@ -673,44 +673,44 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 68.3
-      mae_pct: 2.63
-      hit_mae_pct: 1.78
-      miss_mae_pct: 4.46
-      loss: 44.61
+      mae_pct: 2.87
+      hit_mae_pct: 1.91
+      miss_mae_pct: 4.95
+      loss: 45.79
       hits: 41
       total_evals: 60
     10d:
-      model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 78.3
-      mae_pct: 4.66
-      hit_mae_pct: 3.7
-      miss_mae_pct: 8.14
-      loss: 45.71
-      hits: 47
+      model: XGBoost
+      horizon: 6m
+      training_lookback_sessions: 126
+      hit_rate_pct: 73.3
+      mae_pct: 4.48
+      hit_mae_pct: 3.25
+      miss_mae_pct: 9.47
+      loss: 46.68
+      hits: 44
       total_evals: 60
     15d:
       model: BayesianRidge
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 83.3
-      mae_pct: 4.78
-      hit_mae_pct: 4.1
-      miss_mae_pct: 8.17
-      loss: 41.21
+      mae_pct: 4.92
+      hit_mae_pct: 4.2
+      miss_mae_pct: 8.12
+      loss: 42.85
       hits: 50
       total_evals: 60
     30d:
       model: XGBoost
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 68.3
-      mae_pct: 5.46
-      hit_mae_pct: 3.28
-      miss_mae_pct: 10.16
-      loss: 60.34
-      hits: 41
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 63.3
+      mae_pct: 5.33
+      hit_mae_pct: 3.94
+      miss_mae_pct: 7.86
+      loss: 59.09
+      hits: 38
       total_evals: 60
   GUBRF:
     3d:
@@ -718,21 +718,21 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 71.7
-      mae_pct: 4.87
-      hit_mae_pct: 3.32
-      miss_mae_pct: 8.79
-      loss: 53.62
+      mae_pct: 5.21
+      hit_mae_pct: 3.59
+      miss_mae_pct: 9.48
+      loss: 54.83
       hits: 43
       total_evals: 60
     5d:
-      model: XGBoost
-      horizon: 18m
-      training_lookback_sessions: 378
+      model: Huber
+      horizon: 6m
+      training_lookback_sessions: 126
       hit_rate_pct: 65.0
-      mae_pct: 6.27
-      hit_mae_pct: 4.35
-      miss_mae_pct: 9.83
-      loss: 63.93
+      mae_pct: 6.26
+      hit_mae_pct: 4.24
+      miss_mae_pct: 11.49
+      loss: 60.77
       hits: 39
       total_evals: 60
     10d:
@@ -740,10 +740,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 90.0
-      mae_pct: 4.35
-      hit_mae_pct: 3.92
-      miss_mae_pct: 8.22
-      loss: 34.47
+      mae_pct: 4.68
+      hit_mae_pct: 4.2
+      miss_mae_pct: 8.78
+      loss: 36.55
       hits: 54
       total_evals: 60
     15d:
@@ -751,10 +751,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 80.0
-      mae_pct: 6.97
-      hit_mae_pct: 5.91
-      miss_mae_pct: 11.2
-      loss: 53.91
+      mae_pct: 7.4
+      hit_mae_pct: 6.38
+      miss_mae_pct: 11.41
+      loss: 55.16
       hits: 48
       total_evals: 60
     30d:
@@ -762,10 +762,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 66.7
-      mae_pct: 11.89
-      hit_mae_pct: 9.57
-      miss_mae_pct: 16.54
-      loss: 84.24
+      mae_pct: 10.43
+      hit_mae_pct: 8.28
+      miss_mae_pct: 15.43
+      loss: 76.93
       hits: 40
       total_evals: 60
   HALKB:
@@ -816,10 +816,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 51.7
-      mae_pct: 3.89
-      hit_mae_pct: 2.26
-      miss_mae_pct: 5.63
-      loss: 64.67
+      mae_pct: 4.07
+      hit_mae_pct: 2.38
+      miss_mae_pct: 5.82
+      loss: 65.99
       hits: 31
       total_evals: 60
     5d:
@@ -827,10 +827,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 61.7
-      mae_pct: 4.58
-      hit_mae_pct: 2.28
-      miss_mae_pct: 8.28
-      loss: 61.33
+      mae_pct: 4.89
+      hit_mae_pct: 2.39
+      miss_mae_pct: 8.48
+      loss: 64.71
       hits: 37
       total_evals: 60
     10d:
@@ -838,10 +838,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 61.7
-      mae_pct: 6.96
-      hit_mae_pct: 3.78
-      miss_mae_pct: 12.06
-      loss: 72.27
+      mae_pct: 6.8
+      hit_mae_pct: 3.83
+      miss_mae_pct: 11.58
+      loss: 71.05
       hits: 37
       total_evals: 60
     15d:
@@ -849,10 +849,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 60.0
-      mae_pct: 8.77
-      hit_mae_pct: 4.67
-      miss_mae_pct: 14.93
-      loss: 81.99
+      mae_pct: 7.99
+      hit_mae_pct: 4.41
+      miss_mae_pct: 13.86
+      loss: 76.94
       hits: 36
       total_evals: 60
     30d:
@@ -860,10 +860,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 55.0
-      mae_pct: 9.99
-      hit_mae_pct: 7.83
-      miss_mae_pct: 12.64
-      loss: 84.42
+      mae_pct: 9.37
+      hit_mae_pct: 6.95
+      miss_mae_pct: 12.29
+      loss: 82.92
       hits: 33
       total_evals: 60
   KCHOL:
@@ -872,32 +872,32 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 66.7
-      mae_pct: 2.8
-      hit_mae_pct: 1.56
-      miss_mae_pct: 5.28
-      loss: 48.1
+      mae_pct: 2.96
+      hit_mae_pct: 1.66
+      miss_mae_pct: 5.46
+      loss: 49.4
       hits: 40
       total_evals: 60
     5d:
-      model: BayesianRidge
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 68.3
-      mae_pct: 5.06
-      hit_mae_pct: 3.12
-      miss_mae_pct: 9.25
-      loss: 57.91
-      hits: 41
+      model: Huber
+      horizon: 24m
+      training_lookback_sessions: 504
+      hit_rate_pct: 65.0
+      mae_pct: 5.11
+      hit_mae_pct: 3.35
+      miss_mae_pct: 8.77
+      loss: 57.7
+      hits: 39
       total_evals: 60
     10d:
       model: XGBoost
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 60.0
-      mae_pct: 4.45
-      hit_mae_pct: 2.31
-      miss_mae_pct: 7.67
-      loss: 61.48
+      mae_pct: 4.62
+      hit_mae_pct: 2.51
+      miss_mae_pct: 7.89
+      loss: 61.36
       hits: 36
       total_evals: 60
     15d:
@@ -905,22 +905,22 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 68.3
-      mae_pct: 4.83
-      hit_mae_pct: 3.62
-      miss_mae_pct: 7.44
-      loss: 53.9
+      mae_pct: 5.16
+      hit_mae_pct: 3.94
+      miss_mae_pct: 7.5
+      loss: 56.88
       hits: 41
       total_evals: 60
     30d:
-      model: BayesianRidge
+      model: Ridge
       horizon: 12m
       training_lookback_sessions: 252
-      hit_rate_pct: 90.0
-      mae_pct: 3.64
-      hit_mae_pct: 3.16
-      miss_mae_pct: 7.96
-      loss: 33.06
-      hits: 54
+      hit_rate_pct: 88.3
+      mae_pct: 3.8
+      hit_mae_pct: 3.41
+      miss_mae_pct: 7.51
+      loss: 31.69
+      hits: 53
       total_evals: 60
   KONTR:
     3d:
@@ -991,32 +991,32 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 56.7
-      mae_pct: 4.61
-      hit_mae_pct: 2.47
-      miss_mae_pct: 7.4
-      loss: 64.3
+      mae_pct: 4.35
+      hit_mae_pct: 2.52
+      miss_mae_pct: 7.03
+      loss: 60.62
       hits: 34
       total_evals: 60
     5d:
       model: Huber
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 71.7
-      mae_pct: 6.67
-      hit_mae_pct: 4.47
-      miss_mae_pct: 12.23
-      loss: 63.37
-      hits: 43
+      hit_rate_pct: 70.0
+      mae_pct: 6.54
+      hit_mae_pct: 4.16
+      miss_mae_pct: 11.54
+      loss: 65.28
+      hits: 42
       total_evals: 60
     10d:
       model: XGBoost
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 70.0
-      mae_pct: 5.85
-      hit_mae_pct: 4.62
-      miss_mae_pct: 8.73
-      loss: 56.45
+      mae_pct: 5.94
+      hit_mae_pct: 4.77
+      miss_mae_pct: 8.86
+      loss: 55.5
       hits: 42
       total_evals: 60
     15d:
@@ -1024,10 +1024,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 81.7
-      mae_pct: 4.13
-      hit_mae_pct: 3.01
-      miss_mae_pct: 9.11
-      loss: 44.13
+      mae_pct: 4.25
+      hit_mae_pct: 3.03
+      miss_mae_pct: 9.35
+      loss: 45.72
       hits: 49
       total_evals: 60
     30d:
@@ -1035,23 +1035,23 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 88.3
-      mae_pct: 5.55
-      hit_mae_pct: 4.97
-      miss_mae_pct: 9.96
-      loss: 41.52
+      mae_pct: 5.62
+      hit_mae_pct: 5.09
+      miss_mae_pct: 9.84
+      loss: 40.75
       hits: 53
       total_evals: 60
   MGROS:
     3d:
-      model: Ridge
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 65.0
-      mae_pct: 4.06
-      hit_mae_pct: 3.0
-      miss_mae_pct: 6.03
-      loss: 53.08
-      hits: 39
+      model: BayesianRidge
+      horizon: 12m
+      training_lookback_sessions: 252
+      hit_rate_pct: 56.7
+      mae_pct: 3.11
+      hit_mae_pct: 3.18
+      miss_mae_pct: 3.01
+      loss: 51.41
+      hits: 34
       total_evals: 60
     5d:
       model: Ridge
@@ -1059,9 +1059,9 @@ symbols:
       training_lookback_sessions: 504
       hit_rate_pct: 75.0
       mae_pct: 4.56
-      hit_mae_pct: 3.67
-      miss_mae_pct: 7.23
-      loss: 46.74
+      hit_mae_pct: 3.59
+      miss_mae_pct: 7.19
+      loss: 48.34
       hits: 45
       total_evals: 60
     10d:
@@ -1069,10 +1069,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 75.0
-      mae_pct: 5.64
-      hit_mae_pct: 4.38
-      miss_mae_pct: 9.42
-      loss: 52.94
+      mae_pct: 5.31
+      hit_mae_pct: 4.27
+      miss_mae_pct: 8.79
+      loss: 49.34
       hits: 45
       total_evals: 60
     15d:
@@ -1080,10 +1080,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 73.3
-      mae_pct: 5.68
-      hit_mae_pct: 4.31
-      miss_mae_pct: 9.46
-      loss: 54.62
+      mae_pct: 5.13
+      hit_mae_pct: 3.83
+      miss_mae_pct: 9.49
+      loss: 50.5
       hits: 44
       total_evals: 60
     30d:
@@ -1091,10 +1091,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 80.0
-      mae_pct: 9.09
-      hit_mae_pct: 7.63
-      miss_mae_pct: 14.91
-      loss: 64.91
+      mae_pct: 10.38
+      hit_mae_pct: 8.61
+      miss_mae_pct: 15.98
+      loss: 72.55
       hits: 48
       total_evals: 60
   ODAS:
@@ -1145,32 +1145,32 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 70.0
-      mae_pct: 5.07
-      hit_mae_pct: 3.98
-      miss_mae_pct: 7.63
-      loss: 53.05
+      mae_pct: 5.28
+      hit_mae_pct: 4.18
+      miss_mae_pct: 7.84
+      loss: 53.72
       hits: 42
       total_evals: 60
     5d:
-      model: LightGBM
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 76.7
-      mae_pct: 6.81
-      hit_mae_pct: 5.32
-      miss_mae_pct: 11.68
-      loss: 57.87
-      hits: 46
+      model: XGBoost
+      horizon: 24m
+      training_lookback_sessions: 504
+      hit_rate_pct: 66.7
+      mae_pct: 6.48
+      hit_mae_pct: 5.66
+      miss_mae_pct: 8.39
+      loss: 56.66
+      hits: 40
       total_evals: 60
     10d:
       model: BayesianRidge
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 90.0
-      mae_pct: 6.27
-      hit_mae_pct: 5.62
-      miss_mae_pct: 12.11
-      loss: 45.89
+      mae_pct: 6.25
+      hit_mae_pct: 5.63
+      miss_mae_pct: 12.04
+      loss: 45.37
       hits: 54
       total_evals: 60
     15d:
@@ -1178,10 +1178,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 81.7
-      mae_pct: 7.23
-      hit_mae_pct: 6.03
-      miss_mae_pct: 12.57
-      loss: 55.79
+      mae_pct: 7.13
+      hit_mae_pct: 6.22
+      miss_mae_pct: 12.77
+      loss: 51.95
       hits: 49
       total_evals: 60
     30d:
@@ -1189,10 +1189,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 76.7
-      mae_pct: 6.46
-      hit_mae_pct: 5.16
-      miss_mae_pct: 10.74
-      loss: 55.33
+      mae_pct: 6.27
+      hit_mae_pct: 5.38
+      miss_mae_pct: 10.13
+      loss: 49.35
       hits: 46
       total_evals: 60
   PGSUS:
@@ -1201,10 +1201,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 61.7
-      mae_pct: 3.33
-      hit_mae_pct: 1.9
-      miss_mae_pct: 5.63
-      loss: 54.31
+      mae_pct: 3.54
+      hit_mae_pct: 2.03
+      miss_mae_pct: 6.06
+      loss: 54.71
       hits: 37
       total_evals: 60
     5d:
@@ -1212,10 +1212,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 66.7
-      mae_pct: 3.36
-      hit_mae_pct: 1.98
-      miss_mae_pct: 6.1
-      loss: 50.58
+      mae_pct: 3.58
+      hit_mae_pct: 2.09
+      miss_mae_pct: 6.43
+      loss: 52.46
       hits: 40
       total_evals: 60
     10d:
@@ -1223,10 +1223,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 58.3
-      mae_pct: 4.83
-      hit_mae_pct: 4.3
-      miss_mae_pct: 5.55
-      loss: 59.86
+      mae_pct: 4.77
+      hit_mae_pct: 4.35
+      miss_mae_pct: 5.42
+      loss: 57.08
       hits: 35
       total_evals: 60
     15d:
@@ -1234,10 +1234,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 70.0
-      mae_pct: 4.82
-      hit_mae_pct: 4.14
-      miss_mae_pct: 6.41
-      loss: 50.18
+      mae_pct: 4.86
+      hit_mae_pct: 4.24
+      miss_mae_pct: 6.27
+      loss: 50.45
       hits: 42
       total_evals: 60
     30d:
@@ -1245,10 +1245,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 83.3
-      mae_pct: 5.69
-      hit_mae_pct: 5.21
-      miss_mae_pct: 8.09
-      loss: 42.11
+      mae_pct: 5.02
+      hit_mae_pct: 4.66
+      miss_mae_pct: 7.84
+      loss: 35.72
       hits: 50
       total_evals: 60
   SAHOL:
@@ -1257,10 +1257,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 63.3
-      mae_pct: 3.33
-      hit_mae_pct: 2.34
-      miss_mae_pct: 5.04
-      loss: 51.62
+      mae_pct: 3.37
+      hit_mae_pct: 2.29
+      miss_mae_pct: 5.28
+      loss: 51.53
       hits: 38
       total_evals: 60
     5d:
@@ -1268,43 +1268,43 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 58.3
-      mae_pct: 4.75
-      hit_mae_pct: 3.31
-      miss_mae_pct: 6.75
-      loss: 61.86
+      mae_pct: 4.54
+      hit_mae_pct: 3.34
+      miss_mae_pct: 6.61
+      loss: 56.54
       hits: 35
       total_evals: 60
     10d:
-      model: Huber
+      model: XGBoost
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 76.7
-      mae_pct: 5.17
-      hit_mae_pct: 4.16
-      miss_mae_pct: 8.52
-      loss: 48.78
-      hits: 46
+      hit_rate_pct: 73.3
+      mae_pct: 4.7
+      hit_mae_pct: 3.34
+      miss_mae_pct: 8.88
+      loss: 50.03
+      hits: 44
       total_evals: 60
     15d:
-      model: LightGBM
+      model: XGBoost
       horizon: 6m
       training_lookback_sessions: 126
-      hit_rate_pct: 78.3
-      mae_pct: 4.46
-      hit_mae_pct: 2.36
-      miss_mae_pct: 12.05
-      loss: 54.16
-      hits: 47
+      hit_rate_pct: 76.7
+      mae_pct: 4.04
+      hit_mae_pct: 2.45
+      miss_mae_pct: 10.59
+      loss: 48.5
+      hits: 46
       total_evals: 60
     30d:
       model: BayesianRidge
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 70.0
-      mae_pct: 5.91
-      hit_mae_pct: 4.38
-      miss_mae_pct: 9.48
-      loss: 58.08
+      mae_pct: 5.35
+      hit_mae_pct: 4.05
+      miss_mae_pct: 8.61
+      loss: 54.02
       hits: 42
       total_evals: 60
   SASA:
@@ -1313,10 +1313,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 55.0
-      mae_pct: 6.39
-      hit_mae_pct: 7.69
-      miss_mae_pct: 4.79
-      loss: 64.66
+      mae_pct: 6.93
+      hit_mae_pct: 8.22
+      miss_mae_pct: 5.33
+      loss: 66.17
       hits: 33
       total_evals: 60
     5d:
@@ -1324,10 +1324,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 71.7
-      mae_pct: 7.01
-      hit_mae_pct: 5.14
-      miss_mae_pct: 11.76
-      loss: 62.86
+      mae_pct: 7.54
+      hit_mae_pct: 5.68
+      miss_mae_pct: 12.46
+      loss: 64.26
       hits: 43
       total_evals: 60
     10d:
@@ -1335,10 +1335,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 71.7
-      mae_pct: 10.76
-      hit_mae_pct: 9.29
-      miss_mae_pct: 14.48
-      loss: 73.83
+      mae_pct: 12.2
+      hit_mae_pct: 10.87
+      miss_mae_pct: 15.67
+      loss: 77.83
       hits: 43
       total_evals: 60
     15d:
@@ -1346,22 +1346,22 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 60.0
-      mae_pct: 12.55
-      hit_mae_pct: 10.3
-      miss_mae_pct: 15.92
-      loss: 90.11
+      mae_pct: 13.67
+      hit_mae_pct: 12.5
+      miss_mae_pct: 15.58
+      loss: 89.4
       hits: 36
       total_evals: 60
     30d:
       model: Huber
       horizon: 12m
       training_lookback_sessions: 252
-      hit_rate_pct: 68.3
-      mae_pct: 8.25
-      hit_mae_pct: 5.58
-      miss_mae_pct: 14.01
-      loss: 72.27
-      hits: 41
+      hit_rate_pct: 65.0
+      mae_pct: 9.25
+      hit_mae_pct: 4.97
+      miss_mae_pct: 16.03
+      loss: 83.79
+      hits: 39
       total_evals: 60
   SISE:
     3d:
@@ -1369,10 +1369,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 61.7
-      mae_pct: 3.34
-      hit_mae_pct: 2.76
-      miss_mae_pct: 4.27
-      loss: 51.77
+      mae_pct: 3.57
+      hit_mae_pct: 2.99
+      miss_mae_pct: 4.66
+      loss: 49.64
       hits: 37
       total_evals: 60
     5d:
@@ -1380,10 +1380,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 70.0
-      mae_pct: 4.32
-      hit_mae_pct: 3.34
-      miss_mae_pct: 6.58
-      loss: 49.8
+      mae_pct: 4.81
+      hit_mae_pct: 3.62
+      miss_mae_pct: 7.55
+      loss: 52.77
       hits: 42
       total_evals: 60
     10d:
@@ -1391,32 +1391,32 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 78.3
-      mae_pct: 4.5
-      hit_mae_pct: 3.39
-      miss_mae_pct: 8.5
-      loss: 46.3
+      mae_pct: 5.01
+      hit_mae_pct: 3.9
+      miss_mae_pct: 8.94
+      loss: 48.28
       hits: 47
       total_evals: 60
     15d:
       model: XGBoost
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 73.3
-      mae_pct: 5.06
-      hit_mae_pct: 3.66
-      miss_mae_pct: 8.92
-      loss: 52.62
-      hits: 44
+      horizon: 12m
+      training_lookback_sessions: 252
+      hit_rate_pct: 78.3
+      mae_pct: 5.45
+      hit_mae_pct: 3.72
+      miss_mae_pct: 11.63
+      loss: 54.73
+      hits: 47
       total_evals: 60
     30d:
       model: Huber
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 56.7
-      mae_pct: 7.94
-      hit_mae_pct: 2.98
-      miss_mae_pct: 14.43
-      loss: 82.37
+      mae_pct: 7.43
+      hit_mae_pct: 3.09
+      miss_mae_pct: 14.69
+      loss: 77.2
       hits: 34
       total_evals: 60
   TAVHL:
@@ -1425,10 +1425,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 73.3
-      mae_pct: 3.7
+      mae_pct: 3.58
       hit_mae_pct: 2.39
-      miss_mae_pct: 7.3
-      loss: 47.31
+      miss_mae_pct: 7.27
+      loss: 44.85
       hits: 44
       total_evals: 60
     5d:
@@ -1436,32 +1436,32 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 66.7
-      mae_pct: 3.9
-      hit_mae_pct: 2.81
-      miss_mae_pct: 6.08
-      loss: 51.34
+      mae_pct: 3.82
+      hit_mae_pct: 2.93
+      miss_mae_pct: 5.95
+      loss: 47.26
       hits: 40
       total_evals: 60
     10d:
-      model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 65.0
-      mae_pct: 4.86
-      hit_mae_pct: 4.05
-      miss_mae_pct: 6.36
-      loss: 54.95
-      hits: 39
+      model: Ridge
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 66.7
+      mae_pct: 5.53
+      hit_mae_pct: 3.69
+      miss_mae_pct: 9.95
+      loss: 57.87
+      hits: 40
       total_evals: 60
     15d:
       model: XGBoost
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 78.3
-      mae_pct: 4.27
-      hit_mae_pct: 3.07
-      miss_mae_pct: 8.62
-      loss: 46.29
+      mae_pct: 4.2
+      hit_mae_pct: 2.98
+      miss_mae_pct: 8.34
+      loss: 46.58
       hits: 47
       total_evals: 60
     30d:
@@ -1469,44 +1469,44 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 85.0
-      mae_pct: 3.98
-      hit_mae_pct: 3.33
-      miss_mae_pct: 7.66
-      loss: 37.48
+      mae_pct: 3.93
+      hit_mae_pct: 3.23
+      miss_mae_pct: 7.32
+      loss: 38.62
       hits: 51
       total_evals: 60
   TCELL:
     3d:
-      model: LightGBM
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 65.0
-      mae_pct: 3.04
-      hit_mae_pct: 1.63
-      miss_mae_pct: 5.67
-      loss: 50.81
-      hits: 39
-      total_evals: 60
-    5d:
-      model: BayesianRidge
+      model: XGBoost
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 68.3
-      mae_pct: 4.29
-      hit_mae_pct: 3.21
-      miss_mae_pct: 6.64
-      loss: 51.48
-      hits: 41
+      hit_rate_pct: 63.3
+      mae_pct: 3.01
+      hit_mae_pct: 1.99
+      miss_mae_pct: 5.05
+      loss: 47.91
+      hits: 38
+      total_evals: 60
+    5d:
+      model: XGBoost
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 70.0
+      mae_pct: 3.73
+      hit_mae_pct: 2.25
+      miss_mae_pct: 7.69
+      loss: 48.73
+      hits: 42
       total_evals: 60
     10d:
       model: Ridge
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 65.0
-      mae_pct: 5.34
-      hit_mae_pct: 4.06
-      miss_mae_pct: 7.72
-      loss: 58.37
+      mae_pct: 5.46
+      hit_mae_pct: 4.19
+      miss_mae_pct: 7.87
+      loss: 58.27
       hits: 39
       total_evals: 60
     15d:
@@ -1514,10 +1514,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 65.0
-      mae_pct: 5.65
-      hit_mae_pct: 3.28
-      miss_mae_pct: 10.05
-      loss: 63.41
+      mae_pct: 5.5
+      hit_mae_pct: 3.25
+      miss_mae_pct: 10.31
+      loss: 60.94
       hits: 39
       total_evals: 60
     30d:
@@ -1525,10 +1525,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 80.0
-      mae_pct: 4.54
-      hit_mae_pct: 3.35
-      miss_mae_pct: 9.29
-      loss: 46.58
+      mae_pct: 4.94
+      hit_mae_pct: 3.25
+      miss_mae_pct: 9.59
+      loss: 53.81
       hits: 48
       total_evals: 60
   THYAO:
@@ -1537,10 +1537,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 66.7
-      mae_pct: 2.95
-      hit_mae_pct: 2.31
-      miss_mae_pct: 4.22
-      loss: 46.19
+      mae_pct: 3.08
+      hit_mae_pct: 2.42
+      miss_mae_pct: 4.39
+      loss: 46.96
       hits: 40
       total_evals: 60
     5d:
@@ -1548,32 +1548,32 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 73.3
-      mae_pct: 2.53
-      hit_mae_pct: 2.03
-      miss_mae_pct: 3.89
-      loss: 38.42
+      mae_pct: 2.69
+      hit_mae_pct: 2.18
+      miss_mae_pct: 4.09
+      loss: 39.3
       hits: 44
       total_evals: 60
     10d:
-      model: LightGBM
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 71.7
-      mae_pct: 4.52
-      hit_mae_pct: 2.87
-      miss_mae_pct: 8.69
-      loss: 52.93
-      hits: 43
+      model: XGBoost
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 66.7
+      mae_pct: 5.01
+      hit_mae_pct: 3.81
+      miss_mae_pct: 7.4
+      loss: 55.65
+      hits: 40
       total_evals: 60
     15d:
       model: XGBoost
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 61.7
-      mae_pct: 4.95
-      hit_mae_pct: 2.63
-      miss_mae_pct: 8.67
-      loss: 62.64
+      mae_pct: 5.33
+      hit_mae_pct: 2.59
+      miss_mae_pct: 8.77
+      loss: 68.92
       hits: 37
       total_evals: 60
     30d:
@@ -1581,10 +1581,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 73.3
-      mae_pct: 6.44
+      mae_pct: 6.8
       hit_mae_pct: 4.48
-      miss_mae_pct: 11.82
-      loss: 60.69
+      miss_mae_pct: 11.7
+      loss: 65.87
       hits: 44
       total_evals: 60
   TKFEN:
@@ -1610,25 +1610,25 @@ symbols:
       training_lookback_sessions: 252
   TOASO:
     3d:
-      model: BayesianRidge
+      model: LightGBM
       horizon: 24m
       training_lookback_sessions: 504
-      hit_rate_pct: 60.0
-      mae_pct: 3.59
-      hit_mae_pct: 2.98
-      miss_mae_pct: 4.5
-      loss: 54.23
-      hits: 36
+      hit_rate_pct: 63.3
+      mae_pct: 3.71
+      hit_mae_pct: 2.57
+      miss_mae_pct: 5.87
+      loss: 51.79
+      hits: 38
       total_evals: 60
     5d:
       model: XGBoost
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 65.0
-      mae_pct: 5.22
-      hit_mae_pct: 3.34
-      miss_mae_pct: 8.69
-      loss: 60.08
+      mae_pct: 4.73
+      hit_mae_pct: 3.28
+      miss_mae_pct: 7.97
+      loss: 54.08
       hits: 39
       total_evals: 60
     10d:
@@ -1636,10 +1636,10 @@ symbols:
       horizon: 18m
       training_lookback_sessions: 378
       hit_rate_pct: 68.3
-      mae_pct: 6.67
-      hit_mae_pct: 4.39
-      miss_mae_pct: 11.59
-      loss: 65.03
+      mae_pct: 5.98
+      hit_mae_pct: 4.08
+      miss_mae_pct: 11.45
+      loss: 58.38
       hits: 41
       total_evals: 60
     15d:
@@ -1647,10 +1647,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 78.3
-      mae_pct: 5.6
-      hit_mae_pct: 3.77
-      miss_mae_pct: 12.23
-      loss: 56.01
+      mae_pct: 5.63
+      hit_mae_pct: 3.71
+      miss_mae_pct: 11.98
+      loss: 56.86
       hits: 47
       total_evals: 60
     30d:
@@ -1658,10 +1658,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 73.3
-      mae_pct: 8.27
-      hit_mae_pct: 6.93
-      miss_mae_pct: 11.98
-      loss: 63.54
+      mae_pct: 8.05
+      hit_mae_pct: 6.27
+      miss_mae_pct: 12.84
+      loss: 65.51
       hits: 44
       total_evals: 60
   TRALT:
@@ -1670,10 +1670,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 65.0
-      mae_pct: 5.75
-      hit_mae_pct: 4.1
-      miss_mae_pct: 8.8
-      loss: 61.11
+      mae_pct: 5.79
+      hit_mae_pct: 4.19
+      miss_mae_pct: 8.82
+      loss: 60.84
       hits: 39
       total_evals: 60
     5d:
@@ -1681,10 +1681,10 @@ symbols:
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 70.0
-      mae_pct: 6.51
-      hit_mae_pct: 4.08
-      miss_mae_pct: 12.18
-      loss: 64.53
+      mae_pct: 6.94
+      hit_mae_pct: 4.12
+      miss_mae_pct: 13.03
+      loss: 68.31
       hits: 42
       total_evals: 60
     10d:
@@ -1692,10 +1692,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 63.3
-      mae_pct: 7.91
-      hit_mae_pct: 4.2
-      miss_mae_pct: 14.32
-      loss: 76.66
+      mae_pct: 7.67
+      hit_mae_pct: 4.59
+      miss_mae_pct: 14.25
+      loss: 72.09
       hits: 38
       total_evals: 60
     15d:
@@ -1703,10 +1703,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 78.3
-      mae_pct: 6.13
-      hit_mae_pct: 4.89
-      miss_mae_pct: 10.6
-      loss: 53.06
+      mae_pct: 6.37
+      hit_mae_pct: 5.18
+      miss_mae_pct: 11.17
+      loss: 52.91
       hits: 47
       total_evals: 60
     30d:
@@ -1714,10 +1714,10 @@ symbols:
       horizon: 6m
       training_lookback_sessions: 126
       hit_rate_pct: 80.0
-      mae_pct: 6.39
-      hit_mae_pct: 5.36
-      miss_mae_pct: 10.53
-      loss: 51.68
+      mae_pct: 6.5
+      hit_mae_pct: 5.71
+      miss_mae_pct: 9.5
+      loss: 50.3
       hits: 48
       total_evals: 60
   TRMET:
@@ -1743,58 +1743,58 @@ symbols:
       training_lookback_sessions: 252
   TTKOM:
     3d:
-      model: XGBoost
+      model: LightGBM
       horizon: 18m
       training_lookback_sessions: 378
-      hit_rate_pct: 68.3
-      mae_pct: 4.04
-      hit_mae_pct: 2.83
-      miss_mae_pct: 6.65
-      loss: 51.13
-      hits: 41
+      hit_rate_pct: 66.7
+      mae_pct: 4.02
+      hit_mae_pct: 2.81
+      miss_mae_pct: 6.39
+      loss: 52.51
+      hits: 40
       total_evals: 60
     5d:
       model: BayesianRidge
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 70.0
-      mae_pct: 4.58
-      hit_mae_pct: 3.58
-      miss_mae_pct: 6.92
-      loss: 50.87
+      mae_pct: 4.53
+      hit_mae_pct: 3.51
+      miss_mae_pct: 6.71
+      loss: 52.18
       hits: 42
       total_evals: 60
     10d:
-      model: BayesianRidge
+      model: XGBoost
+      horizon: 12m
+      training_lookback_sessions: 252
+      hit_rate_pct: 53.3
+      mae_pct: 6.31
+      hit_mae_pct: 4.34
+      miss_mae_pct: 9.3
+      loss: 67.39
+      hits: 32
+      total_evals: 60
+    15d:
+      model: XGBoost
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 60.0
-      mae_pct: 6.41
-      hit_mae_pct: 3.72
-      miss_mae_pct: 10.44
-      loss: 69.82
+      mae_pct: 5.78
+      hit_mae_pct: 3.13
+      miss_mae_pct: 10.47
+      loss: 65.41
       hits: 36
-      total_evals: 60
-    15d:
-      model: BayesianRidge
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 61.7
-      mae_pct: 5.83
-      hit_mae_pct: 3.22
-      miss_mae_pct: 10.03
-      loss: 66.64
-      hits: 37
       total_evals: 60
     30d:
       model: BayesianRidge
       horizon: 12m
       training_lookback_sessions: 252
       hit_rate_pct: 96.7
-      mae_pct: 4.61
-      hit_mae_pct: 4.51
-      miss_mae_pct: 7.33
-      loss: 26.16
+      mae_pct: 4.48
+      hit_mae_pct: 4.39
+      miss_mae_pct: 7.3
+      loss: 25.76
       hits: 58
       total_evals: 60
   TUPRS:
@@ -1803,21 +1803,21 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 60.0
-      mae_pct: 5.14
-      hit_mae_pct: 2.93
-      miss_mae_pct: 8.45
-      loss: 64.06
+      mae_pct: 5.04
+      hit_mae_pct: 2.95
+      miss_mae_pct: 8.31
+      loss: 62.66
       hits: 36
       total_evals: 60
     5d:
-      model: XGBoost
-      horizon: 24m
-      training_lookback_sessions: 504
+      model: BayesianRidge
+      horizon: 12m
+      training_lookback_sessions: 252
       hit_rate_pct: 46.7
-      mae_pct: 8.33
-      hit_mae_pct: 5.42
-      miss_mae_pct: 10.88
-      loss: 85.96
+      mae_pct: 7.85
+      hit_mae_pct: 2.96
+      miss_mae_pct: 12.32
+      loss: 86.04
       hits: 28
       total_evals: 60
     10d:
@@ -1825,10 +1825,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 63.3
-      mae_pct: 10.31
-      hit_mae_pct: 7.43
-      miss_mae_pct: 15.29
-      loss: 82.32
+      mae_pct: 10.02
+      hit_mae_pct: 6.68
+      miss_mae_pct: 15.11
+      loss: 84.03
       hits: 38
       total_evals: 60
     15d:
@@ -1836,22 +1836,22 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 58.3
-      mae_pct: 13.78
-      hit_mae_pct: 9.67
-      miss_mae_pct: 19.53
-      loss: 100.17
+      mae_pct: 12.39
+      hit_mae_pct: 8.81
+      miss_mae_pct: 18.47
+      loss: 92.02
       hits: 35
       total_evals: 60
     30d:
-      model: Ridge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 43.3
-      mae_pct: 25.07
-      hit_mae_pct: 18.02
-      miss_mae_pct: 30.46
-      loss: 150.85
-      hits: 26
+      model: XGBoost
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 33.3
+      mae_pct: 24.88
+      hit_mae_pct: 16.2
+      miss_mae_pct: 29.58
+      loss: 155.03
+      hits: 20
       total_evals: 60
   ULKER:
     3d:
@@ -1880,32 +1880,32 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 55.0
-      mae_pct: 5.01
-      hit_mae_pct: 3.35
-      miss_mae_pct: 7.03
-      loss: 65.92
+      mae_pct: 5.16
+      hit_mae_pct: 3.56
+      miss_mae_pct: 7.42
+      loss: 63.46
       hits: 33
       total_evals: 60
     5d:
-      model: BayesianRidge
+      model: Ridge
       horizon: 24m
       training_lookback_sessions: 504
-      hit_rate_pct: 53.3
-      mae_pct: 6.12
-      hit_mae_pct: 3.75
-      miss_mae_pct: 8.84
-      loss: 72.51
-      hits: 32
+      hit_rate_pct: 58.3
+      mae_pct: 6.13
+      hit_mae_pct: 3.24
+      miss_mae_pct: 11.16
+      loss: 67.68
+      hits: 35
       total_evals: 60
     10d:
       model: LightGBM
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 58.3
-      mae_pct: 6.9
-      hit_mae_pct: 4.21
-      miss_mae_pct: 10.67
-      loss: 72.55
+      mae_pct: 6.92
+      hit_mae_pct: 4.41
+      miss_mae_pct: 10.68
+      loss: 71.08
       hits: 35
       total_evals: 60
     15d:
@@ -1913,10 +1913,10 @@ symbols:
       horizon: 3m
       training_lookback_sessions: 63
       hit_rate_pct: 60.0
-      mae_pct: 7.66
-      hit_mae_pct: 4.87
-      miss_mae_pct: 11.83
-      loss: 74.46
+      mae_pct: 7.92
+      hit_mae_pct: 5.16
+      miss_mae_pct: 11.96
+      loss: 75.71
       hits: 36
       total_evals: 60
     30d:
@@ -1924,10 +1924,10 @@ symbols:
       horizon: 24m
       training_lookback_sessions: 504
       hit_rate_pct: 65.0
-      mae_pct: 8.24
-      hit_mae_pct: 5.85
-      miss_mae_pct: 12.69
-      loss: 72.56
+      mae_pct: 7.57
+      hit_mae_pct: 5.55
+      miss_mae_pct: 12.65
+      loss: 65.58
       hits: 39
       total_evals: 60
   VESTL:
