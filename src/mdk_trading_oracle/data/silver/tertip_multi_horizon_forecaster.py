@@ -177,6 +177,18 @@ def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, lis
     inst_10d_std = inst_10d_flow.rolling(30, min_periods=10).std().replace(0, np.nan)
     df["feat_inst_10d_flow_zscore"] = ((inst_10d_flow - inst_10d_mean) / inst_10d_std).clip(-4.0, 4.0).fillna(0.0)
 
+    # 3b. Flow Divergences & Momentum Rollover (Break Regime Lag at Tops/Bottoms)
+    inst_10d_flow_share = (inst_10d_flow / turnover_10d * 100.0).fillna(0.0)
+    df["feat_mlb_flow_divergence_3d_10d"] = (df["feat_mlb_flow_3d_share"] - df["feat_mlb_flow_10d_share"]).clip(-100.0, 100.0).fillna(0.0)
+    df["feat_inst_flow_divergence_5d_10d"] = (df["feat_total_inst_5d_share"] - inst_10d_flow_share).clip(-100.0, 100.0).fillna(0.0)
+    df["feat_ret_rollover_3d_10d"] = (df["feat_close_ret_3d"] - df["feat_close_ret_10d"]).clip(-50.0, 50.0).fillna(0.0)
+    df["feat_ret_rollover_5d_20d"] = (df["feat_close_ret_5d"] - df["feat_close_ret_20d"]).clip(-50.0, 50.0).fillna(0.0)
+
+    # 3c. Exponentially-Decayed Institutional Flow Share (EWMA 5-Day)
+    ewma_to = df["total_turnover_tl"].ewm(span=5, min_periods=1).mean().replace(0, np.nan)
+    ewma_mlb = df["mlb_flow"].ewm(span=5, min_periods=1).mean()
+    df["feat_mlb_ewma_flow_share_5d"] = (ewma_mlb / ewma_to * 100.0).clip(-100.0, 100.0).fillna(0.0)
+
     # 4. Multi-Day Realized Volatility & 14-Day ATR (%)
     df["feat_stock_vol_10d"] = (df["daily_return_pct"].rolling(10, min_periods=5).std() * np.sqrt(252) * 100.0).fillna(0.0)
     df["feat_stock_vol_20d"] = (df["daily_return_pct"].rolling(20, min_periods=10).std() * np.sqrt(252) * 100.0).fillna(0.0)
