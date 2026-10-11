@@ -334,6 +334,9 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                       <ShieldCheck className="w-3 h-3 text-emerald-400" /> Win Rate ({evalSessions}D):
                     </span>
                     <span className="font-bold text-emerald-400">
+                      {meta?.hits != null && meta?.total_evals != null ? (
+                        <span className="text-[10px] text-slate-400 mr-1 font-normal">{meta.hits}/{meta.total_evals}</span>
+                      ) : null}
                       {meta?.hit_rate_pct != null ? `${meta.hit_rate_pct.toFixed(1)}%` : '---'}
                     </span>
                   </div>

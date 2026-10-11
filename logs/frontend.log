@@ -15,3 +15,7 @@
 1:48:31 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
 1:48:36 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
 3:50:31 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
+10:55:24 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/EventStudyDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/TimeWindowTerminal.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/WeekStartDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
+10:56:22 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
+10:57:10 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
+10:57:35 PM [vite] hmr update /src/components/OracleHubDashboard.tsx, /src/index.css
