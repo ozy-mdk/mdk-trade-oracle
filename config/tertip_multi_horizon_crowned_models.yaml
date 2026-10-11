@@ -2,8 +2,18 @@ _metadata:
   description: Crowned Multi-Horizon Tertip models across 3d, 5d, 10d, 15d, 30d forward
     trading sessions
   calibrated_at: '2026-10-10'
-  selection_metric: 3_criteria_tournament_loss
-  updated_at: '2026-10-11T17:09:05.385310'
+  selection_metric: two_stage_family_first_option1_recency_score
+  updated_at: '2026-10-11T22:17:20.257359'
+  recency_weights:
+    0-30d: 0.5
+    30-60d: 0.3
+    60-90d: 0.2
+  family_horizon_weights:
+    10d: 0.35
+    5d: 0.25
+    3d: 0.2
+    15d: 0.12
+    30d: 0.08
 symbols:
   AEFES:
     3d:
@@ -182,60 +192,85 @@ symbols:
       training_lookback_sessions: 252
   ASELS:
     3d:
-      model: BayesianRidge
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 55.0
-      mae_pct: 3.83
-      hit_mae_pct: 2.92
-      miss_mae_pct: 4.87
-      loss: 61.81
-      hits: 33
-      total_evals: 60
+      model: Huber
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 55.6
+      opt1_score: 55.0
+      bucket_1_hit_rate: 56.7
+      bucket_2_hit_rate: 46.7
+      bucket_3_hit_rate: 63.3
+      mae_pct: 7.08
+      hit_mae_pct: 3.93
+      miss_mae_pct: 10.73
+      loss: 77.04
+      hits: 50
+      total_evals: 90
+      crowned_family: Robust M-Estimator
     5d:
       model: Huber
       horizon: 18m
       training_lookback_sessions: 378
-      hit_rate_pct: 68.3
-      mae_pct: 5.79
-      hit_mae_pct: 4.01
-      miss_mae_pct: 9.34
-      loss: 60.72
-      hits: 41
-      total_evals: 60
+      hit_rate_pct: 61.1
+      opt1_score: 61.33
+      bucket_1_hit_rate: 56.7
+      bucket_2_hit_rate: 76.7
+      bucket_3_hit_rate: 50.0
+      mae_pct: 6.78
+      hit_mae_pct: 3.93
+      miss_mae_pct: 11.43
+      loss: 70.47
+      hits: 55
+      total_evals: 90
+      crowned_family: Robust M-Estimator
     10d:
+      model: Huber
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 54.4
+      opt1_score: 55.0
+      bucket_1_hit_rate: 46.7
+      bucket_2_hit_rate: 83.3
+      bucket_3_hit_rate: 33.3
+      mae_pct: 8.16
+      hit_mae_pct: 4.75
+      miss_mae_pct: 12.61
+      loss: 79.64
+      hits: 49
+      total_evals: 90
+      crowned_family: Robust M-Estimator
+    15d:
       model: Huber
       horizon: 24m
       training_lookback_sessions: 504
-      hit_rate_pct: 60.0
-      mae_pct: 7.07
-      hit_mae_pct: 4.13
-      miss_mae_pct: 11.39
-      loss: 73.14
-      hits: 36
-      total_evals: 60
-    15d:
-      model: BayesianRidge
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 63.3
-      mae_pct: 6.67
-      hit_mae_pct: 4.77
-      miss_mae_pct: 10.74
-      loss: 63.38
-      hits: 38
-      total_evals: 60
+      hit_rate_pct: 51.1
+      opt1_score: 55.67
+      bucket_1_hit_rate: 66.7
+      bucket_2_hit_rate: 50.0
+      bucket_3_hit_rate: 36.7
+      mae_pct: 8.35
+      hit_mae_pct: 4.09
+      miss_mae_pct: 13.74
+      loss: 82.59
+      hits: 46
+      total_evals: 90
+      crowned_family: Robust M-Estimator
     30d:
-      model: Ridge
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 68.3
-      mae_pct: 6.59
-      hit_mae_pct: 4.33
-      miss_mae_pct: 12.77
-      loss: 63.02
-      hits: 41
-      total_evals: 60
+      model: Huber
+      horizon: 3m
+      training_lookback_sessions: 63
+      hit_rate_pct: 64.4
+      opt1_score: 67.0
+      bucket_1_hit_rate: 73.3
+      bucket_2_hit_rate: 63.3
+      bucket_3_hit_rate: 56.7
+      mae_pct: 9.71
+      hit_mae_pct: 4.51
+      miss_mae_pct: 19.17
+      loss: 87.89
+      hits: 58
+      total_evals: 90
+      crowned_family: Robust M-Estimator
   ASTOR:
     3d:
       model: XGBoost

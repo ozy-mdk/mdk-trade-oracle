@@ -129,6 +129,10 @@ def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, lis
     """Enrich 3-pillar time series with multi-horizon momentum, trend alignment,
     and cumulative institutional flow features (strictly zero data leakage).
     """
+    if "feat_close_ret_3d" in df.columns and "feat_mlb_ewma_flow_share_5d" in df.columns:
+        feature_cols = [c for c in df.columns if c.startswith("feat_")]
+        return df, feature_cols
+
     df = df.copy()
 
     # 1. Multi-Day Trailing Price Momentum (%)

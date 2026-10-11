@@ -49,6 +49,21 @@ from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
 logger = get_logger("mdk_oracle.tournament.multi_horizon")
 
 CANDIDATE_MODELS = ["LightGBM", "XGBoost", "BayesianRidge", "Ridge", "Huber"]
+
+FAMILIES = {
+    "GBDT": ["LightGBM", "XGBoost"],
+    "Regularized Linear": ["Ridge", "BayesianRidge"],
+    "Robust M-Estimator": ["Huber"],
+}
+
+HORIZON_WEIGHTS = {
+    "10d": 0.35,
+    "5d": 0.25,
+    "3d": 0.20,
+    "15d": 0.12,
+    "30d": 0.08,
+}
+
 LOOKBACKS = [
     ("3m", 63),
     ("6m", 126),
@@ -59,63 +74,144 @@ LOOKBACKS = [
 HORIZONS = ["3d", "5d", "10d", "15d", "30d"]
 
 
+def compute_option1_recency_score(ledger: list[dict[str, Any]]) -> tuple[float, float, float, float]:
+    """Compute Option 1 tiered recency score: 0.50*b1(0-30d) + 0.30*b2(30-60d) + 0.20*b3(60-90d)."""
+    n = len(ledger)
+    if n == 0:
+        return 0.0, 0.0, 0.0, 0.0
+
+    b1 = ledger[-30:] if n >= 30 else ledger
+    h1 = sum(1 for r in b1 if r.get("is_hit"))
+    r1 = (h1 / len(b1) * 100.0) if b1 else 0.0
+
+    b2 = ledger[-60:-30] if n >= 60 else (ledger[:-30] if n > 30 else [])
+    h2 = sum(1 for r in b2 if r.get("is_hit"))
+    r2 = (h2 / len(b2) * 100.0) if b2 else r1
+
+    b3 = ledger[-90:-60] if n >= 90 else (ledger[:-60] if n > 60 else [])
+    h3 = sum(1 for r in b3 if r.get("is_hit"))
+    r3 = (h3 / len(b3) * 100.0) if b3 else r2
+
+    weighted_score = 0.50 * r1 + 0.30 * r2 + 0.20 * r3
+    return weighted_score, r1, r2, r3
+
 
 def run_tournament_for_symbol(
     db: PostgresManager,
     symbol: str,
-    eval_sessions: int = 30,
+    eval_sessions: int = 90,
 ) -> dict[str, Any]:
-    """Run full tournament across 5 horizons, benchmarking 5 models x 3 lookbacks = 15 configs per horizon."""
+    """Run Two-Stage Family-First Tournament with Option 1 Tiered Recency Weighting across all 5 horizons."""
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+        compute_forward_terminal_return,
+        engineer_multi_horizon_features,
+    )
+
     sym = symbol.upper()
     logger.info(f"🏆 Running Multi-Horizon Tournament Arena for {sym}...")
 
-    df = extract_3pillar_time_series(db, sym, lookback_days=1100)
-    if df.empty or len(df) < 80:
+    df_raw = extract_3pillar_time_series(db, sym, lookback_days=1100)
+    if df_raw.empty or len(df_raw) < 80:
         logger.warning(f"Insufficient history for {sym}. Skipping tournament.")
         return {}
 
-    symbol_champions = {}
+    df_feat, _ = engineer_multi_horizon_features(df_raw)
+
+    # Pre-compute forward targets on df_feat
+    for h in HORIZONS:
+        n_days = HORIZON_MAP[h]
+        p_term, r_term = compute_forward_terminal_return(df_feat["close_price"], n_days)
+        df_feat[f"fwd_avg_price_{h}"] = p_term
+        df_feat[f"fwd_avg_ret_{h}"] = r_term
+
+    swing_evals: dict[str, list[dict[str, Any]]] = {h: [] for h in HORIZONS}
 
     for h_key in HORIZONS:
-        logger.info(f"  ── Benchmarking Horizon {h_key} ({HORIZON_MAP[h_key]} Days)...")
-        best_loss = 999999.0
-        best_res: dict[str, Any] = {}
+        for fam_name, models in FAMILIES.items():
+            for model_name in models:
+                for lb_str, lb_sessions in LOOKBACKS:
+                    res = evaluate_horizon_walk_forward(
+                        df=df_feat,
+                        horizon_key=h_key,
+                        model_name=model_name,
+                        train_lookback_sessions=lb_sessions,
+                        n_eval_sessions=eval_sessions,
+                    )
 
-        for model_name in CANDIDATE_MODELS:
-            for lb_str, lb_sessions in LOOKBACKS:
-                res = evaluate_horizon_walk_forward(
-                    df=df,
-                    horizon_key=h_key,
-                    model_name=model_name,
-                    train_lookback_sessions=lb_sessions,
-                    n_eval_sessions=eval_sessions,
-                )
+                    ledger = res.get("ledger", [])
+                    opt1_score, r1, r2, r3 = compute_option1_recency_score(ledger)
 
-                loss = res.get("loss", 999.0)
-                hit_rate = res.get("hit_rate_pct", 0.0)
-
-                # Prioritize lower composite loss; tie-break on higher hit rate
-                if (loss < best_loss) or (abs(loss - best_loss) < 0.05 and hit_rate > best_res.get("hit_rate_pct", 0.0)):
-                    best_loss = loss
-                    best_res = {
+                    swing_evals[h_key].append({
+                        "family": fam_name,
                         "model": model_name,
                         "horizon": lb_str,
                         "training_lookback_sessions": lb_sessions,
-                        "hit_rate_pct": hit_rate,
+                        "opt1_score": opt1_score,
+                        "r_0_30": r1,
+                        "r_30_60": r2,
+                        "r_60_90": r3,
+                        "hit_rate_pct": res.get("hit_rate_pct", 0.0),
                         "mae_pct": res.get("mae_pct", 0.0),
                         "hit_mae_pct": res.get("hit_mae_pct", 0.0),
                         "miss_mae_pct": res.get("miss_mae_pct", 0.0),
-                        "loss": loss,
+                        "loss": res.get("loss", 999.0),
                         "hits": res.get("hits", 0),
                         "total_evals": res.get("total_evals", 0),
-                    }
+                    })
 
+    # =========================================================================
+    # STAGE 1: CROWN MODEL FAMILY USING OPTION 1 RECENCY SCORES
+    # Family Score = sum(horizon_weight * max_opt1_score_in_family)
+    # Priority: 10d (35%), 5d (25%), 3d (20%), 15d (12%), 30d (8%)
+    # =========================================================================
+    family_scores: dict[str, float] = {}
+    for fam_name in FAMILIES.keys():
+        fam_h_scores = {}
+        for h in HORIZONS:
+            fam_evals = [e for e in swing_evals[h] if e["family"] == fam_name]
+            best_e = max(fam_evals, key=lambda x: (x["opt1_score"], x["r_0_30"], -x["mae_pct"]))
+            fam_h_scores[h] = best_e["opt1_score"]
+
+        score = sum(HORIZON_WEIGHTS[h] * fam_h_scores[h] for h in HORIZONS)
+        family_scores[fam_name] = score
+
+    crowned_family = max(family_scores, key=lambda f: family_scores[f])
+    logger.info(
+        f"👑 {sym} Crowned Multi-Horizon Family: {crowned_family} "
+        f"({family_scores[crowned_family]:.1f}%) "
+        f"[Scores: " + " | ".join(f"{f}: {s:.1f}%" for f, s in family_scores.items()) + "]"
+    )
+
+    # =========================================================================
+    # STAGE 2: CROWN HORIZON SPECIALISTS STRICTLY WITHIN CROWNED FAMILY
+    # =========================================================================
+    symbol_champions = {}
+    for h_key in HORIZONS:
+        crowned_fam_evals = [e for e in swing_evals[h_key] if e["family"] == crowned_family]
+        best_spec = max(crowned_fam_evals, key=lambda x: (x["opt1_score"], x["r_0_30"], -x["mae_pct"]))
+        symbol_champions[h_key] = {
+            "model": best_spec["model"],
+            "horizon": best_spec["horizon"],
+            "training_lookback_sessions": best_spec["training_lookback_sessions"],
+            "hit_rate_pct": best_spec["hit_rate_pct"],
+            "opt1_score": round(best_spec["opt1_score"], 2),
+            "bucket_1_hit_rate": round(best_spec["r_0_30"], 1),
+            "bucket_2_hit_rate": round(best_spec["r_30_60"], 1),
+            "bucket_3_hit_rate": round(best_spec["r_60_90"], 1),
+            "mae_pct": best_spec["mae_pct"],
+            "hit_mae_pct": best_spec["hit_mae_pct"],
+            "miss_mae_pct": best_spec["miss_mae_pct"],
+            "loss": best_spec["loss"],
+            "hits": best_spec["hits"],
+            "total_evals": best_spec["total_evals"],
+            "crowned_family": crowned_family,
+        }
         logger.info(
-            f"     👑 Crowned [{h_key}]: {best_res['model']} ({best_res['horizon']}) "
-            f"| Win: {best_res['hit_rate_pct']}% ({best_res['hits']}/{best_res['total_evals']}) "
-            f"| Loss: {best_res['loss']:.2f}"
+            f"   👑 Crowned [{h_key}]: {best_spec['model']} ({best_spec['horizon']}) "
+            f"| Opt1 Score: {best_spec['opt1_score']:.1f}% "
+            f"[0-30d: {best_spec['r_0_30']:.1f}% | 30-60d: {best_spec['r_30_60']:.1f}% | 60-90d: {best_spec['r_60_90']:.1f}%] "
+            f"| Win: {best_spec['hit_rate_pct']}% ({best_spec['hits']}/{best_spec['total_evals']})"
         )
-        symbol_champions[h_key] = best_res
 
     return symbol_champions
 
@@ -134,7 +230,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Multi-Horizon Tournament Referee")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols")
     parser.add_argument("--all-bist30", action="store_true", help="Run tournament for all BIST 30 symbols")
-    parser.add_argument("--eval-sessions", type=int, default=180, help="Evaluation sessions (e.g. 180 or 30)")
+    parser.add_argument("--eval-sessions", type=int, default=90, help="Evaluation sessions (e.g. 90 or 180)")
     parser.add_argument("--sync-gold", action="store_true", default=True, help="Sync forecasts to Gold layer")
     args = parser.parse_args()
 
@@ -178,6 +274,9 @@ def main() -> None:
                 logger.error(f"❌ Error during tournament for {sym}: {e}")
 
     cfg["_metadata"]["updated_at"] = datetime.now().isoformat()
+    cfg["_metadata"]["selection_metric"] = "two_stage_family_first_option1_recency_score"
+    cfg["_metadata"]["recency_weights"] = {"0-30d": 0.50, "30-60d": 0.30, "60-90d": 0.20}
+    cfg["_metadata"]["family_horizon_weights"] = {"10d": 0.35, "5d": 0.25, "3d": 0.20, "15d": 0.12, "30d": 0.08}
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
     logger.info(f"💾 Updated crowned configurations in {CONFIG_PATH}")
