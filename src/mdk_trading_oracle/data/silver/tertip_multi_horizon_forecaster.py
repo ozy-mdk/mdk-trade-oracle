@@ -371,8 +371,10 @@ def evaluate_horizon_walk_forward(
             continue
 
         X_train = df_train_sub[f_cols]
-        y_train = df_train_sub[fwd_avg_ret_col]
-        weights = _compute_sample_weights(y_train, deadband=deadband)
+        y_train_raw = df_train_sub[fwd_avg_ret_col]
+        # Zero-drift target demeaning: prevents trailing bull/bear momentum bias from skewing swing forecasts
+        y_train = y_train_raw - y_train_raw.mean()
+        weights = _compute_sample_weights(y_train_raw, deadband=deadband)
 
         model = _build_model(model_name)
         try:
@@ -540,8 +542,10 @@ def generate_live_horizon_forecast(
         expected_ret = 0.0
     else:
         X_train = df_train_sub[f_cols]
-        y_train = df_train_sub[fwd_avg_ret_col]
-        weights = _compute_sample_weights(y_train, deadband=deadband)
+        y_train_raw = df_train_sub[fwd_avg_ret_col]
+        # Zero-drift target demeaning: isolates idiosyncratic institutional alpha without obsolete secular drift
+        y_train = y_train_raw - y_train_raw.mean()
+        weights = _compute_sample_weights(y_train_raw, deadband=deadband)
 
         model = _build_model(champion_model)
         try:
