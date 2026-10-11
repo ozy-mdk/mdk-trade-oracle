@@ -73,21 +73,23 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - *Macro Rates, Regime Shocks & Carry Costs*: `feat_macro_repo_rate_pct`, `feat_macro_daily_carry_cost_bps`, `feat_days_since_pos_shock`, `feat_days_since_neg_shock`.
      - *Benchmark Index & Univariate Prior*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`, `feat_prophet_ret_today_pct`.
      - *Calendar Dynamics*: `feat_day_of_week`, `feat_is_monday`, `feat_is_friday`.
-3. **Walk-Forward Model Tournament & 3-Criteria Champion Selection**:
-   - The **tournament run / arena** (`scripts/experiments/test_multi_horizon_180d_arena.py`, `scripts/export_tertip_180d_track.py`) is the **single source of truth** for crowning models and lookback horizons (3M, 6M, 12M) for each stock, persisted to `config/tertip_crowned_models.yaml` and PostgreSQL `gold_tertip_daily_forecasts`.
-   - Candidate models benchmarked: `Ridge`, `XGBoost`, `BayesianRidge`, `Huber`, `LightGBM`, and `Prophet`.
-   - **The 3 Core Champion Selection Criteria**:
-     1. **Percentage of Directional Hits (`hit_rate_pct`)**: Out-of-sample sign accuracy against the calibrated $\pm 0.25\%$ (25 bps) market consolidation deadband.
-     2. **Percentage Error on Directional Hits (`hit_mae_pct`)**: Measures price calibration precision on winning calls (e.g. predicting $+0.5\%$ when realized is $+1.5\%$ vs $+10.0\%$).
-     3. **Percentage Error on Directional Misses (`miss_mae_pct`)**: Measures downside risk and capital protection on bad signals (e.g. predicting $+0.5\%$ when realized is $-0.5\%$ vs $-5.0\%$).
-   - **Composite Tournament Loss**:
-     $$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hit\_mae\_pct} + 2.5 \times \text{miss\_mae\_pct}$$
-     The champion model and lookback horizon for each equity is crowned strictly by minimizing this composite loss.
+3. **Walk-Forward Model Tournament & Unified Recency-Weighted Selection Rules**:
+   - The tournament arena crowns champions across all predictive models (Multi-Horizon 3D, 5D, 10D, 15D, 30D and Next-Day T+1) strictly minimizing 3-criteria composite tournament loss:
+     1. **Percentage of Directional Hits (`hit_rate_pct`)**: Out-of-sample sign accuracy against the calibrated +-0.25% (25 bps) market consolidation deadband.
+     2. **Percentage Error on Directional Hits (`hit_mae_pct`)**: Measures price calibration precision on winning calls (e.g. predicting +0.5% when realized is +1.5% vs +10.0%).
+     3. **Percentage Error on Directional Misses (`miss_mae_pct`)**: Measures downside risk and capital protection on bad signals (e.g. predicting +0.5% when realized is -0.5% vs -5.0%).
+   - **Unified Recency Weighting**:
+     - *Multi-Horizon Swings (3D to 30D)*: Evaluation weights scale linearly across out-of-sample sessions:
+       `eval_weights = np.linspace(0.5, 1.5, total_evals) / mean(eval_weights)`
+       `Tournament Loss = (100.0 - weighted_hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct`
+     - *Next-Day Tactical (T+1)*: Anchored strictly to the trailing 30 completed sessions (`tournament_loss_30d`), rewarding significant moves (>= 1.0%) and big moves (>= 2.0%) while penalizing false alarms.
+     - *Week-Start & Calendar Dynamics*: Ingestion of `feat_is_monday`, `feat_is_friday`, and `feat_day_of_week` captures Monday opening gap absorption and weekend de-risking.
+   - Candidate models benchmarked: `BayesianRidge`, `Huber`, `LightGBM`, `XGBoost`, and `Ridge` against `Prophet` baseline.
 4. **Volatility Calibration & Sample Weighting Scheme**:
-   - Solves the incidence inequality where quiet days outnumber big move days ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$) by applying piecewise sample weights during training:
-     - Quiet days ($|\text{Return}| < 1.0\%$): `0.75x`.
-     - Significant moves ($1.0\% \le |\text{Return}| < 2.0\%$): `2.50x`.
-     - Extreme moves ($|\text{Return}| \ge 2.0\%$): `3.00x`.
+   - Solves the incidence inequality where quiet days outnumber big move days (|Delta| >= 1.0% and >= 2.0%) by applying piecewise sample weights during training:
+     - Quiet days (|Return| < 1.0%): `0.75x`.
+     - Significant moves (1.0% <= |Return| < 2.0%): `2.50x`.
+     - Extreme moves (|Return| >= 2.0%): `3.00x`.
    - Increases sensitivity to breakout sessions without inflating false positives on quiet sessions.
 5. **Actionable Trader Playbooks & Dynamic Thresholds**:
    - Translates predicted flows into actionable context blueprints:
@@ -105,7 +107,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - *Correction Formula*:
        y_train = y_train_raw - mean(y_train_raw)
      - *Quantitative Rationale*: Demeaning centers historical training targets strictly around 0.0%. The model is forced to explain abnormal alpha from institutional order flows (BofA MLB net share, FIFO carry PnL, institutional divergence) rather than riding historical drift. When institutions distribute, predictions drop below zero into negative territory (SELL), preventing false buy traps.
-     - *Empirical Impact*: ASELS 10D hit rate surged from 45.0% to 60.0% (loss dropped from 92.26 to 72.34); ASELS 5D hit rate jumped to 70.0% (42/60 hits); AKBNK 10D preserved top-tier 81.7% hit rate.
+     - *Empirical Impact*: ASELS 10D hit rate surged from 45.0% to 60.0% (loss dropped from 92.26 to 72.34); ASELS 5D hit rate jumped to 70.0% (42/60 hits); AKBNK 10D preserved top-tier 81.7% hit rate; YKBNK 10D recent win rate jumped from 35.0% to 75.0%.
    - **Institutional Flow Divergence & Rollover Features**:
      - Fast vs slow flow divergence (`feat_mlb_flow_divergence_3d_10d`, `feat_inst_flow_divergence_5d_10d`) and momentum rollover (`feat_ret_rollover_3d_10d`) detect smart money distributing into retail rallies.
    - **Lean Feature Space Principle**:
