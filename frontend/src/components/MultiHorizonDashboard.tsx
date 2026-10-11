@@ -177,7 +177,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               FORWARD MARKET PREDICTION HORIZONS
             </h2>
             <span className="text-[11px] text-slate-400">
-              (Arithmetic average price change over the forward trading sessions)
+              (Terminal closing price change at target session T+N vs. entry session T)
             </span>
           </div>
           <div className="text-xs text-slate-400 font-mono">
@@ -547,8 +547,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                 <th className="py-2.5 px-3">Target Horizon Dates</th>
                 <th className="py-2.5 px-3 text-center">Training Window</th>
                 <th className="py-2.5 px-3 text-right">Close Price</th>
-                <th className="py-2.5 px-3 text-right">Predicted Avg</th>
-                <th className="py-2.5 px-3 text-right">Realized Avg</th>
+                <th className="py-2.5 px-3 text-right">Target Close</th>
+                <th className="py-2.5 px-3 text-right">Realized Close</th>
                 <th className="py-2.5 px-3 text-right">Pred Return</th>
                 <th className="py-2.5 px-3 text-right">Actual Return</th>
                 <th className="py-2.5 px-3 text-right">Error %</th>
