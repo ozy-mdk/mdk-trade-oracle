@@ -84,10 +84,10 @@ def main():
     parser = argparse.ArgumentParser(description="Verify Multi-Horizon Models Frontend/Backend Sync")
     parser.add_argument("--symbol", "-s", type=str, default="YKBNK", help="Stock ticker symbol (default: YKBNK)")
     parser.add_argument("--url", type=str, default="http://localhost:8000", help="FastAPI Base URL")
-    parser.add_argument("--no-fresh", action="store_true", help="Do not bypass cache")
+    parser.add_argument("--fresh", action="store_true", help="Force live on-the-fly recomputation on backend")
     args = parser.parse_args()
 
-    check_symbol(args.symbol, base_url=args.url, fresh=not args.no_fresh)
+    check_symbol(args.symbol, base_url=args.url, fresh=args.fresh)
 
 
 if __name__ == "__main__":
