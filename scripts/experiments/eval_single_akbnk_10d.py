@@ -6,8 +6,10 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-import sys
 import time
+
+import pandas as pd
+
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import extract_3pillar_time_series
 from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import evaluate_horizon_walk_forward
@@ -53,6 +55,6 @@ for m in CANDIDATE_MODELS:
         })
 
 print("\n=== TOP 5 CANDIDATES FOR AKBNK 10D ===", flush=True)
-import pandas as pd
+
 res_df = pd.DataFrame(results).sort_values(by='loss', ascending=True)
 print(res_df.head(5).to_string(index=False), flush=True)

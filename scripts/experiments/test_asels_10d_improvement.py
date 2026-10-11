@@ -12,17 +12,19 @@ significantly improving directional hit rate on ASELS and AKBNK.
 """
 
 from __future__ import annotations
+
 import os
+
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import numpy as np
 import pandas as pd
+
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import extract_3pillar_time_series
 from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
     engineer_multi_horizon_features,
     evaluate_horizon_walk_forward,
-    LOOKBACK_MAP,
 )
 
 CANDIDATES = ["LightGBM", "XGBoost", "BayesianRidge", "Huber", "Ridge"]

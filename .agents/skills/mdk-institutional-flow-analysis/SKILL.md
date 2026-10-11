@@ -53,16 +53,16 @@ Volume alone is insufficient to identify institutional intentions. The lakehouse
 
 ## 4. Target Variables & Modeling Rigor
 
-Targets are defined with mathematical rigor around continuous net flow ($TL$) and derived directional conviction:
+Targets are defined with mathematical rigor around continuous net flow (TL) and derived directional conviction:
 
 | Target Variable | Data Type | Mathematical Formulation | Role & Description |
 | :--- | :--- | :--- | :--- |
-| `target_net_flow_tl` | Continuous (`float64`) | $$\text{Net Flow}_{T, \text{MLB}} = \sum_{i \in \text{Trades}_{T, \text{MLB}}} (\text{Buy Value}_i - \text{Sell Value}_i)$$ | **Primary Continuous Target**: Total net executed capital in TL by BofA for session $T$. |
-| `target_direction` | Categorical (`str`) | $$\text{Direction}_T = \begin{cases} \text{BUY}, & \text{if } \text{Net Flow}_T > 0 \\ \text{SELL}, & \text{if } \text{Net Flow}_T \le 0 \end{cases}$$ | Derived directional binary outcome (`BUY` vs `SELL`). |
+| `target_net_flow_tl` | Continuous (`float64`) | Net Flow(T, MLB) = Sum over trades(Buy Value - Sell Value) | **Primary Continuous Target**: Total net executed capital in TL by BofA for session T. |
+| `target_direction` | Categorical (`str`) | Direction(T) = BUY if Net Flow > 0 else SELL | Derived directional binary outcome (`BUY` vs `SELL`). |
 
 ### Probabilistic Derivation:
-1. **Primary Regression Target**: The forecaster fits continuous net flow targets, producing point forecast $\hat{\mu}$ and standard error $\hat{\sigma}$.
-2. **Directional Calibration**: Direction and conviction tiers are derived directly from the sign and magnitude of $\hat{\mu}$.
+1. **Primary Regression Target**: The forecaster fits continuous net flow targets, producing point forecast mu_hat and standard error sigma_hat.
+2. **Directional Calibration**: Direction and conviction tiers are derived directly from the sign and magnitude of mu_hat.
 
 ---
 
@@ -154,17 +154,19 @@ This script acts as the automated tournament referee: it computes out-of-sample 
    - Predicting $+0.5\%$ when realized is $-0.5\%$ (error $1.0\%$) is far less damaging than predicting $+0.5\%$ when realized is $-5.0\%$ (error $5.5\%$, catastrophic false signal).
 
 ### Composite Tournament Loss Function:
-$$\text{Tournament Loss} = (100.0 - \text{hit\_rate\_pct}) + 1.0 \times \text{hit\_mae\_pct} + 2.5 \times \text{miss\_mae\_pct}$$
+```
+Tournament Loss = (100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct
+```
 
 The champion model and lookback horizon for each equity is selected by minimizing this composite loss, simultaneously prioritizing directional correctness, price calibration accuracy, and downside drawdown avoidance.
 
 ### Volatility Calibration & Sample Weighting Scheme:
-In financial time series, quiet consolidation sessions ($|\Delta| < 1.0\%$) outnumber breakout/expansion sessions ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$) by 3:1 to 4:1. Traditional unweighted MSE loss penalizes errors on the abundant quiet days, causing models to consistently underestimate extreme moves.
+In financial time series, quiet consolidation sessions (|Delta| < 1.0%) outnumber breakout/expansion sessions (|Delta| >= 1.0% and >= 2.0%) by 3:1 to 4:1. Traditional unweighted MSE loss penalizes errors on the abundant quiet days, causing models to consistently underestimate extreme moves.
 
 To solve this distribution inequality without triggering false breakout alarms on quiet days, models support calibrated piecewise sample weighting during training:
-- **Quiet Consolidation Sessions** ($|\text{Return}| < 1.0\%$): Down-weighted to `0.75x`.
-- **Significant Move Sessions** ($1.0\% \le |\text{Return}| < 2.0\%$): Elevated to `2.50x`.
-- **Extreme Move Sessions** ($|\text{Return}| \ge 2.0\%$): Elevated to `3.00x`.
+- **Quiet Consolidation Sessions** (|Return| < 1.0%): Down-weighted to `0.75x`.
+- **Significant Move Sessions** (1.0% <= |Return| < 2.0%): Elevated to `2.50x`.
+- **Extreme Move Sessions** (|Return| >= 2.0%): Elevated to `3.00x`.
 
 This expands the model's dynamic range and sensitivity on breakout days while maintaining strict capital preservation and low false-positive rates on consolidation days.
 
@@ -176,36 +178,81 @@ High-beta, defense, and momentum equities (e.g. ASELS, ASTOR, TRALT) perform dra
 
 ---
 
-## 7. Actionable Decision Items, Empirical Quantiles & Institutional Trade Playbooks
+## 7. Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)
+
+While next-day ($T+1$) forecasts provide immediate opening tactical cues, swing traders operate over forward holding periods. The platform implements an institutional multi-horizon swing forecasting engine (`tertip_multi_horizon_forecaster.py`):
+
+### A. Terminal Forward Return Target Formulation:
+For each horizon N in [3, 5, 10, 15, 30] trading sessions:
+```
+Forward Terminal Return (%) = (Close_{t+N} - Close_t) / Close_t * 100.0
+Forward Terminal Target Price = Close_t * (1.0 + Pred_Return / 100.0)
+```
+Predictions strictly target the terminal realization at session t+N with zero lookahead bias.
+
+### B. Zero-Drift Target Demeaning (Eliminating Secular Trend Contamination):
+Equities that experienced multi-quarter secular bull runs (e.g. ASELS surging +530% from ₺71 to ₺375 over 18M) produce historical training samples with persistent positive mean returns (+3% to +5% per 10 sessions).
+- **Failure Mode of Un-demeaned Models**: The model learns a structural upward intercept and continually forecasts `BUY` (+8% to +10%) during cyclical swing tops and drawdowns.
+- **Mathematical Correction**:
+  ```
+  y_train = y_train_raw - mean(y_train_raw)
+  ```
+- **Quantitative Rationale**: Demeaning strips obsolete secular drift, forcing regression models to isolate pure abnormal alpha driven by institutional net flow deltas (`MLB`, `BIG5`, `KAMU`) and momentum divergences.
+- **Empirical Impact**: On ASELS, 10-day hit rate leaped from 45.0% to 60.0% (loss reduced from 92.26 to 72.34) and 5-day hit rate reached 71.7%. On AKBNK, 81.7% hit rate was fully preserved.
+
+### C. Multi-Horizon Flow & Divergence Core Feature Clusters:
+1. **Multi-Day Institutional Flow Shares**:
+   - `feat_mlb_flow_3d_share`, `feat_mlb_flow_5d_share`, `feat_mlb_flow_10d_share`: BofA executed net flow as % of multi-day turnover.
+   - `feat_total_inst_5d_share`: Combined institutional flow share (MLB + BIG5).
+2. **Flow Divergence & Rollover Dynamics**:
+   - `feat_mlb_flow_divergence_3d_10d`: Difference between fast 3-day and slow 10-day BofA flow share. Detects sudden institutional distribution at cycle peaks before 10-day moving averages turn down.
+   - `feat_inst_flow_divergence_5d_10d`: Institutional consensus divergence.
+   - `feat_ret_rollover_3d_10d`, `feat_ret_rollover_5d_20d`: Multi-day momentum deceleration.
+3. **Decayed Flow & Volatility**:
+   - `feat_mlb_ewma_flow_share_5d`: Exponentially-decayed BofA flow (half-life ~5 days).
+   - `feat_stock_vol_10d`, `feat_stock_vol_20d`, `atr_14d_pct`: Multi-day realized volatility and ATR envelopes.
+
+### D. Multi-Horizon Candidate Arena & Crowning (`scripts/run_multi_horizon_tournament.py`):
+Evaluates candidate models (`BayesianRidge`, `LightGBM`, `XGBoost`, `Ridge`, `Huber`) across 5 training lookbacks (3M: 63s, 6M: 126s, 12M: 252s, 18M: 378s, 24M: 504s) for each of the 5 forward horizons.
+- Champion selection minimizes 3-criteria composite tournament loss over trailing 60 evaluation sessions.
+- Crowned models persisted to `config/tertip_multi_horizon_crowned_models.yaml`, `gold_tertip_multi_horizon_forecasts`, and `gold_tertip_multi_horizon_backtests`.
+- Fast execution via multiprocessing with single-threaded OpenMP/BLAS controls preventing Apple Silicon thread contention.
+
+### E. Univariate Prophet Baseline Level Prior:
+Prophet baseline models always predict actual price levels rather than percentage changes, providing a robust, non-distorted univariate foundation for multi-day horizons.
+
+---
+
+## 8. Actionable Decision Items, Empirical Quantiles & Institutional Trade Playbooks
 
 Continuous flow forecasts are translated into tradeable decision items calibrated from empirical distribution thresholds:
 
 ### A. Empirical Percentile Conviction Tiers
-- **`STRONG_BUY`**: $\hat{y} \ge P_{85}(\text{historical buy flow})$
-- **`BUY`**: $P_{50} \le \hat{y} < P_{85}$
-- **`WEAK_BUY`**: $P_{25} \le \hat{y} < P_{50}$
-- **`NEUTRAL`**: $|\hat{y}| < P_{25}$
-- **`WEAK_SELL`**: $P_{25} \le |\hat{y}| < P_{50}$ and $\hat{y} < 0$
-- **`SELL`**: $P_{50} \le |\hat{y}| < P_{85}$ and $\hat{y} < 0$
-- **`STRONG_SELL`**: $|\hat{y}| \ge P_{85}$ and $\hat{y} < 0$
+- **`STRONG_BUY`**: y_hat >= P_85(historical buy flow)
+- **`BUY`**: P_50 <= y_hat < P_85
+- **`WEAK_BUY`**: P_25 <= y_hat < P_50
+- **`NEUTRAL`**: |y_hat| < P_25
+- **`WEAK_SELL`**: P_25 <= |y_hat| < P_50 and y_hat < 0
+- **`SELL`**: P_50 <= |y_hat| < P_85 and y_hat < 0
+- **`STRONG_SELL`**: |y_hat| >= P_85 and y_hat < 0
 
 ### B. Institutional Execution Playbooks
 - **`SQUEEZE_LONG`**: Positive flow expectation with heavy competitor delta — follow aggressive opening accumulation.
-- **`MOMENTUM_EXPANSION`**: Extreme opening accumulation ($\ge P_{85}$) — institutional momentum continuation.
+- **`MOMENTUM_EXPANSION`**: Extreme opening accumulation (>= P_85) — institutional momentum continuation.
 - **`BUY ABSORPTION REBOUND`**: Buying flow absorbing heavy retail selling pressure — expect sharp mean reversion bounce.
 - **`STRONG SELL PRESSURE`**: Aggressive institutional distribution — reduce long exposure or enter tactical short.
-- **`LIQUIDITY_FADE`**: High negative flow expectation with BofA holding $> +5\%$ unrealized gains — expect profit-taking and fade intraday dips.
-- **`DEFENSE_SUPPORT`**: Underwater carried inventory ($< -4\%$ cost basis spread) with positive flow — institutional defense accumulation.
-- **`NEUTRAL_WAIT`**: Sub-threshold flow ($|\hat{y}| < P_{25}$) — wait for intraday confirmation.
+- **`LIQUIDITY_FADE`**: High negative flow expectation with BofA holding > +5% unrealized gains — expect profit-taking and fade intraday dips.
+- **`DEFENSE_SUPPORT`**: Underwater carried inventory (< -4% cost basis spread) with positive flow — institutional defense accumulation.
+- **`NEUTRAL_WAIT`**: Sub-threshold flow (|y_hat| < P_25) — wait for intraday confirmation.
 
 ---
 
-## 8. Trader Workstation & Gold Predictive Hub (`OracleHubDashboard.tsx`)
+## 9. Trader Workstation & Gold Predictive Hub (`OracleHubDashboard.tsx`)
 
 The quantitative signals are served directly through an interactive **React 18 + TradingView Lightweight Charts** trading workstation (`frontend/`):
 
-1. **Live Upcoming Session Signal Card ($T+1$)**:
-   - Displays upcoming trade date, forecasted net flow ($TL$), target price, price range $[P_{\text{low}}, P_{\text{high}}]$, directional conviction badge, and institutional execution playbook.
+1. **Live Upcoming Session Signal Card (T+1)**:
+   - Displays upcoming trade date, forecasted net flow (TL), target price, price range [P_low, P_high], directional conviction badge, and institutional execution playbook.
 2. **30-Day Performance Track Record**:
    - Header summary pill displays overall directional accuracy across the last 30 sessions (e.g. `20/30 (66.7%)`).
    - Detailed ledger table showing session-by-session predicted flow, actual realized flow, prediction error, and transparent `[HIT]` / `[MISS]` status badges.
@@ -214,29 +261,29 @@ The quantitative signals are served directly through an interactive **React 18 +
 
 ---
 
-## 9. Predicted Opportunity Actions & Tactical Radar (`OpportunityActionsDashboard.tsx`)
+## 10. Predicted Opportunity Actions & Tactical Radar (`OpportunityActionsDashboard.tsx`)
 
 A dedicated workstation tab designed for instant institutional pre-market and intraday opportunity discovery across all 30 BIST 30 constituent equities:
 
 1. **Market Breadth & Bias Ribbon**:
    - Live constituent bias breakdown (e.g. 15 Bullish / 11 Bearish / 4 Consolidation).
-   - High-conviction move tally ($|\Delta| \ge 2.0\%$) and significant move tally ($|\Delta| \ge 1.0\%$).
-   - As-of session close date targeting upcoming $T+1$ execution.
+   - High-conviction move tally (|Delta| >= 2.0%) and significant move tally (|Delta| >= 1.0%).
+   - As-of session close date targeting upcoming T+1 execution.
 2. **Dual Spotlight Decks (Highest Upside vs. Highest Downside)**:
    - **Top Bullish Setups**: Ranks top 5 equities by expected positive return, displaying target price, expected upside %, playbook strategy, crowned model/horizon, 30D win rate %, and BofA (MLB) net flow TL.
    - **Top Short / Fade Setups**: Ranks top 5 equities by expected downside, highlighting institutional distribution pressure and profit-taking fade targets.
 3. **Full Universe Opportunity Matrix (All 30 Equities Retained & Highlighted)**:
    - All 30 equities are kept in a single unified matrix with tiered conviction badges:
-     - **Tier 1: High Conviction** ($|\text{Expected Return}| \ge 2.0\%$): Standout glowing badges (`★ High Conviction`).
-     - **Tier 2: Significant** ($1.0\% \le |\text{Expected Return}| < 2.0\%$): Actionable directional setups.
-     - **Tier 3: Consolidation** ($< 1.0\%$): Range-bound / watch setups.
+     - **Tier 1: High Conviction** (|Expected Return| >= 2.0%): Standout glowing badges (`★ High Conviction`).
+     - **Tier 2: Significant** (1.0% <= |Expected Return| < 2.0%): Actionable directional setups.
+     - **Tier 3: Consolidation** (< 1.0%): Range-bound / watch setups.
    - Bidirectional visual return gauge centered at zero (rose for negative, emerald for positive).
    - Quick filter pills: `All Equities`, `Big Moves (|Δ| ≥ 2%)`, `Significant (|Δ| ≥ 1%)`, `Bullish Longs`, `Bearish Shorts`, `BofA Buying`, `BofA Selling`.
    - One-click launch actions to inspect any stock in **Candlestick & Order Flow** or **Gold Predictive Hub**.
 
 ---
 
-## 10. Concrete Trader Execution Playbook Workflow
+## 11. Concrete Trader Execution Playbook Workflow
 
 Individual and prop traders utilize the MDK Trading Oracle through a disciplined 3-step execution loop:
 

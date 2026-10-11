@@ -109,15 +109,19 @@ flowchart TD
 - **`silver_market_daily`**: Primary key `(trade_date, symbol)`. Backward-compatibility daily summary table.
 
 
-### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py`)
+### C. Gold Layer (`src/mdk_trading_oracle/data/gold/`, `src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py`, `src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py`)
 - **`gold_institutional_daily_signals`**: Primary key `(trade_date, symbol)`. Rolling 5-day / 20-day cumulative BofA flow (`bofa_accum_5d_tl`, `bofa_accum_20d_tl`), volume shares, and 20-day rolling Z-score (`bofa_flow_zscore_20d`).
-- **`gold_tertip_daily_forecasts`**: Primary key `(symbol, as_of_date)`. Point-in-time snapshot of the latest $T+1$ forecast for all 30 BIST 30 constituents: `current_price`, `target_price`, `expected_return_pct`, target price bounds `[price_low, price_high]`, `stance`, `conviction`, `playbook`, `ml_champion_type`, `champion_dir_hits`, `champion_dir_hit_rate_pct`, `champion_mae_pct`, `prophet_target_price`, `training_lookback_sessions`, and `crowned_horizon` (`3m`, `6m`, `12m`).
+- **`gold_tertip_daily_forecasts`**: Primary key `(symbol, as_of_date)`. Point-in-time snapshot of the latest T+1 forecast for all 30 BIST 30 constituents: `current_price`, `target_price`, `expected_return_pct`, target price bounds `[price_low, price_high]`, `stance`, `conviction`, `playbook`, `ml_champion_type`, `champion_dir_hits`, `champion_dir_hit_rate_pct`, `champion_mae_pct`, `prophet_target_price`, `training_lookback_sessions`, and `crowned_horizon` (`3m`, `6m`, `12m`).
 - **`gold_tertip_walk_forward_backtests`**: Primary key `(symbol, trade_date)`. Session-by-session out-of-sample audited ledger logging actual prices, predicted prices, errors, directional hit flags, winner baseline, regime shocks, and institutional flows for ML and Prophet.
-- **Automated Gold Forecast Pipeline (`update_gold_tertip_forecasts`)**: Wired directly into `MedallionPipeline.run_gold()`. On every pipeline run (`--target gold` or `--target all`), it retrains the crowned models (`XGBoost`, `LightGBM`, `BayesianRidge`, `Huber`, `Ridge`) on trailing market closes, audits newly completed sessions into `gold_tertip_walk_forward_backtests`, upserts live $T+1$ opportunity snapshots to `gold_tertip_daily_forecasts`, and invalidates frontend caches for instant (~4 ms) serving.
-- **Walk-Forward Model Tournament Arena (`scripts/run_full_bist30_crowned_tournament.py`)**: Dynamic arena benchmarking 15 configurations (5 models $\times$ 3 horizons) against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks. Crowning minimizes composite loss based on 3 criteria: Directional Hit Rate %, Hit MAE %, and Miss MAE %. TFT and deep sequence models are retired due to latency bottlenecks (>70s vs ~4 ms) and regime drift.
+- **`gold_tertip_multi_horizon_forecasts`**: Primary key `(symbol, as_of_date, horizon)`. Point-in-time snapshots for 5 forward horizons (`3d`, `5d`, `10d`, `15d`, `30d`): `target_price`, `expected_return_pct`, price bounds, stance, conviction, playbook, champion model, lookback, and hit rate %.
+- **`gold_tertip_multi_horizon_backtests`**: Primary key `(symbol, horizon, trade_date)`. Audited session-by-session out-of-sample ledger for multi-horizon swing forecasts across trailing 60 evaluation sessions.
+- **Automated Gold Forecast Pipeline (`update_gold_tertip_forecasts`, `update_gold_tertip_multi_horizon_forecasts`)**: Wired directly into `MedallionPipeline.run_gold()`. On every pipeline run (`--target gold` or `--target all`), it retrains the crowned models (`XGBoost`, `LightGBM`, `BayesianRidge`, `Huber`, `Ridge`) on trailing market closes, audits newly completed sessions into walk-forward backtest tables, upserts live opportunity snapshots, and invalidates frontend caches for instant serving.
+- **Next-Day Walk-Forward Tournament Arena (`scripts/run_full_bist30_crowned_tournament.py`)**: Benchmarking 15 configurations (5 models x 3 horizons) against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks.
+- **Multi-Horizon Tournament Arena (`scripts/run_multi_horizon_tournament.py`)**: Evaluates candidate models across 5 lookbacks (3M to 24M) and 5 horizons (3D to 30D) using zero-drift target demeaning, BofA flow divergence, and 3-criteria composite loss.
 - **Trader Workstation Modules**:
   - **Predicted Opportunity Actions (`OpportunityActionsDashboard.tsx`, `GET /api/v1/tertip/opportunities`)**: Pre-market radar ranking highest positive upside and highest negative downside opportunities across all 30 constituents, with tiered conviction badges (`★ High Conviction`), visual bidirectional return gauges, and one-click workstation launch.
-  - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Deep-dive single-stock forecaster with 30D backtest ledger, pillar matrix breakdown, and live $T+1$ actionable playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `BUY ABSORPTION REBOUND`, `STRONG SELL PRESSURE`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
+  - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Deep-dive single-stock forecaster with 30D backtest ledger, pillar matrix breakdown, and live T+1 actionable playbooks.
+  - **Multi-Horizon Swing Radar (`MultiHorizonDashboard.tsx`, `GET /api/v1/tertip/multi-horizon/{symbol}`)**: Comprehensive multi-horizon deck visualizer covering 3D, 5D, 10D, 15D, and 30D swing projections with audited ledgers.
 
 ---
 
@@ -137,10 +141,13 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 # 3. Daily Gold Layer Execution & Live Inference (T+1 forecasts & walk-forward ledger sync)
 .venv/bin/python scripts/run_pipeline.py --target gold
 
-# 4. Full BIST 30 Model Tournament Arena (periodic strategic re-crowning across all 30 equities)
+# 4. Next-Day BIST 30 Model Tournament Arena (periodic strategic re-crowning across all 30 equities)
 .venv/bin/python scripts/run_full_bist30_crowned_tournament.py
 
-# 5. Selective Single-Date Re-ingestion (atomically replaces single trading day)
+# 5. Multi-Horizon Tournament Arena (periodic re-crowning across 3D, 5D, 10D, 15D, 30D horizons)
+.venv/bin/python scripts/run_multi_horizon_tournament.py --all-bist30 --eval-sessions 60
+
+# 6. Selective Single-Date Re-ingestion (atomically replaces single trading day)
 .venv/bin/python scripts/run_pipeline.py --target all --date 2026-03-09
 
 # 6. Selective Month Re-ingestion (atomically replaces single monthly partition)
