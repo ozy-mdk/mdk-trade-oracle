@@ -228,23 +228,31 @@ def extract_week_start_time_series(db: PostgresManager, symbol: str) -> pd.DataF
         if cur.isocalendar().week != prev.isocalendar().week or cur.isocalendar().year != prev.isocalendar().year:
             week_indices.append((i - 1, i))
 
-    rows = []
-    for fri_idx, mon_idx in week_indices:
-        if fri_idx < 4:
-            continue
-
+    def _create_week_row(fri_idx: int, mon_idx: int | None = None) -> dict[str, Any]:
         w5_slice = df_daily.iloc[fri_idx - 4 : fri_idx + 1]
         fri_row = df_daily.iloc[fri_idx]
-        mon_row = df_daily.iloc[mon_idx]
-
         fri_close = float(fri_row["close_price"])
-        mon_close = float(mon_row["close_price"])
-        mon_open = float(mon_row["open_price"])
         fri_turnover = float(fri_row["total_turnover_tl"]) if fri_row["total_turnover_tl"] > 0 else 1.0
 
-        # Targets
-        target_ret_pct = ((mon_close - fri_close) / fri_close) * 100.0
-        target_gap_pct = ((mon_open - fri_close) / fri_close) * 100.0
+        if mon_idx is not None:
+            mon_row = df_daily.iloc[mon_idx]
+            mon_close = float(mon_row["close_price"])
+            mon_open = float(mon_row["open_price"])
+            target_ret_pct = ((mon_close - fri_close) / fri_close) * 100.0
+            target_gap_pct = ((mon_open - fri_close) / fri_close) * 100.0
+            target_bofa_flow_tl = float(mon_row.get("mlb_flow") or 0.0)
+            bist30_ret_pct = float(mon_row.get("bist30_ret_pct") or 0.0) * 100.0
+            target_mon_str = mon_row["trade_date"].strftime("%Y-%m-%d")
+        else:
+            mon_close = np.nan
+            mon_open = np.nan
+            target_ret_pct = np.nan
+            target_gap_pct = np.nan
+            target_bofa_flow_tl = np.nan
+            bist30_ret_pct = np.nan
+            fri_date = fri_row["trade_date"]
+            days_ahead = (7 - fri_date.weekday()) % 7 or 7
+            target_mon_str = (fri_date + pd.Timedelta(days=days_ahead)).strftime("%Y-%m-%d")
 
         # Cluster 1: Friday Window 5 (16:00-18:15 TRT)
         feat_fri_w5_mlb_share = (float(fri_row["mlb_w5_flow"]) / fri_turnover) * 100.0
@@ -301,16 +309,16 @@ def extract_week_start_time_series(db: PostgresManager, symbol: str) -> pd.DataF
         feat_days_since_pos_shock = float(fri_row.get("days_since_last_positive_shock") or 30.0)
         feat_days_since_neg_shock = float(fri_row.get("days_since_last_negative_shock") or 30.0)
 
-        rows.append({
+        return {
             "as_of_friday_date": fri_row["trade_date"].strftime("%Y-%m-%d"),
-            "target_monday_date": mon_row["trade_date"].strftime("%Y-%m-%d"),
+            "target_monday_date": target_mon_str,
             "friday_close_price": fri_close,
             "monday_close_price": mon_close,
             "monday_open_price": mon_open,
             "target_return_pct": target_ret_pct,
             "target_gap_pct": target_gap_pct,
-            "target_bofa_flow_tl": float(mon_row.get("mlb_flow") or 0.0),
-            "bist30_ret_pct": float(mon_row.get("bist30_ret_pct") or 0.0) * 100.0,
+            "target_bofa_flow_tl": target_bofa_flow_tl,
+            "bist30_ret_pct": bist30_ret_pct,
             "wtd_mlb_net_flow_tl": wtd_mlb_flow,
             "feat_fri_w5_mlb_share": feat_fri_w5_mlb_share,
             "feat_fri_w5_big5_share": feat_fri_w5_big5_share,
@@ -334,7 +342,20 @@ def extract_week_start_time_series(db: PostgresManager, symbol: str) -> pd.DataF
             "feat_bist30_trend_vs_20d_sma_pct": feat_bist30_trend_vs_20d_sma_pct,
             "feat_days_since_pos_shock": feat_days_since_pos_shock,
             "feat_days_since_neg_shock": feat_days_since_neg_shock,
-        })
+        }
+
+    rows = []
+    for fri_idx, mon_idx in week_indices:
+        if fri_idx < 4:
+            continue
+        rows.append(_create_week_row(fri_idx, mon_idx))
+
+    # Append live uncompleted week if latest session in df_daily is after the last completed Friday
+    last_idx = len(df_daily) - 1
+    if last_idx >= 4:
+        last_captured_idx = week_indices[-1][0] if week_indices else -1
+        if last_idx > last_captured_idx:
+            rows.append(_create_week_row(last_idx, mon_idx=None))
 
     return pd.DataFrame(rows)
 
@@ -399,10 +420,11 @@ def run_weekly_walk_forward_arena(
     lookback_weeks: int = 52,
 ) -> tuple[pd.DataFrame, dict[str, Any], list[dict[str, Any]]]:
     """Execute walk-forward out-of-sample evaluation across candidate models."""
-    if df.empty or len(df) < MIN_WEEKLY_TRAIN_WEEKS:
+    eval_df = df.dropna(subset=["target_return_pct"]).reset_index(drop=True)
+    if eval_df.empty or len(eval_df) < MIN_WEEKLY_TRAIN_WEEKS:
         return pd.DataFrame(), {}, []
 
-    total_len = len(df)
+    total_len = len(eval_df)
     eval_indices = list(range(max(0, total_len - n_weeks), total_len))
 
     model_preds: dict[str, list[float]] = {m: [] for m in CANDIDATE_MODELS}
@@ -432,7 +454,7 @@ def run_weekly_walk_forward_arena(
             continue
 
         train_start = max(0, idx - lookback_weeks)
-        train_df = df.iloc[train_start:idx]
+        train_df = eval_df.iloc[train_start:idx]
         actual_train_len = len(train_df)
         if actual_train_len < MIN_WEEKLY_TRAIN_WEEKS:
             weeks_skipped_insufficient += 1
@@ -445,7 +467,7 @@ def run_weekly_walk_forward_arena(
             weeks_with_partial_history += 1
             suff_status = "PARTIAL_HISTORY"
 
-        test_row = df.iloc[idx]
+        test_row = eval_df.iloc[idx]
 
         X_train = train_df[WEEK_START_FEATURES].values
         y_train = train_df["target_return_pct"].values
@@ -620,15 +642,19 @@ def predict_live_week_start(
     if df.empty or len(df) < MIN_WEEKLY_TRAIN_WEEKS:
         return None
 
+    hist_df = df.dropna(subset=["target_return_pct"]).reset_index(drop=True)
+    if hist_df.empty or len(hist_df) < MIN_WEEKLY_TRAIN_WEEKS:
+        return None
+
     # Adapt training lookback if total history < lookback_weeks (while >= 13 weeks)
-    actual_weeks = min(lookback_weeks, len(df))
+    actual_weeks = min(lookback_weeks, len(hist_df))
     actual_months = round(actual_weeks / 4.33, 1)
     target_months = round(lookback_weeks / 4.33, 1)
-    suff_status = "FULL" if len(df) >= lookback_weeks else "PARTIAL_HISTORY"
+    suff_status = "FULL" if len(hist_df) >= lookback_weeks else "PARTIAL_HISTORY"
     window_desc = f"{actual_weeks}W ({actual_months:.1f}M) / Target {lookback_weeks}W"
 
     # Train model on the latest available weeks
-    train_df = df.iloc[-actual_weeks:]
+    train_df = hist_df.iloc[-actual_weeks:]
     X_train = train_df[WEEK_START_FEATURES].values
     y_train = train_df["target_return_pct"].values
     weights = compute_sample_weights(y_train)

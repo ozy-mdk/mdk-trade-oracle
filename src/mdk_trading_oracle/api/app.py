@@ -2000,6 +2000,7 @@ def get_tertip_predicted_opportunities(
                    COALESCE(b.net_flow_tl, 0.0) as mlb_net_flow_tl,
                    COALESCE(b.total_turnover_tl, 0.0) as mlb_turnover_tl
             FROM target_scope f
+            JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
             LEFT JOIN silver_daily_broker_summary b 
               ON f.symbol = b.symbol AND f.as_of_date = b.trade_date AND b.broker_id = 'MLB'
             LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
@@ -2236,6 +2237,7 @@ def get_week_start_opportunities(
                    f.weekend_carry_cost_bps, f.fri_w5_mlb_share_pct, f.wtd_mlb_net_flow_tl,
                    f.actual_training_weeks, f.actual_training_months, f.data_sufficiency_status
             FROM target_scope f
+            JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
             LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
             ORDER BY f.expected_return_pct DESC;
         """
@@ -2502,6 +2504,7 @@ def get_multi_horizon_opportunities_endpoint(
             )
             SELECT f.*, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector
             FROM latest_fc f
+            JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
             LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
             ORDER BY f.expected_return_pct DESC;
         """
