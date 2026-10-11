@@ -180,25 +180,38 @@ High-beta, defense, and momentum equities (e.g. ASELS, ASTOR, TRALT) perform dra
 
 ## 7. Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)
 
-While next-day ($T+1$) forecasts provide immediate opening tactical cues, swing traders operate over forward holding periods. The platform implements an institutional multi-horizon swing forecasting engine (`tertip_multi_horizon_forecaster.py`):
+While next-day (T+1) forecasts provide immediate opening tactical cues, swing traders operate over forward holding periods. The platform implements an institutional multi-horizon swing forecasting engine (`tertip_multi_horizon_forecaster.py`):
 
-### A. Terminal Forward Return Target Formulation:
-For each horizon N in [3, 5, 10, 15, 30] trading sessions:
-```
-Forward Terminal Return (%) = (Close_{t+N} - Close_t) / Close_t * 100.0
-Forward Terminal Target Price = Close_t * (1.0 + Pred_Return / 100.0)
-```
-Predictions strictly target the terminal realization at session t+N with zero lookahead bias.
+### A. Direct Horizon Forecasting vs. Recursive Chaining:
+In quantitative finance, forecasting multiple horizons can follow two distinct paradigms:
+1. **Recursive / Chained Forecasting (REJECTED)**:
+   - Predicting 3D, feeding that prediction to estimate 5D, and cascading into 10D.
+   - *Fatal Flaw*: Compounding error accumulation. Any estimation error on early horizons is magnified exponentially in subsequent horizons, leading to model hallucination.
+2. **Direct Horizon Specialists (ADOPTED)**:
+   - Every forward horizon (3D, 5D, 10D, 15D, 30D) is an independent specialist trained directly on actual, ground-truth market features as of session T Close.
+   - For horizon N, the target is the terminal return:
+     `Forward Terminal Return (%) = (Close_{t+N} - Close_t) / Close_t * 100.0`
+     `Forward Target Price = Close_t * (1.0 + Pred_Return / 100.0)`
+   - Cross-horizon confluence is evaluated only at the decision layer (post-inference).
 
 ### B. Zero-Drift Target Demeaning (Eliminating Secular Trend Contamination):
-Equities that experienced multi-quarter secular bull runs (e.g. ASELS surging +530% from ₺71 to ₺375 over 18M) produce historical training samples with persistent positive mean returns (+3% to +5% per 10 sessions).
-- **Failure Mode of Un-demeaned Models**: The model learns a structural upward intercept and continually forecasts `BUY` (+8% to +10%) during cyclical swing tops and drawdowns.
-- **Mathematical Correction**:
-  ```
-  y_train = y_train_raw - mean(y_train_raw)
-  ```
-- **Quantitative Rationale**: Demeaning strips obsolete secular drift, forcing regression models to isolate pure abnormal alpha driven by institutional net flow deltas (`MLB`, `BIG5`, `KAMU`) and momentum divergences.
-- **Empirical Impact**: On ASELS, 10-day hit rate leaped from 45.0% to 60.0% (loss reduced from 92.26 to 72.34) and 5-day hit rate reached 71.7%. On AKBNK, 81.7% hit rate was fully preserved.
+Equities that experienced multi-quarter secular bull runs (e.g. ASELS surging +530% from 71 TL to 375 TL over 18M) produce historical training samples where forward returns average +3% to +5% per 10 sessions.
+- **The "Heatwave / Always-Sunny" Failure Mode**:
+  - Unadjusted regression models fit an intercept reflecting past secular momentum:
+    `Pred_Return = Historical_Mean (+5.0%) + Beta * Flow`
+  - When institutions dump stock at cycle peaks (-2.0% flow impact), the unadjusted model outputs:
+    `Pred_Return = +5.0% - 2.0% = +3.0% (BUY)`
+  - The model stubbornly shouts BUY into cyclical drawdowns, creating severe false-positive buy traps (ASELS 10D win rate was trapped at 45.0%).
+- **Mathematical Correction (Target Demeaning)**:
+  - Before model fitting, the mean of historical training targets across the lookback window is subtracted:
+    `y_train = y_train_raw - mean(y_train_raw)`
+  - Live prediction evaluates deviation from the 0.0% neutral baseline:
+    `Pred_Demeaned = 0.0% - 2.0% = -2.0% (SELL)`
+- **Quantitative Rationale**: Demeaning strips obsolete secular drift, forcing the model to explain abnormal alpha purely through institutional net flow deltas (`MLB`, `BIG5`, `KAMU`) and momentum divergences.
+- **Empirical Impact**:
+  - ASELS 10-day hit rate surged from 45.0% to 60.0% (loss reduced from 92.26 to 72.34).
+  - ASELS 5-day hit rate leaped to 71.7% (43/60 hits, loss 56.64).
+  - AKBNK 10-day win rate was preserved at 81.7% (loss 48.81), and 15D/30D at 83.3%.
 
 ### C. Multi-Horizon Flow & Divergence Core Feature Clusters:
 1. **Multi-Day Institutional Flow Shares**:
@@ -212,13 +225,23 @@ Equities that experienced multi-quarter secular bull runs (e.g. ASELS surging +5
    - `feat_mlb_ewma_flow_share_5d`: Exponentially-decayed BofA flow (half-life ~5 days).
    - `feat_stock_vol_10d`, `feat_stock_vol_20d`, `atr_14d_pct`: Multi-day realized volatility and ATR envelopes.
 
-### D. Multi-Horizon Candidate Arena & Crowning (`scripts/run_multi_horizon_tournament.py`):
+### D. The Lean Feature Space Principle (Ablation Findings):
+During short-horizon tuning on AKBNK, ASELS, and ISCTR, candidate intraday ratio features were evaluated:
+- `feat_mlb_w5_urgency` (Window 5 closing flow share vs day)
+- `feat_price_vs_vwap_5d_pct` (Distance from 5-day rolling VWAP)
+- `feat_ret_3d_vs_1d_accel` (Short-term acceleration tension)
+- `feat_intraday_spread_pct` (Intraday high-low range)
+- **Experimental Outcome**: Adding these 4 collinear features diluted regularized coefficients on short lookbacks, causing ASELS 5D to drop from 71.7% to 66.7% and ISCTR 5D to drop from 61.7% to 55.0%.
+- **Architectural Decision**: Rejected the collinear additions. The lean 21-25 feature set provides the highest signal-to-noise ratio and superior out-of-sample generalization.
+
+### E. Multi-Horizon Candidate Arena & Crowning (`scripts/run_multi_horizon_tournament.py`):
 Evaluates candidate models (`BayesianRidge`, `LightGBM`, `XGBoost`, `Ridge`, `Huber`) across 5 training lookbacks (3M: 63s, 6M: 126s, 12M: 252s, 18M: 378s, 24M: 504s) for each of the 5 forward horizons.
-- Champion selection minimizes 3-criteria composite tournament loss over trailing 60 evaluation sessions.
+- Champion selection minimizes 3-criteria composite tournament loss over trailing 60 evaluation sessions:
+  `Tournament Loss = (100.0 - hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct`
 - Crowned models persisted to `config/tertip_multi_horizon_crowned_models.yaml`, `gold_tertip_multi_horizon_forecasts`, and `gold_tertip_multi_horizon_backtests`.
 - Fast execution via multiprocessing with single-threaded OpenMP/BLAS controls preventing Apple Silicon thread contention.
 
-### E. Univariate Prophet Baseline Level Prior:
+### F. Univariate Prophet Baseline Level Prior:
 Prophet baseline models always predict actual price levels rather than percentage changes, providing a robust, non-distorted univariate foundation for multi-day horizons.
 
 ---

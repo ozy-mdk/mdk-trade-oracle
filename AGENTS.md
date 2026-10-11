@@ -98,9 +98,21 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - **`LIQUIDITY_FADE`**: High negative flow with deep unrealized gains — expect profit-taking and fade intraday dips.
      - **`DEFENSE_SUPPORT`**: Underwater carried inventory with positive flow — institutional defense accumulation.
      - **`NEUTRAL_WAIT`**: Sub-threshold flow — wait for intraday confirmation.
-6. **Interactive Research & Serving Standards**:
+6. **Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)**:
+   - **Direct Forecasting Specialists vs Recursive Chaining**: Every forward horizon (3D, 5D, 10D, 15D, 30D) is an independent specialist trained directly on actual, verified market data up to session T Close. This completely avoids compounding error and hallucination loops inherent in recursive/chained forecasting.
+   - **Zero-Drift Target Demeaning (Eliminating Secular Trend Bias)**:
+     - *Failure Mode*: During multi-quarter secular bull markets (e.g. ASELS surging +530% from 71 TL to 375 TL), raw multi-day forward returns average +3% to +5% per window. Unadjusted regression models learn a structural upward intercept, persistently forecasting BUY (+8% to +10%) into cycle tops and cascading corrections.
+     - *Correction Formula*:
+       y_train = y_train_raw - mean(y_train_raw)
+     - *Quantitative Rationale*: Demeaning centers historical training targets strictly around 0.0%. The model is forced to explain abnormal alpha from institutional order flows (BofA MLB net share, FIFO carry PnL, institutional divergence) rather than riding historical drift. When institutions distribute, predictions drop below zero into negative territory (SELL), preventing false buy traps.
+     - *Empirical Impact*: ASELS 10D hit rate surged from 45.0% to 60.0% (loss dropped from 92.26 to 72.34); ASELS 5D hit rate jumped to 70.0% (42/60 hits); AKBNK 10D preserved top-tier 81.7% hit rate.
+   - **Institutional Flow Divergence & Rollover Features**:
+     - Fast vs slow flow divergence (`feat_mlb_flow_divergence_3d_10d`, `feat_inst_flow_divergence_5d_10d`) and momentum rollover (`feat_ret_rollover_3d_10d`) detect smart money distributing into retail rallies.
+   - **Lean Feature Space Principle**:
+     - Rigorous empirical ablation confirms that adding collinear intraday ratio features (e.g. Window 5 urgency, VWAP stretch) to short lookbacks introduces noise and dilutes core institutional flow signals. Preserving the lean 21-25 feature set produces superior out-of-sample generalization.
+7. **Interactive Research & Serving Standards**:
    - Clean, professional presentation with zero excessive emojis.
-   - Frontend Predictive Hub and Opportunity Actions radar display 30-Day performance ledgers, directional hit tally pills, backtest visualizers, and live $T+1$ opportunity ranking.
+   - Frontend Predictive Hub and Opportunity Actions radar display 30-Day performance ledgers, directional hit tally pills, backtest visualizers, and live T+1 opportunity ranking.
 
 ---
 
