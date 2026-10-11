@@ -1,52 +1,10 @@
 _metadata:
   description: Crowned Week Start (Monday Day Close) models and training lookback
     horizons selected via 3-Criteria Tournament Arena
-  calibration_date: '2026-10-04'
+  calibration_date: '2026-10-10'
   eval_window: 20w_walk_forward_multi_horizon
   selection_metric: 3_criteria_tournament_loss
 symbols:
-  AEFES:
-    symbol: AEFES
-    model: LightGBM
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 11
-    recent_20w_hit_rate_pct: 55.0
-    recent_20w_mae_pct: 1.62
-    recent_20w_hit_mae_pct: 1.31
-    recent_20w_miss_mae_pct: 1.99
-    recent_20w_sig_hits: 7
-    recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 63.6
-    recent_20w_penalty_loss: 51.29
-  AKBNK:
-    symbol: AKBNK
-    model: LightGBM
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 1.86
-    recent_20w_hit_mae_pct: 1.42
-    recent_20w_miss_mae_pct: 2.52
-    recent_20w_sig_hits: 7
-    recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 63.6
-    recent_20w_penalty_loss: 47.72
-  ASELS:
-    symbol: ASELS
-    model: BayesianRidge
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 9
-    recent_20w_hit_rate_pct: 45.0
-    recent_20w_mae_pct: 2.42
-    recent_20w_hit_mae_pct: 0.47
-    recent_20w_miss_mae_pct: 4.01
-    recent_20w_sig_hits: 3
-    recent_20w_sig_total: 13
-    recent_20w_sig_rate_pct: 23.1
-    recent_20w_penalty_loss: 65.51
   ASTOR:
     symbol: ASTOR
     model: XGBoost
@@ -54,69 +12,97 @@ symbols:
     training_lookback_weeks: 26
     recent_20w_hits: 10
     recent_20w_hit_rate_pct: 50.0
-    recent_20w_mae_pct: 3.63
+    recent_20w_mae_pct: 3.7
     recent_20w_hit_mae_pct: 2.79
-    recent_20w_miss_mae_pct: 4.48
+    recent_20w_miss_mae_pct: 4.6
     recent_20w_sig_hits: 8
     recent_20w_sig_total: 16
     recent_20w_sig_rate_pct: 50.0
-    recent_20w_penalty_loss: 63.98
-  BIMAS:
-    symbol: BIMAS
+    recent_20w_penalty_loss: 64.29
+  AEFES:
+    symbol: AEFES
+    model: Huber
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 2.14
+    recent_20w_hit_mae_pct: 2.11
+    recent_20w_miss_mae_pct: 2.2
+    recent_20w_sig_hits: 9
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 75.0
+    recent_20w_penalty_loss: 42.6
+  ASELS:
+    symbol: ASELS
+    model: BayesianRidge
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 2.94
+    recent_20w_hit_mae_pct: 1.39
+    recent_20w_miss_mae_pct: 4.83
+    recent_20w_sig_hits: 5
+    recent_20w_sig_total: 13
+    recent_20w_sig_rate_pct: 38.5
+    recent_20w_penalty_loss: 58.46
+  AKBNK:
+    symbol: AKBNK
+    model: LightGBM
+    horizon: 24m
+    training_lookback_weeks: 104
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 2.04
+    recent_20w_hit_mae_pct: 1.42
+    recent_20w_miss_mae_pct: 2.96
+    recent_20w_sig_hits: 7
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 58.3
+    recent_20w_penalty_loss: 48.83
+  ENKAI:
+    symbol: ENKAI
     model: XGBoost
-    horizon: 6m
-    training_lookback_weeks: 26
-    recent_20w_hits: 10
-    recent_20w_hit_rate_pct: 50.0
-    recent_20w_mae_pct: 2.03
-    recent_20w_hit_mae_pct: 1.19
-    recent_20w_miss_mae_pct: 2.88
+    horizon: 3m
+    training_lookback_weeks: 13
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 1.89
+    recent_20w_hit_mae_pct: 1.46
+    recent_20w_miss_mae_pct: 2.68
     recent_20w_sig_hits: 6
     recent_20w_sig_total: 12
     recent_20w_sig_rate_pct: 50.0
-    recent_20w_penalty_loss: 58.38
-  TRMET:
-    symbol: TRMET
-    model: BayesianRidge
-    horizon: 6m
-    training_lookback_weeks: 26
-    recent_20w_hits: 13
-    recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 3.1
-    recent_20w_hit_mae_pct: 2.1
-    recent_20w_miss_mae_pct: 4.95
-    recent_20w_sig_hits: 10
-    recent_20w_sig_total: 15
-    recent_20w_sig_rate_pct: 66.7
-    recent_20w_penalty_loss: 55.0
+    recent_20w_penalty_loss: 43.17
+  BIMAS:
+    symbol: BIMAS
+    model: XGBoost
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 1.79
+    recent_20w_hit_mae_pct: 1.17
+    recent_20w_miss_mae_pct: 2.56
+    recent_20w_sig_hits: 6
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 52.57
   EKGYO:
     symbol: EKGYO
     model: XGBoost
     horizon: 6m
     training_lookback_weeks: 26
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 2.14
-    recent_20w_hit_mae_pct: 1.22
-    recent_20w_miss_mae_pct: 3.52
-    recent_20w_sig_hits: 9
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 2.24
+    recent_20w_hit_mae_pct: 1.57
+    recent_20w_miss_mae_pct: 3.5
+    recent_20w_sig_hits: 10
     recent_20w_sig_total: 14
-    recent_20w_sig_rate_pct: 64.3
-    recent_20w_penalty_loss: 50.03
-  ENKAI:
-    symbol: ENKAI
-    model: LightGBM
-    horizon: 6m
-    training_lookback_weeks: 26
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 1.68
-    recent_20w_hit_mae_pct: 1.2
-    recent_20w_miss_mae_pct: 2.39
-    recent_20w_sig_hits: 6
-    recent_20w_sig_total: 13
-    recent_20w_sig_rate_pct: 46.2
-    recent_20w_penalty_loss: 47.18
+    recent_20w_sig_rate_pct: 71.4
+    recent_20w_penalty_loss: 45.31
   EREGL:
     symbol: EREGL
     model: Ridge
@@ -124,13 +110,41 @@ symbols:
     training_lookback_weeks: 104
     recent_20w_hits: 13
     recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 2.51
-    recent_20w_hit_mae_pct: 1.93
+    recent_20w_mae_pct: 2.5
+    recent_20w_hit_mae_pct: 1.92
     recent_20w_miss_mae_pct: 3.58
     recent_20w_sig_hits: 11
     recent_20w_sig_total: 15
     recent_20w_sig_rate_pct: 73.3
     recent_20w_penalty_loss: 45.88
+  GARAN:
+    symbol: GARAN
+    model: LightGBM
+    horizon: 12m
+    training_lookback_weeks: 52
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 1.81
+    recent_20w_hit_mae_pct: 1.46
+    recent_20w_miss_mae_pct: 2.35
+    recent_20w_sig_hits: 6
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 47.33
+  GUBRF:
+    symbol: GUBRF
+    model: LightGBM
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 2.88
+    recent_20w_hit_mae_pct: 2.01
+    recent_20w_miss_mae_pct: 4.18
+    recent_20w_sig_hits: 9
+    recent_20w_sig_total: 15
+    recent_20w_sig_rate_pct: 60.0
+    recent_20w_penalty_loss: 52.47
   FROTO:
     symbol: FROTO
     model: XGBoost
@@ -138,83 +152,69 @@ symbols:
     training_lookback_weeks: 52
     recent_20w_hits: 14
     recent_20w_hit_rate_pct: 70.0
-    recent_20w_mae_pct: 1.77
+    recent_20w_mae_pct: 1.53
     recent_20w_hit_mae_pct: 0.89
-    recent_20w_miss_mae_pct: 3.81
+    recent_20w_miss_mae_pct: 3.02
     recent_20w_sig_hits: 8
     recent_20w_sig_total: 13
     recent_20w_sig_rate_pct: 61.5
-    recent_20w_penalty_loss: 40.42
-  GARAN:
-    symbol: GARAN
-    model: XGBoost
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 1.48
-    recent_20w_hit_mae_pct: 0.89
-    recent_20w_miss_mae_pct: 2.37
-    recent_20w_sig_hits: 6
-    recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 54.5
-    recent_20w_penalty_loss: 46.82
-  GUBRF:
-    symbol: GUBRF
-    model: XGBoost
-    horizon: 12m
-    training_lookback_weeks: 52
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 3.26
-    recent_20w_hit_mae_pct: 2.13
-    recent_20w_miss_mae_pct: 4.95
-    recent_20w_sig_hits: 10
-    recent_20w_sig_total: 16
-    recent_20w_sig_rate_pct: 62.5
-    recent_20w_penalty_loss: 54.51
+    recent_20w_penalty_loss: 38.45
   ISCTR:
     symbol: ISCTR
-    model: LightGBM
-    horizon: 24m
-    training_lookback_weeks: 104
+    model: BayesianRidge
+    horizon: 18m
+    training_lookback_weeks: 78
     recent_20w_hits: 11
     recent_20w_hit_rate_pct: 55.0
-    recent_20w_mae_pct: 1.46
-    recent_20w_hit_mae_pct: 0.83
-    recent_20w_miss_mae_pct: 2.22
-    recent_20w_sig_hits: 7
+    recent_20w_mae_pct: 1.77
+    recent_20w_hit_mae_pct: 1.34
+    recent_20w_miss_mae_pct: 2.29
+    recent_20w_sig_hits: 5
     recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 63.6
-    recent_20w_penalty_loss: 51.38
-  KCHOL:
-    symbol: KCHOL
-    model: Huber
-    horizon: 12m
-    training_lookback_weeks: 52
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 2.6
-    recent_20w_hit_mae_pct: 1.25
-    recent_20w_miss_mae_pct: 4.64
-    recent_20w_sig_hits: 4
-    recent_20w_sig_total: 10
-    recent_20w_sig_rate_pct: 40.0
-    recent_20w_penalty_loss: 52.84
+    recent_20w_sig_rate_pct: 45.5
+    recent_20w_penalty_loss: 52.07
   KRDMD:
     symbol: KRDMD
     model: XGBoost
     horizon: 12m
     training_lookback_weeks: 52
-    recent_20w_hits: 15
-    recent_20w_hit_rate_pct: 75.0
-    recent_20w_mae_pct: 2.54
-    recent_20w_hit_mae_pct: 2.06
-    recent_20w_miss_mae_pct: 3.99
+    recent_20w_hits: 16
+    recent_20w_hit_rate_pct: 80.0
+    recent_20w_mae_pct: 2.14
+    recent_20w_hit_mae_pct: 1.94
+    recent_20w_miss_mae_pct: 2.96
     recent_20w_sig_hits: 12
-    recent_20w_sig_total: 17
-    recent_20w_sig_rate_pct: 70.6
-    recent_20w_penalty_loss: 37.04
+    recent_20w_sig_total: 16
+    recent_20w_sig_rate_pct: 75.0
+    recent_20w_penalty_loss: 29.34
+  PETKM:
+    symbol: PETKM
+    model: LightGBM
+    horizon: 3m
+    training_lookback_weeks: 13
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 3.56
+    recent_20w_hit_mae_pct: 2.38
+    recent_20w_miss_mae_pct: 5.01
+    recent_20w_sig_hits: 6
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 59.9
+  KCHOL:
+    symbol: KCHOL
+    model: Huber
+    horizon: 3m
+    training_lookback_weeks: 13
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 2.96
+    recent_20w_hit_mae_pct: 1.76
+    recent_20w_miss_mae_pct: 4.42
+    recent_20w_sig_hits: 5
+    recent_20w_sig_total: 10
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 57.81
   MGROS:
     symbol: MGROS
     model: Ridge
@@ -222,167 +222,139 @@ symbols:
     training_lookback_weeks: 52
     recent_20w_hits: 15
     recent_20w_hit_rate_pct: 75.0
-    recent_20w_mae_pct: 1.42
-    recent_20w_hit_mae_pct: 0.9
+    recent_20w_mae_pct: 1.38
+    recent_20w_hit_mae_pct: 0.85
     recent_20w_miss_mae_pct: 2.98
     recent_20w_sig_hits: 9
     recent_20w_sig_total: 12
     recent_20w_sig_rate_pct: 75.0
-    recent_20w_penalty_loss: 33.34
-  PETKM:
-    symbol: PETKM
-    model: LightGBM
-    horizon: 12m
-    training_lookback_weeks: 52
-    recent_20w_hits: 9
-    recent_20w_hit_rate_pct: 45.0
-    recent_20w_mae_pct: 3.63
-    recent_20w_hit_mae_pct: 2.61
-    recent_20w_miss_mae_pct: 4.46
-    recent_20w_sig_hits: 5
-    recent_20w_sig_total: 12
-    recent_20w_sig_rate_pct: 41.7
-    recent_20w_penalty_loss: 68.77
-  PGSUS:
-    symbol: PGSUS
-    model: Ridge
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 1.56
-    recent_20w_hit_mae_pct: 1.08
-    recent_20w_miss_mae_pct: 2.29
-    recent_20w_sig_hits: 8
-    recent_20w_sig_total: 12
-    recent_20w_sig_rate_pct: 66.7
-    recent_20w_penalty_loss: 46.8
+    recent_20w_penalty_loss: 33.29
   SAHOL:
     symbol: SAHOL
-    model: Huber
-    horizon: 24m
-    training_lookback_weeks: 104
+    model: XGBoost
+    horizon: 18m
+    training_lookback_weeks: 78
     recent_20w_hits: 12
     recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 1.78
-    recent_20w_hit_mae_pct: 1.0
-    recent_20w_miss_mae_pct: 2.95
-    recent_20w_sig_hits: 6
-    recent_20w_sig_total: 10
-    recent_20w_sig_rate_pct: 60.0
-    recent_20w_penalty_loss: 48.38
-  SASA:
-    symbol: SASA
-    model: Huber
-    horizon: 24m
-    training_lookback_weeks: 104
-    recent_20w_hits: 13
-    recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 3.82
-    recent_20w_hit_mae_pct: 2.0
-    recent_20w_miss_mae_pct: 7.21
-    recent_20w_sig_hits: 11
-    recent_20w_sig_total: 18
-    recent_20w_sig_rate_pct: 61.1
-    recent_20w_penalty_loss: 55.03
-  SISE:
-    symbol: SISE
-    model: Huber
-    horizon: 12m
-    training_lookback_weeks: 52
-    recent_20w_hits: 13
-    recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 3.61
-    recent_20w_hit_mae_pct: 1.85
-    recent_20w_miss_mae_pct: 6.87
+    recent_20w_mae_pct: 1.66
+    recent_20w_hit_mae_pct: 0.97
+    recent_20w_miss_mae_pct: 2.68
     recent_20w_sig_hits: 6
     recent_20w_sig_total: 11
     recent_20w_sig_rate_pct: 54.5
-    recent_20w_penalty_loss: 54.03
-  TAVHL:
-    symbol: TAVHL
-    model: Ridge
-    horizon: 12m
-    training_lookback_weeks: 52
+    recent_20w_penalty_loss: 47.67
+  PGSUS:
+    symbol: PGSUS
+    model: Huber
+    horizon: 18m
+    training_lookback_weeks: 78
     recent_20w_hits: 13
     recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 1.81
-    recent_20w_hit_mae_pct: 1.59
-    recent_20w_miss_mae_pct: 2.22
+    recent_20w_mae_pct: 2.13
+    recent_20w_hit_mae_pct: 1.34
+    recent_20w_miss_mae_pct: 3.6
+    recent_20w_sig_hits: 7
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 58.3
+    recent_20w_penalty_loss: 45.34
+  SASA:
+    symbol: SASA
+    model: BayesianRidge
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 3.94
+    recent_20w_hit_mae_pct: 3.19
+    recent_20w_miss_mae_pct: 4.85
+    recent_20w_sig_hits: 9
+    recent_20w_sig_total: 18
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 60.32
+  SISE:
+    symbol: SISE
+    model: Ridge
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 1.99
+    recent_20w_hit_mae_pct: 1.04
+    recent_20w_miss_mae_pct: 3.76
+    recent_20w_sig_hits: 7
+    recent_20w_sig_total: 11
+    recent_20w_sig_rate_pct: 63.6
+    recent_20w_penalty_loss: 45.44
+  TAVHL:
+    symbol: TAVHL
+    model: BayesianRidge
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 14
+    recent_20w_hit_rate_pct: 70.0
+    recent_20w_mae_pct: 2.04
+    recent_20w_hit_mae_pct: 1.93
+    recent_20w_miss_mae_pct: 2.29
     recent_20w_sig_hits: 13
     recent_20w_sig_total: 18
     recent_20w_sig_rate_pct: 72.2
-    recent_20w_penalty_loss: 42.13
-  TCELL:
-    symbol: TCELL
-    model: Huber
-    horizon: 12m
-    training_lookback_weeks: 52
-    recent_20w_hits: 12
-    recent_20w_hit_rate_pct: 60.0
-    recent_20w_mae_pct: 3.26
-    recent_20w_hit_mae_pct: 2.64
-    recent_20w_miss_mae_pct: 4.19
-    recent_20w_sig_hits: 10
-    recent_20w_sig_total: 16
-    recent_20w_sig_rate_pct: 62.5
-    recent_20w_penalty_loss: 53.12
+    recent_20w_penalty_loss: 37.66
   THYAO:
     symbol: THYAO
     model: BayesianRidge
     horizon: 12m
     training_lookback_weeks: 52
-    recent_20w_hits: 15
-    recent_20w_hit_rate_pct: 75.0
-    recent_20w_mae_pct: 1.54
+    recent_20w_hits: 14
+    recent_20w_hit_rate_pct: 70.0
+    recent_20w_mae_pct: 1.69
     recent_20w_hit_mae_pct: 0.69
-    recent_20w_miss_mae_pct: 4.06
-    recent_20w_sig_hits: 7
+    recent_20w_miss_mae_pct: 4.03
+    recent_20w_sig_hits: 6
     recent_20w_sig_total: 12
-    recent_20w_sig_rate_pct: 58.3
-    recent_20w_penalty_loss: 35.85
+    recent_20w_sig_rate_pct: 50.0
+    recent_20w_penalty_loss: 40.76
   TOASO:
     symbol: TOASO
     model: LightGBM
     horizon: 6m
     training_lookback_weeks: 26
-    recent_20w_hits: 14
-    recent_20w_hit_rate_pct: 70.0
-    recent_20w_mae_pct: 1.93
-    recent_20w_hit_mae_pct: 1.21
-    recent_20w_miss_mae_pct: 3.63
-    recent_20w_sig_hits: 7
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 2.0
+    recent_20w_hit_mae_pct: 1.1
+    recent_20w_miss_mae_pct: 3.69
+    recent_20w_sig_hits: 6
     recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 63.6
-    recent_20w_penalty_loss: 40.27
-  TTKOM:
-    symbol: TTKOM
-    model: BayesianRidge
+    recent_20w_sig_rate_pct: 54.5
+    recent_20w_penalty_loss: 45.32
+  TCELL:
+    symbol: TCELL
+    model: Huber
     horizon: 12m
     training_lookback_weeks: 52
-    recent_20w_hits: 10
-    recent_20w_hit_rate_pct: 50.0
-    recent_20w_mae_pct: 2.08
-    recent_20w_hit_mae_pct: 1.67
-    recent_20w_miss_mae_pct: 2.49
-    recent_20w_sig_hits: 8
-    recent_20w_sig_total: 15
-    recent_20w_sig_rate_pct: 53.3
-    recent_20w_penalty_loss: 57.89
-  TUPRS:
-    symbol: TUPRS
+    recent_20w_hits: 13
+    recent_20w_hit_rate_pct: 65.0
+    recent_20w_mae_pct: 3.05
+    recent_20w_hit_mae_pct: 2.54
+    recent_20w_miss_mae_pct: 4.01
+    recent_20w_sig_hits: 11
+    recent_20w_sig_total: 16
+    recent_20w_sig_rate_pct: 68.8
+    recent_20w_penalty_loss: 47.56
+  TRALT:
+    symbol: TRALT
     model: XGBoost
     horizon: 12m
     training_lookback_weeks: 52
-    recent_20w_hits: 11
-    recent_20w_hit_rate_pct: 55.0
-    recent_20w_mae_pct: 2.17
-    recent_20w_hit_mae_pct: 1.49
-    recent_20w_miss_mae_pct: 3.0
-    recent_20w_sig_hits: 7
-    recent_20w_sig_total: 13
-    recent_20w_sig_rate_pct: 53.8
-    recent_20w_penalty_loss: 53.98
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 2.68
+    recent_20w_hit_mae_pct: 1.33
+    recent_20w_miss_mae_pct: 4.7
+    recent_20w_sig_hits: 10
+    recent_20w_sig_total: 16
+    recent_20w_sig_rate_pct: 62.5
+    recent_20w_penalty_loss: 53.08
   VAKBN:
     symbol: VAKBN
     model: BayesianRidge
@@ -390,24 +362,52 @@ symbols:
     training_lookback_weeks: 104
     recent_20w_hits: 11
     recent_20w_hit_rate_pct: 55.0
-    recent_20w_mae_pct: 2.32
-    recent_20w_hit_mae_pct: 1.81
+    recent_20w_mae_pct: 2.52
+    recent_20w_hit_mae_pct: 2.17
     recent_20w_miss_mae_pct: 2.95
-    recent_20w_sig_hits: 6
-    recent_20w_sig_total: 11
-    recent_20w_sig_rate_pct: 54.5
-    recent_20w_penalty_loss: 54.18
+    recent_20w_sig_hits: 7
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 58.3
+    recent_20w_penalty_loss: 54.54
+  TUPRS:
+    symbol: TUPRS
+    model: XGBoost
+    horizon: 12m
+    training_lookback_weeks: 52
+    recent_20w_hits: 11
+    recent_20w_hit_rate_pct: 55.0
+    recent_20w_mae_pct: 2.05
+    recent_20w_hit_mae_pct: 1.49
+    recent_20w_miss_mae_pct: 2.75
+    recent_20w_sig_hits: 7
+    recent_20w_sig_total: 12
+    recent_20w_sig_rate_pct: 58.3
+    recent_20w_penalty_loss: 53.36
+  TTKOM:
+    symbol: TTKOM
+    model: Ridge
+    horizon: 18m
+    training_lookback_weeks: 78
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 2.38
+    recent_20w_hit_mae_pct: 1.54
+    recent_20w_miss_mae_pct: 3.65
+    recent_20w_sig_hits: 10
+    recent_20w_sig_total: 16
+    recent_20w_sig_rate_pct: 62.5
+    recent_20w_penalty_loss: 50.67
   YKBNK:
     symbol: YKBNK
-    model: Ridge
+    model: XGBoost
     horizon: 24m
     training_lookback_weeks: 104
-    recent_20w_hits: 13
-    recent_20w_hit_rate_pct: 65.0
-    recent_20w_mae_pct: 1.93
-    recent_20w_hit_mae_pct: 1.01
-    recent_20w_miss_mae_pct: 3.65
-    recent_20w_sig_hits: 9
+    recent_20w_hits: 12
+    recent_20w_hit_rate_pct: 60.0
+    recent_20w_mae_pct: 1.96
+    recent_20w_hit_mae_pct: 1.64
+    recent_20w_miss_mae_pct: 2.43
+    recent_20w_sig_hits: 8
     recent_20w_sig_total: 14
-    recent_20w_sig_rate_pct: 64.3
-    recent_20w_penalty_loss: 45.14
+    recent_20w_sig_rate_pct: 57.1
+    recent_20w_penalty_loss: 47.72

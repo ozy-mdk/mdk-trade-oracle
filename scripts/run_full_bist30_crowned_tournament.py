@@ -25,6 +25,15 @@ Outputs:
 
 from __future__ import annotations
 
+import os
+
+# Prevent OpenMP / BLAS thread contention and deadlocks on macOS
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import argparse
 import logging
 import time
@@ -286,7 +295,7 @@ def main() -> None:
         res = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC;")
         eval_symbols = res["symbol"].to_list() if not res.is_empty() else sorted(list(old_config.keys()))
 
-    logger.info(f"Starting Full BIST 30 Tournament for {len(eval_symbols)} equities over {args.sessions} retrospective sessions across 6 workers...")
+    logger.info(f"Starting Full BIST 30 Tournament for {len(eval_symbols)} equities over {args.sessions} retrospective sessions across 4 workers...")
     logger.info("Candidates: XGBoost, LightGBM, BayesianRidge, Huber, Ridge across [3M, 6M, 12M, 18M, 24M]")
     t_start = time.time()
 
@@ -295,7 +304,7 @@ def main() -> None:
 
     import concurrent.futures
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(_worker_crowned_tournament, (sym, args.sessions)): sym for sym in eval_symbols}
         for future in concurrent.futures.as_completed(futures):
             sym = futures[future]

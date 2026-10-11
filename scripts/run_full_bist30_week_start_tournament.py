@@ -19,6 +19,15 @@ Outputs:
 
 from __future__ import annotations
 
+import os
+
+# Prevent OpenMP / BLAS thread contention and deadlocks on macOS
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import argparse
 import logging
 import time
@@ -127,13 +136,13 @@ def main() -> None:
         res = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC")
         symbols = res["symbol"].to_list()
 
-    logger.info("Starting Week Start Tournament for %d symbols across %d Mondays on 6 workers...", len(symbols), args.weeks)
+    logger.info("Starting Week Start Tournament for %d symbols across %d Mondays on 4 workers...", len(symbols), args.weeks)
     t0 = time.time()
 
     results: dict[str, Any] = {}
     import concurrent.futures
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=6) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(_worker_week_start, (sym, args.weeks)): sym for sym in symbols}
         for future in concurrent.futures.as_completed(futures):
             sym = futures[future]
