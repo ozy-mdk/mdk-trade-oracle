@@ -2407,7 +2407,7 @@ def get_multi_horizon_forecast_endpoint(
         if fresh:
             clear_multi_horizon_cache()
 
-        data = get_multi_horizon_forecaster_payload(db, sym)
+        data = get_multi_horizon_forecaster_payload(db, sym, force_recompute=fresh)
         if data.get("status") != "success":
             raise HTTPException(status_code=404, detail=data.get("message", f"Forecast unavailable for {sym}"))
 

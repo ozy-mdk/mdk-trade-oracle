@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchMultiHorizonForecast,
   fetchMultiHorizonBacktest,
@@ -43,6 +43,9 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     }
   }, [symbol]);
 
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // 1. Fetch Multi-Horizon Forecast Payload
   const {
     data: forecastData,
@@ -55,6 +58,18 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchMultiHorizonForecast(selectedSymbol, true);
+      await queryClient.invalidateQueries({ queryKey: ['multi-horizon-forecast', selectedSymbol] });
+      await queryClient.invalidateQueries({ queryKey: ['multi-horizon-backtest', selectedSymbol] });
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // 2. Fetch Backtest Ledger for active inspected horizon
   const {
@@ -157,12 +172,12 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
             </div>
 
             <button
-              onClick={() => refetch()}
-              disabled={isFetching}
+              onClick={handleRefresh}
+              disabled={isFetching || isRefreshing}
               className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 text-slate-300 hover:text-white transition-all shadow-inner disabled:opacity-50"
-              title="Refresh Forecast Data"
+              title="Refresh Forecast Data (Force Fresh)"
             >
-              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${(isFetching || isRefreshing) ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
           </div>
         </div>
