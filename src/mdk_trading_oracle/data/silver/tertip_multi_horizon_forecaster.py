@@ -8,10 +8,11 @@ Extends the single-day Tertip ML Forecaster across 5 forward market trading wind
     - 30 Days (N=30, ~6 market weeks / 1.5 months)
 
 Mathematical Target:
-    For session t and window N, the target is the percentage return to the forward
-    arithmetic average closing price of the next N trading sessions:
-        P_bar_{t, N} = (1 / N) * sum_{k=1}^N P_{t+k}
-        Y_{t, N} = ((P_bar_{t, N} - P_t) / P_t) * 100.0
+    For session t and window N (N=3, 5, 10, 15, 30 trading sessions), the target is
+    the percentage return from today's closing price P_t to the TERMINAL closing price
+    at the end of session t+N:
+        P_terminal_{t, N} = Close_{t+N}
+        Y_{t, N} = ((P_terminal_{t, N} - Close_t) / Close_t) * 100.0
 
 Zero-Lookahead Temporal Causality:
     At session t, only historical targets where i + N <= t are elapsed and eligible
@@ -36,6 +37,7 @@ from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
+    calibrate_expected_return,
     extract_3pillar_time_series,
 )
 
@@ -67,11 +69,11 @@ MIN_TRAIN_SESSIONS: int = 63
 
 
 DEFAULT_CHAMPIONS: dict[str, dict[str, Any]] = {
-    "3d": {"model": "LightGBM", "horizon": "3m", "lookback": 63},
-    "5d": {"model": "XGBoost", "horizon": "6m", "lookback": 126},
-    "10d": {"model": "BayesianRidge", "horizon": "6m", "lookback": 126},
-    "15d": {"model": "Ridge", "horizon": "12m", "lookback": 252},
-    "30d": {"model": "BayesianRidge", "horizon": "12m", "lookback": 252},
+    "3d": {"model": "LightGBM", "horizon": "6m", "lookback": 126},
+    "5d": {"model": "XGBoost", "horizon": "12m", "lookback": 252},
+    "10d": {"model": "BayesianRidge", "horizon": "12m", "lookback": 252},
+    "15d": {"model": "Ridge", "horizon": "18m", "lookback": 378},
+    "30d": {"model": "BayesianRidge", "horizon": "24m", "lookback": 504},
 }
 
 # In-memory cache for fast UI serving (TTL 24 hours)
@@ -142,6 +144,8 @@ def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, lis
     df["feat_price_vs_sma10_pct"] = ((df["close_price"] - sma10) / sma10 * 100.0).fillna(0.0)
     df["feat_price_vs_sma20_pct"] = ((df["close_price"] - sma20) / sma20 * 100.0).fillna(0.0)
     df["feat_price_vs_sma50_pct"] = ((df["close_price"] - sma50) / sma50 * 100.0).fillna(0.0)
+    df["feat_sma10_vs_sma20_pct"] = ((sma10 - sma20) / sma20 * 100.0).fillna(0.0)
+    df["feat_sma20_vs_sma50_pct"] = ((sma20 - sma50) / sma50 * 100.0).fillna(0.0)
 
     # 3. Cumulative Multi-Day BofA & Institutional Net Flow Shares (%)
     turnover_3d = df["total_turnover_tl"].rolling(3, min_periods=1).sum().replace(0, np.nan)
@@ -159,13 +163,33 @@ def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, lis
 
     big5_5d_flow = df["big5_flow"].rolling(5, min_periods=1).sum()
     df["feat_big5_flow_5d_share"] = (big5_5d_flow / turnover_5d * 100.0).fillna(0.0)
+    big5_10d_flow = df["big5_flow"].rolling(10, min_periods=1).sum()
 
     inst_5d_flow = mlb_5d_flow + big5_5d_flow
     df["feat_total_inst_5d_share"] = (inst_5d_flow / turnover_5d * 100.0).fillna(0.0)
 
-    # 4. Multi-Day Realized Volatility (%)
+    # Multi-Day Institutional Concordance & Flow Z-Scores
+    df["feat_inst_concordance_5d"] = (np.sign(mlb_5d_flow) * np.sign(big5_5d_flow)).fillna(0.0)
+    df["feat_inst_concordance_10d"] = (np.sign(mlb_10d_flow) * np.sign(big5_10d_flow)).fillna(0.0)
+
+    inst_10d_flow = mlb_10d_flow + big5_10d_flow
+    inst_10d_mean = inst_10d_flow.rolling(30, min_periods=10).mean()
+    inst_10d_std = inst_10d_flow.rolling(30, min_periods=10).std().replace(0, np.nan)
+    df["feat_inst_10d_flow_zscore"] = ((inst_10d_flow - inst_10d_mean) / inst_10d_std).clip(-4.0, 4.0).fillna(0.0)
+
+    # 4. Multi-Day Realized Volatility & 14-Day ATR (%)
     df["feat_stock_vol_10d"] = (df["daily_return_pct"].rolling(10, min_periods=5).std() * np.sqrt(252) * 100.0).fillna(0.0)
     df["feat_stock_vol_20d"] = (df["daily_return_pct"].rolling(20, min_periods=10).std() * np.sqrt(252) * 100.0).fillna(0.0)
+
+    if "high_price" in df.columns and "low_price" in df.columns:
+        prev_close_series = df["close_price"].shift(1)
+        tr_hl = (df["high_price"] - df["low_price"]).abs()
+        tr_hpc = (df["high_price"] - prev_close_series).abs()
+        tr_lpc = (df["low_price"] - prev_close_series).abs()
+        tr_d = pd.concat([tr_hl, tr_hpc, tr_lpc], axis=1).max(axis=1)
+        df["atr_14d_pct"] = ((tr_d.rolling(14, min_periods=5).mean() / df["close_price"] * 100.0).clip(0.5, 15.0).fillna(2.2))
+    else:
+        df["atr_14d_pct"] = 2.2
 
     feature_cols = [c for c in df.columns if c.startswith("feat_")]
     return df, feature_cols
@@ -222,13 +246,17 @@ def _build_model(model_name: str, seed: int = 42) -> Any:
         return Ridge(alpha=2.0, random_state=seed)
 
 
-def _compute_sample_weights(y: pd.Series) -> np.ndarray:
-    """Piecewise volatility calibration sample weights."""
+def _compute_sample_weights(y: pd.Series, deadband: float = 0.50) -> np.ndarray:
+    """Piecewise volatility calibration sample weights adapted for multi-day returns."""
     abs_y = y.abs()
     return np.where(
-        abs_y < 1.0,
-        0.75,
-        1.0 + 0.5 * (abs_y - 1.0).clip(upper=3.0),
+        abs_y <= deadband,
+        0.50,
+        np.where(
+            abs_y <= deadband * 2.5,
+            3.00,
+            5.50,
+        ),
     )
 
 
@@ -332,7 +360,7 @@ def evaluate_horizon_walk_forward(
 
         X_train = df_train_sub[f_cols]
         y_train = df_train_sub[fwd_avg_ret_col]
-        weights = _compute_sample_weights(y_train)
+        weights = _compute_sample_weights(y_train, deadband=deadband)
 
         model = _build_model(model_name)
         try:
@@ -343,7 +371,10 @@ def evaluate_horizon_walk_forward(
                     model.fit(X_train, y_train)
 
             X_test = pd.DataFrame([t_row[f_cols]])
-            pred_ret = float(model.predict(X_test)[0])
+            raw_pred_ret = float(model.predict(X_test)[0])
+            t_atr = float(t_row.get("atr_14d_pct", 2.2))
+            horizon_atr = t_atr * math.sqrt(n_days / 2.0)
+            pred_ret = calibrate_expected_return(raw_pred_ret, horizon_atr, deadband=deadband)
         except Exception as e:
             logger.debug(f"Error training {model_name} at step {t_idx}: {e}")
             pred_ret = 0.0
@@ -498,7 +529,7 @@ def generate_live_horizon_forecast(
     else:
         X_train = df_train_sub[f_cols]
         y_train = df_train_sub[fwd_avg_ret_col]
-        weights = _compute_sample_weights(y_train)
+        weights = _compute_sample_weights(y_train, deadband=deadband)
 
         model = _build_model(champion_model)
         try:
@@ -509,7 +540,10 @@ def generate_live_horizon_forecast(
                     model.fit(X_train, y_train)
 
             X_live = pd.DataFrame([latest_row[f_cols]])
-            expected_ret = float(model.predict(X_live)[0])
+            raw_exp_ret = float(model.predict(X_live)[0])
+            latest_atr = float(latest_row.get("atr_14d_pct", 2.2))
+            horizon_atr = latest_atr * math.sqrt(n_days / 2.0)
+            expected_ret = calibrate_expected_return(raw_exp_ret, horizon_atr, deadband=deadband)
         except Exception as e:
             logger.warning(f"Live forecast fit failed for {champion_model} ({horizon_key}): {e}")
             expected_ret = 0.0

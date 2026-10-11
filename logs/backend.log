@@ -266,3 +266,16 @@ INFO:     127.0.0.1:54704 - "GET /api/v1/tertip/timeseries?symbol=TRMET&broker_i
 INFO:     127.0.0.1:54706 - "GET /api/v1/tertip/horizons?symbol=TRMET&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54705 - "GET /api/v1/tertip/horizons?symbol=TRMET&broker_id=MLB HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54701 - "GET /api/v1/tertip/ml-forecast?symbol=TRMET&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54781 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TRMET&fresh=false HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54782 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TRMET&horizon=5d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54784 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TRMET&fresh=false HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54788 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=5d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54787 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54794 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=10d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54796 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=15d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54798 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=30d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54800 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=3d&limit=30 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3052]

@@ -30,6 +30,7 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
     BIG_FIVE_BROKERS,
     KAMU_BROKERS,
 )
+from mdk_trading_oracle.data.silver.tertip_ml_forecaster import calibrate_expected_return
 
 logger = get_logger("mdk_oracle.week_start_forecaster")
 
@@ -117,6 +118,20 @@ def extract_week_start_time_series(db: PostgresManager, symbol: str) -> pd.DataF
 
     if len(df_prices) < 35:
         return pd.DataFrame()
+
+    if len(df_prices) >= 14 and "high_price" in df_prices.columns and "low_price" in df_prices.columns:
+        prev_c = df_prices["close_price"].shift(1)
+        tr1 = (df_prices["high_price"] - df_prices["low_price"]).abs()
+        tr2 = (df_prices["high_price"] - prev_c).abs()
+        tr3 = (df_prices["low_price"] - prev_c).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        df_prices["atr_14d_pct"] = (
+            (tr.rolling(14, min_periods=5).mean() / df_prices["close_price"] * 100.0)
+            .clip(0.5, 15.0)
+            .fillna(2.2)
+        )
+    else:
+        df_prices["atr_14d_pct"] = 2.2
 
     big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
     kamu_in = ", ".join(f"'{b}'" for b in KAMU_BROKERS)
@@ -342,6 +357,7 @@ def extract_week_start_time_series(db: PostgresManager, symbol: str) -> pd.DataF
             "feat_bist30_trend_vs_20d_sma_pct": feat_bist30_trend_vs_20d_sma_pct,
             "feat_days_since_pos_shock": feat_days_since_pos_shock,
             "feat_days_since_neg_shock": feat_days_since_neg_shock,
+            "friday_atr_pct": float(fri_row.get("atr_14d_pct") or 2.2),
         }
 
     rows = []
@@ -406,11 +422,11 @@ def compute_sample_weights(y_returns: np.ndarray) -> np.ndarray:
     for i, ret in enumerate(y_returns):
         abs_r = abs(ret)
         if abs_r < 1.0:
-            weights[i] = 0.75
+            weights[i] = 0.50
         elif abs_r < 2.0:
-            weights[i] = 2.50
+            weights[i] = 3.50
         else:
-            weights[i] = 3.00
+            weights[i] = 6.00
     return weights
 
 
@@ -489,6 +505,7 @@ def run_weekly_walk_forward_arena(
         actual_training_months_list.append(round(actual_train_len / 4.33, 1))
         data_sufficiency_status_list.append(suff_status)
 
+        fri_atr = float(test_row.get("friday_atr_pct", 2.2))
         for m_name in CANDIDATE_MODELS:
             model = build_candidate_model(m_name)
             try:
@@ -496,7 +513,8 @@ def run_weekly_walk_forward_arena(
                     model.fit(X_train, y_train, sample_weight=weights)
                 else:
                     model.fit(X_train, y_train, reg__sample_weight=weights)
-                pred = float(model.predict(X_test)[0])
+                raw_pred = float(model.predict(X_test)[0])
+                pred = calibrate_expected_return(raw_pred, fri_atr)
             except Exception as e:
                 logger.warning("Fit error for %s on week %s: %s", m_name, test_row['target_monday_date'], e)
                 pred = 0.0
@@ -667,8 +685,10 @@ def predict_live_week_start(
 
     # Latest row features (as of latest Friday close)
     latest_row = df.iloc[-1]
+    latest_atr = float(latest_row.get("friday_atr_pct", 2.2))
     X_live = latest_row[WEEK_START_FEATURES].values.reshape(1, -1)
-    exp_return = float(model.predict(X_live)[0])
+    raw_exp_return = float(model.predict(X_live)[0])
+    exp_return = calibrate_expected_return(raw_exp_return, latest_atr)
     base_price = float(latest_row["friday_close_price"])
 
     target_price = round(base_price * (1.0 + exp_return / 100.0), 2)

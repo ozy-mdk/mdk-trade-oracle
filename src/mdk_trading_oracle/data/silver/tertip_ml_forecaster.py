@@ -502,6 +502,23 @@ def extract_3pillar_time_series(
         .fillna(5.0)
     )
 
+    # 8g. Rolling 14-Day Average True Range % (ATR % of Close)
+    if "high_price" in joined.columns and "low_price" in joined.columns:
+        prev_close_series = joined["close_price"].shift(1)
+        tr_high_low = (joined["high_price"] - joined["low_price"]).abs()
+        tr_high_pc = (joined["high_price"] - prev_close_series).abs()
+        tr_low_pc = (joined["low_price"] - prev_close_series).abs()
+        tr_daily = pd.concat([tr_high_low, tr_high_pc, tr_low_pc], axis=1).max(axis=1)
+        atr_14 = tr_daily.rolling(14, min_periods=5).mean()
+        joined["atr_14d_pct"] = (
+            (atr_14 / joined["close_price"] * 100.0)
+            .clip(0.5, 15.0)
+            .fillna(2.2)
+        )
+    else:
+        vol_atr = joined["feat_ret_today_pct"].rolling(14, min_periods=5).std() * 1.25
+        joined["atr_14d_pct"] = vol_atr.clip(0.5, 15.0).fillna(2.2)
+
     return joined
 
 
@@ -616,6 +633,34 @@ def compute_convex_softmax_weights(hit_rate_ml: float, hit_rate_p: float, tau: f
     return round(w_ml, 4), round(w_p, 4)
 
 
+def calibrate_expected_return(
+    raw_pred_ret: float,
+    atr_pct: float,
+    deadband: float = DEADBAND_PCT,
+) -> float:
+    """Calibrate raw shrunken regression return to an actionable trading magnitude.
+
+    Decouples direction discovery from magnitude variance collapse:
+    - If raw prediction is within the neutral deadband (+/- 0.25%), keep it as a small consolidation move.
+    - If raw prediction signals a directional move (|raw| > deadband), scale by the asset's
+      rolling 14-day ATR % and model conviction factor.
+    """
+    abs_raw = abs(raw_pred_ret)
+    if abs_raw <= deadband:
+        return float(round(raw_pred_ret, 2))
+
+    # Conviction factor based on signal strength relative to deadband
+    signal_strength = abs_raw / deadband
+    conviction = min(1.20, max(0.50, 0.40 + 0.15 * signal_strength))
+
+    # Safe fallback for ATR (normal daily range in BIST 30 is ~1.5% to 5.0%)
+    safe_atr = min(7.5, max(1.2, float(atr_pct) if (pd.notna(atr_pct) and atr_pct > 0) else 2.2))
+
+    calibrated_mag = max(abs_raw, conviction * safe_atr)
+    sign = 1.0 if raw_pred_ret > 0 else -1.0
+    return float(round(sign * min(10.0, calibrated_mag), 2))
+
+
 def _check_hit(pred: float, actual: float, tol_delta: float = 0.20, deadband: float = DEADBAND_PCT) -> bool:
     """Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)."""
     if abs(pred - actual) <= tol_delta:
@@ -694,28 +739,18 @@ def run_30d_walk_forward_arena(
         big5_action = "BUY" if big5_actual_flow > 0 else "SELL"
         kamu_action = "BUY" if kamu_actual_flow > 0 else "SELL"
 
+        # Retrieve 14-day rolling ATR % as of session t-1 (strictly zero lookahead)
+        prev_atr = float(prev_row.get("atr_14d_pct", 2.2))
+
         # 1. Base Model: Baseline Return Drift (Prophet if cached, else EWMA 63d drift)
         if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
-            prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
+            raw_prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
         else:
             ret_series = train_data["daily_return_pct"].iloc[-actual_training_sessions:].fillna(0.0) * 100.0
-            prophet_ret = float(ret_series.ewm(span=63).mean().iloc[-1]) if len(ret_series) > 0 else 0.0
+            raw_prophet_ret = float(ret_series.ewm(span=63).mean().iloc[-1]) if len(ret_series) > 0 else 0.0
+        prophet_ret = calibrate_expected_return(raw_prophet_ret, prev_atr)
         prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
         prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
-
-        # Directional Hit Evaluation with Tolerance for Minor Consolidation (< 0.20% difference)
-        def _check_hit(pred: float, actual: float, tol_delta: float = 0.20, deadband: float = DEADBAND_PCT) -> bool:
-            # If the difference between predicted return and actual return is <= 0.20%,
-            # count as a hit regardless of opposite direction (minor consolidation / flat noise)
-            if abs(pred - actual) <= tol_delta:
-                return True
-            if abs(actual) <= deadband:
-                return (abs(pred) <= deadband) or ((pred * actual) >= 0.0)
-            elif actual > deadband:
-                return pred > 0.0
-            else:
-                return pred < 0.0
-
         prophet_hit = _check_hit(prophet_ret, actual_ret)
 
         # 2. ML Candidate Features (strictly trailing actual_training_sessions)
@@ -725,21 +760,25 @@ def run_30d_walk_forward_arena(
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
 
-        # Balanced Sample Weighting:
-        # Prevents regression shrinkage to zero on big moves while anchoring quiet sessions (|y| < 1.0%)
-        # with weight 0.75 to suppress quiet-day false alarms.
+        # Decisive Sample Weighting:
+        # Prioritizes breakout institutional moves (>= 1.0% and >= 2.0%) over quiet consolidation days
         abs_y = y_tr.abs()
         sample_weights = np.where(
             abs_y < 1.0,
-            0.75,
-            1.0 + 0.5 * (abs_y - 1.0).clip(upper=3.0),
+            0.50,
+            np.where(
+                abs_y < 2.0,
+                3.50,
+                6.00,
+            ),
         )
 
         # Candidate A: Ridge (tuned regularization alpha=2.0)
         ridge = Ridge(alpha=2.0, random_state=42)
         ridge.fit(X_tr, y_tr, sample_weight=sample_weights)
-        pred_ret_ridge = float(ridge.predict(X_prev)[0])
-        pred_ret_ridge = max(-10.0, min(10.0, pred_ret_ridge))
+        raw_pred_ridge = float(ridge.predict(X_prev)[0])
+        raw_pred_ridge = max(-10.0, min(10.0, raw_pred_ridge))
+        pred_ret_ridge = calibrate_expected_return(raw_pred_ridge, prev_atr)
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
         ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
         ridge_hit = _check_hit(pred_ret_ridge, actual_ret)
@@ -755,8 +794,9 @@ def run_30d_walk_forward_arena(
             n_jobs=1,
         )
         xgb.fit(X_tr, y_tr, sample_weight=sample_weights)
-        pred_ret_xgb = float(xgb.predict(X_prev)[0])
-        pred_ret_xgb = max(-10.0, min(10.0, pred_ret_xgb))
+        raw_pred_xgb = float(xgb.predict(X_prev)[0])
+        raw_pred_xgb = max(-10.0, min(10.0, raw_pred_xgb))
+        pred_ret_xgb = calibrate_expected_return(raw_pred_xgb, prev_atr)
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
         xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
         xgb_hit = _check_hit(pred_ret_xgb, actual_ret)
@@ -774,8 +814,9 @@ def run_30d_walk_forward_arena(
             verbose=-1,
         )
         lgbm.fit(X_tr, y_tr, sample_weight=sample_weights)
-        pred_ret_lgbm = float(lgbm.predict(X_prev)[0])
-        pred_ret_lgbm = max(-10.0, min(10.0, pred_ret_lgbm))
+        raw_pred_lgbm = float(lgbm.predict(X_prev)[0])
+        raw_pred_lgbm = max(-10.0, min(10.0, raw_pred_lgbm))
+        pred_ret_lgbm = calibrate_expected_return(raw_pred_lgbm, prev_atr)
         lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
         lgbm_err = abs(lgbm_price - actual_price) / actual_price * 100.0
         lgbm_hit = _check_hit(pred_ret_lgbm, actual_ret)
@@ -786,8 +827,9 @@ def run_30d_walk_forward_arena(
             ("regressor", HuberRegressor(epsilon=1.35, alpha=1.0, max_iter=300)),
         ])
         huber.fit(X_tr, y_tr, regressor__sample_weight=sample_weights)
-        pred_ret_huber = float(huber.predict(X_prev)[0])
-        pred_ret_huber = max(-10.0, min(10.0, pred_ret_huber))
+        raw_pred_huber = float(huber.predict(X_prev)[0])
+        raw_pred_huber = max(-10.0, min(10.0, raw_pred_huber))
+        pred_ret_huber = calibrate_expected_return(raw_pred_huber, prev_atr)
         huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
         huber_err = abs(huber_price - actual_price) / actual_price * 100.0
         huber_hit = _check_hit(pred_ret_huber, actual_ret)
@@ -798,8 +840,9 @@ def run_30d_walk_forward_arena(
             ("regressor", BayesianRidge(max_iter=300)),
         ])
         bayes.fit(X_tr, y_tr, regressor__sample_weight=sample_weights)
-        pred_ret_bayes = float(bayes.predict(X_prev)[0])
-        pred_ret_bayes = max(-10.0, min(10.0, pred_ret_bayes))
+        raw_pred_bayes = float(bayes.predict(X_prev)[0])
+        raw_pred_bayes = max(-10.0, min(10.0, raw_pred_bayes))
+        pred_ret_bayes = calibrate_expected_return(raw_pred_bayes, prev_atr)
         bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
         bayes_err = abs(bayes_price - actual_price) / actual_price * 100.0
         bayes_hit = _check_hit(pred_ret_bayes, actual_ret)
@@ -2254,6 +2297,8 @@ def get_tertip_ml_forecast(
     live_window_desc = f"{actual_live_sessions} sess (~{actual_live_months}M)"
     live_sufficiency_status = "FULL" if actual_live_sessions >= train_lookback_sessions else "PARTIAL_ADAPTED"
 
+    latest_atr = float(latest_row.get("atr_14d_pct", 2.2))
+
     # 1. Stationary Prophet Return Baseline for T+1 (fitted strictly on actual_live_sessions)
     ret_history = df["daily_return_pct"].iloc[-actual_live_sessions:].fillna(0.0) * 100.0
     p_df = pd.DataFrame({
@@ -2268,7 +2313,8 @@ def get_tertip_ml_forecast(
     )
     m_prophet.fit(p_df)
     fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-    prophet_ret_pct = float(fc_prophet.iloc[-1]["yhat"])
+    raw_prophet_ret = float(fc_prophet.iloc[-1]["yhat"])
+    prophet_ret_pct = calibrate_expected_return(raw_prophet_ret, latest_atr)
     prophet_target_price = latest_price * (1.0 + prophet_ret_pct / 100.0)
 
     # 2. ML Challenger Prediction for T+1 (fitted strictly on actual_live_sessions)
@@ -2328,9 +2374,27 @@ def get_tertip_ml_forecast(
     else:
         live_ml = Ridge(alpha=2.0, random_state=42)
 
-    live_ml.fit(X_tr_full, y_tr_full)
-    pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
-    pred_ret_ml = max(-10.0, min(10.0, pred_ret_ml))
+    abs_y_full = y_tr_full.abs()
+    sample_weights_full = np.where(
+        abs_y_full < 1.0,
+        0.50,
+        np.where(
+            abs_y_full < 2.0,
+            3.50,
+            6.00,
+        ),
+    )
+
+    if ml_champion_type in ("XGBoost", "LightGBM", "Ridge"):
+        live_ml.fit(X_tr_full, y_tr_full, sample_weight=sample_weights_full)
+    elif hasattr(live_ml, "named_steps") and "regressor" in live_ml.named_steps:
+        live_ml.fit(X_tr_full, y_tr_full, regressor__sample_weight=sample_weights_full)
+    else:
+        live_ml.fit(X_tr_full, y_tr_full)
+
+    raw_pred_ret_ml = float(live_ml.predict(pd.DataFrame([latest_row[active_features]]))[0])
+    raw_pred_ret_ml = max(-10.0, min(10.0, raw_pred_ret_ml))
+    pred_ret_ml = calibrate_expected_return(raw_pred_ret_ml, latest_atr)
 
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
