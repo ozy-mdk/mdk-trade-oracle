@@ -148,35 +148,44 @@ def attach_prophet_rolling_features(
     train_lookback_sessions: int = TRAIN_LOOKBACK_SESSIONS,
     n_history_needed: int = 300,
 ) -> pd.DataFrame:
-    """Attach zero-leakage rolling Prophet 1-step baseline returns for each session T.
+    """Attach zero-leakage rolling Prophet 1-step baseline actual price and return for each session T.
 
     Uses persistent disk caching to avoid redundant computation:
     - Fits Prophet strictly on [k - train_lookback_sessions : k] close prices (history up to session k - 1).
-    - Forecasts session k close price and calculates baseline return:
-      feat_prophet_ret_today_pct = (yhat_k - P_{k-1}) / P_{k-1} * 100.
-    - Automatically computes any missing/new sessions incrementally and saves to cache.
+    - Forecasts session k actual close price (yhat_price).
+    - Calculates baseline return from predicted price:
+      feat_prophet_ret_today_pct = (yhat_price - P_{k-1}) / P_{k-1} * 100.
+    - Saves both predicted price and return to disk cache.
     """
     if df.empty or len(df) < 35:
         df["feat_prophet_ret_today_pct"] = 0.0
+        df["feat_prophet_price_today"] = df.get("close_price", 0.0)
         return df
 
-    # If df already contains clean feat_prophet_ret_today_pct with no trailing NaNs, preserve it
-    if "feat_prophet_ret_today_pct" in df.columns:
-        if not df["feat_prophet_ret_today_pct"].iloc[-30:].isna().any():
+    # If df already contains clean feat_prophet_ret_today_pct and feat_prophet_price_today with no trailing NaNs, preserve it
+    if "feat_prophet_ret_today_pct" in df.columns and "feat_prophet_price_today" in df.columns:
+        if not df["feat_prophet_ret_today_pct"].iloc[-30:].isna().any() and not df["feat_prophet_price_today"].iloc[-30:].isna().any():
             return df
 
     sym = symbol.upper()
-    cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_ret_daily.parquet"
+    cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_price_daily.parquet"
     cached_dict: dict[str, float] = {}
+    cached_prices: dict[str, float] = {}
 
     if cache_file.exists():
         try:
             cached_df = pd.read_parquet(cache_file)
-            if "trade_date" in cached_df.columns and "feat_prophet_ret_today_pct" in cached_df.columns:
+            if "trade_date" in cached_df.columns and "feat_prophet_price_today" in cached_df.columns:
                 cached_dict = dict(
                     zip(
                         pd.to_datetime(cached_df["trade_date"]).dt.strftime("%Y-%m-%d"),
                         cached_df["feat_prophet_ret_today_pct"].astype(float),
+                    )
+                )
+                cached_prices = dict(
+                    zip(
+                        pd.to_datetime(cached_df["trade_date"]).dt.strftime("%Y-%m-%d"),
+                        cached_df["feat_prophet_price_today"].astype(float),
                     )
                 )
         except Exception as e:
@@ -184,22 +193,23 @@ def attach_prophet_rolling_features(
 
     N = len(df)
     start_idx = max(train_lookback_sessions + 5, N - n_history_needed)
-    daily_returns = (df["daily_return_pct"].fillna(0.0) * 100.0).to_numpy()
+    close_prices = df["close_price"].astype(float).to_numpy()
     trade_dates = pd.to_datetime(df["trade_date"])
     date_strs = trade_dates.dt.strftime("%Y-%m-%d").to_numpy()
 
     dirty = False
     for k in range(start_idx, N):
         d_str = date_strs[k]
-        if d_str in cached_dict and pd.notna(cached_dict[d_str]):
+        if d_str in cached_dict and d_str in cached_prices and pd.notna(cached_dict[d_str]):
             continue
 
         hist_dates = trade_dates.iloc[k - train_lookback_sessions : k]
-        hist_returns = daily_returns[k - train_lookback_sessions : k]
+        hist_prices = close_prices[k - train_lookback_sessions : k]
+        prev_price = float(close_prices[k - 1])
         target_date = trade_dates.iloc[k]
 
         try:
-            p_df = pd.DataFrame({"ds": hist_dates, "y": hist_returns})
+            p_df = pd.DataFrame({"ds": hist_dates, "y": hist_prices})
             m = Prophet(
                 daily_seasonality=False,
                 weekly_seasonality=False,
@@ -209,25 +219,33 @@ def attach_prophet_rolling_features(
             m.fit(p_df)
             target_df = pd.DataFrame({"ds": [target_date]})
             fc = m.predict(target_df)
-            ret_today = float(fc.iloc[-1]["yhat"])
+            yhat_price = float(fc.iloc[-1]["yhat"])
+            ret_today = ((yhat_price - prev_price) / prev_price * 100.0) if prev_price > 0 else 0.0
             cached_dict[d_str] = float(np.clip(ret_today, -15.0, 15.0))
+            cached_prices[d_str] = float(round(yhat_price, 2))
             dirty = True
         except Exception as e:
             logger.warning("Prophet fit failed for %s on %s: %s", sym, d_str, e)
             cached_dict[d_str] = 0.0
+            cached_prices[d_str] = float(prev_price) if prev_price > 0 else 0.0
             dirty = True
 
     if dirty or (not cache_file.exists() and cached_dict):
         try:
             save_df = pd.DataFrame([
-                {"trade_date": d, "feat_prophet_ret_today_pct": v}
-                for d, v in cached_dict.items()
+                {
+                    "trade_date": d,
+                    "feat_prophet_ret_today_pct": cached_dict[d],
+                    "feat_prophet_price_today": cached_prices.get(d, 0.0),
+                }
+                for d in cached_dict.keys()
             ])
             save_df.to_parquet(cache_file)
         except Exception as e:
             logger.warning("Failed to save Prophet cache for %s: %s", sym, e)
 
     df["feat_prophet_ret_today_pct"] = [cached_dict.get(d, 0.0) for d in date_strs]
+    df["feat_prophet_price_today"] = [cached_prices.get(d, float(close_prices[i])) for i, d in enumerate(date_strs)]
     return df
 
 
@@ -742,8 +760,11 @@ def run_30d_walk_forward_arena(
         # Retrieve 14-day rolling ATR % as of session t-1 (strictly zero lookahead)
         prev_atr = float(prev_row.get("atr_14d_pct", 2.2))
 
-        # 1. Base Model: Baseline Return Drift (Prophet if cached, else EWMA 63d drift)
-        if "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
+        # 1. Base Model: Baseline Price & Return (Prophet price if cached, else EWMA drift)
+        if "feat_prophet_price_today" in test_row and pd.notna(test_row["feat_prophet_price_today"]) and float(test_row["feat_prophet_price_today"]) > 0:
+            raw_prophet_price = float(test_row["feat_prophet_price_today"])
+            raw_prophet_ret = ((raw_prophet_price - prev_price) / prev_price * 100.0) if prev_price > 0 else 0.0
+        elif "feat_prophet_ret_today_pct" in test_row and pd.notna(test_row["feat_prophet_ret_today_pct"]) and float(test_row["feat_prophet_ret_today_pct"]) != 0.0:
             raw_prophet_ret = float(test_row["feat_prophet_ret_today_pct"])
         else:
             ret_series = train_data["daily_return_pct"].iloc[-actual_training_sessions:].fillna(0.0) * 100.0
@@ -2299,11 +2320,11 @@ def get_tertip_ml_forecast(
 
     latest_atr = float(latest_row.get("atr_14d_pct", 2.2))
 
-    # 1. Stationary Prophet Return Baseline for T+1 (fitted strictly on actual_live_sessions)
-    ret_history = df["daily_return_pct"].iloc[-actual_live_sessions:].fillna(0.0) * 100.0
+    # 1. Prophet Actual Price Baseline for T+1 (fitted strictly on actual_live_sessions close prices)
+    price_history = df["close_price"].iloc[-actual_live_sessions:].astype(float)
     p_df = pd.DataFrame({
         "ds": pd.to_datetime(df["trade_date"].iloc[-actual_live_sessions:]),
-        "y": ret_history,
+        "y": price_history,
     })
     m_prophet = Prophet(
         daily_seasonality=False,
@@ -2313,9 +2334,10 @@ def get_tertip_ml_forecast(
     )
     m_prophet.fit(p_df)
     fc_prophet = m_prophet.predict(m_prophet.make_future_dataframe(periods=1))
-    raw_prophet_ret = float(fc_prophet.iloc[-1]["yhat"])
+    raw_prophet_price = float(fc_prophet.iloc[-1]["yhat"])
+    raw_prophet_ret = ((raw_prophet_price - latest_price) / latest_price * 100.0) if latest_price > 0 else 0.0
     prophet_ret_pct = calibrate_expected_return(raw_prophet_ret, latest_atr)
-    prophet_target_price = latest_price * (1.0 + prophet_ret_pct / 100.0)
+    prophet_target_price = round(latest_price * (1.0 + prophet_ret_pct / 100.0), 2)
 
     # 2. ML Challenger Prediction for T+1 (fitted strictly on actual_live_sessions)
     tr_full = df.iloc[-actual_live_sessions:].dropna(subset=active_features).copy()

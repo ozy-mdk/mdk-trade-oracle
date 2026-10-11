@@ -310,8 +310,15 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             stance = "NEUTRAL"
             playbook = "NEUTRAL CONSOLIDATION"
 
-        prophet_ret = float(latest_row.get("feat_prophet_ret_today_pct", 0.0))
-        prophet_target_price = latest_price * (1.0 + prophet_ret / 100.0)
+        if "feat_prophet_price_today" in latest_row and pd.notna(latest_row["feat_prophet_price_today"]) and float(latest_row["feat_prophet_price_today"]) > 0:
+            raw_p_price = float(latest_row["feat_prophet_price_today"])
+            raw_p_ret = ((raw_p_price - latest_price) / latest_price * 100.0) if latest_price > 0 else 0.0
+            prophet_ret = calibrate_expected_return(raw_p_ret, latest_atr, deadband=DEADBAND_PCT)
+            prophet_target_price = round(latest_price * (1.0 + prophet_ret / 100.0), 2)
+        else:
+            raw_p_ret = float(latest_row.get("feat_prophet_ret_today_pct", 0.0))
+            prophet_ret = calibrate_expected_return(raw_p_ret, latest_atr, deadband=DEADBAND_PCT)
+            prophet_target_price = round(latest_price * (1.0 + prophet_ret / 100.0), 2)
 
         # Upsert live forecast into gold_tertip_daily_forecasts
         db.execute(upsert_forecast_sql, {
