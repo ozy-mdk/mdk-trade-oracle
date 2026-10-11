@@ -236,9 +236,10 @@ export async function fetchWeekStartBacktest(
 
 export async function fetchMultiHorizonForecast(
   symbol: string,
-  fresh: boolean = false
+  fresh: boolean = false,
+  evalSessions: number = 60
 ): Promise<MultiHorizonForecastResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}`);
+  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}&eval_sessions=${evalSessions}`);
   if (!res.ok) throw new Error('Failed to fetch multi-horizon forecast');
   return res.json();
 }
@@ -246,7 +247,7 @@ export async function fetchMultiHorizonForecast(
 export async function fetchMultiHorizonBacktest(
   symbol: string,
   horizon: string = '3d',
-  limit: number = 30
+  limit: number = 60
 ): Promise<MultiHorizonBacktestItem[]> {
   const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/backtest?symbol=${encodeURIComponent(symbol)}&horizon=${encodeURIComponent(horizon)}&limit=${limit}`);
   if (!res.ok) throw new Error('Failed to fetch multi-horizon backtest');

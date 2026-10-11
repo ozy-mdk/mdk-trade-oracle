@@ -2395,6 +2395,7 @@ def get_week_start_backtest(
 def get_multi_horizon_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Bypass in-memory cache"),
+    eval_sessions: int = Query(60, le=365, description="Number of evaluation sessions for hit rates"),
 ) -> MultiHorizonForecastResponse:
     """Return forward multi-horizon predictions (3d, 5d, 10d, 15d, 30d) and walk-forward track."""
     sym = symbol.strip().upper()
@@ -2407,7 +2408,7 @@ def get_multi_horizon_forecast_endpoint(
         if fresh:
             clear_multi_horizon_cache()
 
-        data = get_multi_horizon_forecaster_payload(db, sym, force_recompute=fresh)
+        data = get_multi_horizon_forecaster_payload(db, sym, n_eval_sessions=eval_sessions, force_recompute=fresh)
         if data.get("status") != "success":
             raise HTTPException(status_code=404, detail=data.get("message", f"Forecast unavailable for {sym}"))
 
@@ -2435,7 +2436,7 @@ def get_multi_horizon_forecast_endpoint(
 def get_multi_horizon_backtest_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     horizon: str = Query("3d", description="Horizon: 3d, 5d, 10d, 15d, 30d"),
-    limit: int = Query(30, le=100, description="Max backtest records"),
+    limit: int = Query(60, le=365, description="Max backtest records"),
 ) -> List[MultiHorizonBacktestItem]:
     """Return historical walk-forward backtest ledger for a specific symbol and horizon."""
     sym = symbol.strip().upper()

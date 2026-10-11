@@ -34,6 +34,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
 }) => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>(symbol);
   const [activeHorizon, setActiveHorizon] = useState<string>('5d');
+  const [evalSessions, setEvalSessions] = useState<number>(60);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   // Sync with global symbol changes from App top navbar
@@ -53,8 +54,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['multi-horizon-forecast', selectedSymbol],
-    queryFn: () => fetchMultiHorizonForecast(selectedSymbol),
+    queryKey: ['multi-horizon-forecast', selectedSymbol, evalSessions],
+    queryFn: () => fetchMultiHorizonForecast(selectedSymbol, false, evalSessions),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -62,7 +63,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetchMultiHorizonForecast(selectedSymbol, true);
+      await fetchMultiHorizonForecast(selectedSymbol, true, evalSessions);
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-forecast', selectedSymbol] });
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-backtest', selectedSymbol] });
       await refetch();
@@ -76,8 +77,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     data: backtestData,
     isLoading: isLoadingBt,
   } = useQuery({
-    queryKey: ['multi-horizon-backtest', selectedSymbol, activeHorizon],
-    queryFn: () => fetchMultiHorizonBacktest(selectedSymbol, activeHorizon, 30),
+    queryKey: ['multi-horizon-backtest', selectedSymbol, activeHorizon, evalSessions],
+    queryFn: () => fetchMultiHorizonBacktest(selectedSymbol, activeHorizon, evalSessions),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -89,10 +90,25 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   // Ledger: prefer dedicated backtest endpoint data if available, fallback to forecastData
   const ledger = useMemo(() => {
     if (backtestData && backtestData.length > 0) {
-      return backtestData;
+      return backtestData.slice(0, evalSessions);
     }
-    return activeHorizonData?.backtest_ledger || [];
-  }, [backtestData, activeHorizonData]);
+    const full = activeHorizonData?.backtest_ledger || [];
+    return full.slice(-evalSessions);
+  }, [backtestData, activeHorizonData, evalSessions]);
+
+  // Dynamic hit rate KPIs over the selected evaluation window
+  const completedLedger = useMemo(() => ledger.filter((r) => !r.is_pending), [ledger]);
+  const dynamicHits = useMemo(() => completedLedger.filter((r) => r.is_hit).length, [completedLedger]);
+  const dynamicTotal = useMemo(() => completedLedger.length, [completedLedger]);
+  const dynamicHitRatePct = useMemo(() => {
+    if (dynamicTotal > 0) return (dynamicHits / dynamicTotal) * 100.0;
+    return activeMeta?.hit_rate_pct ?? 0.0;
+  }, [dynamicHits, dynamicTotal, activeMeta]);
+  const dynamicMaePct = useMemo(() => {
+    if (completedLedger.length === 0) return activeMeta?.mae_pct ?? 0.0;
+    const errs = completedLedger.map((r) => r.err_pct || 0);
+    return errs.reduce((a, b) => a + b, 0) / errs.length;
+  }, [completedLedger, activeMeta]);
 
   // Stance styling helper
   const getStanceBadge = (stance: string) => {
@@ -168,6 +184,27 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               <div className="text-xs text-slate-400 font-mono">As of Date</div>
               <div className="text-xs font-semibold text-slate-200 font-mono">
                 {forecastData?.as_of_date || '---'}
+              </div>
+            </div>
+
+            {/* Hit Rate Horizon Window (30, 60, 90, 180) with 60 as default */}
+            <div className="text-right border-l border-slate-800 pl-4 hidden md:block">
+              <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Hit Rate Window</div>
+              <div className="flex items-center space-x-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 mt-0.5 font-mono">
+                {([30, 60, 90, 180] as const).map((sessions) => (
+                  <button
+                    key={sessions}
+                    onClick={() => setEvalSessions(sessions)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                      evalSessions === sessions
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title={`Evaluate hit rates over trailing ${sessions} sessions`}
+                  >
+                    {sessions}D{sessions === 60 ? ' (Def)' : ''}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -294,7 +331,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
 
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" /> Win Rate:
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" /> Win Rate ({evalSessions}D):
                     </span>
                     <span className="font-bold text-emerald-400">
                       {meta?.hit_rate_pct != null ? `${meta.hit_rate_pct.toFixed(1)}%` : '---'}
@@ -436,45 +473,67 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Session-by-session zero-lookahead backtest tracking over trailing 30 evaluated sessions
+                Session-by-session zero-lookahead backtest tracking over trailing {evalSessions} evaluated sessions
               </p>
             </div>
           </div>
 
-          {/* Horizon Selection Tabs */}
-          <div className="flex items-center space-x-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-            {HORIZON_ORDER.map((hKey) => (
-              <button
-                key={hKey}
-                onClick={() => setActiveHorizon(hKey)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
-                  activeHorizon === hKey
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {hKey.toUpperCase()}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Hit Rate Window Selector Pills (30, 60, 90, 180) */}
+            <div className="flex items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 font-mono text-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase px-2">
+                Hit Rate Window:
+              </span>
+              {([30, 60, 90, 180] as const).map((sessions) => (
+                <button
+                  key={sessions}
+                  onClick={() => setEvalSessions(sessions)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    evalSessions === sessions
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {sessions}D{sessions === 60 ? ' (Default)' : ''}
+                </button>
+              ))}
+            </div>
+
+            {/* Horizon Selection Tabs */}
+            <div className="flex items-center space-x-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+              {HORIZON_ORDER.map((hKey) => (
+                <button
+                  key={hKey}
+                  onClick={() => setActiveHorizon(hKey)}
+                  className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                    activeHorizon === hKey
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {hKey.toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* 5 Scorecard KPI Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-            <div className="text-[10px] text-slate-400 font-mono uppercase">Directional Hit Rate</div>
+            <div className="text-[10px] text-slate-400 font-mono uppercase">Directional Hit Rate ({evalSessions}D)</div>
             <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
-              {activeMeta?.hit_rate_pct != null ? `${activeMeta.hit_rate_pct.toFixed(1)}%` : '---'}
+              {dynamicHitRatePct != null ? `${dynamicHitRatePct.toFixed(1)}%` : '---'}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {activeMeta?.hits || 0} hits / {activeMeta?.total_evals || 0} sessions
+              {dynamicHits} hits / {dynamicTotal} sessions
             </div>
           </div>
 
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-            <div className="text-[10px] text-slate-400 font-mono uppercase">Mean Absolute Error</div>
+            <div className="text-[10px] text-slate-400 font-mono uppercase">Mean Absolute Error ({evalSessions}D)</div>
             <div className="text-lg font-bold text-slate-200 font-mono mt-0.5">
-              {activeMeta?.mae_pct != null ? `${activeMeta.mae_pct.toFixed(2)}%` : '---'}
+              {dynamicMaePct != null ? `${dynamicMaePct.toFixed(2)}%` : '---'}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">Overall price spread</div>
           </div>

@@ -42,7 +42,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const [activeSymbol, setActiveSymbol] = useState<string>(symbol);
   const [modelType, setModelType] = useState<'auto' | 'ridge' | 'xgboost'>('auto');
   const [activeModel, setActiveModel] = useState<'champion' | 'ml' | 'prophet'>('champion');
-  const [horizonRange, setHorizonRange] = useState<'30d' | '6m'>('30d');
+  const [evalSessions, setEvalSessions] = useState<number>(60);
   const [chartView, setChartView] = useState<'price' | 'return'>('price');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -75,8 +75,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const ledger = forecast?.walk_forward_ledger || [];
   const latestPrice = forecast?.latest_close_price || 0;
 
-  // Horizon slice: Last 30 sessions (focused recent view) vs Full hydrated multi-month history (126-180 sessions)
-  const displayLedger = horizonRange === '30d' ? ledger.slice(-30) : ledger;
+  // Horizon slice: Trailing evalSessions (30, 60, 90, 180 with 60 default)
+  const displayLedger = ledger.slice(-evalSessions);
 
 
   // Dynamic targeting based on selected perspective
@@ -409,29 +409,22 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
         {/* Horizon Range Switcher: 30D Focus vs 6-Month Full Arena */}
         <div className="flex items-center space-x-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-            Horizon:
+            Hit Rate Horizon:
           </span>
           <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 font-mono text-xs">
-            <button
-              onClick={() => setHorizonRange('30d')}
-              className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition-all ${
-                horizonRange === '30d'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Last 30 Sessions (Focus)
-            </button>
-            <button
-              onClick={() => setHorizonRange('6m')}
-              className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition-all ${
-                horizonRange === '6m'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              6 Months ({ledger.length} Sessions)
-            </button>
+            {([30, 60, 90, 180] as const).map((sessions) => (
+              <button
+                key={sessions}
+                onClick={() => setEvalSessions(sessions)}
+                className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition-all ${
+                  evalSessions === sessions
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {sessions}D{sessions === 60 ? ' (Default)' : ''}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -597,7 +590,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                     </span>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">
-                    {horizonRange === '30d' ? '30-Day Walk-Forward Focus' : `6-Month Multi-Horizon (${displayLedger.length} Sessions)`}
+                    {evalSessions}-Day Walk-Forward Track ({displayLedger.length} Sessions)
                   </div>
                 </div>
 
@@ -681,7 +674,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   Walk-Forward Performance: {activeModel === 'champion' ? (tournament?.champion_label || 'Crowned Champion') : activeModel === 'ml' ? 'Pure ML' : 'Prophet'} vs Realized
                 </span>
                 <span className="text-xs text-slate-500 font-mono">
-                  ({horizonRange === '30d' ? 'Last 30 Sessions' : `${displayLedger.length} Sessions (6 Months)`})
+                  ({displayLedger.length} Sessions [{evalSessions}D Horizon])
                 </span>
               </div>
 
