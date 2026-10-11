@@ -3,7 +3,7 @@ _metadata:
     trading sessions
   calibrated_at: '2026-10-10'
   selection_metric: 3_criteria_tournament_loss
-  updated_at: '2026-10-11T13:58:02.400853'
+  updated_at: '2026-10-11T15:06:40.672705'
 symbols:
   AEFES:
     3d:
@@ -64,58 +64,58 @@ symbols:
   AKBNK:
     3d:
       model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 60.0
-      mae_pct: 4.07
-      hit_mae_pct: 2.7
-      miss_mae_pct: 6.12
-      loss: 58.0
-      hits: 36
+      horizon: 6m
+      training_lookback_sessions: 126
+      hit_rate_pct: 61.7
+      mae_pct: 3.65
+      hit_mae_pct: 2.26
+      miss_mae_pct: 5.9
+      loss: 55.33
+      hits: 37
       total_evals: 60
     5d:
-      model: LightGBM
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 70.0
-      mae_pct: 4.21
-      hit_mae_pct: 2.72
-      miss_mae_pct: 7.67
-      loss: 51.91
-      hits: 42
+      model: XGBoost
+      horizon: 12m
+      training_lookback_sessions: 252
+      hit_rate_pct: 60.0
+      mae_pct: 4.34
+      hit_mae_pct: 2.76
+      miss_mae_pct: 6.71
+      loss: 59.53
+      hits: 36
       total_evals: 60
     10d:
       model: Huber
       horizon: 3m
       training_lookback_sessions: 63
-      hit_rate_pct: 83.3
-      mae_pct: 5.39
-      hit_mae_pct: 4.38
-      miss_mae_pct: 10.41
-      loss: 47.08
-      hits: 50
+      hit_rate_pct: 80.0
+      mae_pct: 5.79
+      hit_mae_pct: 4.8
+      miss_mae_pct: 9.76
+      loss: 49.18
+      hits: 48
       total_evals: 60
     15d:
       model: BayesianRidge
       horizon: 6m
       training_lookback_sessions: 126
-      hit_rate_pct: 81.7
-      mae_pct: 5.57
-      hit_mae_pct: 4.25
-      miss_mae_pct: 11.44
-      loss: 51.2
-      hits: 49
+      hit_rate_pct: 83.3
+      mae_pct: 5.55
+      hit_mae_pct: 4.32
+      miss_mae_pct: 11.71
+      loss: 50.27
+      hits: 50
       total_evals: 60
     30d:
       model: Huber
       horizon: 24m
       training_lookback_sessions: 504
-      hit_rate_pct: 78.3
-      mae_pct: 5.42
-      hit_mae_pct: 4.42
-      miss_mae_pct: 9.03
-      loss: 48.66
-      hits: 47
+      hit_rate_pct: 81.7
+      mae_pct: 4.84
+      hit_mae_pct: 4.24
+      miss_mae_pct: 7.5
+      loss: 41.32
+      hits: 49
       total_evals: 60
   AKSEN:
     3d:
@@ -182,59 +182,59 @@ symbols:
       training_lookback_sessions: 252
   ASELS:
     3d:
-      model: Ridge
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 61.7
-      mae_pct: 5.55
-      hit_mae_pct: 3.57
-      miss_mae_pct: 8.74
-      loss: 63.76
-      hits: 37
+      model: BayesianRidge
+      horizon: 24m
+      training_lookback_sessions: 504
+      hit_rate_pct: 55.0
+      mae_pct: 3.88
+      hit_mae_pct: 3.06
+      miss_mae_pct: 4.89
+      loss: 60.29
+      hits: 33
       total_evals: 60
     5d:
       model: Huber
-      horizon: 24m
-      training_lookback_sessions: 504
-      hit_rate_pct: 56.7
-      mae_pct: 6.74
-      hit_mae_pct: 3.45
-      miss_mae_pct: 11.04
-      loss: 74.39
-      hits: 34
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 70.0
+      mae_pct: 5.59
+      hit_mae_pct: 3.9
+      miss_mae_pct: 9.52
+      loss: 57.7
+      hits: 42
       total_evals: 60
     10d:
       model: Huber
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 45.0
-      mae_pct: 9.28
-      hit_mae_pct: 4.73
-      miss_mae_pct: 13.01
-      loss: 92.26
-      hits: 27
+      horizon: 24m
+      training_lookback_sessions: 504
+      hit_rate_pct: 60.0
+      mae_pct: 7.11
+      hit_mae_pct: 4.2
+      miss_mae_pct: 11.47
+      loss: 72.87
+      hits: 36
       total_evals: 60
     15d:
-      model: Huber
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 58.3
-      mae_pct: 10.23
-      hit_mae_pct: 5.18
-      miss_mae_pct: 17.31
-      loss: 90.12
-      hits: 35
+      model: BayesianRidge
+      horizon: 24m
+      training_lookback_sessions: 504
+      hit_rate_pct: 63.3
+      mae_pct: 7.52
+      hit_mae_pct: 4.69
+      miss_mae_pct: 12.41
+      loss: 72.38
+      hits: 38
       total_evals: 60
     30d:
       model: Ridge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 58.3
-      mae_pct: 10.42
-      hit_mae_pct: 4.86
-      miss_mae_pct: 18.2
-      loss: 92.04
-      hits: 35
+      horizon: 18m
+      training_lookback_sessions: 378
+      hit_rate_pct: 68.3
+      mae_pct: 6.94
+      hit_mae_pct: 4.36
+      miss_mae_pct: 12.52
+      loss: 67.32
+      hits: 41
       total_evals: 60
   ASTOR:
     3d:
