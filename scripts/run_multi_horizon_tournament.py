@@ -69,7 +69,7 @@ def run_tournament_for_symbol(
     sym = symbol.upper()
     logger.info(f"🏆 Running Multi-Horizon Tournament Arena for {sym}...")
 
-    df = extract_3pillar_time_series(db, sym, lookback_days=550)
+    df = extract_3pillar_time_series(db, sym, lookback_days=1100)
     if df.empty or len(df) < 80:
         logger.warning(f"Insufficient history for {sym}. Skipping tournament.")
         return {}
