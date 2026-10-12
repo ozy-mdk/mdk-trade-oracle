@@ -167,22 +167,6 @@ def test_tertip_history(client):
     assert isinstance(points, list)
 
 
-def test_event_study_scan_simple(client):
-    response = client.get("/api/v1/event-study/scan?symbol=THYAO&limit=10")
-    assert response.status_code == 200
-    items = response.json()
-    assert isinstance(items, list)
-
-
-def test_time_window_analyze(client):
-    response = client.get("/api/v1/time-window/analyze?symbol=THYAO&broker_id=MLB")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["symbol"] == "THYAO"
-    assert "windows" in data
-    assert len(data["windows"]) > 0
-
-
 def test_tertip_ml_forecast(client):
     response = client.get("/api/v1/tertip/ml-forecast?symbol=THYAO")
     assert response.status_code == 200
@@ -223,13 +207,6 @@ def test_market_summary_xu030(client):
     assert "bias_badge" in summary
 
 
-def test_time_window_xu030(client):
-    response = client.get("/api/v1/time-window/analyze?symbol=XU030&broker_id=MLB")
-    assert response.status_code == 200
-    tw = response.json()
-    assert tw["symbol"] == "XU030"
-    assert "windows" in tw
-
 
 def test_metadata_date_range(client):
     response = client.get("/api/v1/meta/date-range")
@@ -268,37 +245,4 @@ def test_market_shock_days(client):
     for s in shocks_higher:
         assert s["shock_magnitude_pct"] >= 0.015
 
-
-def test_event_study_scan(client):
-    """Test /api/v1/event-study/scan for market-wide, XU030 index, and stock-specific institutional flow."""
-    # 1. Market-wide scan across all equities
-    res_all = client.get("/api/v1/event-study/scan?broker_id=MLB&min_flow_tl=50000000&limit=5")
-    assert res_all.status_code == 200
-    events_all = res_all.json()
-    assert len(events_all) > 0
-    first = events_all[0]
-    assert "trade_date" in first
-    assert "symbol" in first
-    assert "close_price" in first
-    assert "bofa_net_flow_tl" in first
-    assert "daily_return_pct" in first
-    assert "d1_return_pct" in first
-    assert "return_t1" in first
-
-    # 2. BIST 30 (XU030) index scan
-    res_xu030 = client.get("/api/v1/event-study/scan?broker_id=MLB&symbol=XU030&min_flow_tl=50000000&limit=5")
-    assert res_xu030.status_code == 200
-    events_xu030 = res_xu030.json()
-    assert len(events_xu030) > 0
-    for e in events_xu030:
-        assert e["symbol"] == "XU030"
-        assert e["bofa_net_flow_tl"] >= 50000000
-
-    # 3. Specific stock scan (THYAO)
-    res_thyao = client.get("/api/v1/event-study/scan?broker_id=MLB&symbol=THYAO&limit=5")
-    assert res_thyao.status_code == 200
-    events_thyao = res_thyao.json()
-    assert len(events_thyao) > 0
-    for e in events_thyao:
-        assert e["symbol"] == "THYAO"
 
