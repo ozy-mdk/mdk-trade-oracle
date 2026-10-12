@@ -3,15 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchInstruments, fetchBrokers, fetchDateRange } from './api/client';
 import { CandleDashboard } from './components/CandleDashboard';
 import { TertipDashboard } from './components/TertipDashboard';
-import { EventStudyDashboard } from './components/EventStudyDashboard';
-import { TimeWindowTerminal } from './components/TimeWindowTerminal';
 import { OracleHubDashboard } from './components/OracleHubDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import { MultiHorizonDashboard } from './components/MultiHorizonDashboard';
 import {
   LineChart,
   Boxes,
-  Binary,
   Clock,
   Sparkles,
   ChevronDown,
@@ -22,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities' | 'multihorizon'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'oracle' | 'opportunities' | 'multihorizon'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -274,8 +271,6 @@ export const App: React.FC = () => {
             { id: 'oracle', label: 'Gold Predictive Hub', icon: Sparkles },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
             { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
-            { id: 'event', label: 'Event Study Scanner', icon: Binary },
-            { id: 'timewindow', label: 'Time Window Terminal', icon: Clock },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -313,22 +308,6 @@ export const App: React.FC = () => {
             symbol={selectedSymbol}
             tradeDate={selectedDate}
             onSelectSymbol={handleSelectSymbol}
-          />
-        )}
-
-        {activeTab === 'event' && (
-          <EventStudyDashboard
-            initialSymbol={selectedSymbol}
-            brokerId={selectedBroker}
-            onSelectSymbol={handleSelectSymbol}
-          />
-        )}
-
-        {activeTab === 'timewindow' && (
-          <TimeWindowTerminal
-            symbol={selectedSymbol}
-            brokerId={selectedBroker}
-            tradeDate={selectedDate}
           />
         )}
 

@@ -21,7 +21,7 @@ import {
 
 interface OpportunityActionsDashboardProps {
   onSelectSymbol: (symbol: string) => void;
-  onNavigateTab?: (tab: 'candles' | 'tertip' | 'event' | 'timewindow' | 'oracle' | 'opportunities') => void;
+  onNavigateTab?: (tab: 'candles' | 'tertip' | 'oracle' | 'opportunities' | 'multihorizon') => void;
   currentTradeDate?: string;
 }
 

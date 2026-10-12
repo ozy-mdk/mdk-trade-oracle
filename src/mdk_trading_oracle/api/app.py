@@ -4,8 +4,6 @@ Provides ultra-low latency REST endpoints and WebSocket streams for:
 - TradingView Lightweight Charts (1m, 5m, 1d OHLCV Candlesticks + Synthetic XU030)
 - Market Summary & 5 Core Trader KPIs (Turnover, Net Flow, Realized PnL, Open Lots, Bias Badge)
 - Institutional FIFO Tertip Inventory, Open Lots & Realized PnL Ledgers
-- Stock Movement & Forward Return Event Study Scanner (T+1 to T+10 horizons)
-- Custom Time-Window Analysis Terminal (W1-W5 Intraday Breakdown)
 - Live Gold Predictive Forecasts, Credible Intervals & Playbook Signals
 """
 
@@ -710,42 +708,6 @@ class TertipTimeseriesPoint(BaseModel):
 
 
 
-class EventStudyScanItem(BaseModel):
-    trade_date: str
-    symbol: str
-    close_price: float
-    daily_return_pct: float
-    d1_return_pct: Optional[float] = None
-    bofa_net_flow_tl: float
-    total_turnover_tl: float
-    return_t1: Optional[float] = None
-    return_t2: Optional[float] = None
-    return_t3: Optional[float] = None
-    return_t5: Optional[float] = None
-    return_t10: Optional[float] = None
-
-
-class TimeWindowItem(BaseModel):
-    window_name: str
-    window_order: int
-    start_time: str
-    end_time: str
-    buy_turnover_tl: float
-    sell_turnover_tl: float
-    net_flow_tl: float
-    total_turnover_tl: float
-    buy_volume: float
-    sell_volume: float
-    net_volume: float
-
-
-class TimeWindowAnalysisResponse(BaseModel):
-    symbol: str
-    broker_id: str
-    trade_date: str
-    windows: List[TimeWindowItem]
-    opening_auction_net_tl: Optional[float] = None
-    closing_auction_net_tl: Optional[float] = None
 
 
 

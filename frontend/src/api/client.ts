@@ -7,8 +7,6 @@ import {
   TertipPortfolioResponse,
   TertipLotItem,
   TertipHistoryPoint,
-  EventStudyScanItem,
-  TimeWindowAnalysisResponse,
   TertipHorizonsResponse,
   TertipTimeseriesPoint,
   ShockDayItem,
@@ -124,44 +122,6 @@ export async function fetchTertipTimeseries(
   return res.json();
 }
 
-export async function fetchEventStudyScan(params: {
-  brokerId?: string;
-  symbol?: string;
-  minFlowTl?: number;
-  maxFlowTl?: number;
-  minD1Return?: number;
-  maxD1Return?: number;
-  limit?: number;
-}): Promise<EventStudyScanItem[]> {
-  const query = new URLSearchParams();
-  if (params.brokerId) query.set('broker_id', params.brokerId);
-  if (params.symbol) query.set('symbol', params.symbol);
-  if (params.minFlowTl !== undefined && params.minFlowTl !== null)
-    query.set('min_flow_tl', params.minFlowTl.toString());
-  if (params.maxFlowTl !== undefined && params.maxFlowTl !== null)
-    query.set('max_flow_tl', params.maxFlowTl.toString());
-  if (params.minD1Return !== undefined && params.minD1Return !== null)
-    query.set('min_d1_return', params.minD1Return.toString());
-  if (params.maxD1Return !== undefined && params.maxD1Return !== null)
-    query.set('max_d1_return', params.maxD1Return.toString());
-  if (params.limit) query.set('limit', params.limit.toString());
-
-  const res = await fetch(`${BASE_URL}/api/v1/event-study/scan?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to scan event study');
-  return res.json();
-}
-
-export async function fetchTimeWindowAnalysis(
-  symbol: string,
-  brokerId: string = 'MLB',
-  tradeDate?: string
-): Promise<TimeWindowAnalysisResponse> {
-  let url = `${BASE_URL}/api/v1/time-window/analyze?symbol=${encodeURIComponent(symbol)}&broker_id=${encodeURIComponent(brokerId)}`;
-  if (tradeDate) url += `&trade_date=${tradeDate}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to analyze time windows');
-  return res.json();
-}
 
 export async function fetchShockDays(
   thresholdPct: number = 0.03,

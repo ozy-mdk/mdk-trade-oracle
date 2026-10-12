@@ -101,43 +101,6 @@ export interface TertipHistoryPoint {
   cumulative_realized_pnl_tl: number;
 }
 
-export interface EventStudyScanItem {
-  trade_date: string;
-  symbol: string;
-  close_price: number;
-  daily_return_pct: number;
-  d1_return_pct?: number | null;
-  bofa_net_flow_tl: number;
-  total_turnover_tl: number;
-  return_t1?: number | null;
-  return_t2?: number | null;
-  return_t3?: number | null;
-  return_t5?: number | null;
-  return_t10?: number | null;
-}
-
-export interface TimeWindowItem {
-  window_name: string;
-  window_order: number;
-  start_time: string;
-  end_time: string;
-  buy_turnover_tl: number;
-  sell_turnover_tl: number;
-  net_flow_tl: number;
-  total_turnover_tl: number;
-  buy_volume: number;
-  sell_volume: number;
-  net_volume: number;
-}
-
-export interface TimeWindowAnalysisResponse {
-  symbol: string;
-  broker_id: string;
-  trade_date: string;
-  windows: TimeWindowItem[];
-  opening_auction_net_tl?: number | null;
-  closing_auction_net_tl?: number | null;
-}
 
 
 export interface TertipDiagnostic {
