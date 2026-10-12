@@ -1,5 +1,4 @@
 import os
-import sys
 
 # Critical: Prevent OpenMP / BLAS thread contention across multiple processes on Apple Silicon
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -8,10 +7,12 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-import time
 import concurrent.futures
+import time
+
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.gold.tertip_multi_horizon import update_gold_tertip_multi_horizon_forecasts
+
 
 def process_symbol(sym: str):
     db = PostgresManager()

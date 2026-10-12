@@ -17,7 +17,6 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import numpy as np
-import pandas as pd
 from rich.console import Console
 from rich.table import Table
 

@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import urllib.request
-import yaml
 from pathlib import Path
+
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -77,7 +78,7 @@ def check_symbol(symbol: str, base_url: str = "http://localhost:8000", fresh: bo
     if all_in_sync:
         console.print(f"[bold green]✨ All models for {sym} are perfectly synchronized between Config, Backend API, and Frontend![/bold green]")
     else:
-        console.print(f"[bold yellow]⚠️ Note: Differences detected. Running with fresh=true should resolve cache differences.[/bold yellow]")
+        console.print("[bold yellow]⚠️ Note: Differences detected. Running with fresh=true should resolve cache differences.[/bold yellow]")
 
 
 def main():

@@ -13,7 +13,6 @@ import math
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field

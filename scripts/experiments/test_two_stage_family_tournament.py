@@ -2,7 +2,6 @@
 
 Covers:
 - T+1 (Next-Day)
-- Week-Start (Monday Gap)
 - Multi-Horizon Swings: 3D, 5D, 10D, 15D, 30D
 
 3 True Mathematical Families:
@@ -11,7 +10,7 @@ Covers:
 3. Robust M-Estimator: Huber
 
 User-Specified Horizon Importance Weights for Family Selection:
-10D (0.25) > 5D (0.20) > 3D (0.18) > 15D (0.14) > Next-Day T+1 (0.10) > 30D (0.08) > Week-Start (0.05)
+10D (0.26) > 5D (0.21) > 3D (0.19) > 15D (0.15) > Next-Day T+1 (0.11) > 30D (0.08)
 Total = 1.00 (100%)
 
 Stocks:

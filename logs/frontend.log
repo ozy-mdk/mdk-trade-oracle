@@ -9,3 +9,9 @@
   ➜  Network: http://192.168.178.55:5173/
 6:46:19 PM [vite] hmr update /src/components/WeekStartDashboard.tsx, /src/index.css
 6:47:22 PM [vite] Pre-transform error: Failed to load url /src/components/WeekStartDashboard.tsx (resolved id: /Users/ozkanyildirim/mdk-trade-oracle/frontend/src/components/WeekStartDashboard.tsx) in /Users/ozkanyildirim/mdk-trade-oracle/frontend/src/App.tsx. Does the file exist?
+6:48:32 PM [vite] hmr update /src/App.tsx, /src/index.css
+6:48:41 PM [vite] hmr update /src/App.tsx, /src/index.css
+6:48:49 PM [vite] hmr update /src/App.tsx, /src/index.css
+6:49:02 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/TimeWindowTerminal.tsx, /src/components/CandleDashboard.tsx, /src/components/EventStudyDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
+6:49:08 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/TimeWindowTerminal.tsx, /src/components/CandleDashboard.tsx, /src/components/EventStudyDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
+6:49:19 PM [vite] page reload src/types/api.ts
