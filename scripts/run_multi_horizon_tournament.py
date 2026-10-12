@@ -131,6 +131,7 @@ def run_tournament_for_symbol(
     swing_evals: dict[str, list[dict[str, Any]]] = {h: [] for h in HORIZONS}
 
     for h_key in HORIZONS:
+        logger.info(f"   ⏳ [{sym}] Evaluating horizon {h_key}...")
         for fam_name, models in FAMILIES.items():
             for model_name in models:
                 for f_mode in FEATURE_MODES:
@@ -239,6 +240,8 @@ def main() -> None:
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols")
     parser.add_argument("--all-bist30", action="store_true", help="Run tournament for all BIST 30 symbols")
     parser.add_argument("--eval-sessions", type=int, default=90, help="Evaluation sessions (e.g. 90 or 180)")
+    parser.add_argument("--workers", type=int, default=8, help="Number of parallel worker processes (default 8)")
+    parser.add_argument("--skip-completed", action="store_true", default=False, help="Skip symbols already crowned with feature_mode")
     parser.add_argument("--sync-gold", action="store_true", default=True, help="Sync forecasts to Gold layer")
     args = parser.parse_args()
 
@@ -263,14 +266,27 @@ def main() -> None:
     if "symbols" not in cfg:
         cfg["symbols"] = {}
 
+    if args.skip_completed:
+        completed_syms = {
+            s
+            for s, h_dict in cfg.get("symbols", {}).items()
+            if isinstance(h_dict, dict) and all(
+                isinstance(data, dict) and "feature_mode" in data for data in h_dict.values()
+            )
+        }
+        skipped = [s for s in target_symbols if s in completed_syms]
+        if skipped:
+            logger.info(f"⏭️ Skipping {len(skipped)} already crowned symbols with feature_mode: {skipped}")
+            target_symbols = [s for s in target_symbols if s not in completed_syms]
+
     import concurrent.futures
 
     logger.info(
         f"🚀 Running Multi-Horizon Tournament for {len(target_symbols)} equities "
-        f"({args.eval_sessions} sessions) across 4 parallel workers..."
+        f"({args.eval_sessions} sessions) across {args.workers} parallel workers..."
     )
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
         futures = {executor.submit(_worker_multi_horizon, (sym, args.eval_sessions)): sym for sym in target_symbols}
         for future in concurrent.futures.as_completed(futures):
             sym = futures[future]
@@ -278,21 +294,23 @@ def main() -> None:
                 sym_res, champs = future.result()
                 if champs:
                     cfg["symbols"][sym_res] = champs
-                    logger.info(f"✅ Completed Multi-Horizon Tournament for {sym_res}")
+                    # Incremental persistence so no progress is ever lost
+                    cfg["_metadata"]["updated_at"] = datetime.now().isoformat()
+                    cfg["_metadata"]["selection_metric"] = "two_stage_family_first_option1_recency_score"
+                    cfg["_metadata"]["recency_weights"] = {"0-30d": 0.50, "30-60d": 0.30, "60-90d": 0.20}
+                    cfg["_metadata"]["family_horizon_weights"] = {"10d": 0.35, "5d": 0.25, "3d": 0.20, "15d": 0.12, "30d": 0.08}
+                    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
+                    logger.info(f"💾 Saved crowned configuration incrementally for {sym_res}")
             except Exception as e:
                 logger.error(f"❌ Error during tournament for {sym}: {e}")
 
-    cfg["_metadata"]["updated_at"] = datetime.now().isoformat()
-    cfg["_metadata"]["selection_metric"] = "two_stage_family_first_option1_recency_score"
-    cfg["_metadata"]["recency_weights"] = {"0-30d": 0.50, "30-60d": 0.30, "60-90d": 0.20}
-    cfg["_metadata"]["family_horizon_weights"] = {"10d": 0.35, "5d": 0.25, "3d": 0.20, "15d": 0.12, "30d": 0.08}
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
-    logger.info(f"💾 Updated crowned configurations in {CONFIG_PATH}")
+    logger.info(f"🎉 All {len(target_symbols)} equities completed and updated in {CONFIG_PATH}")
 
     if args.sync_gold:
         logger.info("⚡ Synchronizing gold_tertip_multi_horizon_forecasts and backtests...")
-        update_gold_tertip_multi_horizon_forecasts(db, symbols=target_symbols)
+        all_active_syms = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC").to_pandas()["symbol"].tolist()
+        update_gold_tertip_multi_horizon_forecasts(db, symbols=all_active_syms)
         logger.info("✅ Gold layer synchronization complete.")
 
 

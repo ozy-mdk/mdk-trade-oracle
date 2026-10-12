@@ -3,7 +3,7 @@ _metadata:
     trading sessions
   calibrated_at: '2026-10-10'
   selection_metric: two_stage_family_first_option1_recency_score
-  updated_at: '2026-10-12T23:17:13.758281'
+  updated_at: '2026-10-13T01:23:30.662690'
   recency_weights:
     0-30d: 0.5
     30-60d: 0.3
@@ -17,85 +17,90 @@ _metadata:
 symbols:
   AEFES:
     3d:
-      model: Huber
+      model: BayesianRidge
       horizon: 24m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 504
-      hit_rate_pct: 57.8
-      opt1_score: 57.33
-      bucket_1_hit_rate: 60.0
-      bucket_2_hit_rate: 46.7
-      bucket_3_hit_rate: 66.7
-      mae_pct: 4.44
-      hit_mae_pct: 2.66
-      miss_mae_pct: 6.76
-      loss: 63.04
-      hits: 52
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    5d:
-      model: Huber
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 56.7
-      opt1_score: 54.33
-      bucket_1_hit_rate: 46.7
-      bucket_2_hit_rate: 63.3
-      bucket_3_hit_rate: 60.0
-      mae_pct: 6.1
-      hit_mae_pct: 3.85
-      miss_mae_pct: 8.84
-      loss: 71.16
-      hits: 51
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    10d:
-      model: Huber
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 55.6
-      opt1_score: 52.0
-      bucket_1_hit_rate: 36.7
-      bucket_2_hit_rate: 76.7
-      bucket_3_hit_rate: 53.3
-      mae_pct: 8.19
-      hit_mae_pct: 4.14
-      miss_mae_pct: 12.87
-      loss: 82.71
-      hits: 50
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    15d:
-      model: Huber
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 68.9
-      opt1_score: 62.67
-      bucket_1_hit_rate: 43.3
-      bucket_2_hit_rate: 83.3
-      bucket_3_hit_rate: 80.0
-      mae_pct: 6.96
-      hit_mae_pct: 4.11
-      miss_mae_pct: 12.24
-      loss: 69.8
-      hits: 62
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    30d:
-      model: Huber
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 63.3
+      hit_rate_pct: 62.2
       opt1_score: 63.33
-      bucket_1_hit_rate: 63.3
-      bucket_2_hit_rate: 63.3
-      bucket_3_hit_rate: 63.3
-      mae_pct: 8.47
-      hit_mae_pct: 5.05
-      miss_mae_pct: 14.12
-      loss: 78.09
-      hits: 57
+      bucket_1_hit_rate: 66.7
+      bucket_2_hit_rate: 60.0
+      bucket_3_hit_rate: 60.0
+      mae_pct: 3.08
+      hit_mae_pct: 2.61
+      miss_mae_pct: 3.84
+      loss: 49.9
+      hits: 56
       total_evals: 90
-      crowned_family: Robust M-Estimator
+      crowned_family: Regularized Linear
+    5d:
+      model: Ridge
+      horizon: 12m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 252
+      hit_rate_pct: 61.1
+      opt1_score: 60.67
+      bucket_1_hit_rate: 53.3
+      bucket_2_hit_rate: 80.0
+      bucket_3_hit_rate: 50.0
+      mae_pct: 6.77
+      hit_mae_pct: 4.41
+      miss_mae_pct: 10.4
+      loss: 69.79
+      hits: 55
+      total_evals: 90
+      crowned_family: Regularized Linear
+    10d:
+      model: BayesianRidge
+      horizon: 12m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 252
+      hit_rate_pct: 60.0
+      opt1_score: 57.33
+      bucket_1_hit_rate: 46.7
+      bucket_2_hit_rate: 73.3
+      bucket_3_hit_rate: 60.0
+      mae_pct: 7.59
+      hit_mae_pct: 4.16
+      miss_mae_pct: 12.09
+      loss: 77.63
+      hits: 54
+      total_evals: 90
+      crowned_family: Regularized Linear
+    15d:
+      model: Ridge
+      horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 252
+      hit_rate_pct: 70.0
+      opt1_score: 73.33
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 83.3
+      bucket_3_hit_rate: 50.0
+      mae_pct: 6.65
+      hit_mae_pct: 4.72
+      miss_mae_pct: 12.07
+      loss: 61.15
+      hits: 63
+      total_evals: 90
+      crowned_family: Regularized Linear
+    30d:
+      model: BayesianRidge
+      horizon: 3m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 63
+      hit_rate_pct: 70.0
+      opt1_score: 63.67
+      bucket_1_hit_rate: 53.3
+      bucket_2_hit_rate: 56.7
+      bucket_3_hit_rate: 100.0
+      mae_pct: 7.62
+      hit_mae_pct: 4.43
+      miss_mae_pct: 12.99
+      loss: 74.13
+      hits: 63
+      total_evals: 90
+      crowned_family: Regularized Linear
   AKBNK:
     3d:
       model: Ridge
@@ -333,164 +338,174 @@ symbols:
       crowned_family: Robust M-Estimator
   ASTOR:
     3d:
-      model: Huber
+      model: Ridge
       horizon: 12m
+      feature_mode: YTD_SUBSTITUTION
       training_lookback_sessions: 252
-      hit_rate_pct: 48.9
-      opt1_score: 51.33
-      bucket_1_hit_rate: 53.3
-      bucket_2_hit_rate: 60.0
-      bucket_3_hit_rate: 33.3
-      mae_pct: 9.46
-      hit_mae_pct: 5.02
-      miss_mae_pct: 14.15
-      loss: 89.0
-      hits: 44
+      hit_rate_pct: 55.6
+      opt1_score: 61.67
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 53.3
+      bucket_3_hit_rate: 36.7
+      mae_pct: 7.37
+      hit_mae_pct: 4.63
+      miss_mae_pct: 11.59
+      loss: 72.97
+      hits: 50
       total_evals: 90
-      crowned_family: Robust M-Estimator
+      crowned_family: Regularized Linear
     5d:
-      model: Huber
-      horizon: 3m
-      training_lookback_sessions: 63
+      model: BayesianRidge
+      horizon: 12m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 252
       hit_rate_pct: 60.0
-      opt1_score: 56.67
-      bucket_1_hit_rate: 46.7
-      bucket_2_hit_rate: 66.7
-      bucket_3_hit_rate: 66.7
-      mae_pct: 11.06
-      hit_mae_pct: 5.49
-      miss_mae_pct: 18.62
-      loss: 94.49
-      hits: 54
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    10d:
-      model: Huber
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 52.2
-      opt1_score: 49.0
-      bucket_1_hit_rate: 36.7
-      bucket_2_hit_rate: 66.7
-      bucket_3_hit_rate: 53.3
-      mae_pct: 13.56
-      hit_mae_pct: 7.9
-      miss_mae_pct: 19.61
-      loss: 105.26
-      hits: 47
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    15d:
-      model: Huber
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 61.1
-      opt1_score: 52.33
-      bucket_1_hit_rate: 23.3
-      bucket_2_hit_rate: 86.7
-      bucket_3_hit_rate: 73.3
-      mae_pct: 18.26
-      hit_mae_pct: 4.66
-      miss_mae_pct: 34.64
-      loss: 136.62
-      hits: 55
-      total_evals: 90
-      crowned_family: Robust M-Estimator
-    30d:
-      model: Huber
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 63.3
-      opt1_score: 63.33
+      opt1_score: 61.33
       bucket_1_hit_rate: 66.7
       bucket_2_hit_rate: 53.3
-      bucket_3_hit_rate: 70.0
-      mae_pct: 16.75
-      hit_mae_pct: 16.56
-      miss_mae_pct: 17.08
-      loss: 95.59
+      bucket_3_hit_rate: 60.0
+      mae_pct: 9.52
+      hit_mae_pct: 6.39
+      miss_mae_pct: 14.77
+      loss: 80.63
+      hits: 54
+      total_evals: 90
+      crowned_family: Regularized Linear
+    10d:
+      model: BayesianRidge
+      horizon: 12m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 252
+      hit_rate_pct: 63.3
+      opt1_score: 65.67
+      bucket_1_hit_rate: 73.3
+      bucket_2_hit_rate: 56.7
+      bucket_3_hit_rate: 60.0
+      mae_pct: 12.24
+      hit_mae_pct: 8.43
+      miss_mae_pct: 19.69
+      loss: 91.47
       hits: 57
       total_evals: 90
-      crowned_family: Robust M-Estimator
+      crowned_family: Regularized Linear
+    15d:
+      model: BayesianRidge
+      horizon: 3m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 63
+      hit_rate_pct: 62.2
+      opt1_score: 57.67
+      bucket_1_hit_rate: 46.7
+      bucket_2_hit_rate: 63.3
+      bucket_3_hit_rate: 76.7
+      mae_pct: 17.63
+      hit_mae_pct: 7.28
+      miss_mae_pct: 32.67
+      loss: 129.73
+      hits: 56
+      total_evals: 90
+      crowned_family: Regularized Linear
+    30d:
+      model: Ridge
+      horizon: 6m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 126
+      hit_rate_pct: 80.0
+      opt1_score: 80.67
+      bucket_1_hit_rate: 83.3
+      bucket_2_hit_rate: 76.7
+      bucket_3_hit_rate: 80.0
+      mae_pct: 14.73
+      hit_mae_pct: 14.84
+      miss_mae_pct: 14.26
+      loss: 69.66
+      hits: 72
+      total_evals: 90
+      crowned_family: Regularized Linear
   BIMAS:
     3d:
       model: LightGBM
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 60.0
-      opt1_score: 58.67
-      bucket_1_hit_rate: 56.7
-      bucket_2_hit_rate: 56.7
-      bucket_3_hit_rate: 66.7
-      mae_pct: 4.16
-      hit_mae_pct: 2.44
-      miss_mae_pct: 6.58
-      loss: 60.4
-      hits: 54
+      horizon: 24m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 504
+      hit_rate_pct: 56.7
+      opt1_score: 57.0
+      bucket_1_hit_rate: 53.3
+      bucket_2_hit_rate: 70.0
+      bucket_3_hit_rate: 46.7
+      mae_pct: 3.31
+      hit_mae_pct: 2.27
+      miss_mae_pct: 4.65
+      loss: 57.7
+      hits: 51
       total_evals: 90
       crowned_family: GBDT
     5d:
-      model: XGBoost
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 62.2
-      opt1_score: 61.0
-      bucket_1_hit_rate: 56.7
+      model: LightGBM
+      horizon: 24m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 504
+      hit_rate_pct: 64.4
+      opt1_score: 64.33
+      bucket_1_hit_rate: 63.3
       bucket_2_hit_rate: 66.7
       bucket_3_hit_rate: 63.3
-      mae_pct: 5.44
-      hit_mae_pct: 3.27
-      miss_mae_pct: 8.68
-      loss: 64.94
-      hits: 56
+      mae_pct: 4.11
+      hit_mae_pct: 2.69
+      miss_mae_pct: 6.56
+      loss: 55.81
+      hits: 58
       total_evals: 90
       crowned_family: GBDT
     10d:
       model: LightGBM
       horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
       training_lookback_sessions: 252
-      hit_rate_pct: 65.6
-      opt1_score: 67.0
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 66.7
-      bucket_3_hit_rate: 60.0
-      mae_pct: 6.5
-      hit_mae_pct: 5.05
-      miss_mae_pct: 9.35
-      loss: 62.2
-      hits: 59
+      hit_rate_pct: 64.4
+      opt1_score: 68.0
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 63.3
+      bucket_3_hit_rate: 53.3
+      mae_pct: 6.15
+      hit_mae_pct: 4.24
+      miss_mae_pct: 10.01
+      loss: 62.25
+      hits: 58
       total_evals: 90
       crowned_family: GBDT
     15d:
-      model: LightGBM
+      model: XGBoost
       horizon: 24m
+      feature_mode: YTD_SUBSTITUTION
       training_lookback_sessions: 504
-      hit_rate_pct: 66.7
-      opt1_score: 68.67
-      bucket_1_hit_rate: 73.3
-      bucket_2_hit_rate: 66.7
-      bucket_3_hit_rate: 60.0
-      mae_pct: 9.55
-      hit_mae_pct: 8.08
-      miss_mae_pct: 12.51
-      loss: 72.62
-      hits: 60
+      hit_rate_pct: 64.4
+      opt1_score: 69.0
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 73.3
+      bucket_3_hit_rate: 43.3
+      mae_pct: 8.07
+      hit_mae_pct: 6.48
+      miss_mae_pct: 11.15
+      loss: 68.31
+      hits: 58
       total_evals: 90
       crowned_family: GBDT
     30d:
       model: XGBoost
       horizon: 18m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 378
-      hit_rate_pct: 74.4
-      opt1_score: 80.0
+      hit_rate_pct: 75.6
+      opt1_score: 80.67
       bucket_1_hit_rate: 90.0
       bucket_2_hit_rate: 83.3
-      bucket_3_hit_rate: 50.0
-      mae_pct: 19.33
-      hit_mae_pct: 16.46
-      miss_mae_pct: 29.48
-      loss: 112.23
-      hits: 67
+      bucket_3_hit_rate: 53.3
+      mae_pct: 18.56
+      hit_mae_pct: 15.89
+      miss_mae_pct: 28.41
+      loss: 108.26
+      hits: 68
       total_evals: 90
       crowned_family: GBDT
   BRSAN:
@@ -580,81 +595,86 @@ symbols:
   EKGYO:
     3d:
       model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 52.2
-      opt1_score: 53.67
+      horizon: 6m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 126
+      hit_rate_pct: 55.6
+      opt1_score: 58.0
       bucket_1_hit_rate: 60.0
-      bucket_2_hit_rate: 43.3
-      bucket_3_hit_rate: 53.3
-      mae_pct: 5.35
-      hit_mae_pct: 2.94
-      miss_mae_pct: 8.14
-      loss: 69.68
-      hits: 47
+      bucket_2_hit_rate: 66.7
+      bucket_3_hit_rate: 40.0
+      mae_pct: 4.38
+      hit_mae_pct: 2.53
+      miss_mae_pct: 7.07
+      loss: 61.1
+      hits: 50
       total_evals: 90
       crowned_family: Regularized Linear
     5d:
       model: BayesianRidge
       horizon: 3m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 63
       hit_rate_pct: 67.8
-      opt1_score: 69.33
+      opt1_score: 68.67
       bucket_1_hit_rate: 73.3
-      bucket_2_hit_rate: 66.7
-      bucket_3_hit_rate: 63.3
-      mae_pct: 5.8
-      hit_mae_pct: 3.87
-      miss_mae_pct: 10.13
-      loss: 60.07
+      bucket_2_hit_rate: 60.0
+      bucket_3_hit_rate: 70.0
+      mae_pct: 5.9
+      hit_mae_pct: 3.92
+      miss_mae_pct: 10.2
+      loss: 60.98
       hits: 61
       total_evals: 90
       crowned_family: Regularized Linear
     10d:
       model: BayesianRidge
       horizon: 3m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 63
-      hit_rate_pct: 84.4
-      opt1_score: 83.33
+      hit_rate_pct: 82.2
+      opt1_score: 82.33
       bucket_1_hit_rate: 83.3
-      bucket_2_hit_rate: 76.7
-      bucket_3_hit_rate: 93.3
-      mae_pct: 4.99
-      hit_mae_pct: 4.23
-      miss_mae_pct: 8.9
-      loss: 42.67
-      hits: 76
+      bucket_2_hit_rate: 80.0
+      bucket_3_hit_rate: 83.3
+      mae_pct: 5.01
+      hit_mae_pct: 4.2
+      miss_mae_pct: 8.95
+      loss: 43.65
+      hits: 74
       total_evals: 90
       crowned_family: Regularized Linear
     15d:
       model: BayesianRidge
       horizon: 3m
+      feature_mode: YTD_SUBSTITUTION
       training_lookback_sessions: 63
-      hit_rate_pct: 80.0
-      opt1_score: 81.33
-      bucket_1_hit_rate: 83.3
-      bucket_2_hit_rate: 83.3
-      bucket_3_hit_rate: 73.3
-      mae_pct: 5.38
-      hit_mae_pct: 3.55
-      miss_mae_pct: 13.12
-      loss: 55.53
-      hits: 72
+      hit_rate_pct: 86.7
+      opt1_score: 84.67
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 96.7
+      bucket_3_hit_rate: 86.7
+      mae_pct: 4.36
+      hit_mae_pct: 3.24
+      miss_mae_pct: 11.16
+      loss: 45.35
+      hits: 78
       total_evals: 90
       crowned_family: Regularized Linear
     30d:
       model: BayesianRidge
-      horizon: 24m
-      training_lookback_sessions: 504
+      horizon: 18m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 378
       hit_rate_pct: 73.3
-      opt1_score: 71.67
-      bucket_1_hit_rate: 73.3
-      bucket_2_hit_rate: 56.7
-      bucket_3_hit_rate: 90.0
-      mae_pct: 7.84
-      hit_mae_pct: 5.01
-      miss_mae_pct: 14.75
-      loss: 70.95
+      opt1_score: 72.67
+      bucket_1_hit_rate: 80.0
+      bucket_2_hit_rate: 46.7
+      bucket_3_hit_rate: 93.3
+      mae_pct: 8.78
+      hit_mae_pct: 5.27
+      miss_mae_pct: 17.55
+      loss: 77.76
       hits: 66
       total_evals: 90
       crowned_family: Regularized Linear
@@ -662,245 +682,260 @@ symbols:
     3d:
       model: Ridge
       horizon: 12m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 252
-      hit_rate_pct: 68.9
-      opt1_score: 69.33
-      bucket_1_hit_rate: 66.7
-      bucket_2_hit_rate: 80.0
-      bucket_3_hit_rate: 60.0
-      mae_pct: 4.1
-      hit_mae_pct: 3.03
-      miss_mae_pct: 6.54
-      loss: 49.94
-      hits: 62
+      hit_rate_pct: 71.1
+      opt1_score: 72.67
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 70.0
+      bucket_3_hit_rate: 66.7
+      mae_pct: 3.86
+      hit_mae_pct: 2.77
+      miss_mae_pct: 6.72
+      loss: 47.3
+      hits: 64
       total_evals: 90
       crowned_family: Regularized Linear
     5d:
       model: Ridge
       horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
       training_lookback_sessions: 252
-      hit_rate_pct: 60.0
-      opt1_score: 63.33
-      bucket_1_hit_rate: 66.7
-      bucket_2_hit_rate: 73.3
-      bucket_3_hit_rate: 40.0
-      mae_pct: 5.1
-      hit_mae_pct: 3.24
-      miss_mae_pct: 8.38
-      loss: 60.31
-      hits: 54
+      hit_rate_pct: 62.2
+      opt1_score: 66.33
+      bucket_1_hit_rate: 70.0
+      bucket_2_hit_rate: 80.0
+      bucket_3_hit_rate: 36.7
+      mae_pct: 4.8
+      hit_mae_pct: 2.82
+      miss_mae_pct: 8.78
+      loss: 58.04
+      hits: 56
       total_evals: 90
       crowned_family: Regularized Linear
     10d:
       model: Ridge
-      horizon: 12m
-      training_lookback_sessions: 252
-      hit_rate_pct: 52.2
-      opt1_score: 58.67
-      bucket_1_hit_rate: 66.7
-      bucket_2_hit_rate: 73.3
-      bucket_3_hit_rate: 16.7
-      mae_pct: 7.73
-      hit_mae_pct: 5.16
-      miss_mae_pct: 11.4
-      loss: 74.84
-      hits: 47
+      horizon: 3m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 63
+      hit_rate_pct: 63.3
+      opt1_score: 65.67
+      bucket_1_hit_rate: 70.0
+      bucket_2_hit_rate: 66.7
+      bucket_3_hit_rate: 53.3
+      mae_pct: 5.76
+      hit_mae_pct: 3.59
+      miss_mae_pct: 9.59
+      loss: 63.77
+      hits: 57
       total_evals: 90
       crowned_family: Regularized Linear
     15d:
       model: BayesianRidge
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 44.4
-      opt1_score: 53.33
-      bucket_1_hit_rate: 80.0
-      bucket_2_hit_rate: 26.7
-      bucket_3_hit_rate: 26.7
-      mae_pct: 7.76
-      hit_mae_pct: 3.19
-      miss_mae_pct: 12.41
-      loss: 83.85
-      hits: 40
+      horizon: 6m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 126
+      hit_rate_pct: 42.2
+      opt1_score: 55.0
+      bucket_1_hit_rate: 86.7
+      bucket_2_hit_rate: 36.7
+      bucket_3_hit_rate: 3.3
+      mae_pct: 9.09
+      hit_mae_pct: 3.93
+      miss_mae_pct: 14.43
+      loss: 89.12
+      hits: 38
       total_evals: 90
       crowned_family: Regularized Linear
     30d:
-      model: BayesianRidge
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 44.4
-      opt1_score: 51.67
-      bucket_1_hit_rate: 66.7
-      bucket_2_hit_rate: 50.0
-      bucket_3_hit_rate: 16.7
-      mae_pct: 10.23
-      hit_mae_pct: 5.66
-      miss_mae_pct: 14.87
-      loss: 92.49
-      hits: 40
+      model: Ridge
+      horizon: 3m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 63
+      hit_rate_pct: 77.8
+      opt1_score: 73.0
+      bucket_1_hit_rate: 63.3
+      bucket_2_hit_rate: 73.3
+      bucket_3_hit_rate: 96.7
+      mae_pct: 6.09
+      hit_mae_pct: 4.02
+      miss_mae_pct: 11.8
+      loss: 60.08
+      hits: 70
       total_evals: 90
       crowned_family: Regularized Linear
   EREGL:
     3d:
       model: BayesianRidge
       horizon: 24m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 504
-      hit_rate_pct: 62.2
-      opt1_score: 64.33
+      hit_rate_pct: 63.3
+      opt1_score: 65.33
       bucket_1_hit_rate: 73.3
-      bucket_2_hit_rate: 50.0
+      bucket_2_hit_rate: 53.3
       bucket_3_hit_rate: 63.3
-      mae_pct: 3.03
-      hit_mae_pct: 3.3
-      miss_mae_pct: 2.54
-      loss: 45.49
-      hits: 56
+      mae_pct: 3.02
+      hit_mae_pct: 3.29
+      miss_mae_pct: 2.52
+      loss: 44.47
+      hits: 57
       total_evals: 90
       crowned_family: Regularized Linear
     5d:
-      model: BayesianRidge
+      model: Ridge
       horizon: 24m
+      feature_mode: YTD_SUBSTITUTION
       training_lookback_sessions: 504
-      hit_rate_pct: 53.3
-      opt1_score: 58.33
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 53.3
-      bucket_3_hit_rate: 36.7
-      mae_pct: 3.78
-      hit_mae_pct: 4.27
-      miss_mae_pct: 3.09
-      loss: 53.89
-      hits: 48
+      hit_rate_pct: 65.6
+      opt1_score: 65.0
+      bucket_1_hit_rate: 63.3
+      bucket_2_hit_rate: 66.7
+      bucket_3_hit_rate: 66.7
+      mae_pct: 5.93
+      hit_mae_pct: 3.72
+      miss_mae_pct: 10.01
+      loss: 63.86
+      hits: 59
       total_evals: 90
       crowned_family: Regularized Linear
     10d:
       model: Ridge
       horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
       training_lookback_sessions: 252
-      hit_rate_pct: 56.7
-      opt1_score: 58.33
+      hit_rate_pct: 67.8
+      opt1_score: 68.67
       bucket_1_hit_rate: 66.7
-      bucket_2_hit_rate: 43.3
-      bucket_3_hit_rate: 60.0
-      mae_pct: 8.89
-      hit_mae_pct: 5.01
-      miss_mae_pct: 13.99
-      loss: 83.18
-      hits: 51
+      bucket_2_hit_rate: 80.0
+      bucket_3_hit_rate: 56.7
+      mae_pct: 7.05
+      hit_mae_pct: 5.28
+      miss_mae_pct: 11.01
+      loss: 63.66
+      hits: 61
       total_evals: 90
       crowned_family: Regularized Linear
     15d:
       model: Ridge
       horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
       training_lookback_sessions: 252
-      hit_rate_pct: 63.3
-      opt1_score: 60.67
-      bucket_1_hit_rate: 56.7
-      bucket_2_hit_rate: 56.7
-      bucket_3_hit_rate: 76.7
-      mae_pct: 9.12
-      hit_mae_pct: 4.73
-      miss_mae_pct: 15.78
-      loss: 83.86
-      hits: 57
+      hit_rate_pct: 65.6
+      opt1_score: 66.67
+      bucket_1_hit_rate: 63.3
+      bucket_2_hit_rate: 83.3
+      bucket_3_hit_rate: 50.0
+      mae_pct: 8.22
+      hit_mae_pct: 5.48
+      miss_mae_pct: 13.82
+      loss: 72.87
+      hits: 59
       total_evals: 90
       crowned_family: Regularized Linear
     30d:
-      model: Ridge
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 37.8
-      opt1_score: 32.33
-      bucket_1_hit_rate: 13.3
-      bucket_2_hit_rate: 56.7
-      bucket_3_hit_rate: 43.3
-      mae_pct: 14.79
-      hit_mae_pct: 5.33
-      miss_mae_pct: 19.82
-      loss: 120.19
-      hits: 34
+      model: BayesianRidge
+      horizon: 18m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 378
+      hit_rate_pct: 70.0
+      opt1_score: 75.67
+      bucket_1_hit_rate: 86.7
+      bucket_2_hit_rate: 76.7
+      bucket_3_hit_rate: 46.7
+      mae_pct: 6.25
+      hit_mae_pct: 3.5
+      miss_mae_pct: 14.47
+      loss: 64.7
+      hits: 63
       total_evals: 90
       crowned_family: Regularized Linear
   FROTO:
     3d:
-      model: LightGBM
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 56.7
-      opt1_score: 61.0
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 60.0
-      bucket_3_hit_rate: 40.0
-      mae_pct: 3.07
-      hit_mae_pct: 1.81
-      miss_mae_pct: 4.97
-      loss: 53.99
-      hits: 51
-      total_evals: 90
-      crowned_family: GBDT
-    5d:
-      model: XGBoost
+      model: BayesianRidge
       horizon: 3m
+      feature_mode: YTD_SUBSTITUTION
       training_lookback_sessions: 63
-      hit_rate_pct: 61.1
-      opt1_score: 63.67
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 60.0
-      bucket_3_hit_rate: 53.3
-      mae_pct: 3.97
-      hit_mae_pct: 2.54
-      miss_mae_pct: 6.42
-      loss: 55.51
-      hits: 55
-      total_evals: 90
-      crowned_family: GBDT
-    10d:
-      model: LightGBM
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 54.4
-      opt1_score: 57.0
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 33.3
-      bucket_3_hit_rate: 60.0
-      mae_pct: 4.38
-      hit_mae_pct: 2.51
-      miss_mae_pct: 6.83
-      loss: 62.83
-      hits: 49
-      total_evals: 90
-      crowned_family: GBDT
-    15d:
-      model: LightGBM
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 61.1
-      opt1_score: 65.0
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 73.3
-      bucket_3_hit_rate: 40.0
-      mae_pct: 5.41
-      hit_mae_pct: 2.96
-      miss_mae_pct: 10.02
-      loss: 62.75
-      hits: 55
-      total_evals: 90
-      crowned_family: GBDT
-    30d:
-      model: LightGBM
-      horizon: 3m
-      training_lookback_sessions: 63
-      hit_rate_pct: 50.0
-      opt1_score: 60.33
+      hit_rate_pct: 67.8
+      opt1_score: 70.67
       bucket_1_hit_rate: 83.3
-      bucket_2_hit_rate: 53.3
-      bucket_3_hit_rate: 13.3
-      mae_pct: 8.29
-      hit_mae_pct: 3.78
-      miss_mae_pct: 14.55
-      loss: 82.02
-      hits: 45
+      bucket_2_hit_rate: 50.0
+      bucket_3_hit_rate: 70.0
+      mae_pct: 3.26
+      hit_mae_pct: 2.37
+      miss_mae_pct: 5.43
+      loss: 45.14
+      hits: 61
       total_evals: 90
-      crowned_family: GBDT
+      crowned_family: Regularized Linear
+    5d:
+      model: BayesianRidge
+      horizon: 3m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 63
+      hit_rate_pct: 66.7
+      opt1_score: 68.67
+      bucket_1_hit_rate: 70.0
+      bucket_2_hit_rate: 76.7
+      bucket_3_hit_rate: 53.3
+      mae_pct: 3.73
+      hit_mae_pct: 2.33
+      miss_mae_pct: 6.89
+      loss: 50.15
+      hits: 60
+      total_evals: 90
+      crowned_family: Regularized Linear
+    10d:
+      model: Ridge
+      horizon: 12m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 252
+      hit_rate_pct: 68.9
+      opt1_score: 69.0
+      bucket_1_hit_rate: 66.7
+      bucket_2_hit_rate: 76.7
+      bucket_3_hit_rate: 63.3
+      mae_pct: 5.83
+      hit_mae_pct: 3.9
+      miss_mae_pct: 10.0
+      loss: 60.63
+      hits: 62
+      total_evals: 90
+      crowned_family: Regularized Linear
+    15d:
+      model: BayesianRidge
+      horizon: 12m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 252
+      hit_rate_pct: 62.2
+      opt1_score: 66.33
+      bucket_1_hit_rate: 70.0
+      bucket_2_hit_rate: 80.0
+      bucket_3_hit_rate: 36.7
+      mae_pct: 5.66
+      hit_mae_pct: 3.37
+      miss_mae_pct: 10.13
+      loss: 62.54
+      hits: 56
+      total_evals: 90
+      crowned_family: Regularized Linear
+    30d:
+      model: Ridge
+      horizon: 12m
+      feature_mode: FIFO_PLUS_YTD
+      training_lookback_sessions: 252
+      hit_rate_pct: 53.3
+      opt1_score: 55.33
+      bucket_1_hit_rate: 63.3
+      bucket_2_hit_rate: 43.3
+      bucket_3_hit_rate: 53.3
+      mae_pct: 9.21
+      hit_mae_pct: 3.62
+      miss_mae_pct: 15.67
+      loss: 89.18
+      hits: 48
+      total_evals: 90
+      crowned_family: Regularized Linear
   GARAN:
     3d:
       model: BayesianRidge
@@ -990,82 +1025,87 @@ symbols:
   GUBRF:
     3d:
       model: XGBoost
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 55.6
-      opt1_score: 59.0
-      bucket_1_hit_rate: 66.7
+      horizon: 24m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 504
+      hit_rate_pct: 57.8
+      opt1_score: 58.33
+      bucket_1_hit_rate: 60.0
       bucket_2_hit_rate: 56.7
-      bucket_3_hit_rate: 43.3
-      mae_pct: 5.33
-      hit_mae_pct: 3.49
-      miss_mae_pct: 7.99
-      loss: 64.4
-      hits: 50
+      bucket_3_hit_rate: 56.7
+      mae_pct: 5.4
+      hit_mae_pct: 3.68
+      miss_mae_pct: 7.87
+      loss: 64.46
+      hits: 52
       total_evals: 90
       crowned_family: GBDT
     5d:
-      model: XGBoost
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 58.9
-      opt1_score: 62.33
-      bucket_1_hit_rate: 70.0
-      bucket_2_hit_rate: 60.0
-      bucket_3_hit_rate: 46.7
-      mae_pct: 6.84
-      hit_mae_pct: 4.28
-      miss_mae_pct: 11.1
-      loss: 69.67
-      hits: 53
+      model: LightGBM
+      horizon: 24m
+      feature_mode: YTD_SUBSTITUTION
+      training_lookback_sessions: 504
+      hit_rate_pct: 64.4
+      opt1_score: 67.0
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 53.3
+      bucket_3_hit_rate: 63.3
+      mae_pct: 6.93
+      hit_mae_pct: 4.57
+      miss_mae_pct: 11.76
+      loss: 66.79
+      hits: 58
       total_evals: 90
       crowned_family: GBDT
     10d:
       model: LightGBM
-      horizon: 18m
-      training_lookback_sessions: 378
-      hit_rate_pct: 74.4
-      opt1_score: 80.0
-      bucket_1_hit_rate: 86.7
-      bucket_2_hit_rate: 93.3
-      bucket_3_hit_rate: 43.3
-      mae_pct: 5.75
-      hit_mae_pct: 4.09
-      miss_mae_pct: 12.71
-      loss: 55.15
-      hits: 67
+      horizon: 12m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 252
+      hit_rate_pct: 80.0
+      opt1_score: 80.67
+      bucket_1_hit_rate: 76.7
+      bucket_2_hit_rate: 96.7
+      bucket_3_hit_rate: 66.7
+      mae_pct: 5.48
+      hit_mae_pct: 3.88
+      miss_mae_pct: 12.81
+      loss: 53.75
+      hits: 72
       total_evals: 90
       crowned_family: GBDT
     15d:
       model: XGBoost
-      horizon: 6m
-      training_lookback_sessions: 126
-      hit_rate_pct: 72.2
-      opt1_score: 76.0
-      bucket_1_hit_rate: 83.3
-      bucket_2_hit_rate: 76.7
-      bucket_3_hit_rate: 56.7
-      mae_pct: 8.49
-      hit_mae_pct: 6.04
-      miss_mae_pct: 16.07
-      loss: 70.61
-      hits: 65
+      horizon: 12m
+      feature_mode: FIFO_CORE
+      training_lookback_sessions: 252
+      hit_rate_pct: 77.8
+      opt1_score: 81.0
+      bucket_1_hit_rate: 86.7
+      bucket_2_hit_rate: 83.3
+      bucket_3_hit_rate: 63.3
+      mae_pct: 7.82
+      hit_mae_pct: 5.72
+      miss_mae_pct: 16.93
+      loss: 66.72
+      hits: 70
       total_evals: 90
       crowned_family: GBDT
     30d:
-      model: LightGBM
+      model: XGBoost
       horizon: 12m
+      feature_mode: FIFO_CORE
       training_lookback_sessions: 252
-      hit_rate_pct: 67.8
-      opt1_score: 70.67
+      hit_rate_pct: 66.7
+      opt1_score: 70.0
       bucket_1_hit_rate: 83.3
       bucket_2_hit_rate: 50.0
-      bucket_3_hit_rate: 70.0
-      mae_pct: 12.66
-      hit_mae_pct: 8.68
-      miss_mae_pct: 21.28
-      loss: 93.48
-      hits: 61
+      bucket_3_hit_rate: 66.7
+      mae_pct: 12.46
+      hit_mae_pct: 8.6
+      miss_mae_pct: 20.93
+      loss: 92.27
+      hits: 60
       total_evals: 90
       crowned_family: GBDT
   HALKB:

@@ -1665,3 +1665,30 @@ WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/ter
 INFO:     Started server process [15055]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+INFO:     127.0.0.1:52466 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52474 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52467 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52476 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52478 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52468 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52470 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52469 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52482 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52480 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52484 - "GET /api/v1/tertip/ytd-pnl?symbol=THYAO&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52486 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52465 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52488 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52492 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52491 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52495 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52496 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52502 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=3d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/run_multi_horizon_tournament.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [15055]
+INFO:     Started server process [17571]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

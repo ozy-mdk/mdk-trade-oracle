@@ -23,9 +23,17 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import warnings
 from datetime import datetime, timezone
 from typing import Any
+
+# Prevent OpenMP / BLAS thread contention and deadlocks on macOS
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import lightgbm as lgb
 import numpy as np
@@ -254,17 +262,20 @@ def _build_model(model_name: str, seed: int = 42) -> Any:
         return Ridge(alpha=2.0, random_state=seed)
     elif model_name == "XGBoost":
         return XGBRegressor(
-            n_estimators=60,
+            n_estimators=50,
             max_depth=3,
             learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=seed,
             n_jobs=1,
+            nthread=1,
+            tree_method="hist",
+            max_bin=64,
         )
     elif model_name == "LightGBM":
         return lgb.LGBMRegressor(
-            n_estimators=60,
+            n_estimators=50,
             max_depth=3,
             learning_rate=0.05,
             num_leaves=11,
@@ -273,6 +284,7 @@ def _build_model(model_name: str, seed: int = 42) -> Any:
             random_state=seed,
             n_jobs=1,
             verbosity=-1,
+            max_bin=64,
         )
     elif model_name == "BayesianRidge":
         return BayesianRidge()
@@ -282,9 +294,9 @@ def _build_model(model_name: str, seed: int = 42) -> Any:
         return Ridge(alpha=2.0, random_state=seed)
 
 
-def _compute_sample_weights(y: pd.Series, deadband: float = 0.50) -> np.ndarray:
+def _compute_sample_weights(y: np.ndarray | pd.Series, deadband: float = 0.50) -> np.ndarray:
     """Piecewise volatility calibration sample weights adapted for multi-day returns."""
-    abs_y = y.abs()
+    abs_y = np.abs(y)
     return np.where(
         abs_y <= deadband,
         0.50,
@@ -341,6 +353,18 @@ def evaluate_horizon_walk_forward(
             "ledger": [],
         }
 
+    # Pre-extract contiguous NumPy arrays for C-speed model fitting
+    X_matrix = np.ascontiguousarray(df[f_cols].to_numpy(dtype=np.float64))
+    y_vector = np.ascontiguousarray(df[fwd_avg_ret_col].to_numpy(dtype=np.float64))
+    close_vector = np.ascontiguousarray(df["close_price"].to_numpy(dtype=np.float64))
+    fwd_price_vector = np.ascontiguousarray(df[fwd_avg_price_col].to_numpy(dtype=np.float64))
+    atr_vector = (
+        np.ascontiguousarray(df["atr_14d_pct"].to_numpy(dtype=np.float64))
+        if "atr_14d_pct" in df.columns
+        else np.full(n_total, 2.2, dtype=np.float64)
+    )
+    trade_dates = [str(d)[:10] for d in df["trade_date"].tolist()]
+
     # Identify candidate evaluation sessions over requested retrospective window
     target_start_eval_idx = max(0, max_eval_idx - n_eval_sessions + 1)
     candidate_indices = list(range(target_start_eval_idx, max_eval_idx + 1))
@@ -356,23 +380,20 @@ def evaluate_horizon_walk_forward(
     actual_sessions_list = []
 
     for t_idx in candidate_indices:
-        t_row = df.iloc[t_idx]
-        trade_date = str(t_row["trade_date"])[:10]
-        current_price = float(t_row["close_price"])
+        trade_date = trade_dates[t_idx]
+        current_price = float(close_vector[t_idx])
 
-        target_start_date = str(df.iloc[t_idx + 1]["trade_date"])[:10]
-        target_end_date = str(df.iloc[t_idx + n_days]["trade_date"])[:10]
+        target_start_date = trade_dates[t_idx + 1] if t_idx + 1 < n_total else trade_date
+        target_end_date = trade_dates[t_idx + n_days] if t_idx + n_days < n_total else trade_date
 
-        actual_avg_price = float(df.iloc[t_idx][fwd_avg_price_col])
-        actual_ret = float(df.iloc[t_idx][fwd_avg_ret_col])
+        actual_avg_price = float(fwd_price_vector[t_idx])
+        actual_ret = float(y_vector[t_idx])
 
         # Strict zero-lookahead: completed historical rows prior to session t_idx
         train_end_idx = t_idx - n_days
         available_history_count = train_end_idx + 1
 
         # ── 3-MONTH HARD STOP THRESHOLD ───────────────────────────────────────
-        # If stock has fewer than 3 market months (63 sessions) completed,
-        # HARD STOP: do not predict retrospectively as of that threshold.
         if available_history_count < MIN_TRAIN_SESSIONS:
             sessions_skipped_insufficient += 1
             continue
@@ -388,17 +409,19 @@ def evaluate_horizon_walk_forward(
         actual_sessions_list.append(actual_sessions_used)
 
         train_start_idx = train_end_idx - actual_sessions_used + 1
-        df_train_sub = df.iloc[train_start_idx : train_end_idx + 1].dropna(
-            subset=f_cols + [fwd_avg_ret_col]
-        )
+        X_train = X_matrix[train_start_idx : train_end_idx + 1]
+        y_train_raw = y_vector[train_start_idx : train_end_idx + 1]
 
-        if len(df_train_sub) < 15:
+        valid_mask = ~np.isnan(y_train_raw)
+        if not np.all(valid_mask):
+            X_train = X_train[valid_mask]
+            y_train_raw = y_train_raw[valid_mask]
+
+        if len(y_train_raw) < 15:
             continue
 
-        X_train = df_train_sub[f_cols]
-        y_train_raw = df_train_sub[fwd_avg_ret_col]
         # Zero-drift target demeaning: prevents trailing bull/bear momentum bias from skewing swing forecasts
-        y_train = y_train_raw - y_train_raw.mean()
+        y_train = y_train_raw - float(np.mean(y_train_raw))
         weights = _compute_sample_weights(y_train_raw, deadband=deadband)
 
         model = _build_model(model_name)
@@ -409,9 +432,9 @@ def evaluate_horizon_walk_forward(
                 else:
                     model.fit(X_train, y_train)
 
-            X_test = pd.DataFrame([t_row[f_cols]])
+            X_test = X_matrix[t_idx : t_idx + 1]
             raw_pred_ret = float(model.predict(X_test)[0])
-            t_atr = float(t_row.get("atr_14d_pct", 2.2))
+            t_atr = float(atr_vector[t_idx]) if not np.isnan(atr_vector[t_idx]) else 2.2
             horizon_atr = t_atr * math.sqrt(n_days / 2.0)
             pred_ret = calibrate_expected_return(raw_pred_ret, horizon_atr, deadband=deadband)
         except Exception as e:
