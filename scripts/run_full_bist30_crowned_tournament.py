@@ -46,9 +46,11 @@ import yaml
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
+    FEATURE_MODES,
     attach_prophet_rolling_features,
     clear_forecast_cache,
     extract_3pillar_time_series,
+    get_feature_cols_for_mode,
     run_30d_walk_forward_arena,
 )
 
@@ -207,56 +209,60 @@ def run_tournament_for_symbol(
     best_key: tuple[float, float, float, float] | None = None
     best_ledger: list[dict[str, Any]] = []
 
-    for h_name, h_lb in HORIZONS.items():
-        ledger, summary, _ = run_30d_walk_forward_arena(
-            df,
-            n_sessions=n_sessions,
-            train_lookback_sessions=h_lb,
-        )
+    for f_mode in FEATURE_MODES:
+        f_cols = get_feature_cols_for_mode(f_mode)
+        for h_name, h_lb in HORIZONS.items():
+            ledger, summary, _ = run_30d_walk_forward_arena(
+                df,
+                n_sessions=n_sessions,
+                feature_cols=f_cols,
+                train_lookback_sessions=h_lb,
+            )
 
-        for model_name in CANDIDATE_MODELS:
-            prefix = "bayesian_ridge" if model_name == "BayesianRidge" else model_name.lower()
+            for model_name in CANDIDATE_MODELS:
+                prefix = "bayesian_ridge" if model_name == "BayesianRidge" else model_name.lower()
 
-            hits = summary.get(f"{prefix}_dir_hits", 0)
-            hit_rate = summary.get(f"{prefix}_30d_hit_rate_pct", 0.0)
-            mae = summary.get(f"{prefix}_mae_pct", 0.0)
-            hit_mae = summary.get(f"{prefix}_hit_mae_pct", 0.0)
-            miss_mae = summary.get(f"{prefix}_miss_mae_pct", 0.0)
-            sig_hits = summary.get(f"{prefix}_30d_sig_move_hits", 0)
-            sig_total = summary.get(f"{prefix}_30d_sig_move_total", 0)
-            sig_rate = summary.get(f"{prefix}_30d_sig_move_hit_rate_pct", 0.0)
-            big_hits = summary.get(f"{prefix}_30d_big_move_hits", 0)
-            big_total = summary.get(f"{prefix}_30d_big_move_total", 0)
-            big_rate = summary.get(f"{prefix}_30d_big_move_hit_rate_pct", 0.0)
-            quiet_fa = summary.get(f"{prefix}_30d_quiet_false_alarms", 0)
-            loss = summary.get(f"{prefix}_tournament_loss_30d", 999.0)
+                hits = summary.get(f"{prefix}_dir_hits", 0)
+                hit_rate = summary.get(f"{prefix}_30d_hit_rate_pct", 0.0)
+                mae = summary.get(f"{prefix}_mae_pct", 0.0)
+                hit_mae = summary.get(f"{prefix}_hit_mae_pct", 0.0)
+                miss_mae = summary.get(f"{prefix}_miss_mae_pct", 0.0)
+                sig_hits = summary.get(f"{prefix}_30d_sig_move_hits", 0)
+                sig_total = summary.get(f"{prefix}_30d_sig_move_total", 0)
+                sig_rate = summary.get(f"{prefix}_30d_sig_move_hit_rate_pct", 0.0)
+                big_hits = summary.get(f"{prefix}_30d_big_move_hits", 0)
+                big_total = summary.get(f"{prefix}_30d_big_move_total", 0)
+                big_rate = summary.get(f"{prefix}_30d_big_move_hit_rate_pct", 0.0)
+                quiet_fa = summary.get(f"{prefix}_30d_quiet_false_alarms", 0)
+                loss = summary.get(f"{prefix}_tournament_loss_30d", 999.0)
 
-            cfg = {
-                "symbol": sym,
-                "model": model_name,
-                "horizon": h_name,
-                "training_lookback_sessions": h_lb,
-                "recent_30d_hits": int(hits),
-                "recent_30d_hit_rate_pct": float(round(hit_rate, 1)),
-                "recent_30d_mae_pct": float(round(mae, 2)),
-                "recent_30d_hit_mae_pct": float(round(hit_mae, 2)),
-                "recent_30d_miss_mae_pct": float(round(miss_mae, 2)),
-                "recent_30d_sig_move_hits": int(sig_hits),
-                "recent_30d_sig_move_total": int(sig_total),
-                "recent_30d_sig_move_hit_rate_pct": float(round(sig_rate, 1)),
-                "recent_30d_quiet_false_alarms": int(quiet_fa),
-                "recent_30d_big_move_hits": int(big_hits),
-                "recent_30d_big_move_total": int(big_total),
-                "recent_30d_big_move_hit_rate_pct": float(round(big_rate, 1)),
-                "recent_30d_penalty_loss": float(round(loss, 2)),
-            }
+                cfg = {
+                    "symbol": sym,
+                    "model": model_name,
+                    "horizon": h_name,
+                    "feature_mode": f_mode,
+                    "training_lookback_sessions": h_lb,
+                    "recent_30d_hits": int(hits),
+                    "recent_30d_hit_rate_pct": float(round(hit_rate, 1)),
+                    "recent_30d_mae_pct": float(round(mae, 2)),
+                    "recent_30d_hit_mae_pct": float(round(hit_mae, 2)),
+                    "recent_30d_miss_mae_pct": float(round(miss_mae, 2)),
+                    "recent_30d_sig_move_hits": int(sig_hits),
+                    "recent_30d_sig_move_total": int(sig_total),
+                    "recent_30d_sig_move_hit_rate_pct": float(round(sig_rate, 1)),
+                    "recent_30d_quiet_false_alarms": int(quiet_fa),
+                    "recent_30d_big_move_hits": int(big_hits),
+                    "recent_30d_big_move_total": int(big_total),
+                    "recent_30d_big_move_hit_rate_pct": float(round(big_rate, 1)),
+                    "recent_30d_penalty_loss": float(round(loss, 2)),
+                }
 
-            # Minimization tuple: (Composite Loss, -Sig Move Hit %, -Overall Hit %, MAE)
-            key = (loss, -sig_rate, -hit_rate, mae)
-            if best_key is None or key < best_key:
-                best_key = key
-                best_config = cfg
-                best_ledger = ledger
+                # Minimization tuple: (Composite Loss, -Sig Move Hit %, -Overall Hit %, MAE)
+                key = (loss, -sig_rate, -hit_rate, mae)
+                if best_key is None or key < best_key:
+                    best_key = key
+                    best_config = cfg
+                    best_ledger = ledger
 
     if best_config:
         best_config["ledger"] = best_ledger
@@ -320,7 +326,7 @@ def main() -> None:
                 old_rate = old_meta.get("recent_30d_hit_rate_pct", 0.0)
                 old_mae = old_meta.get("recent_30d_mae_pct", 0.0)
 
-                new_model = f"{res['model']} ({res['horizon']})"
+                new_model = f"{res['model']} ({res['horizon']}/{res.get('feature_mode', 'FIFO_CORE')})"
                 new_hits = res["recent_30d_hits"]
                 new_rate = res["recent_30d_hit_rate_pct"]
                 new_mae = res["recent_30d_mae_pct"]
@@ -366,7 +372,14 @@ def main() -> None:
         logger.info("Dry-run requested. Skipped updating YAML and PostgreSQL.")
         return
 
-    # Update YAML configuration
+    # Ensure feature_mode column exists in gold_tertip_daily_forecasts
+    db.execute("ALTER TABLE gold_tertip_daily_forecasts ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';")
+
+    # Update YAML configuration (merging with old_config if running a subset)
+    merged_symbols = dict(old_config)
+    for sym, meta in new_results.items():
+        merged_symbols[sym] = {k: v for k, v in meta.items() if k not in ("symbol", "ledger")}
+
     updated_config = {
         "_metadata": {
             "description": "Crowned Tertip Confluence models and training lookback horizons selected via 3-Criteria Tournament Arena",
@@ -374,7 +387,7 @@ def main() -> None:
             "eval_window": f"{args.sessions}d_walk_forward_multi_horizon",
             "selection_metric": "3_criteria_tournament_loss",
         },
-        "symbols": {sym: {k: v for k, v in meta.items() if k not in ("symbol", "ledger")} for sym, meta in new_results.items()},
+        "symbols": merged_symbols,
     }
 
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -403,7 +416,8 @@ def main() -> None:
             training_lookback_sessions = %(training_lookback_sessions)s,
             champion_dir_hits = %(champion_dir_hits)s,
             champion_dir_hit_rate_pct = %(champion_dir_hit_rate_pct)s,
-            champion_mae_pct = %(champion_mae_pct)s
+            champion_mae_pct = %(champion_mae_pct)s,
+            feature_mode = %(feature_mode)s
         WHERE symbol = %(symbol)s AND as_of_date = %(as_of_date)s;
         """
         for sym, meta in new_results.items():
@@ -416,6 +430,7 @@ def main() -> None:
                 "champion_dir_hits": meta["recent_30d_hits"],
                 "champion_dir_hit_rate_pct": meta["recent_30d_hit_rate_pct"],
                 "champion_mae_pct": meta["recent_30d_mae_pct"],
+                "feature_mode": meta.get("feature_mode", "FIFO_CORE"),
             })
         logger.info(f"Synchronized {len(new_results)} equities in gold_tertip_daily_forecasts for as_of_date {max_date}.")
 

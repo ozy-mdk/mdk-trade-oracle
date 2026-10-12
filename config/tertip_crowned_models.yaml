@@ -1,7 +1,7 @@
 _metadata:
   description: Crowned Tertip Confluence models and training lookback horizons selected
     via 3-Criteria Tournament Arena
-  calibration_date: '2026-10-11'
+  calibration_date: '2026-10-12'
   eval_window: 60d_walk_forward_multi_horizon
   selection_metric: 3_criteria_tournament_loss
 symbols:
@@ -40,39 +40,41 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 54.8
     recent_30d_penalty_loss: 197.62
   ASELS:
-    model: Huber
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 40
-    recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 4.14
-    recent_30d_hit_mae_pct: 2.98
-    recent_30d_miss_mae_pct: 6.48
-    recent_30d_sig_move_hits: 24
-    recent_30d_sig_move_total: 39
-    recent_30d_sig_move_hit_rate_pct: 61.5
-    recent_30d_quiet_false_alarms: 9
-    recent_30d_big_move_hits: 13
-    recent_30d_big_move_total: 21
-    recent_30d_big_move_hit_rate_pct: 61.9
-    recent_30d_penalty_loss: 153.53
-  AKBNK:
-    model: LightGBM
+    model: XGBoost
     horizon: 18m
+    feature_mode: YTD_SUBSTITUTION
     training_lookback_sessions: 378
-    recent_30d_hits: 34
-    recent_30d_hit_rate_pct: 56.7
-    recent_30d_mae_pct: 2.67
-    recent_30d_hit_mae_pct: 1.78
-    recent_30d_miss_mae_pct: 3.84
-    recent_30d_sig_move_hits: 18
-    recent_30d_sig_move_total: 29
-    recent_30d_sig_move_hit_rate_pct: 62.1
-    recent_30d_quiet_false_alarms: 14
+    recent_30d_hits: 41
+    recent_30d_hit_rate_pct: 68.3
+    recent_30d_mae_pct: 3.45
+    recent_30d_hit_mae_pct: 2.53
+    recent_30d_miss_mae_pct: 5.43
+    recent_30d_sig_move_hits: 29
+    recent_30d_sig_move_total: 39
+    recent_30d_sig_move_hit_rate_pct: 74.4
+    recent_30d_quiet_false_alarms: 9
+    recent_30d_big_move_hits: 10
+    recent_30d_big_move_total: 21
+    recent_30d_big_move_hit_rate_pct: 47.6
+    recent_30d_penalty_loss: 145.1
+  AKBNK:
+    model: BayesianRidge
+    horizon: 12m
+    feature_mode: FIFO_CORE
+    training_lookback_sessions: 252
+    recent_30d_hits: 36
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 2.48
+    recent_30d_hit_mae_pct: 1.33
+    recent_30d_miss_mae_pct: 4.21
+    recent_30d_sig_move_hits: 17
+    recent_30d_sig_move_total: 28
+    recent_30d_sig_move_hit_rate_pct: 60.7
+    recent_30d_quiet_false_alarms: 9
     recent_30d_big_move_hits: 8
     recent_30d_big_move_total: 19
     recent_30d_big_move_hit_rate_pct: 42.1
-    recent_30d_penalty_loss: 174.53
+    recent_30d_penalty_loss: 163.61
   BIMAS:
     model: LightGBM
     horizon: 3m
@@ -161,20 +163,21 @@ symbols:
   ISCTR:
     model: XGBoost
     horizon: 12m
+    feature_mode: YTD_SUBSTITUTION
     training_lookback_sessions: 252
-    recent_30d_hits: 31
-    recent_30d_hit_rate_pct: 51.7
-    recent_30d_mae_pct: 3.09
-    recent_30d_hit_mae_pct: 2.01
-    recent_30d_miss_mae_pct: 4.24
-    recent_30d_sig_move_hits: 18
+    recent_30d_hits: 39
+    recent_30d_hit_rate_pct: 65.0
+    recent_30d_mae_pct: 2.65
+    recent_30d_hit_mae_pct: 1.83
+    recent_30d_miss_mae_pct: 4.18
+    recent_30d_sig_move_hits: 21
     recent_30d_sig_move_total: 33
-    recent_30d_sig_move_hit_rate_pct: 54.5
-    recent_30d_quiet_false_alarms: 9
-    recent_30d_big_move_hits: 4
+    recent_30d_sig_move_hit_rate_pct: 63.6
+    recent_30d_quiet_false_alarms: 11
+    recent_30d_big_move_hits: 8
     recent_30d_big_move_total: 17
-    recent_30d_big_move_hit_rate_pct: 23.5
-    recent_30d_penalty_loss: 196.16
+    recent_30d_big_move_hit_rate_pct: 47.1
+    recent_30d_penalty_loss: 148.63
   GUBRF:
     model: LightGBM
     horizon: 3m
@@ -193,22 +196,23 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 53.1
     recent_30d_penalty_loss: 160.22
   GARAN:
-    model: LightGBM
-    horizon: 18m
-    training_lookback_sessions: 378
-    recent_30d_hits: 32
-    recent_30d_hit_rate_pct: 53.3
-    recent_30d_mae_pct: 2.42
-    recent_30d_hit_mae_pct: 1.21
-    recent_30d_miss_mae_pct: 3.79
-    recent_30d_sig_move_hits: 16
-    recent_30d_sig_move_total: 32
-    recent_30d_sig_move_hit_rate_pct: 50.0
-    recent_30d_quiet_false_alarms: 9
-    recent_30d_big_move_hits: 5
+    model: Huber
+    horizon: 3m
+    feature_mode: YTD_SUBSTITUTION
+    training_lookback_sessions: 63
+    recent_30d_hits: 45
+    recent_30d_hit_rate_pct: 75.0
+    recent_30d_mae_pct: 3.81
+    recent_30d_hit_mae_pct: 2.8
+    recent_30d_miss_mae_pct: 6.85
+    recent_30d_sig_move_hits: 20
+    recent_30d_sig_move_total: 31
+    recent_30d_sig_move_hit_rate_pct: 64.5
+    recent_30d_quiet_false_alarms: 15
+    recent_30d_big_move_hits: 9
     recent_30d_big_move_total: 14
-    recent_30d_big_move_hit_rate_pct: 35.7
-    recent_30d_penalty_loss: 175.03
+    recent_30d_big_move_hit_rate_pct: 64.3
+    recent_30d_penalty_loss: 146.78
   MGROS:
     model: LightGBM
     horizon: 12m
@@ -448,22 +452,23 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 63.2
     recent_30d_penalty_loss: 176.32
   TUPRS:
-    model: XGBoost
-    horizon: 6m
-    training_lookback_sessions: 126
-    recent_30d_hits: 40
-    recent_30d_hit_rate_pct: 66.7
-    recent_30d_mae_pct: 3.73
-    recent_30d_hit_mae_pct: 2.28
-    recent_30d_miss_mae_pct: 6.63
+    model: LightGBM
+    horizon: 3m
+    feature_mode: FIFO_PLUS_YTD
+    training_lookback_sessions: 63
+    recent_30d_hits: 36
+    recent_30d_hit_rate_pct: 60.0
+    recent_30d_mae_pct: 3.72
+    recent_30d_hit_mae_pct: 2.35
+    recent_30d_miss_mae_pct: 5.77
     recent_30d_sig_move_hits: 24
     recent_30d_sig_move_total: 39
     recent_30d_sig_move_hit_rate_pct: 61.5
-    recent_30d_quiet_false_alarms: 8
-    recent_30d_big_move_hits: 11
+    recent_30d_quiet_false_alarms: 7
+    recent_30d_big_move_hits: 13
     recent_30d_big_move_total: 24
-    recent_30d_big_move_hit_rate_pct: 45.8
-    recent_30d_penalty_loss: 163.75
+    recent_30d_big_move_hit_rate_pct: 54.2
+    recent_30d_penalty_loss: 170.68
   VAKBN:
     model: LightGBM
     horizon: 6m
@@ -482,19 +487,20 @@ symbols:
     recent_30d_big_move_hit_rate_pct: 65.2
     recent_30d_penalty_loss: 172.12
   YKBNK:
-    model: XGBoost
+    model: BayesianRidge
     horizon: 18m
+    feature_mode: YTD_SUBSTITUTION
     training_lookback_sessions: 378
-    recent_30d_hits: 39
-    recent_30d_hit_rate_pct: 65.0
-    recent_30d_mae_pct: 2.7
-    recent_30d_hit_mae_pct: 1.96
-    recent_30d_miss_mae_pct: 4.06
-    recent_30d_sig_move_hits: 21
-    recent_30d_sig_move_total: 31
-    recent_30d_sig_move_hit_rate_pct: 67.7
-    recent_30d_quiet_false_alarms: 15
-    recent_30d_big_move_hits: 11
-    recent_30d_big_move_total: 21
-    recent_30d_big_move_hit_rate_pct: 52.4
-    recent_30d_penalty_loss: 151.71
+    recent_30d_hits: 40
+    recent_30d_hit_rate_pct: 66.7
+    recent_30d_mae_pct: 2.55
+    recent_30d_hit_mae_pct: 1.85
+    recent_30d_miss_mae_pct: 3.94
+    recent_30d_sig_move_hits: 19
+    recent_30d_sig_move_total: 30
+    recent_30d_sig_move_hit_rate_pct: 63.3
+    recent_30d_quiet_false_alarms: 10
+    recent_30d_big_move_hits: 6
+    recent_30d_big_move_total: 20
+    recent_30d_big_move_hit_rate_pct: 30.0
+    recent_30d_penalty_loss: 151.7

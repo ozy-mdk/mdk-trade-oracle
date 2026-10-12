@@ -23,12 +23,12 @@ from xgboost import XGBRegressor
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
-    FEATURE_COLS,
     _check_hit,
     attach_prophet_rolling_features,
     calibrate_expected_return,
     clear_forecast_cache,
     extract_3pillar_time_series,
+    get_feature_cols_for_mode,
 )
 
 logger = logging.getLogger("mdk_oracle.data.gold.tertip_forecasts")
@@ -73,9 +73,12 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         crowned_horizon VARCHAR(16) DEFAULT '12m',
         actual_training_sessions INTEGER DEFAULT 252,
         data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
+        feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, as_of_date)
     );
+
+    ALTER TABLE gold_tertip_daily_forecasts ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';
 
     CREATE TABLE IF NOT EXISTS gold_tertip_walk_forward_backtests (
         symbol VARCHAR(16) NOT NULL,
@@ -128,13 +131,15 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         price_low, price_high, stance, conviction, playbook,
         ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
         prophet_target_price, prophet_expected_return_pct,
-        training_lookback_sessions, crowned_horizon, actual_training_sessions, data_sufficiency_status, calculated_at
+        training_lookback_sessions, crowned_horizon, actual_training_sessions, data_sufficiency_status,
+        feature_mode, calculated_at
     ) VALUES (
         %(symbol)s, %(as_of_date)s, %(current_price)s, %(target_price)s, %(expected_return_pct)s,
         %(price_low)s, %(price_high)s, %(stance)s, %(conviction)s, %(playbook)s,
         %(ml_champion_type)s, %(champion_dir_hits)s, %(champion_dir_hit_rate_pct)s, %(champion_mae_pct)s,
         %(prophet_target_price)s, %(prophet_expected_return_pct)s,
-        %(training_lookback_sessions)s, %(crowned_horizon)s, %(actual_training_sessions)s, %(data_sufficiency_status)s, CURRENT_TIMESTAMP
+        %(training_lookback_sessions)s, %(crowned_horizon)s, %(actual_training_sessions)s, %(data_sufficiency_status)s,
+        %(feature_mode)s, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, as_of_date) DO UPDATE SET
         current_price = EXCLUDED.current_price,
         target_price = EXCLUDED.target_price,
@@ -154,6 +159,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         crowned_horizon = EXCLUDED.crowned_horizon,
         actual_training_sessions = EXCLUDED.actual_training_sessions,
         data_sufficiency_status = EXCLUDED.data_sufficiency_status,
+        feature_mode = EXCLUDED.feature_mode,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -225,6 +231,8 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         meta = symbols_map[sym]
         model_name = meta.get("model", "XGBoost")
         h_name = meta.get("horizon", "3m")
+        f_mode = meta.get("feature_mode", "FIFO_CORE")
+        f_cols = get_feature_cols_for_mode(f_mode)
         train_lb = int(meta.get("training_lookback_sessions", 63))
 
         # Extract recent data
@@ -239,21 +247,21 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         latest_price = float(latest_row["close_price"])
 
         # Target: 1-session forward return
-        tr_full = df.iloc[-train_lb:].dropna(subset=FEATURE_COLS).copy()
+        tr_full = df.iloc[-train_lb:].dropna(subset=f_cols).copy()
         y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
-        X_tr_full = tr_full[FEATURE_COLS].iloc[:-1]
+        X_tr_full = tr_full[f_cols].iloc[:-1]
         y_tr_full = y_tr_full.iloc[:-1]
 
         if len(X_tr_full) < 63:
             # Check if overall df has enough data
-            valid_rows = df.dropna(subset=FEATURE_COLS)
+            valid_rows = df.dropna(subset=f_cols)
             if len(valid_rows) < 63:
                 logger.warning(f"Constituent {sym} has only {len(valid_rows)} valid training rows (< 63). Hard stopping.")
                 continue
             # Adapt to available history
             tr_full = valid_rows.iloc[-train_lb:].copy()
             y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
-            X_tr_full = tr_full[FEATURE_COLS].iloc[:-1]
+            X_tr_full = tr_full[f_cols].iloc[:-1]
             y_tr_full = y_tr_full.iloc[:-1]
 
         actual_train_sessions = len(X_tr_full)
@@ -282,7 +290,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             model = Ridge(alpha=2.0, random_state=42)
             model.fit(X_tr_full, y_tr_full, sample_weight=sample_weights)
 
-        raw_pred_ret = float(model.predict(pd.DataFrame([latest_row[FEATURE_COLS]]))[0])
+        raw_pred_ret = float(model.predict(pd.DataFrame([latest_row[f_cols]]))[0])
         raw_pred_ret = max(-10.0, min(10.0, raw_pred_ret))
         latest_atr = float(latest_row.get("atr_14d_pct", 2.5))
         pred_ret = calibrate_expected_return(raw_pred_ret, latest_atr, deadband=DEADBAND_PCT)
@@ -342,6 +350,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             "crowned_horizon": h_name,
             "actual_training_sessions": actual_train_sessions,
             "data_sufficiency_status": data_sufficiency_status,
+            "feature_mode": f_mode,
         })
 
         # Check if the latest completed session T has realized ground truth to append to walk_forward_backtests
@@ -351,7 +360,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             realized_ret = (latest_price - p_close) / p_close * 100.0
 
             # Predict on session T-1 for session T
-            x_prev = prev_session_row[FEATURE_COLS]
+            x_prev = prev_session_row[f_cols]
             raw_prev_ret = float(model.predict(pd.DataFrame([x_prev]))[0])
             raw_prev_ret = max(-10.0, min(10.0, raw_prev_ret))
             prev_atr = float(prev_session_row.get("atr_14d_pct", 2.5))

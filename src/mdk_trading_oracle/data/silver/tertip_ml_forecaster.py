@@ -106,6 +106,47 @@ FEATURE_COLS = [
     "feat_kamu_profitable_tertip_share",
 ]
 
+# Zero-Leakage Year-to-Date (YTD) PnL & Cumulative Flow Feature Suite
+YTD_FEATURE_COLS = [
+    "feat_mlb_ytd_pnl_share_20d_to",
+    "feat_big5_ytd_pnl_share_20d_to",
+    "feat_kamu_ytd_pnl_share_20d_to",
+    "feat_inst_ytd_pnl_divergence",
+    "feat_mlb_ytd_flow_share_20d_to",
+]
+
+# Overlapping FIFO Cost Basis & Daily Realized PnL Features
+ALL_FIFO_COST_PNL_COLS = [
+    "feat_mlb_cost_spread_pct",
+    "feat_big5_cost_spread_pct",
+    "feat_kamu_cost_spread_pct",
+    "feat_mlb_pnl_share_today",
+    "feat_big5_pnl_share_today",
+    "feat_kamu_pnl_share_today",
+    "feat_mlb_profitable_tertip_share",
+    "feat_big5_profitable_tertip_share",
+    "feat_kamu_profitable_tertip_share",
+]
+
+# Standard Feature Modes benchmarked in walk-forward tournaments
+FEATURE_MODES = ["FIFO_CORE", "FIFO_PLUS_YTD", "YTD_SUBSTITUTION"]
+
+
+def get_feature_cols_for_mode(mode: str = "FIFO_CORE") -> list[str]:
+    """Return the exact feature column list for the requested feature mode.
+    
+    1. FIFO_CORE: Standard 39 microstructure features with point-in-time FIFO.
+    2. FIFO_PLUS_YTD: Full 39 FIFO suite + 5 normalized zero-leakage YTD PnL metrics.
+    3. YTD_SUBSTITUTION: Replaces noisy short-term FIFO cost/PnL with macro YTD PnL.
+    """
+    m = (mode or "FIFO_CORE").upper().strip()
+    if m == "FIFO_PLUS_YTD":
+        return list(FEATURE_COLS) + [c for c in YTD_FEATURE_COLS if c not in FEATURE_COLS]
+    elif m == "YTD_SUBSTITUTION":
+        base = [c for c in FEATURE_COLS if c not in ALL_FIFO_COST_PNL_COLS]
+        return base + YTD_FEATURE_COLS
+    return list(FEATURE_COLS)
+
 # Strict 12-Month Historical Training Lookback (252 BIST Trading Sessions)
 TRAIN_LOOKBACK_SESSIONS = 252
 
@@ -536,6 +577,30 @@ def extract_3pillar_time_series(
     else:
         vol_atr = joined["feat_ret_today_pct"].rolling(14, min_periods=5).std() * 1.25
         joined["atr_14d_pct"] = vol_atr.clip(0.5, 15.0).fillna(2.2)
+
+    # 8h. Zero-Leakage (T-1 Close) Year-to-Date (YTD) PnL & Cumulative Flow Features
+    trade_dt = pd.to_datetime(joined["trade_date"])
+    cal_year = trade_dt.dt.year
+
+    mlb_ytd_pnl = joined.groupby(cal_year)["mlb_daily_pnl_tl"].cumsum()
+    big5_ytd_pnl = joined.groupby(cal_year)["big5_daily_pnl_tl"].cumsum()
+    kamu_ytd_pnl = joined.groupby(cal_year)["kamu_daily_pnl_tl"].cumsum()
+    mlb_ytd_flow = joined.groupby(cal_year)["mlb_flow"].cumsum()
+
+    # Normalization anchor: rolling 20d median total turnover as of T-1 Close
+    median_tt_prev = tt_today.shift(1).rolling(20, min_periods=5).median().replace(0, np.nan)
+
+    # Shift by 1 session: Strictly information verified and known as of T-1 Close
+    mlb_ytd_pnl_prev = mlb_ytd_pnl.shift(1)
+    big5_ytd_pnl_prev = big5_ytd_pnl.shift(1)
+    kamu_ytd_pnl_prev = kamu_ytd_pnl.shift(1)
+    mlb_ytd_flow_prev = mlb_ytd_flow.shift(1)
+
+    joined["feat_mlb_ytd_pnl_share_20d_to"] = (mlb_ytd_pnl_prev / median_tt_prev * 100.0).fillna(0.0).clip(-500.0, 500.0)
+    joined["feat_big5_ytd_pnl_share_20d_to"] = (big5_ytd_pnl_prev / median_tt_prev * 100.0).fillna(0.0).clip(-500.0, 500.0)
+    joined["feat_kamu_ytd_pnl_share_20d_to"] = (kamu_ytd_pnl_prev / median_tt_prev * 100.0).fillna(0.0).clip(-500.0, 500.0)
+    joined["feat_inst_ytd_pnl_divergence"] = (joined["feat_mlb_ytd_pnl_share_20d_to"] - joined["feat_big5_ytd_pnl_share_20d_to"]).clip(-500.0, 500.0)
+    joined["feat_mlb_ytd_flow_share_20d_to"] = (mlb_ytd_flow_prev / median_tt_prev * 100.0).fillna(0.0).clip(-500.0, 500.0)
 
     return joined
 
@@ -1571,7 +1636,8 @@ def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> d
         try:
             query = """
             SELECT ml_champion_type, crowned_horizon, training_lookback_sessions,
-                   champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct
+                   champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                   COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
             FROM gold_tertip_daily_forecasts
             WHERE symbol = %(symbol)s
             ORDER BY as_of_date DESC, calculated_at DESC
@@ -1586,6 +1652,7 @@ def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> d
                     "champion_dir_hits": int(row[3]) if row[3] is not None else None,
                     "champion_dir_hit_rate_pct": float(row[4]) if row[4] is not None else None,
                     "champion_mae_pct": float(row[5]) if row[5] is not None else None,
+                    "feature_mode": str(row[6] or "FIFO_CORE"),
                     "source": "database",
                 }
         except Exception as e:
@@ -1604,6 +1671,7 @@ def get_calibrated_model_selection(db: PostgresManager | None, symbol: str) -> d
                 return {
                     "ml_champion_type": str(m_info.get("model", "Ridge")),
                     "crowned_horizon": str(m_info.get("horizon", "12m")),
+                    "feature_mode": str(m_info.get("feature_mode", "FIFO_CORE")),
                     "training_lookback_sessions": int(m_info.get("training_lookback_sessions", 252)),
                     "champion_dir_hits": m_info.get("recent_30d_hits"),
                     "champion_dir_hit_rate_pct": m_info.get("recent_30d_hit_rate_pct"),
@@ -1635,7 +1703,8 @@ def _get_precomputed_forecast_from_db(
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
                        prophet_target_price, prophet_expected_return_pct,
                        calculated_at, training_lookback_sessions, crowned_horizon,
-                       actual_training_sessions, data_sufficiency_status
+                       actual_training_sessions, data_sufficiency_status,
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s AND as_of_date = %s
                 ORDER BY calculated_at DESC
@@ -1648,7 +1717,8 @@ def _get_precomputed_forecast_from_db(
                        ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
                        prophet_target_price, prophet_expected_return_pct,
                        calculated_at, training_lookback_sessions, crowned_horizon,
-                       actual_training_sessions, data_sufficiency_status
+                       actual_training_sessions, data_sufficiency_status,
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s
                 ORDER BY as_of_date DESC, calculated_at DESC
@@ -1774,6 +1844,7 @@ def _get_precomputed_forecast_from_db(
             "champion_label": f"Crowned Champion ({champ_model})",
             "ml_champion_type": champ_model,
             "crowned_horizon": crowned_horizon,
+            "feature_mode": str(f_row[21] if len(f_row) > 21 and f_row[21] is not None else "FIFO_CORE"),
             "training_lookback_sessions": train_lb,
             "actual_training_sessions": act_train_sess,
             "actual_training_months": act_train_months,
@@ -2072,6 +2143,7 @@ def get_tertip_ml_forecast(
     # Multi-Horizon Tournament or Static Horizon Selection
     crowned_horizon = "12m"
     horizon_comparison: dict[str, Any] = {}
+    calibrated: dict[str, Any] | None = None
 
     if lb_mode == "auto":
         candidate_horizons = {
@@ -2180,6 +2252,8 @@ def get_tertip_ml_forecast(
             crowned_horizon = calibrated["crowned_horizon"]
             if m_type == "auto" and "ml_champion_type" in calibrated:
                 m_type = calibrated["ml_champion_type"]
+            if feature_cols is None and "feature_mode" in calibrated:
+                active_features = get_feature_cols_for_mode(calibrated["feature_mode"])
         else:
             train_lookback_sessions = 252
             crowned_horizon = "12m"
@@ -2195,6 +2269,7 @@ def get_tertip_ml_forecast(
 
     tournament["crowned_horizon"] = crowned_horizon
     tournament["training_lookback_sessions"] = train_lookback_sessions
+    tournament["feature_mode"] = calibrated.get("feature_mode", "FIFO_CORE") if calibrated else "FIFO_CORE"
     if calibrated and "ml_champion_type" in calibrated:
         tournament["ml_champion_type"] = calibrated["ml_champion_type"]
         tournament["champion_label"] = f"Crowned Champion ({calibrated['ml_champion_type']})"
