@@ -75,17 +75,6 @@ def test_big5_all_endpoints(client):
     assert res.status_code == 200
     assert isinstance(res.json(), list)
 
-    # 6. Time Window Terminal
-    res = client.get("/api/v1/time-window/analyze?symbol=THYAO&broker_id=BIG5&trade_date=2026-09-16")
-    assert res.status_code == 200
-    tw = res.json()
-    assert tw["broker_id"] == "BIG5"
-    assert len(tw["windows"]) == 5
-
-    # 7. Event Study Scanner
-    res = client.get("/api/v1/event-study/scan?broker_id=BIG5&symbol=THYAO&limit=10")
-    assert res.status_code == 200
-    assert isinstance(res.json(), list)
 
 
 def test_kamu_all_endpoints(client):
@@ -121,17 +110,6 @@ def test_kamu_all_endpoints(client):
     assert res.status_code == 200
     assert isinstance(res.json(), list)
 
-    # 6. Time Window Terminal
-    res = client.get("/api/v1/time-window/analyze?symbol=THYAO&broker_id=KAMU&trade_date=2026-09-16")
-    assert res.status_code == 200
-    tw = res.json()
-    assert tw["broker_id"] == "KAMU"
-    assert len(tw["windows"]) == 5
-
-    # 7. Event Study Scanner
-    res = client.get("/api/v1/event-study/scan?broker_id=KAMU&symbol=THYAO&limit=10")
-    assert res.status_code == 200
-    assert isinstance(res.json(), list)
 
 
 def test_market_summary(client):

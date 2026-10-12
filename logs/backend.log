@@ -57,3 +57,4 @@ INFO:     127.0.0.1:49976 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=M
 INFO:     127.0.0.1:49988 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:49997 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50006 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50026 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
