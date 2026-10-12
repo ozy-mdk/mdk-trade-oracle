@@ -46,7 +46,7 @@ if lsof -i :8000 >/dev/null 2>&1; then
     echo "[2/3] Backend API is already running on http://127.0.0.1:8000"
 else
     echo "[2/3] Launching FastAPI backend on http://127.0.0.1:8000..."
-    nohup "$PROJECT_ROOT/.venv/bin/uvicorn" mdk_trading_oracle.api.app:app --host 127.0.0.1 --port 8000 > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+    nohup "$PROJECT_ROOT/.venv/bin/uvicorn" mdk_trading_oracle.api.app:app --host 127.0.0.1 --port 8000 --reload > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
     sleep 2
 fi
 

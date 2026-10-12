@@ -589,6 +589,13 @@ export interface OpportunityItem {
   mlb_turnover_tl: number;
   tier: 'HIGH_CONVICTION_LONG' | 'HIGH_CONVICTION_SHORT' | 'MODERATE_LONG' | 'MODERATE_SHORT' | 'MILD_LONG' | 'MILD_SHORT' | 'CONSOLIDATION' | string;
   action_type: 'LONG' | 'SHORT' | 'NEUTRAL' | string;
+  horizon?: string;
+  hits_30d?: number;
+  total_30d?: number;
+  hit_rate_30d_pct?: number;
+  hits_60d?: number;
+  total_60d?: number;
+  hit_rate_60d_pct?: number;
 }
 
 export interface OpportunityActionsResponse {
@@ -603,6 +610,7 @@ export interface OpportunityActionsResponse {
   top_longs: OpportunityItem[];
   top_shorts: OpportunityItem[];
   opportunities: OpportunityItem[];
+  horizon?: string;
 }
 
 

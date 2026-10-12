@@ -585,6 +585,13 @@ class OpportunityItem(BaseModel):
     mlb_turnover_tl: float = 0.0
     tier: str
     action_type: str
+    horizon: str = "1d"
+    hits_30d: Optional[int] = None
+    total_30d: Optional[int] = None
+    hit_rate_30d_pct: Optional[float] = None
+    hits_60d: Optional[int] = None
+    total_60d: Optional[int] = None
+    hit_rate_60d_pct: Optional[float] = None
 
 
 class OpportunityActionsResponse(BaseModel):
@@ -599,6 +606,7 @@ class OpportunityActionsResponse(BaseModel):
     top_longs: List[OpportunityItem]
     top_shorts: List[OpportunityItem]
     opportunities: List[OpportunityItem]
+    horizon: str = "1d"
 
 
 class MultiHorizonBacktestItem(BaseModel):
@@ -1834,43 +1842,126 @@ def get_tertip_ml_forecast_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _clean_model_name(name: Optional[str]) -> str:
+    if not name:
+        return "Auto"
+    import re
+    m = re.search(r"\(([^)]+)\)", name)
+    if m:
+        return m.group(1).strip()
+    return re.sub(r"^(?:Crowned|Grand|ML)?\s*Champion\s*", "", name, flags=re.IGNORECASE).strip() or name
+
+
 @app.get("/api/v1/tertip/opportunities", response_model=OpportunityActionsResponse)
 def get_tertip_predicted_opportunities(
     target_date: Optional[str] = Query(None, description="Optional target session date YYYY-MM-DD"),
+    horizon: str = Query("1d", description="Horizon key: 1d, 3d, 5d, 10d, 15d, 30d"),
 ) -> OpportunityActionsResponse:
-    """Return all BIST constituent predicted opportunities with highlight ranking for highest positive and negative changes."""
+    """Return all BIST constituent predicted opportunities with highlight ranking across any forward horizon."""
+    clean_target_date = target_date if isinstance(target_date, str) and target_date.strip() else None
+    h_key = (horizon if isinstance(horizon, str) else "1d").strip().lower()
     try:
-        date_clause = "WHERE as_of_date = %(target_date)s" if target_date else "WHERE as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_daily_forecasts)"
-        params = {"target_date": target_date} if target_date else {}
-
-        query = f"""
-            WITH target_scope AS (
-                SELECT symbol, as_of_date, current_price, target_price, expected_return_pct, 
-                       price_low, price_high, stance, conviction, playbook,
-                       ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
-                       crowned_horizon, training_lookback_sessions,
-                       actual_training_sessions, data_sufficiency_status
-                FROM gold_tertip_daily_forecasts
-                {date_clause}
-            )
-            SELECT f.symbol, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector, 
-                   f.as_of_date, f.current_price, f.target_price, f.expected_return_pct, 
-                   f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
-                   f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
-                   f.crowned_horizon, f.training_lookback_sessions,
-                   f.actual_training_sessions, f.data_sufficiency_status,
-                   COALESCE(b.net_flow_tl, 0.0) as mlb_net_flow_tl,
-                   COALESCE(b.total_turnover_tl, 0.0) as mlb_turnover_tl
-            FROM target_scope f
-            JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
-            LEFT JOIN silver_daily_broker_summary b 
-              ON f.symbol = b.symbol AND f.as_of_date = b.trade_date AND b.broker_id = 'MLB'
-            LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
-            ORDER BY f.expected_return_pct DESC
-        """
+        if h_key == "1d":
+            date_clause = "WHERE as_of_date = %(target_date)s" if clean_target_date else "WHERE as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_daily_forecasts)"
+            params: Dict[str, Any] = {"target_date": clean_target_date} if clean_target_date else {}
+            query = f"""
+                WITH target_scope AS (
+                    SELECT symbol, as_of_date, current_price, target_price, expected_return_pct, 
+                           price_low, price_high, stance, conviction, playbook,
+                           ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
+                           crowned_horizon, training_lookback_sessions,
+                           actual_training_sessions, data_sufficiency_status
+                    FROM gold_tertip_daily_forecasts
+                    {date_clause}
+                ),
+                win_sub AS (
+                    SELECT symbol, ml_is_hit,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY trade_date DESC) as rn
+                    FROM gold_tertip_walk_forward_backtests
+                ),
+                stats_agg AS (
+                    SELECT symbol,
+                           COUNT(*) FILTER (WHERE rn <= 30 AND ml_is_hit = TRUE) as hits_30d,
+                           COUNT(*) FILTER (WHERE rn <= 30) as total_30d,
+                           ROUND((COUNT(*) FILTER (WHERE rn <= 30 AND ml_is_hit = TRUE)::numeric / NULLIF(COUNT(*) FILTER (WHERE rn <= 30), 0) * 100.0), 1)::float as hit_rate_30d_pct,
+                           COUNT(*) FILTER (WHERE rn <= 60 AND ml_is_hit = TRUE) as hits_60d,
+                           COUNT(*) FILTER (WHERE rn <= 60) as total_60d,
+                           ROUND((COUNT(*) FILTER (WHERE rn <= 60 AND ml_is_hit = TRUE)::numeric / NULLIF(COUNT(*) FILTER (WHERE rn <= 60), 0) * 100.0), 1)::float as hit_rate_60d_pct
+                    FROM win_sub
+                    WHERE rn <= 60
+                    GROUP BY symbol
+                )
+                SELECT f.symbol, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector, 
+                       f.as_of_date, f.current_price, f.target_price, f.expected_return_pct, 
+                       f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
+                       f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
+                       f.crowned_horizon, f.training_lookback_sessions,
+                       f.actual_training_sessions, f.data_sufficiency_status,
+                       COALESCE(b.net_flow_tl, 0.0) as mlb_net_flow_tl,
+                       COALESCE(b.total_turnover_tl, 0.0) as mlb_turnover_tl,
+                       w.hits_30d, w.total_30d, w.hit_rate_30d_pct,
+                       w.hits_60d, w.total_60d, w.hit_rate_60d_pct
+                FROM target_scope f
+                JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
+                LEFT JOIN silver_daily_broker_summary b 
+                  ON f.symbol = b.symbol AND f.as_of_date = b.trade_date AND b.broker_id = 'MLB'
+                LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
+                LEFT JOIN stats_agg w ON f.symbol = w.symbol
+                ORDER BY f.expected_return_pct DESC;
+            """
+        else:
+            date_clause = "AND as_of_date = %(target_date)s" if clean_target_date else "AND as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_multi_horizon_forecasts WHERE horizon = %(horizon)s)"
+            params = {"horizon": h_key}
+            if clean_target_date:
+                params["target_date"] = clean_target_date
+            query = f"""
+                WITH target_scope AS (
+                    SELECT symbol, as_of_date, horizon, horizon_days, current_price, target_price,
+                           expected_return_pct, price_low, price_high, stance, conviction, playbook,
+                           ml_champion_type, champion_dir_hits, champion_total_evals,
+                           champion_dir_hit_rate_pct, champion_mae_pct, crowned_horizon
+                    FROM gold_tertip_multi_horizon_forecasts
+                    WHERE horizon = %(horizon)s
+                    {date_clause}
+                ),
+                win_sub AS (
+                    SELECT symbol, is_hit,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY trade_date DESC) as rn
+                    FROM gold_tertip_multi_horizon_backtests
+                    WHERE horizon = %(horizon)s
+                ),
+                stats_agg AS (
+                    SELECT symbol,
+                           COUNT(*) FILTER (WHERE rn <= 30 AND is_hit = TRUE) as hits_30d,
+                           COUNT(*) FILTER (WHERE rn <= 30) as total_30d,
+                           ROUND((COUNT(*) FILTER (WHERE rn <= 30 AND is_hit = TRUE)::numeric / NULLIF(COUNT(*) FILTER (WHERE rn <= 30), 0) * 100.0), 1)::float as hit_rate_30d_pct,
+                           COUNT(*) FILTER (WHERE rn <= 60 AND is_hit = TRUE) as hits_60d,
+                           COUNT(*) FILTER (WHERE rn <= 60) as total_60d,
+                           ROUND((COUNT(*) FILTER (WHERE rn <= 60 AND is_hit = TRUE)::numeric / NULLIF(COUNT(*) FILTER (WHERE rn <= 60), 0) * 100.0), 1)::float as hit_rate_60d_pct
+                    FROM win_sub
+                    WHERE rn <= 60
+                    GROUP BY symbol
+                )
+                SELECT f.symbol, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector, 
+                       f.as_of_date, f.current_price, f.target_price, f.expected_return_pct, 
+                       f.price_low, f.price_high, f.stance, f.conviction, f.playbook,
+                       f.ml_champion_type, f.champion_dir_hits, f.champion_dir_hit_rate_pct, f.champion_mae_pct,
+                       f.crowned_horizon,
+                       COALESCE(b.net_flow_tl, 0.0) as mlb_net_flow_tl,
+                       COALESCE(b.total_turnover_tl, 0.0) as mlb_turnover_tl,
+                       w.hits_30d, w.total_30d, w.hit_rate_30d_pct,
+                       w.hits_60d, w.total_60d, w.hit_rate_60d_pct
+                FROM target_scope f
+                JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
+                LEFT JOIN silver_daily_broker_summary b 
+                  ON f.symbol = b.symbol AND f.as_of_date = b.trade_date AND b.broker_id = 'MLB'
+                LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
+                LEFT JOIN stats_agg w ON f.symbol = w.symbol
+                ORDER BY f.expected_return_pct DESC;
+            """
         raw_rows = db.query_pl(query, params).to_dicts()
         if not raw_rows:
-            raise HTTPException(status_code=404, detail="No predicted opportunities found in gold_tertip_daily_forecasts")
+            raw_rows = []
 
         items: List[OpportunityItem] = []
         for r in raw_rows:
@@ -1897,8 +1988,9 @@ def get_tertip_predicted_opportunities(
                 tier = "CONSOLIDATION"
                 action_type = "NEUTRAL"
 
-            act_sess = int(r.get("actual_training_sessions") or r.get("training_lookback_sessions") or 252)
+            act_sess = int(r.get("actual_training_sessions") or r.get("training_lookback_sessions") or 126)
             act_desc = f"{act_sess} sessions ({act_sess / 21.0:.1f}M)"
+            clean_champ = _clean_model_name(r.get("ml_champion_type"))
 
             items.append(
                 OpportunityItem(
@@ -1914,12 +2006,12 @@ def get_tertip_predicted_opportunities(
                     stance=str(r.get("stance") or "NEUTRAL"),
                     conviction=str(r.get("conviction") or ""),
                     playbook=str(r.get("playbook") or ""),
-                    ml_champion_type=str(r.get("ml_champion_type") or "Auto"),
+                    ml_champion_type=clean_champ,
                     champion_dir_hits=int(r.get("champion_dir_hits") or 0) if r.get("champion_dir_hits") is not None else None,
                     champion_dir_hit_rate_pct=round(float(r["champion_dir_hit_rate_pct"]), 1) if r.get("champion_dir_hit_rate_pct") is not None else None,
                     champion_mae_pct=round(float(r["champion_mae_pct"]), 2) if r.get("champion_mae_pct") is not None else None,
-                    crowned_horizon=str(r.get("crowned_horizon") or "12m"),
-                    training_lookback_sessions=int(r.get("training_lookback_sessions") or 252),
+                    crowned_horizon=str(r.get("crowned_horizon") or "6m"),
+                    training_lookback_sessions=int(r.get("training_lookback_sessions") or 126),
                     actual_training_sessions=act_sess,
                     actual_window_desc=act_desc,
                     data_sufficiency_status=str(r.get("data_sufficiency_status") or "FULL"),
@@ -1927,6 +2019,13 @@ def get_tertip_predicted_opportunities(
                     mlb_turnover_tl=float(r.get("mlb_turnover_tl") or 0.0),
                     tier=tier,
                     action_type=action_type,
+                    horizon=h_key,
+                    hits_30d=int(r["hits_30d"]) if r.get("hits_30d") is not None else None,
+                    total_30d=int(r["total_30d"]) if r.get("total_30d") is not None else None,
+                    hit_rate_30d_pct=round(float(r["hit_rate_30d_pct"]), 1) if r.get("hit_rate_30d_pct") is not None else None,
+                    hits_60d=int(r["hits_60d"]) if r.get("hits_60d") is not None else None,
+                    total_60d=int(r["total_60d"]) if r.get("total_60d") is not None else None,
+                    hit_rate_60d_pct=round(float(r["hit_rate_60d_pct"]), 1) if r.get("hit_rate_60d_pct") is not None else None,
                 )
             )
 
@@ -1953,11 +2052,12 @@ def get_tertip_predicted_opportunities(
             top_longs=top_longs,
             top_shorts=top_shorts,
             opportunities=items,
+            horizon=h_key,
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating predicted opportunity actions: {e}")
+        logger.error(f"Error generating predicted opportunity actions for {h_key}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2058,38 +2158,13 @@ def get_multi_horizon_backtest_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/tertip/multi-horizon/opportunities")
+@app.get("/api/v1/tertip/multi-horizon/opportunities", response_model=OpportunityActionsResponse)
 def get_multi_horizon_opportunities_endpoint(
-    horizon: str = Query("5d", description="Horizon key: 3d, 5d, 10d, 15d, 30d"),
-) -> Dict[str, Any]:
+    horizon: str = Query("5d", description="Horizon key: 1d, 3d, 5d, 10d, 15d, 30d"),
+    target_date: Optional[str] = Query(None, description="Optional target session date YYYY-MM-DD"),
+) -> OpportunityActionsResponse:
     """Return all constituent predictions for a given forward horizon ranked by expected return."""
-    h_key = horizon.strip().lower()
-    try:
-        query_opp = """
-            WITH latest_fc AS (
-                SELECT symbol, as_of_date, horizon, horizon_days, current_price, target_price,
-                       expected_return_pct, price_low, price_high, stance, conviction, playbook,
-                       ml_champion_type, champion_dir_hits, champion_total_evals,
-                       champion_dir_hit_rate_pct, champion_mae_pct, crowned_horizon
-                FROM gold_tertip_multi_horizon_forecasts
-                WHERE horizon = %(horizon)s
-                  AND as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_multi_horizon_forecasts WHERE horizon = %(horizon)s)
-            )
-            SELECT f.*, COALESCE(s.name, f.symbol) as company_name, COALESCE(s.sector, 'Equities') as sector
-            FROM latest_fc f
-            JOIN bronze_bist30_membership m ON f.symbol = m.symbol AND m.is_active = TRUE
-            LEFT JOIN bronze_instruments s ON f.symbol = s.symbol
-            ORDER BY f.expected_return_pct DESC;
-        """
-        rows = db.query_pl(query_opp, {"horizon": h_key}).to_dicts()
-        return {
-            "horizon": h_key,
-            "total_constituents": len(rows),
-            "opportunities": rows,
-        }
-    except Exception as e:
-        logger.error(f"Error fetching multi-horizon opportunities ({h_key}): {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return get_tertip_predicted_opportunities(target_date=target_date, horizon=horizon)
 
 
 # ── WebSocket Real-Time Channel ───────────────────────────────────────────────

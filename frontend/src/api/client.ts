@@ -151,11 +151,12 @@ export async function fetchTertipMlForecast(
 }
 
 export async function fetchPredictedOpportunities(
+  horizon: string = '1d',
   targetDate?: string
 ): Promise<OpportunityActionsResponse> {
-  let url = `${BASE_URL}/api/v1/tertip/opportunities`;
+  let url = `${BASE_URL}/api/v1/tertip/opportunities?horizon=${encodeURIComponent(horizon)}`;
   if (targetDate) {
-    url += `?target_date=${encodeURIComponent(targetDate)}`;
+    url += `&target_date=${encodeURIComponent(targetDate)}`;
   }
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch predicted opportunities');

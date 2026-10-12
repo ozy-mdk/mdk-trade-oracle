@@ -267,8 +267,8 @@ export const App: React.FC = () => {
           {[
             { id: 'candles', label: 'Candlestick & Order Flow', icon: LineChart },
             { id: 'tertip', label: 'FIFO Tertip Inventory', icon: Boxes },
-            { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
             { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
+            { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
