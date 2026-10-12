@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPredictedOpportunities } from '../api/client';
 import { OpportunityItem } from '../types/api';
@@ -29,6 +29,8 @@ interface OpportunityActionsDashboardProps {
   onSelectSymbol: (symbol: string) => void;
   onNavigateTab?: (tab: 'candles' | 'tertip' | 'opportunities' | 'multihorizon') => void;
   currentTradeDate?: string;
+  activeHorizon?: string;
+  onHorizonChange?: (horizon: string) => void;
 }
 
 const HORIZONS = [
@@ -55,8 +57,21 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
   onSelectSymbol,
   onNavigateTab,
   currentTradeDate,
+  activeHorizon: externalHorizon,
+  onHorizonChange,
 }) => {
-  const [activeHorizon, setActiveHorizon] = useState<string>('1d');
+  const [activeHorizon, setActiveHorizon] = useState<string>(externalHorizon || '1d');
+
+  useEffect(() => {
+    if (externalHorizon && externalHorizon !== activeHorizon) {
+      setActiveHorizon(externalHorizon);
+    }
+  }, [externalHorizon]);
+
+  const handleHorizonChange = (hKey: string) => {
+    setActiveHorizon(hKey);
+    if (onHorizonChange) onHorizonChange(hKey);
+  };
   const [reliabilityThreshold, setReliabilityThreshold] = useState<number>(70);
   const [onlyBigMoves, setOnlyBigMoves] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -160,6 +175,9 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
 
   const handleLaunchSymbol = (sym: string, targetTab?: 'candles' | 'multihorizon') => {
     onSelectSymbol(sym);
+    if (targetTab === 'multihorizon' && onHorizonChange) {
+      onHorizonChange(activeHorizon);
+    }
     if (targetTab && onNavigateTab) {
       onNavigateTab(targetTab);
     }
@@ -246,7 +264,7 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
               return (
                 <button
                   key={h.key}
-                  onClick={() => setActiveHorizon(h.key)}
+                  onClick={() => handleHorizonChange(h.key)}
                   className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
                     isSelected
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm shadow-cyan-500/20'

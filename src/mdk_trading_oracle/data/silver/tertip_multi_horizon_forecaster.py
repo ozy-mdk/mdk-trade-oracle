@@ -649,7 +649,7 @@ def generate_live_horizon_forecast(
     }
 
 
-def _clean_champ_name(name: Optional[str]) -> str:
+def _clean_champ_name(name: str | None) -> str:
     if not name:
         return "Auto"
     import re
@@ -665,7 +665,7 @@ def get_multi_horizon_forecaster_payload(
     selected_composition: dict[str, dict[str, Any]] | None = None,
     n_eval_sessions: int = 180,
     force_recompute: bool = False,
-    target_date: Optional[str] = None,
+    target_date: str | None = None,
 ) -> dict[str, Any]:
     """Generate comprehensive multi-horizon forecast payload across all 5 windows.
 
@@ -771,6 +771,8 @@ def get_multi_horizon_forecaster_payload(
                     ]
 
                     live_fc = {
+                        "horizon": h_key,
+                        "horizon_days": HORIZON_MAP[h_key],
                         "as_of_date": as_of_str,
                         "current_price": curr_p,
                         "target_price": float(g.get("target_price") or curr_p),

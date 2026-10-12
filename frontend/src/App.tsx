@@ -22,6 +22,7 @@ export const App: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
+  const [activeHorizon, setActiveHorizon] = useState<string>('1d');
   const [userSelectedManually, setUserSelectedManually] = useState<boolean>(false);
   const [currentTimeTRT, setCurrentTimeTRT] = useState<string>('');
 
@@ -66,9 +67,11 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSelectSymbol = (sym: string) => {
+  const handleSelectSymbol = (sym: string, tab?: 'candles' | 'tertip' | 'opportunities' | 'multihorizon') => {
     setSelectedSymbol(sym);
-    setActiveTab('candles');
+    if (tab) {
+      setActiveTab(tab);
+    }
   };
 
   return (
@@ -315,6 +318,8 @@ export const App: React.FC = () => {
             onSelectSymbol={handleSelectSymbol}
             onNavigateTab={(tab) => setActiveTab(tab)}
             currentTradeDate={selectedDate}
+            activeHorizon={activeHorizon}
+            onHorizonChange={setActiveHorizon}
           />
         )}
 
@@ -322,6 +327,9 @@ export const App: React.FC = () => {
         {activeTab === 'multihorizon' && (
           <MultiHorizonDashboard
             symbol={selectedSymbol}
+            tradeDate={selectedDate}
+            activeHorizon={activeHorizon}
+            onHorizonChange={setActiveHorizon}
             onSelectSymbol={handleSelectSymbol}
             onNavigateTab={(tab) => setActiveTab(tab as any)}
           />

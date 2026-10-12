@@ -36,6 +36,9 @@ interface MultiHorizonDashboardProps {
   symbol?: string;
   onSelectSymbol?: (symbol: string) => void;
   onNavigateTab?: (tab: string) => void;
+  tradeDate?: string;
+  activeHorizon?: string;
+  onHorizonChange?: (horizon: string) => void;
 }
 
 const CORE_HORIZONS = ['1d', '3d', '5d', '10d', '15d'] as const;
@@ -43,9 +46,12 @@ const ALL_HORIZONS = ['1d', '3d', '5d', '10d', '15d', '30d'] as const;
 
 export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   symbol = 'THYAO',
+  tradeDate,
+  activeHorizon: externalHorizon,
+  onHorizonChange,
 }) => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>(symbol);
-  const [activeHorizon, setActiveHorizon] = useState<string>('1d');
+  const [activeHorizon, setActiveHorizon] = useState<string>(externalHorizon || '1d');
   const [show30D, setShow30D] = useState<boolean>(false);
   const [evalSessions, setEvalSessions] = useState<number>(60);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
@@ -59,6 +65,20 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     }
   }, [symbol]);
 
+  // Sync with external horizon changes (e.g. from Opportunity Actions launch)
+  useEffect(() => {
+    if (externalHorizon && externalHorizon !== activeHorizon) {
+      setActiveHorizon(externalHorizon);
+      if (externalHorizon === '30d') setShow30D(true);
+    }
+  }, [externalHorizon]);
+
+  const handleHorizonSelect = (hKey: string) => {
+    setActiveHorizon(hKey);
+    if (hKey === '30d') setShow30D(true);
+    if (onHorizonChange) onHorizonChange(hKey);
+  };
+
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -69,8 +89,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     isFetching: isFetchingMulti,
     refetch: refetchMulti,
   } = useQuery({
-    queryKey: ['multi-horizon-forecast', selectedSymbol, evalSessions],
-    queryFn: () => fetchMultiHorizonForecast(selectedSymbol, false, evalSessions),
+    queryKey: ['multi-horizon-forecast', selectedSymbol, evalSessions, tradeDate],
+    queryFn: () => fetchMultiHorizonForecast(selectedSymbol, false, evalSessions, tradeDate),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -82,8 +102,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     isFetching: isFetching1d,
     refetch: refetch1d,
   } = useQuery({
-    queryKey: ['tertipMlForecast', selectedSymbol, 'auto'],
-    queryFn: () => fetchTertipMlForecast(selectedSymbol, false, 'auto'),
+    queryKey: ['tertipMlForecast', selectedSymbol, 'auto', tradeDate],
+    queryFn: () => fetchTertipMlForecast(selectedSymbol, false, 'auto', tradeDate),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -92,8 +112,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     setIsRefreshing(true);
     try {
       await Promise.all([
-        fetchMultiHorizonForecast(selectedSymbol, true, evalSessions),
-        fetchTertipMlForecast(selectedSymbol, true, 'auto'),
+        fetchMultiHorizonForecast(selectedSymbol, true, evalSessions, tradeDate),
+        fetchTertipMlForecast(selectedSymbol, true, 'auto', tradeDate),
       ]);
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-forecast', selectedSymbol] });
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-backtest', selectedSymbol] });
@@ -109,8 +129,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     data: backtestData,
     isLoading: isLoadingBt,
   } = useQuery({
-    queryKey: ['multi-horizon-backtest', selectedSymbol, activeHorizon, evalSessions],
-    queryFn: () => fetchMultiHorizonBacktest(selectedSymbol, activeHorizon, evalSessions),
+    queryKey: ['multi-horizon-backtest', selectedSymbol, activeHorizon, evalSessions, tradeDate],
+    queryFn: () => fetchMultiHorizonBacktest(selectedSymbol, activeHorizon, evalSessions, tradeDate),
     enabled: activeHorizon !== '1d',
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
@@ -547,10 +567,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
             return (
               <div
                 key={hKey}
-                onClick={() => {
-                  setActiveHorizon(hKey);
-                  if (hKey === '30d') setShow30D(true);
-                }}
+                onClick={() => handleHorizonSelect(hKey)}
                 className={`glass-panel p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden group ${
                   isSelected
                     ? 'border-cyan-500/80 bg-cyan-950/20 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/40'
@@ -713,10 +730,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
             return (
               <div
                 key={hKey}
-                onClick={() => {
-                  setActiveHorizon(hKey);
-                  if (hKey === '30d') setShow30D(true);
-                }}
+                onClick={() => handleHorizonSelect(hKey)}
                 className={`flex flex-col items-center cursor-pointer p-2.5 rounded-xl border transition-all ${
                   isInspected
                     ? 'border-cyan-500/60 bg-cyan-950/20 shadow-sm shadow-cyan-500/10'
@@ -846,10 +860,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               {ALL_HORIZONS.map((hKey) => (
                 <button
                   key={hKey}
-                  onClick={() => {
-                    setActiveHorizon(hKey);
-                    if (hKey === '30d') setShow30D(true);
-                  }}
+                  onClick={() => handleHorizonSelect(hKey)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
                     activeHorizon === hKey
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'

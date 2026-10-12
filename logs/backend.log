@@ -183,3 +183,640 @@ INFO:     127.0.0.1:51725 - "GET /api/v1/tertip/opportunities?horizon=3d&target_
 INFO:     127.0.0.1:51726 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51728 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51727 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51769 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51774 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51776 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51778 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51772 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51771 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51780 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51784 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51783 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+[10/12/26 23:06:23] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             10 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2103 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2100 │   │   │   data["company_name"] = sym   │
+                             │   2101 │   │   │   data["sector"] = "Equities"  │
+                             │   2102 │   │                                    │
+                             │ ❱ 2103 │   │   return MultiHorizonForecastRespo │
+                             │   2104 │   except HTTPException:                │
+                             │   2105 │   │   raise                            │
+                             │   2106 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 10 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:51787 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:51768 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+[10/12/26 23:06:24] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             10 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2103 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2100 │   │   │   data["company_name"] = sym   │
+                             │   2101 │   │   │   data["sector"] = "Equities"  │
+                             │   2102 │   │                                    │
+                             │ ❱ 2103 │   │   return MultiHorizonForecastRespo │
+                             │   2104 │   except HTTPException:                │
+                             │   2105 │   │   raise                            │
+                             │   2106 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 10 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:51790 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:51788 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51795 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51796 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+[10/12/26 23:06:30] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             10 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2103 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2100 │   │   │   data["company_name"] = sym   │
+                             │   2101 │   │   │   data["sector"] = "Equities"  │
+                             │   2102 │   │                                    │
+                             │ ❱ 2103 │   │   return MultiHorizonForecastRespo │
+                             │   2104 │   except HTTPException:                │
+                             │   2105 │   │   raise                            │
+                             │   2106 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 10 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:51798 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 500 Internal Server Error
+[10/12/26 23:06:31] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             10 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2103 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2100 │   │   │   data["company_name"] = sym   │
+                             │   2101 │   │   │   data["sector"] = "Equities"  │
+                             │   2102 │   │                                    │
+                             │ ❱ 2103 │   │   return MultiHorizonForecastRespo │
+                             │   2104 │   except HTTPException:                │
+                             │   2105 │   │   raise                            │
+                             │   2106 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 10 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.3d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.3d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon                  
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.5d.live_forecast.horizon_days             
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.10d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.15d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon                 
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.30d.live_forecast.horizon_days            
+                               Field required [type=missing,                    
+                             input_value={'as_of_date':                         
+                             '2026-10-1...iciency_status': 'FULL'},             
+                             input_type=dict]                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:51800 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:51805 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51816 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51812 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51813 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51814 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51811 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51806 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51818 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51822 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51821 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51829 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51836 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51837 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51838 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51835 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51830 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51840 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51844 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51843 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51853 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51854 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51855 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51859 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51861 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51863 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51857 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51856 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51865 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51869 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51868 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51875 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51876 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51885 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10336]
+INFO:     Started server process [10696]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51889 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10696]
+INFO:     Started server process [10750]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51903 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&target_date=2026-10-12 HTTP/1.1" 200 OK
