@@ -73,7 +73,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:
@@ -195,7 +195,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:
@@ -321,7 +321,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:
@@ -539,7 +539,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:
@@ -626,7 +626,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:
@@ -753,7 +753,7 @@ class SilverTransformer:
                 bronze_dates = [
                     str(r[0])
                     for r in conn.execute(
-                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades WHERE timestamp >= '2026-09-01';"
+                        "SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades;"
                     ).fetchall()
                 ]
                 if bronze_dates:

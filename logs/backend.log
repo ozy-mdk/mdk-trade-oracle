@@ -1,111 +1,40 @@
-INFO:     Started server process [4081]
+INFO:     Will watch for changes in these directories: ['/Users/ozkanyildirim/mdk-trade-oracle']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [6048] using StatReload
+INFO:     Started server process [6050]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:50031 - "GET /api/v1/event-study/scan HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50032 - "GET /api/v1/time-window/analyze HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50034 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50042 - "GET /api/v1/market/summary?symbol=TCELL&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50045 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50049 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50051 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50055 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50066 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50070 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=5d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50069 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50077 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50081 - "GET /api/v1/tertip/opportunities?target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50084 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50085 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=5d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50153 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50152 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50173 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=3d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50177 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=5d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50181 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=30d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50190 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50189 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50200 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50202 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50203 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50229 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50228 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50238 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=3d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=5d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50242 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=10d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50244 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TCELL&horizon=15d&limit=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50307 - "GET /api/v1/tertip/opportunities?target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50353 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50354 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50356 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50362 - "GET /api/v1/tertip/ml-forecast?symbol=TCELL&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50361 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TCELL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50417 - "GET /api/v1/tertip/opportunities?target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50428 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50429 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50432 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50434 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50436 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50431 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50430 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50438 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50442 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50441 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50427 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50450 - "GET /api/v1/tertip/opportunities?target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50459 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50460 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50461 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50470 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50471 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50472 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50476 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50478 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50480 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50482 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50474 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50473 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50486 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50485 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50488 - "GET /api/v1/tertip/opportunities?horizon=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50492 - "GET /api/v1/tertip/opportunities?horizon=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50497 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50509 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50510 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50511 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50515 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50517 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50519 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50521 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50512 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50525 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50524 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50527 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50535 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50536 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50544 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50545 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50546 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50543 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50542 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50548 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50552 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50560 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50551 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50561 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50562 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50565 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50567 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50569 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50571 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50564 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50563 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50575 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50574 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50578 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50582 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50584 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50586 - "GET /api/v1/tertip/opportunities?horizon=10d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50588 - "GET /api/v1/tertip/opportunities?horizon=15d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50590 - "GET /api/v1/tertip/opportunities?horizon=30d&target_date=2026-10-09 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50592 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50720 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50723 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50724 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50734 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50736 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50739 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50741 - "GET /api/v1/tertip/opportunities?horizon=10d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50836 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50882 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50883 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50937 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50987 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=PGSUS&fresh=false&eval_sessions=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50988 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50990 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=3d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51008 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=5d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51010 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=10d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51012 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=15d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51016 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=3d&limit=30 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [6050]
+INFO:     Started server process [7843]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/bronze/ingestor.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7843]
+INFO:     Started server process [8059]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

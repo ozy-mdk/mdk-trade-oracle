@@ -351,15 +351,23 @@ class BronzeIngestor:
 
         for idx, meta in enumerate(file_metas, start=1):
             logger.info(f"Ingesting trade file {idx}/{len(file_metas)}: {meta['file_name']}...")
-            if meta.get("trade_date"):
-                conn.execute(
-                    "DELETE FROM bronze_raw_trades WHERE raw_source = %s AND CAST(timestamp AS DATE) = %s;",
-                    [meta["file_name"], meta["trade_date"]],
-                )
-            else:
-                conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = %s;", [meta["file_name"]])
             df = self._parse_trade_file(meta)
             if not df.is_empty():
+                # Automated deduplication guardrail: clean existing partition before inserting to avoid
+                # cross-feed collisions (e.g., same session supplied via both archive chunks and daily files).
+                # All intra-file executions (including same-second iceberg/block fills) are preserved intact.
+                trade_dates = [meta["trade_date"]] if meta.get("trade_date") else [
+                    d.isoformat() for d in df["timestamp"].dt.date().unique().to_list() if d is not None
+                ]
+                symbols = df["symbol"].unique().to_list()
+                if trade_dates and len(trade_dates) <= 5 and symbols:
+                    for td in trade_dates:
+                        conn.execute(
+                            "DELETE FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) = %s AND symbol = ANY(%s);",
+                            [td, symbols],
+                        )
+                else:
+                    conn.execute("DELETE FROM bronze_raw_trades WHERE raw_source = %s;", [meta["file_name"]])
                 rows_count = self.db.copy_df_to_table(df, "bronze_raw_trades")
             else:
                 rows_count = 0
