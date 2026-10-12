@@ -865,3 +865,299 @@ def get_tertip_timeseries_chart(
         })
 
     return result
+
+
+def get_stock_ytd_pnl_analytics(
+    symbol: str,
+    trade_date: Optional[str] = None,
+    db: Optional[PostgresManager] = None,
+) -> dict[str, Any]:
+    """Compute point-in-time Year-to-Date (YTD) PnL for BofA (MLB), BIG5, and KAMU.
+
+    Returns cumulative economic PnL, realized PnL, open unrealized MTM, net flow,
+    and the chronological daily progression timeline for the active calendar year.
+    """
+    if db is None:
+        db = PostgresManager()
+
+    sym = symbol.strip().upper()
+
+    # Determine effective target date
+    if not trade_date:
+        latest = db.execute(
+            "SELECT MAX(trade_date) FROM silver_broker_fifo_daily WHERE symbol = %s;",
+            params=[sym],
+        ).fetchone()
+        if not latest or not latest[0]:
+            return {}
+        effective_date = str(latest[0])
+    else:
+        effective_date = trade_date
+
+    year_str = effective_date[:4]
+    year_start = f"{year_str}-01-01"
+
+    big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
+    kamu_in = ", ".join(f"'{b}'" for b in KAMU_BROKERS)
+
+    # 1. Fetch daily pillar series from year start up to effective_date
+    query_daily = f"""
+    WITH daily_pillar AS (
+        SELECT 
+            trade_date,
+            symbol,
+            MAX(market_close_price) AS close_price,
+
+            -- MLB (Bank of America)
+            SUM(CASE WHEN broker_id = 'MLB' THEN daily_realized_pnl_tl ELSE 0 END) AS mlb_daily_realized_pnl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN total_daily_pnl_tl ELSE 0 END) AS mlb_total_daily_pnl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl - sell_turnover_tl ELSE 0 END) AS mlb_net_flow_tl,
+            SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl ELSE 0 END) AS mlb_buy_to,
+            SUM(CASE WHEN broker_id = 'MLB' THEN sell_turnover_tl ELSE 0 END) AS mlb_sell_to,
+
+            -- BIG5 (Domestic Bank Powerhouses)
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN daily_realized_pnl_tl ELSE 0 END) AS big5_daily_realized_pnl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN total_daily_pnl_tl ELSE 0 END) AS big5_total_daily_pnl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl - sell_turnover_tl ELSE 0 END) AS big5_net_flow_tl,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl ELSE 0 END) AS big5_buy_to,
+            SUM(CASE WHEN broker_id IN ({big5_in}) THEN sell_turnover_tl ELSE 0 END) AS big5_sell_to,
+
+            -- KAMU (Public Conduits & TRA)
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN daily_realized_pnl_tl ELSE 0 END) AS kamu_daily_realized_pnl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN total_daily_pnl_tl ELSE 0 END) AS kamu_total_daily_pnl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN unrealized_pnl_tl ELSE 0 END) AS kamu_unrealized_pnl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl - sell_turnover_tl ELSE 0 END) AS kamu_net_flow_tl,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl ELSE 0 END) AS kamu_buy_to,
+            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN sell_turnover_tl ELSE 0 END) AS kamu_sell_to
+        FROM silver_broker_fifo_daily
+        WHERE symbol = %s AND trade_date >= %s AND trade_date <= %s
+        GROUP BY trade_date, symbol
+        ORDER BY trade_date ASC
+    )
+    SELECT 
+        trade_date,
+        close_price,
+
+        -- MLB
+        SUM(mlb_total_daily_pnl) OVER (ORDER BY trade_date) AS mlb_ytd_total_pnl,
+        SUM(mlb_daily_realized_pnl) OVER (ORDER BY trade_date) AS mlb_ytd_realized_pnl,
+        mlb_unrealized_pnl,
+        SUM(mlb_net_flow_tl) OVER (ORDER BY trade_date) AS mlb_ytd_net_flow_tl,
+        SUM(mlb_buy_to) OVER (ORDER BY trade_date) AS mlb_ytd_buy_tl,
+        SUM(mlb_sell_to) OVER (ORDER BY trade_date) AS mlb_ytd_sell_tl,
+
+        -- BIG5
+        SUM(big5_total_daily_pnl) OVER (ORDER BY trade_date) AS big5_ytd_total_pnl,
+        SUM(big5_daily_realized_pnl) OVER (ORDER BY trade_date) AS big5_ytd_realized_pnl,
+        big5_unrealized_pnl,
+        SUM(big5_net_flow_tl) OVER (ORDER BY trade_date) AS big5_ytd_net_flow_tl,
+        SUM(big5_buy_to) OVER (ORDER BY trade_date) AS big5_ytd_buy_tl,
+        SUM(big5_sell_to) OVER (ORDER BY trade_date) AS big5_ytd_sell_tl,
+
+        -- KAMU
+        SUM(kamu_total_daily_pnl) OVER (ORDER BY trade_date) AS kamu_ytd_total_pnl,
+        SUM(kamu_daily_realized_pnl) OVER (ORDER BY trade_date) AS kamu_ytd_realized_pnl,
+        kamu_unrealized_pnl,
+        SUM(kamu_net_flow_tl) OVER (ORDER BY trade_date) AS kamu_ytd_net_flow_tl,
+        SUM(kamu_buy_to) OVER (ORDER BY trade_date) AS kamu_ytd_buy_tl,
+        SUM(kamu_sell_to) OVER (ORDER BY trade_date) AS kamu_ytd_sell_tl
+    FROM daily_pillar
+    ORDER BY trade_date ASC;
+    """
+
+    df_prog = db.query_pl(query_daily, params=[sym, year_start, effective_date])
+    if df_prog.is_empty():
+        return {
+            "symbol": sym,
+            "trade_date": effective_date,
+            "year": int(year_str),
+            "sessions_count": 0,
+            "pillars": {},
+            "timeline": [],
+        }
+
+    records = df_prog.to_dicts()
+    latest_rec = records[-1]
+
+    # Instrument metadata
+    inst_info = db.execute(
+        "SELECT name, sector FROM bronze_instruments WHERE symbol = %s LIMIT 1;",
+        params=[sym],
+    ).fetchone()
+    inst_name = inst_info[0] if inst_info else sym
+    inst_sector = inst_info[1] if inst_info else "General"
+
+    pillars = {
+        "mlb": {
+            "label": "Bank of America (MLB)",
+            "ytd_total_pnl_tl": round(float(latest_rec["mlb_ytd_total_pnl"] or 0.0), 1),
+            "ytd_realized_pnl_tl": round(float(latest_rec["mlb_ytd_realized_pnl"] or 0.0), 1),
+            "unrealized_pnl_tl": round(float(latest_rec["mlb_unrealized_pnl"] or 0.0), 1),
+            "ytd_net_flow_tl": round(float(latest_rec["mlb_ytd_net_flow_tl"] or 0.0), 1),
+            "ytd_buy_tl": round(float(latest_rec["mlb_ytd_buy_tl"] or 0.0), 1),
+            "ytd_sell_tl": round(float(latest_rec["mlb_ytd_sell_tl"] or 0.0), 1),
+        },
+        "big5": {
+            "label": "Domestic Leaders (BIG5)",
+            "ytd_total_pnl_tl": round(float(latest_rec["big5_ytd_total_pnl"] or 0.0), 1),
+            "ytd_realized_pnl_tl": round(float(latest_rec["big5_ytd_realized_pnl"] or 0.0), 1),
+            "unrealized_pnl_tl": round(float(latest_rec["big5_unrealized_pnl"] or 0.0), 1),
+            "ytd_net_flow_tl": round(float(latest_rec["big5_ytd_net_flow_tl"] or 0.0), 1),
+            "ytd_buy_tl": round(float(latest_rec["big5_ytd_buy_tl"] or 0.0), 1),
+            "ytd_sell_tl": round(float(latest_rec["big5_ytd_sell_tl"] or 0.0), 1),
+        },
+        "kamu": {
+            "label": "State Conduits (KAMU)",
+            "ytd_total_pnl_tl": round(float(latest_rec["kamu_ytd_total_pnl"] or 0.0), 1),
+            "ytd_realized_pnl_tl": round(float(latest_rec["kamu_ytd_realized_pnl"] or 0.0), 1),
+            "unrealized_pnl_tl": round(float(latest_rec["kamu_unrealized_pnl"] or 0.0), 1),
+            "ytd_net_flow_tl": round(float(latest_rec["kamu_ytd_net_flow_tl"] or 0.0), 1),
+            "ytd_buy_tl": round(float(latest_rec["kamu_ytd_buy_tl"] or 0.0), 1),
+            "ytd_sell_tl": round(float(latest_rec["kamu_ytd_sell_tl"] or 0.0), 1),
+        },
+    }
+
+    timeline = []
+    for r in records:
+        td_val = str(r["trade_date"])[:10]
+        timeline.append({
+            "trade_date": td_val,
+            "close_price": round(float(r["close_price"] or 0.0), 2),
+            "mlb_ytd_pnl_tl": round(float(r["mlb_ytd_total_pnl"] or 0.0), 1),
+            "mlb_net_flow_tl": round(float(r["mlb_ytd_net_flow_tl"] or 0.0), 1),
+            "big5_ytd_pnl_tl": round(float(r["big5_ytd_total_pnl"] or 0.0), 1),
+            "big5_net_flow_tl": round(float(r["big5_ytd_net_flow_tl"] or 0.0), 1),
+            "kamu_ytd_pnl_tl": round(float(r["kamu_ytd_total_pnl"] or 0.0), 1),
+            "kamu_net_flow_tl": round(float(r["kamu_ytd_net_flow_tl"] or 0.0), 1),
+        })
+
+    return {
+        "symbol": sym,
+        "symbol_name": inst_name,
+        "sector": inst_sector,
+        "trade_date": effective_date,
+        "year": int(year_str),
+        "sessions_count": len(records),
+        "latest_close_price": round(float(latest_rec["close_price"] or 0.0), 2),
+        "pillars": pillars,
+        "timeline": timeline,
+    }
+
+
+def get_bist30_ytd_pnl_overview(
+    trade_date: Optional[str] = None,
+    db: Optional[PostgresManager] = None,
+) -> list[dict[str, Any]]:
+    """Compute YTD PnL overview across tracked constituents for BofA (MLB), BIG5, and KAMU."""
+    if db is None:
+        db = PostgresManager()
+
+    if not trade_date:
+        latest = db.execute("SELECT MAX(trade_date) FROM silver_broker_fifo_daily;").fetchone()
+        if not latest or not latest[0]:
+            return []
+        effective_date = str(latest[0])
+    else:
+        effective_date = trade_date
+
+    year_str = effective_date[:4]
+    year_start = f"{year_str}-01-01"
+
+    big5_in = ", ".join(f"'{b}'" for b in BIG_FIVE_BROKERS)
+    kamu_in = ", ".join(f"'{b}'" for b in KAMU_BROKERS)
+
+    query = f"""
+    WITH max_dates AS (
+        SELECT symbol, MAX(trade_date) as max_td
+        FROM silver_broker_fifo_daily
+        WHERE trade_date <= %s
+        GROUP BY symbol
+    ),
+    ytd_agg AS (
+        SELECT 
+            f.symbol,
+            -- MLB
+            SUM(CASE WHEN f.broker_id = 'MLB' THEN f.total_daily_pnl_tl ELSE 0 END) AS mlb_ytd_pnl_tl,
+            SUM(CASE WHEN f.broker_id = 'MLB' THEN f.daily_realized_pnl_tl ELSE 0 END) AS mlb_realized_pnl_tl,
+            SUM(CASE WHEN f.broker_id = 'MLB' THEN f.buy_turnover_tl - f.sell_turnover_tl ELSE 0 END) AS mlb_net_flow_tl,
+
+            -- BIG5
+            SUM(CASE WHEN f.broker_id IN ({big5_in}) THEN f.total_daily_pnl_tl ELSE 0 END) AS big5_ytd_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({big5_in}) THEN f.daily_realized_pnl_tl ELSE 0 END) AS big5_realized_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({big5_in}) THEN f.buy_turnover_tl - f.sell_turnover_tl ELSE 0 END) AS big5_net_flow_tl,
+
+            -- KAMU
+            SUM(CASE WHEN f.broker_id IN ({kamu_in}) THEN f.total_daily_pnl_tl ELSE 0 END) AS kamu_ytd_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({kamu_in}) THEN f.daily_realized_pnl_tl ELSE 0 END) AS kamu_realized_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({kamu_in}) THEN f.buy_turnover_tl - f.sell_turnover_tl ELSE 0 END) AS kamu_net_flow_tl
+        FROM silver_broker_fifo_daily f
+        WHERE f.trade_date >= %s
+          AND f.trade_date <= %s
+        GROUP BY f.symbol
+    ),
+    latest_unrealized AS (
+        SELECT 
+            f.symbol,
+            MAX(f.market_close_price) AS close_price,
+            SUM(CASE WHEN f.broker_id = 'MLB' THEN f.unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({big5_in}) THEN f.unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl_tl,
+            SUM(CASE WHEN f.broker_id IN ({kamu_in}) THEN f.unrealized_pnl_tl ELSE 0 END) AS kamu_unrealized_pnl_tl
+        FROM silver_broker_fifo_daily f
+        JOIN max_dates m ON f.symbol = m.symbol AND f.trade_date = m.max_td
+        GROUP BY f.symbol
+    )
+    SELECT 
+        y.symbol,
+        COALESCE(i.name, y.symbol) AS name,
+        COALESCE(i.sector, 'General') AS sector,
+        u.close_price,
+        y.mlb_ytd_pnl_tl,
+        y.mlb_realized_pnl_tl,
+        u.mlb_unrealized_pnl_tl,
+        y.mlb_net_flow_tl,
+
+        y.big5_ytd_pnl_tl,
+        y.big5_realized_pnl_tl,
+        u.big5_unrealized_pnl_tl,
+        y.big5_net_flow_tl,
+
+        y.kamu_ytd_pnl_tl,
+        y.kamu_realized_pnl_tl,
+        u.kamu_unrealized_pnl_tl,
+        y.kamu_net_flow_tl
+    FROM ytd_agg y
+    LEFT JOIN latest_unrealized u ON y.symbol = u.symbol
+    LEFT JOIN bronze_instruments i ON y.symbol = i.symbol
+    ORDER BY ABS(y.mlb_ytd_pnl_tl) DESC;
+    """
+
+    df = db.query_pl(query, params=[effective_date, year_start, effective_date])
+    if df.is_empty():
+        return []
+
+    results = []
+    for r in df.to_dicts():
+        results.append({
+            "symbol": r["symbol"],
+            "name": r["name"],
+            "sector": r["sector"],
+            "close_price": round(float(r["close_price"] or 0.0), 2),
+            "mlb_ytd_pnl_tl": round(float(r["mlb_ytd_pnl_tl"] or 0.0), 1),
+            "mlb_realized_pnl_tl": round(float(r["mlb_realized_pnl_tl"] or 0.0), 1),
+            "mlb_unrealized_pnl_tl": round(float(r["mlb_unrealized_pnl_tl"] or 0.0), 1),
+            "mlb_net_flow_tl": round(float(r["mlb_net_flow_tl"] or 0.0), 1),
+
+            "big5_ytd_pnl_tl": round(float(r["big5_ytd_pnl_tl"] or 0.0), 1),
+            "big5_realized_pnl_tl": round(float(r["big5_realized_pnl_tl"] or 0.0), 1),
+            "big5_unrealized_pnl_tl": round(float(r["big5_unrealized_pnl_tl"] or 0.0), 1),
+            "big5_net_flow_tl": round(float(r["big5_net_flow_tl"] or 0.0), 1),
+
+            "kamu_ytd_pnl_tl": round(float(r["kamu_ytd_pnl_tl"] or 0.0), 1),
+            "kamu_realized_pnl_tl": round(float(r["kamu_realized_pnl_tl"] or 0.0), 1),
+            "kamu_unrealized_pnl_tl": round(float(r["kamu_unrealized_pnl_tl"] or 0.0), 1),
+            "kamu_net_flow_tl": round(float(r["kamu_net_flow_tl"] or 0.0), 1),
+        })
+
+    return results

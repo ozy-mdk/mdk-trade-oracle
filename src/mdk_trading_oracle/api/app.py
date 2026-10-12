@@ -19,6 +19,8 @@ from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_analytics import (
     INSTITUTIONAL_BUNDLES,
+    get_bist30_ytd_pnl_overview,
+    get_stock_ytd_pnl_analytics,
     get_tertip_horizons_analysis,
     get_tertip_timeseries_chart,
 )
@@ -2169,6 +2171,31 @@ def get_multi_horizon_opportunities_endpoint(
 ) -> OpportunityActionsResponse:
     """Return all constituent predictions for a given forward horizon ranked by expected return."""
     return get_tertip_predicted_opportunities(target_date=target_date, horizon=horizon)
+
+
+@app.get("/api/v1/tertip/ytd-pnl")
+def get_ytd_pnl_endpoint(
+    symbol: str = Query("THYAO", description="Stock ticker symbol"),
+    trade_date: Optional[str] = Query(None, description="Optional target trading session (YYYY-MM-DD)"),
+):
+    """Return point-in-time Year-to-Date (YTD) PnL breakdown and progression timeline for BofA, BIG5, and KAMU."""
+    try:
+        return get_stock_ytd_pnl_analytics(symbol=symbol, trade_date=trade_date, db=db)
+    except Exception as e:
+        logger.error(f"Error computing YTD PnL for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tertip/ytd-pnl/overview")
+def get_ytd_pnl_overview_endpoint(
+    trade_date: Optional[str] = Query(None, description="Optional target trading session (YYYY-MM-DD)"),
+):
+    """Return Year-to-Date (YTD) PnL overview across tracked constituents for BofA, BIG5, and KAMU."""
+    try:
+        return get_bist30_ytd_pnl_overview(trade_date=trade_date, db=db)
+    except Exception as e:
+        logger.error(f"Error computing YTD PnL overview: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── WebSocket Real-Time Channel ───────────────────────────────────────────────

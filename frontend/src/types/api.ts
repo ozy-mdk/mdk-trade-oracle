@@ -723,3 +723,62 @@ export interface MultiHorizonOpportunitiesResponse {
   }>;
 }
 
+export interface YtdPillarMetric {
+  label: string;
+  ytd_total_pnl_tl: number;
+  ytd_realized_pnl_tl: number;
+  unrealized_pnl_tl: number;
+  ytd_net_flow_tl: number;
+  ytd_buy_tl: number;
+  ytd_sell_tl: number;
+}
+
+export interface YtdTimelinePoint {
+  trade_date: string;
+  close_price: number;
+  mlb_ytd_pnl_tl: number;
+  mlb_net_flow_tl: number;
+  big5_ytd_pnl_tl: number;
+  big5_net_flow_tl: number;
+  kamu_ytd_pnl_tl: number;
+  kamu_net_flow_tl: number;
+}
+
+export interface StockYtdPnlResponse {
+  symbol: string;
+  symbol_name: string;
+  sector: string;
+  trade_date: string;
+  year: number;
+  sessions_count: number;
+  latest_close_price: number;
+  pillars: {
+    mlb: YtdPillarMetric;
+    big5: YtdPillarMetric;
+    kamu: YtdPillarMetric;
+  };
+  timeline: YtdTimelinePoint[];
+}
+
+export interface YtdConstituentOverviewItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  close_price: number;
+  mlb_ytd_pnl_tl: number;
+  mlb_realized_pnl_tl: number;
+  mlb_unrealized_pnl_tl: number;
+  mlb_net_flow_tl: number;
+
+  big5_ytd_pnl_tl: number;
+  big5_realized_pnl_tl: number;
+  big5_unrealized_pnl_tl: number;
+  big5_net_flow_tl: number;
+
+  kamu_ytd_pnl_tl: number;
+  kamu_realized_pnl_tl: number;
+  kamu_unrealized_pnl_tl: number;
+  kamu_net_flow_tl: number;
+}
+
+

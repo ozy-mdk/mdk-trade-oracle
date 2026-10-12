@@ -15,6 +15,8 @@ import {
   MultiHorizonForecastResponse,
   MultiHorizonBacktestItem,
   MultiHorizonOpportunitiesResponse,
+  StockYtdPnlResponse,
+  YtdConstituentOverviewItem,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -205,4 +207,30 @@ export async function fetchMultiHorizonOpportunities(
   if (!res.ok) throw new Error('Failed to fetch multi-horizon opportunities');
   return res.json();
 }
+
+export async function fetchStockYtdPnl(
+  symbol: string,
+  tradeDate?: string
+): Promise<StockYtdPnlResponse> {
+  let url = `${BASE_URL}/api/v1/tertip/ytd-pnl?symbol=${encodeURIComponent(symbol)}`;
+  if (tradeDate) {
+    url += `&trade_date=${encodeURIComponent(tradeDate)}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch YTD PnL for ${symbol}`);
+  return res.json();
+}
+
+export async function fetchYtdOverview(
+  tradeDate?: string
+): Promise<YtdConstituentOverviewItem[]> {
+  let url = `${BASE_URL}/api/v1/tertip/ytd-pnl/overview`;
+  if (tradeDate) {
+    url += `?trade_date=${encodeURIComponent(tradeDate)}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch YTD PnL overview');
+  return res.json();
+}
+
 

@@ -820,3 +820,74 @@ INFO:     Started server process [10750]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     127.0.0.1:51903 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51908 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51909 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51910 - "GET /api/v1/tertip/opportunities?horizon=10d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51911 - "GET /api/v1/tertip/opportunities?horizon=15d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51912 - "GET /api/v1/tertip/opportunities?horizon=30d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51929 - "GET /api/v1/tertip/opportunities?horizon=30d&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_analytics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10750]
+INFO:     Started server process [11255]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_analytics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11255]
+INFO:     Started server process [11285]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_analytics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11285]
+INFO:     Started server process [11306]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_analytics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11306]
+INFO:     Started server process [11333]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_analytics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11333]
+INFO:     Started server process [11374]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11374]
+INFO:     Started server process [11403]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11403]
+INFO:     Started server process [11416]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/test_ytd_pnl_ablation.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11416]
+INFO:     Started server process [12283]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:52093 - "GET /api/v1/tertip/ytd-pnl?symbol=THYAO HTTP/1.1" 200 OK

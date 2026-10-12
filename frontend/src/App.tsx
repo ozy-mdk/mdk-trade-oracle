@@ -5,6 +5,7 @@ import { CandleDashboard } from './components/CandleDashboard';
 import { TertipDashboard } from './components/TertipDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import { MultiHorizonDashboard } from './components/MultiHorizonDashboard';
+import { YtdPnlDashboard } from './components/YtdPnlDashboard';
 import {
   LineChart,
   Boxes,
@@ -15,10 +16,11 @@ import {
   Database,
   Compass,
   Layers,
+  Coins,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'opportunities' | 'multihorizon'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'opportunities' | 'multihorizon' | 'ytd_pnl'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -272,6 +274,7 @@ export const App: React.FC = () => {
             { id: 'tertip', label: 'FIFO Tertip Inventory', icon: Boxes },
             { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
+            { id: 'ytd_pnl', label: 'Institutional YTD P&L', icon: Coins },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -281,11 +284,11 @@ export const App: React.FC = () => {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                   isActive
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shadow-cyan-500/10'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -332,6 +335,14 @@ export const App: React.FC = () => {
             onHorizonChange={setActiveHorizon}
             onSelectSymbol={handleSelectSymbol}
             onNavigateTab={(tab) => setActiveTab(tab as any)}
+          />
+        )}
+
+        {activeTab === 'ytd_pnl' && (
+          <YtdPnlDashboard
+            symbol={selectedSymbol}
+            tradeDate={selectedDate}
+            onSelectSymbol={handleSelectSymbol}
           />
         )}
       </main>
