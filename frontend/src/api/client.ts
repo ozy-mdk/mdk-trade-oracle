@@ -14,9 +14,6 @@ import {
   ShockDayItem,
   TertipMlForecastResponse,
   OpportunityActionsResponse,
-  WeekStartForecastResponse,
-  WeekStartOpportunitiesResponse,
-  WeekStartBacktestItem,
   MultiHorizonForecastResponse,
   MultiHorizonBacktestItem,
   MultiHorizonOpportunitiesResponse,
@@ -205,34 +202,6 @@ export async function fetchPredictedOpportunities(
   return res.json();
 }
 
-export async function fetchWeekStartForecast(
-  symbol: string
-): Promise<WeekStartForecastResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/week-start/forecast?symbol=${encodeURIComponent(symbol)}`);
-  if (!res.ok) throw new Error('Failed to fetch week start forecast');
-  return res.json();
-}
-
-export async function fetchWeekStartOpportunities(
-  targetDate?: string
-): Promise<WeekStartOpportunitiesResponse> {
-  let url = `${BASE_URL}/api/v1/week-start/opportunities`;
-  if (targetDate) {
-    url += `?target_date=${encodeURIComponent(targetDate)}`;
-  }
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch week start opportunities');
-  return res.json();
-}
-
-export async function fetchWeekStartBacktest(
-  symbol: string,
-  limit: number = 30
-): Promise<WeekStartBacktestItem[]> {
-  const res = await fetch(`${BASE_URL}/api/v1/week-start/backtest?symbol=${encodeURIComponent(symbol)}&limit=${limit}`);
-  if (!res.ok) throw new Error('Failed to fetch week start backtest');
-  return res.json();
-}
 
 export async function fetchMultiHorizonForecast(
   symbol: string,

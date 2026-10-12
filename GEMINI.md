@@ -83,7 +83,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
        `eval_weights = np.linspace(0.5, 1.5, total_evals) / mean(eval_weights)`
        `Tournament Loss = (100.0 - weighted_hit_rate_pct) + 1.0 * hit_mae_pct + 2.5 * miss_mae_pct`
      - *Next-Day Tactical (T+1)*: Anchored strictly to the trailing 30 completed sessions (`tournament_loss_30d`), rewarding significant moves (>= 1.0%) and big moves (>= 2.0%) while penalizing false alarms.
-     - *Week-Start & Calendar Dynamics*: Ingestion of `feat_is_monday`, `feat_is_friday`, and `feat_day_of_week` captures Monday opening gap absorption and weekend de-risking.
+     - *Calendar Dynamics*: Ingestion of `feat_is_monday`, `feat_is_friday`, and `feat_day_of_week` captures Monday opening gap absorption and weekend de-risking.
    - Candidate models benchmarked: `BayesianRidge`, `Huber`, `LightGBM`, `XGBoost`, and `Ridge` against `Prophet` baseline.
 4. **Volatility Calibration & Sample Weighting Scheme**:
    - Solves the incidence inequality where quiet days outnumber big move days (|Delta| >= 1.0% and >= 2.0%) by applying piecewise sample weights during training:

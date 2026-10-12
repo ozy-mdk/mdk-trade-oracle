@@ -254,16 +254,6 @@ class MedallionPipeline:
         except Exception as e_fc:
             logger.warning(f"Could not update Gold Tertip forecasts: {e_fc}")
 
-        # Update Gold Layer Week Start Forecasts & Backtests for the Frontend
-        try:
-            logger.info("Updating Gold Layer Week Start Forecasts & Hub...")
-            from mdk_trading_oracle.data.gold.week_start_forecasts import sync_week_start_forecasts_from_yaml
-
-            ws_res = sync_week_start_forecasts_from_yaml(self.db)
-            gold_res["week_start_forecasts"] = ws_res
-        except Exception as e_ws:
-            logger.warning(f"Could not update Gold Week Start forecasts: {e_ws}")
-
         # Update Gold Layer Multi-Horizon Forecasts & Backtests (3d, 5d, 10d, 15d, 30d)
         try:
             logger.info("Updating Gold Layer Multi-Horizon Forecasts (3d, 5d, 10d, 15d, 30d)...")

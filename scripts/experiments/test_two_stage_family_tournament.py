@@ -37,11 +37,6 @@ from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
     evaluate_horizon_walk_forward,
     generate_live_horizon_forecast,
 )
-from mdk_trading_oracle.data.silver.week_start_forecaster import (
-    extract_week_start_time_series,
-    run_weekly_walk_forward_arena,
-    predict_live_week_start,
-)
 
 console = Console()
 
@@ -51,15 +46,14 @@ FAMILIES = {
     "Robust M-Estimator": ["Huber"],
 }
 
-# User-Specified Importance Weights: 10D > 5D > 3D > 15D > T+1 > 30D > Week-Start
+# User-Specified Importance Weights: 10D > 5D > 3D > 15D > T+1 > 30D
 HORIZON_WEIGHTS = {
-    "10d": 0.25,
-    "5d": 0.20,
-    "3d": 0.18,
-    "15d": 0.14,
-    "t1": 0.10,
+    "10d": 0.26,
+    "5d": 0.21,
+    "3d": 0.19,
+    "15d": 0.15,
+    "t1": 0.11,
     "30d": 0.08,
-    "week_start": 0.05,
 }
 
 LOOKBACKS = [("3m", 63), ("6m", 126), ("12m", 252), ("18m", 378), ("24m", 504)]
@@ -111,22 +105,6 @@ def evaluate_swings_for_symbol(df_feat: pd.DataFrame, symbol: str):
     return swing_evals
 
 
-def evaluate_week_start_for_symbol(db: PostgresManager, symbol: str):
-    """Run week-start arena and return evaluations per model."""
-    ws_df = extract_week_start_time_series(db, symbol)
-    _, summary, _ = run_weekly_walk_forward_arena(
-        df=ws_df,
-        n_weeks=20,
-    )
-    # Extract hit rates per model from summary
-    # summary keys like lightgbm_hit_rate_pct, etc.
-    model_rates = {}
-    for m in ["LightGBM", "XGBoost", "Ridge", "BayesianRidge", "Huber"]:
-        k = f"{m.lower()}_hit_rate_pct"
-        model_rates[m] = summary.get(k, 50.0)
-    return model_rates, ws_df
-
-
 def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
     console.print(f"\n[bold cyan]Processing {symbol}...[/bold cyan]")
     df_raw = extract_3pillar_time_series(db, symbol, lookback_days=1100)
@@ -135,17 +113,10 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
     # 1. Swings
     swing_evals = evaluate_swings_for_symbol(df_feat, symbol)
 
-    # 2. Week Start
-    ws_rates, ws_df = evaluate_week_start_for_symbol(db, symbol)
-
-    # 3. Read Status Quo Configs
+    # 2. Read Status Quo Configs
     with open("config/tertip_crowned_models.yaml") as f:
         t1_cfg = yaml.safe_load(f)
         t1_sq = t1_cfg.get("symbols", {}).get(symbol, {})
-
-    with open("config/week_start_crowned_models.yaml") as f:
-        ws_cfg = yaml.safe_load(f)
-        ws_sq = ws_cfg.get("symbols", {}).get(symbol, {})
 
     with open("config/tertip_multi_horizon_crowned_models.yaml") as f:
         mh_cfg = yaml.safe_load(f)
@@ -153,7 +124,7 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
 
     # =========================================================================
     # STAGE 1: CROWN THE MODEL FAMILY USING IMPORTANCE WEIGHTS
-    # 10D (0.25) > 5D (0.20) > 3D (0.18) > 15D (0.14) > T+1 (0.10) > 30D (0.08) > Week-Start (0.05)
+    # 10D (0.26) > 5D (0.21) > 3D (0.19) > 15D (0.15) > T+1 (0.11) > 30D (0.08)
     # =========================================================================
     family_scores = {}
     for fam_name, fam_models in FAMILIES.items():
@@ -173,9 +144,6 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
             # Approximate by average of short swing win rate
             t1_win = (fam_h_wins["3d"] + fam_h_wins["5d"]) / 2.0
 
-        # Week-Start Win Rate for this family
-        ws_win = max([ws_rates.get(m, 50.0) for m in fam_models])
-
         # Compute User-Weighted Composite Win Rate
         composite_score = (
             HORIZON_WEIGHTS["10d"] * fam_h_wins["10d"]
@@ -184,7 +152,6 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
             + HORIZON_WEIGHTS["15d"] * fam_h_wins["15d"]
             + HORIZON_WEIGHTS["t1"] * t1_win
             + HORIZON_WEIGHTS["30d"] * fam_h_wins["30d"]
-            + HORIZON_WEIGHTS["week_start"] * ws_win
         )
 
         family_scores[fam_name] = {
@@ -195,7 +162,6 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
             "15d": fam_h_wins["15d"],
             "t1": t1_win,
             "30d": fam_h_wins["30d"],
-            "week_start": ws_win,
         }
 
     # Crown winning family (highest user-weighted composite score)
@@ -232,28 +198,6 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
         "after_model": f"{t1_after_model} ({t1_after_lb})",
         "after_win": f"{t1_after_win:.1f}%",
         "after_signal": f"{t1_ret:+.2f}% ({t1_stance})",
-    })
-
-    # 2. Week-Start (Monday)
-    ws_sq_model = ws_sq.get("model", "N/A")
-    ws_sq_lb = ws_sq.get("horizon", "N/A")
-    # Best model within crowned family for week-start
-    ws_after_model = max(FAMILIES[crowned_family], key=lambda m: ws_rates.get(m, 0.0))
-    ws_after_win = ws_rates.get(ws_after_model, 50.0)
-    ws_after_lb = ws_sq_lb if ws_after_model == ws_sq_model else "3m"
-
-    ws_fc_sq = predict_live_week_start(db, symbol, champion_model=ws_sq_model) or {}
-    ws_fc_after = predict_live_week_start(db, symbol, champion_model=ws_after_model) or {}
-
-    rows.append({
-        "horizon": "Week-Start (Mon)",
-        "weight": f"{HORIZON_WEIGHTS['week_start']*100:.0f}%",
-        "sq_model": f"{ws_sq_model} ({ws_sq_lb})",
-        "sq_win": f"{ws_sq.get('hit_rate_pct', 0.0):.1f}%" if ws_sq.get('hit_rate_pct') else "65.0%",
-        "sq_signal": f"{ws_fc_sq.get('expected_return_pct', 0.0):+.2f}% ({ws_fc_sq.get('stance', 'N/A')})",
-        "after_model": f"{ws_after_model} ({ws_after_lb})",
-        "after_win": f"{ws_after_win:.1f}%",
-        "after_signal": f"{ws_fc_after.get('expected_return_pct', 0.0):+.2f}% ({ws_fc_after.get('stance', 'N/A')})",
     })
 
     # 3. Multi-Horizon Swings: 3D, 5D, 10D, 15D, 30D
@@ -304,7 +248,7 @@ def run_full_symbol_evaluation(db: PostgresManager, symbol: str):
 def main():
     db = PostgresManager()
     console.print("\n[bold yellow]" + "=" * 110 + "[/bold yellow]")
-    console.print("[bold cyan]WEIGHTED TWO-STAGE FAMILY-FIRST EXPERIMENT (10D > 5D > 3D > 15D > T+1 > 30D > WEEK-START)[/bold cyan]")
+    console.print("[bold cyan]WEIGHTED TWO-STAGE FAMILY-FIRST EXPERIMENT (10D > 5D > 3D > 15D > T+1 > 30D)[/bold cyan]")
     console.print("[bold yellow]" + "=" * 110 + "[/bold yellow]")
 
     for sym in SYMBOLS:
@@ -316,7 +260,7 @@ def main():
             console.print(
                 f"   {badge} {f_name:<20}: Weighted Composite Score = {f_data['weighted_composite_score']:.1f}% "
                 f"[10D:{f_data['10d']:.0f}% | 5D:{f_data['5d']:.0f}% | 3D:{f_data['3d']:.0f}% | "
-                f"15D:{f_data['15d']:.0f}% | T+1:{f_data['t1']:.0f}% | 30D:{f_data['30d']:.0f}% | WS:{f_data['week_start']:.0f}%]"
+                f"15D:{f_data['15d']:.0f}% | T+1:{f_data['t1']:.0f}% | 30D:{f_data['30d']:.0f}%]"
             )
 
         table = Table(title=f"📊 {sym} — Status Quo vs Weighted Family-First ({crowned_fam})", title_style="bold green")
