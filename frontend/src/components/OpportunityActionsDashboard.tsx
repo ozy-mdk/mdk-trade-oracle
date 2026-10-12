@@ -21,7 +21,7 @@ import {
 
 interface OpportunityActionsDashboardProps {
   onSelectSymbol: (symbol: string) => void;
-  onNavigateTab?: (tab: 'candles' | 'tertip' | 'oracle' | 'opportunities' | 'multihorizon') => void;
+  onNavigateTab?: (tab: 'candles' | 'tertip' | 'opportunities' | 'multihorizon') => void;
   currentTradeDate?: string;
 }
 
@@ -106,7 +106,7 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
       });
   }, [opportunities, selectedSector, searchTerm, activeFilter, sortField]);
 
-  const handleLaunchSymbol = (sym: string, targetTab?: 'candles' | 'oracle') => {
+  const handleLaunchSymbol = (sym: string, targetTab?: 'candles' | 'multihorizon') => {
     onSelectSymbol(sym);
     if (targetTab && onNavigateTab) {
       onNavigateTab(targetTab);
@@ -321,9 +321,9 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
                       <span className="hidden md:inline">Chart</span>
                     </button>
                     <button
-                      onClick={() => handleLaunchSymbol(op.symbol, 'oracle')}
+                      onClick={() => handleLaunchSymbol(op.symbol, 'multihorizon')}
                       className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-all flex items-center space-x-1"
-                      title="Open in Gold Predictive Hub"
+                      title="Open in Multi-Horizon Hub"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span className="hidden md:inline">Hub</span>
@@ -420,9 +420,9 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
                       <span className="hidden md:inline">Chart</span>
                     </button>
                     <button
-                      onClick={() => handleLaunchSymbol(op.symbol, 'oracle')}
+                      onClick={() => handleLaunchSymbol(op.symbol, 'multihorizon')}
                       className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-semibold transition-all flex items-center space-x-1"
-                      title="Open in Gold Predictive Hub"
+                      title="Open in Multi-Horizon Hub"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span className="hidden md:inline">Hub</span>
@@ -735,9 +735,9 @@ export const OpportunityActionsDashboard: React.FC<OpportunityActionsDashboardPr
                             <LineChart className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleLaunchSymbol(op.symbol, 'oracle')}
+                            onClick={() => handleLaunchSymbol(op.symbol, 'multihorizon')}
                             className="p-1.5 rounded-lg bg-slate-900 hover:bg-emerald-950 border border-slate-800 hover:border-emerald-500/50 text-slate-400 hover:text-emerald-300 transition-colors"
-                            title={`Inspect ${op.symbol} in Gold Predictive Hub`}
+                            title={`Inspect ${op.symbol} in Multi-Horizon Hub`}
                           >
                             <Sparkles className="w-3.5 h-3.5" />
                           </button>

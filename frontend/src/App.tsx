@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchInstruments, fetchBrokers, fetchDateRange } from './api/client';
 import { CandleDashboard } from './components/CandleDashboard';
 import { TertipDashboard } from './components/TertipDashboard';
-import { OracleHubDashboard } from './components/OracleHubDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import { MultiHorizonDashboard } from './components/MultiHorizonDashboard';
 import {
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'oracle' | 'opportunities' | 'multihorizon'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'opportunities' | 'multihorizon'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -268,7 +267,6 @@ export const App: React.FC = () => {
           {[
             { id: 'candles', label: 'Candlestick & Order Flow', icon: LineChart },
             { id: 'tertip', label: 'FIFO Tertip Inventory', icon: Boxes },
-            { id: 'oracle', label: 'Gold Predictive Hub', icon: Sparkles },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
             { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
           ].map((tab) => {
@@ -311,12 +309,6 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'oracle' && (
-          <OracleHubDashboard
-            symbol={selectedSymbol}
-            onSelectSymbol={handleSelectSymbol}
-          />
-        )}
 
         {activeTab === 'opportunities' && (
           <OpportunityActionsDashboard
