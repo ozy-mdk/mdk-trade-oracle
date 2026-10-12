@@ -658,6 +658,7 @@ export interface MultiHorizonMeta {
   hit_mae_pct: number;
   miss_mae_pct: number;
   loss: number;
+  feature_mode?: string;
 }
 
 export interface MultiHorizonLiveForecast {
@@ -673,6 +674,7 @@ export interface MultiHorizonLiveForecast {
   conviction: string;
   playbook: string;
   champion_model: string;
+  feature_mode?: string;
   training_lookback_sessions: number;
   actual_training_sessions?: number;
   actual_training_months?: number;

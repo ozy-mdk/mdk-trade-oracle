@@ -643,6 +643,11 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                     </span>
                     <span className="font-semibold text-amber-300 truncate max-w-[110px]" title={meta?.crowned_model}>
                       {meta?.crowned_model || 'Auto'}
+                      {meta?.feature_mode && meta.feature_mode !== 'FIFO_CORE' && (
+                        <span className="text-[8.5px] text-cyan-400 font-mono block">
+                          {meta.feature_mode === 'YTD_SUBSTITUTION' ? 'YTD Sub' : 'FIFO+YTD'}
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -789,6 +794,11 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono font-semibold">
                   {activeMeta?.crowned_model || 'Algorithm'} ({activeMeta?.crowned_horizon || '3M/6M'})
+                  {activeMeta?.feature_mode && (
+                    <span className="ml-1 text-cyan-400 font-bold">
+                      • {activeMeta.feature_mode}
+                    </span>
+                  )}
                 </span>
               </div>
               <p className="text-xs text-slate-400">

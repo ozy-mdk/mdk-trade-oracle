@@ -51,6 +51,7 @@ def ensure_multi_horizon_tables(db: PostgresManager) -> None:
         actual_training_sessions INTEGER DEFAULT 126,
         data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         crowned_horizon VARCHAR(16) DEFAULT '6m',
+        feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE',
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, as_of_date, horizon)
     );
@@ -75,17 +76,20 @@ def ensure_multi_horizon_tables(db: PostgresManager) -> None:
         champion_model VARCHAR(32),
         actual_training_sessions INTEGER,
         data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
+        feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE',
         PRIMARY KEY (symbol, horizon, trade_date)
     );
 
     -- Ensure backwards compatibility if tables already exist
     ALTER TABLE gold_tertip_multi_horizon_forecasts
         ADD COLUMN IF NOT EXISTS actual_training_sessions INTEGER DEFAULT 126,
-        ADD COLUMN IF NOT EXISTS data_sufficiency_status VARCHAR(32) DEFAULT 'FULL';
+        ADD COLUMN IF NOT EXISTS data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
+        ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';
 
     ALTER TABLE gold_tertip_multi_horizon_backtests
         ADD COLUMN IF NOT EXISTS actual_training_sessions INTEGER,
-        ADD COLUMN IF NOT EXISTS data_sufficiency_status VARCHAR(32) DEFAULT 'FULL';
+        ADD COLUMN IF NOT EXISTS data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
+        ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';
 
     CREATE INDEX IF NOT EXISTS idx_gold_multi_fc_sym_date
         ON gold_tertip_multi_horizon_forecasts(symbol, as_of_date DESC);
@@ -155,14 +159,14 @@ def update_gold_tertip_multi_horizon_forecasts(
                         ml_champion_type, champion_dir_hits, champion_total_evals,
                         champion_dir_hit_rate_pct, champion_mae_pct,
                         training_lookback_sessions, actual_training_sessions,
-                        data_sufficiency_status, crowned_horizon, calculated_at
+                        data_sufficiency_status, crowned_horizon, feature_mode, calculated_at
                     ) VALUES (
                         %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s,
-                        %s, %s, %s, %s, NOW()
+                        %s, %s, %s, %s, %s, NOW()
                     )
                     ON CONFLICT (symbol, as_of_date, horizon) DO UPDATE SET
                         current_price = EXCLUDED.current_price,
@@ -182,6 +186,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                         actual_training_sessions = EXCLUDED.actual_training_sessions,
                         data_sufficiency_status = EXCLUDED.data_sufficiency_status,
                         crowned_horizon = EXCLUDED.crowned_horizon,
+                        feature_mode = EXCLUDED.feature_mode,
                         calculated_at = NOW();
                     """,
                     params=[
@@ -206,6 +211,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                         fc.get("actual_training_sessions", meta.get("training_lookback_sessions", 126)),
                         fc.get("data_sufficiency_status", "FULL"),
                         meta.get("crowned_horizon", "6m"),
+                        meta.get("feature_mode", "FIFO_CORE"),
                     ],
                 )
 
@@ -225,7 +231,8 @@ def update_gold_tertip_multi_horizon_forecasts(
                             pred_avg_price, pred_return_pct,
                             pred_direction, actual_direction,
                             err_pct, is_hit, is_pending, champion_model,
-                            actual_training_sessions, data_sufficiency_status
+                            actual_training_sessions, data_sufficiency_status,
+                            feature_mode
                         ) VALUES (
                             %s, %s, %s, %s,
                             %s, %s, %s,
@@ -233,7 +240,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                             %s, %s,
                             %s, %s,
                             %s, %s, %s, %s,
-                            %s, %s
+                            %s, %s, %s
                         )
                         ON CONFLICT (symbol, horizon, trade_date) DO UPDATE SET
                             current_price = EXCLUDED.current_price,
@@ -250,7 +257,8 @@ def update_gold_tertip_multi_horizon_forecasts(
                             is_pending = EXCLUDED.is_pending,
                             champion_model = EXCLUDED.champion_model,
                             actual_training_sessions = EXCLUDED.actual_training_sessions,
-                            data_sufficiency_status = EXCLUDED.data_sufficiency_status;
+                            data_sufficiency_status = EXCLUDED.data_sufficiency_status,
+                            feature_mode = EXCLUDED.feature_mode;
                         """,
                         params=[
                             sym,
@@ -272,6 +280,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                             meta.get("crowned_model", "Ridge"),
                             b.get("actual_training_sessions"),
                             b.get("data_sufficiency_status", "FULL"),
+                            meta.get("feature_mode", "FIFO_CORE"),
                         ],
                     )
 

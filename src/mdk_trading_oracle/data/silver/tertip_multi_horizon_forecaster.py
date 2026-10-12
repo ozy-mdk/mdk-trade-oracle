@@ -36,12 +36,29 @@ from xgboost import XGBRegressor
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
+    ALL_FIFO_COST_PNL_COLS,
     DEADBAND_PCT,
+    YTD_FEATURE_COLS,
     calibrate_expected_return,
     extract_3pillar_time_series,
 )
 
 logger = get_logger("mdk_oracle.tertip_multi_horizon")
+
+
+def filter_multi_horizon_features(
+    all_feature_cols: list[str],
+    feature_mode: str = "FIFO_CORE",
+) -> list[str]:
+    """Filter candidate multi-horizon features based on institutional feature mode."""
+    mode = str(feature_mode).upper()
+    if mode == "FIFO_CORE":
+        return [c for c in all_feature_cols if c not in YTD_FEATURE_COLS]
+    elif mode == "YTD_SUBSTITUTION":
+        return [c for c in all_feature_cols if c not in ALL_FIFO_COST_PNL_COLS]
+    elif mode == "FIFO_PLUS_YTD":
+        return list(all_feature_cols)
+    return [c for c in all_feature_cols if c not in YTD_FEATURE_COLS]
 
 # Suppress verbose warnings from third-party math packages
 warnings.filterwarnings("ignore")
@@ -125,13 +142,16 @@ def compute_forward_terminal_return(
 compute_forward_average_return = compute_forward_terminal_return
 
 
-def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def engineer_multi_horizon_features(
+    df: pd.DataFrame,
+    feature_mode: str = "FIFO_CORE",
+) -> tuple[pd.DataFrame, list[str]]:
     """Enrich 3-pillar time series with multi-horizon momentum, trend alignment,
     and cumulative institutional flow features (strictly zero data leakage).
     """
     if "feat_close_ret_3d" in df.columns and "feat_mlb_ewma_flow_share_5d" in df.columns:
         feature_cols = [c for c in df.columns if c.startswith("feat_")]
-        return df, feature_cols
+        return df, filter_multi_horizon_features(feature_cols, feature_mode=feature_mode)
 
     df = df.copy()
 
@@ -208,7 +228,7 @@ def engineer_multi_horizon_features(df: pd.DataFrame) -> tuple[pd.DataFrame, lis
         df["atr_14d_pct"] = 2.2
 
     feature_cols = [c for c in df.columns if c.startswith("feat_")]
-    return df, feature_cols
+    return df, filter_multi_horizon_features(feature_cols, feature_mode=feature_mode)
 
 
 def _check_hit(
@@ -282,6 +302,7 @@ def evaluate_horizon_walk_forward(
     model_name: str,
     train_lookback_sessions: int = 126,
     n_eval_sessions: int = 30,
+    feature_mode: str = "FIFO_CORE",
 ) -> dict[str, Any]:
     """Run a zero-lookahead walk-forward evaluation for a single horizon and candidate model.
 
@@ -290,7 +311,7 @@ def evaluate_horizon_walk_forward(
         samples i where i + n_days <= t. This ensures zero data leakage.
     """
     n_days = HORIZON_MAP.get(horizon_key, 3)
-    df, f_cols = engineer_multi_horizon_features(df)
+    df, f_cols = engineer_multi_horizon_features(df, feature_mode=feature_mode)
     deadband = get_horizon_deadband(n_days)
 
     fwd_avg_price_col = f"fwd_avg_price_{horizon_key}"
@@ -478,6 +499,7 @@ def evaluate_horizon_walk_forward(
         "hit_mae_pct": round(hit_mae_pct, 2),
         "miss_mae_pct": round(miss_mae_pct, 2),
         "loss": round(composite_loss, 2),
+        "feature_mode": feature_mode,
         "ledger": ledger,
     }
 
@@ -487,6 +509,7 @@ def generate_live_horizon_forecast(
     horizon_key: str,
     champion_model: str,
     train_lookback_sessions: int,
+    feature_mode: str = "FIFO_CORE",
 ) -> dict[str, Any]:
     """Fit crowned champion model on all available history and produce live upcoming forecast.
 
@@ -495,7 +518,7 @@ def generate_live_horizon_forecast(
         If completed sessions are fewer than 3 months (63 sessions), live predictions are hard-stopped.
     """
     n_days = HORIZON_MAP.get(horizon_key, 3)
-    df, f_cols = engineer_multi_horizon_features(df)
+    df, f_cols = engineer_multi_horizon_features(df, feature_mode=feature_mode)
     deadband = get_horizon_deadband(n_days)
 
     fwd_avg_price_col = f"fwd_avg_price_{horizon_key}"
@@ -646,6 +669,7 @@ def generate_live_horizon_forecast(
         "target_training_months": target_months,
         "actual_window_desc": actual_window_desc,
         "data_sufficiency_status": sufficiency_status,
+        "feature_mode": feature_mode,
     }
 
 
@@ -691,7 +715,8 @@ def get_multi_horizon_forecaster_payload(
                        expected_return_pct, price_low, price_high, stance, conviction, playbook,
                        ml_champion_type, champion_dir_hits, champion_total_evals,
                        champion_dir_hit_rate_pct, champion_mae_pct, training_lookback_sessions,
-                       actual_training_sessions, data_sufficiency_status, crowned_horizon
+                       actual_training_sessions, data_sufficiency_status, crowned_horizon,
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
                 FROM gold_tertip_multi_horizon_forecasts
                 WHERE symbol = %s AND {date_filter};
                 """,
@@ -788,6 +813,7 @@ def get_multi_horizon_forecaster_payload(
                         "training_lookback_sessions": lb_sess,
                         "actual_training_sessions": act_sess,
                         "data_sufficiency_status": g.get("data_sufficiency_status") or "FULL",
+                        "feature_mode": g.get("feature_mode") or "FIFO_CORE",
                     }
 
                     horizons_result[h_key] = {
@@ -797,6 +823,7 @@ def get_multi_horizon_forecaster_payload(
                             "crowned_model": c_model,
                             "crowned_horizon": g.get("crowned_horizon") or "6m",
                             "training_lookback_sessions": lb_sess,
+                            "feature_mode": g.get("feature_mode") or "FIFO_CORE",
                             "hit_rate_pct": hit_rate,
                             "hits": hits,
                             "total_evals": total,
@@ -849,6 +876,7 @@ def get_multi_horizon_forecaster_payload(
         champ_model = cfg.get("model", "Ridge")
         lb_sessions = cfg.get("lookback", cfg.get("training_lookback_sessions", 126))
         horizon_lb_str = cfg.get("horizon", "6m")
+        f_mode = cfg.get("feature_mode", "FIFO_CORE")
 
         # Check if pre-computed backtest ledger exists in database
         db_rows = []
@@ -943,6 +971,7 @@ def get_multi_horizon_forecaster_payload(
                 model_name=champ_model,
                 train_lookback_sessions=lb_sessions,
                 n_eval_sessions=n_eval_sessions,
+                feature_mode=f_mode,
             )
 
         # 2. Generate Live T+1 Upcoming Forecast
@@ -951,6 +980,7 @@ def get_multi_horizon_forecaster_payload(
             horizon_key=h_key,
             champion_model=champ_model,
             train_lookback_sessions=lb_sessions,
+            feature_mode=f_mode,
         )
 
         horizons_result[h_key] = {
@@ -960,6 +990,7 @@ def get_multi_horizon_forecaster_payload(
                 "crowned_model": champ_model,
                 "crowned_horizon": horizon_lb_str,
                 "training_lookback_sessions": lb_sessions,
+                "feature_mode": f_mode,
                 "hit_rate_pct": bt_eval.get("hit_rate_pct", 0.0),
                 "hits": bt_eval.get("hits", 0),
                 "total_evals": bt_eval.get("total_evals", 0),

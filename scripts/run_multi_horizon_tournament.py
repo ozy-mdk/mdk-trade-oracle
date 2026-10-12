@@ -38,9 +38,13 @@ from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.gold.tertip_multi_horizon import (
     CONFIG_PATH,
+    ensure_multi_horizon_tables,
     update_gold_tertip_multi_horizon_forecasts,
 )
-from mdk_trading_oracle.data.silver.tertip_ml_forecaster import extract_3pillar_time_series
+from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
+    FEATURE_MODES,
+    extract_3pillar_time_series,
+)
 from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
     HORIZON_MAP,
     evaluate_horizon_walk_forward,
@@ -129,35 +133,38 @@ def run_tournament_for_symbol(
     for h_key in HORIZONS:
         for fam_name, models in FAMILIES.items():
             for model_name in models:
-                for lb_str, lb_sessions in LOOKBACKS:
-                    res = evaluate_horizon_walk_forward(
-                        df=df_feat,
-                        horizon_key=h_key,
-                        model_name=model_name,
-                        train_lookback_sessions=lb_sessions,
-                        n_eval_sessions=eval_sessions,
-                    )
+                for f_mode in FEATURE_MODES:
+                    for lb_str, lb_sessions in LOOKBACKS:
+                        res = evaluate_horizon_walk_forward(
+                            df=df_feat,
+                            horizon_key=h_key,
+                            model_name=model_name,
+                            train_lookback_sessions=lb_sessions,
+                            n_eval_sessions=eval_sessions,
+                            feature_mode=f_mode,
+                        )
 
-                    ledger = res.get("ledger", [])
-                    opt1_score, r1, r2, r3 = compute_option1_recency_score(ledger)
+                        ledger = res.get("ledger", [])
+                        opt1_score, r1, r2, r3 = compute_option1_recency_score(ledger)
 
-                    swing_evals[h_key].append({
-                        "family": fam_name,
-                        "model": model_name,
-                        "horizon": lb_str,
-                        "training_lookback_sessions": lb_sessions,
-                        "opt1_score": opt1_score,
-                        "r_0_30": r1,
-                        "r_30_60": r2,
-                        "r_60_90": r3,
-                        "hit_rate_pct": res.get("hit_rate_pct", 0.0),
-                        "mae_pct": res.get("mae_pct", 0.0),
-                        "hit_mae_pct": res.get("hit_mae_pct", 0.0),
-                        "miss_mae_pct": res.get("miss_mae_pct", 0.0),
-                        "loss": res.get("loss", 999.0),
-                        "hits": res.get("hits", 0),
-                        "total_evals": res.get("total_evals", 0),
-                    })
+                        swing_evals[h_key].append({
+                            "family": fam_name,
+                            "model": model_name,
+                            "horizon": lb_str,
+                            "feature_mode": f_mode,
+                            "training_lookback_sessions": lb_sessions,
+                            "opt1_score": opt1_score,
+                            "r_0_30": r1,
+                            "r_30_60": r2,
+                            "r_60_90": r3,
+                            "hit_rate_pct": res.get("hit_rate_pct", 0.0),
+                            "mae_pct": res.get("mae_pct", 0.0),
+                            "hit_mae_pct": res.get("hit_mae_pct", 0.0),
+                            "miss_mae_pct": res.get("miss_mae_pct", 0.0),
+                            "loss": res.get("loss", 999.0),
+                            "hits": res.get("hits", 0),
+                            "total_evals": res.get("total_evals", 0),
+                        })
 
     # =========================================================================
     # STAGE 1: CROWN MODEL FAMILY USING OPTION 1 RECENCY SCORES
@@ -192,6 +199,7 @@ def run_tournament_for_symbol(
         symbol_champions[h_key] = {
             "model": best_spec["model"],
             "horizon": best_spec["horizon"],
+            "feature_mode": best_spec.get("feature_mode", "FIFO_CORE"),
             "training_lookback_sessions": best_spec["training_lookback_sessions"],
             "hit_rate_pct": best_spec["hit_rate_pct"],
             "opt1_score": round(best_spec["opt1_score"], 2),
@@ -207,7 +215,7 @@ def run_tournament_for_symbol(
             "crowned_family": crowned_family,
         }
         logger.info(
-            f"   👑 Crowned [{h_key}]: {best_spec['model']} ({best_spec['horizon']}) "
+            f"   👑 Crowned [{h_key}]: {best_spec['model']} ({best_spec['horizon']}/{best_spec.get('feature_mode', 'FIFO_CORE')}) "
             f"| Opt1 Score: {best_spec['opt1_score']:.1f}% "
             f"[0-30d: {best_spec['r_0_30']:.1f}% | 30-60d: {best_spec['r_30_60']:.1f}% | 60-90d: {best_spec['r_60_90']:.1f}%] "
             f"| Win: {best_spec['hit_rate_pct']}% ({best_spec['hits']}/{best_spec['total_evals']})"
@@ -235,6 +243,7 @@ def main() -> None:
     args = parser.parse_args()
 
     db = PostgresManager()
+    ensure_multi_horizon_tables(db)
 
     if args.all_bist30:
         rows = db.query_pl("SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC").to_pandas()
