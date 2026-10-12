@@ -38,3 +38,148 @@ INFO:     Finished server process [7843]
 INFO:     Started server process [8059]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+INFO:     127.0.0.1:51391 - "GET /api/v1/metadata HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51393 - "GET /api/v1/market-summary HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51394 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51396 - "GET /api/v1/tertip/multi-horizon/opportunities?horizon=5d HTTP/1.1" 200 OK
+[10/12/26 22:34:28] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:31 - cmdstanpy - INFO - Chain [1] done processing
+21:34:31 - cmdstanpy - INFO - Chain [1] start processing
+21:34:32 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:51399 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=PGSUS&fresh=true&eval_sessions=30 HTTP/1.1" 200 OK
+21:34:35 - cmdstanpy - INFO - Chain [1] start processing
+21:34:36 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:51400 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS&model_type=auto&fresh=true&_t=1791833668532 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51402 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=PGSUS&fresh=false&eval_sessions=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51404 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51408 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51406 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=PGSUS&fresh=false&eval_sessions=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51412 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=3d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51414 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=5d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51416 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=10d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51418 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=PGSUS&horizon=15d&limit=30 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51433 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51440 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51454 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51480 - "GET /api/v1/tertip/ml-forecast?symbol=PGSUS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51479 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=PGSUS&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51484 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=EREGL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51485 - "GET /api/v1/tertip/ml-forecast?symbol=EREGL&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51497 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51504 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51506 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51508 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51510 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51512 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51514 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51516 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51518 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51520 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51522 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51537 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51539 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51548 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51558 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51571 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51574 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51576 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51578 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51580 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51582 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51584 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51586 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51588 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51590 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51592 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51596 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51598 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51600 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51604 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51606 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51610 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51637 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51638 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51641 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51646 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-09 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51642 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51647 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51656 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51657 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51658 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51662 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51664 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51660 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51666 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51668 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51659 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51649 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51671 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51672 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51673 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51675 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51676 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51677 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51678 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=EREGL&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51679 - "GET /api/v1/tertip/ml-forecast?symbol=EREGL&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51684 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51683 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51687 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8059]
+INFO:     Started server process [10316]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10316]
+INFO:     Started server process [10336]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51725 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51726 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51728 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51727 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK

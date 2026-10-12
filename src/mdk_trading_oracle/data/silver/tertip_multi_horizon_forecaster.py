@@ -649,19 +649,30 @@ def generate_live_horizon_forecast(
     }
 
 
+def _clean_champ_name(name: Optional[str]) -> str:
+    if not name:
+        return "Auto"
+    import re
+    m = re.search(r"\(([^)]+)\)", str(name))
+    if m:
+        return m.group(1).strip()
+    return re.sub(r"^(?:Crowned|Grand|ML)?\s*Champion\s*", "", str(name), flags=re.IGNORECASE).strip() or str(name)
+
+
 def get_multi_horizon_forecaster_payload(
     db: PostgresManager,
     symbol: str,
     selected_composition: dict[str, dict[str, Any]] | None = None,
     n_eval_sessions: int = 180,
     force_recompute: bool = False,
+    target_date: Optional[str] = None,
 ) -> dict[str, Any]:
     """Generate comprehensive multi-horizon forecast payload across all 5 windows.
 
     Returns live forecasts and retrospective backtest ledgers for 3d, 5d, 10d, 15d, and 30d.
     """
     sym = symbol.upper()
-    cache_key = f"{sym}_multi_horizon_{n_eval_sessions}"
+    cache_key = f"{sym}_multi_horizon_{n_eval_sessions}_{target_date or 'latest'}"
     now_ts = datetime.now(timezone.utc).timestamp()
 
     if not force_recompute and cache_key in _MULTI_HORIZON_CACHE:
@@ -669,8 +680,151 @@ def get_multi_horizon_forecaster_payload(
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
+    # Fast-path: Check database precomputed gold tables first
+    if db is not None and not force_recompute:
+        try:
+            date_filter = "as_of_date = %s" if target_date else "as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_multi_horizon_forecasts WHERE symbol = %s)"
+            params = [sym, target_date] if target_date else [sym, sym]
+            gold_rows = db.query_pl(
+                f"""
+                SELECT symbol, as_of_date, horizon, horizon_days, current_price, target_price,
+                       expected_return_pct, price_low, price_high, stance, conviction, playbook,
+                       ml_champion_type, champion_dir_hits, champion_total_evals,
+                       champion_dir_hit_rate_pct, champion_mae_pct, training_lookback_sessions,
+                       actual_training_sessions, data_sufficiency_status, crowned_horizon
+                FROM gold_tertip_multi_horizon_forecasts
+                WHERE symbol = %s AND {date_filter};
+                """,
+                params=params,
+            ).to_dicts()
+
+            if len(gold_rows) >= 5:
+                gold_map = {r["horizon"]: r for r in gold_rows}
+                as_of_str = str(gold_rows[0]["as_of_date"])
+                curr_p = float(gold_rows[0].get("current_price") or 0.0)
+                horizons_result = {}
+
+                for h_key in ["3d", "5d", "10d", "15d", "30d"]:
+                    g = gold_map.get(h_key, {})
+                    c_model = _clean_champ_name(g.get("ml_champion_type"))
+                    lb_sess = int(g.get("training_lookback_sessions") or 126)
+                    act_sess = int(g.get("actual_training_sessions") or lb_sess)
+
+                    # Backtest ledger up to as_of_date
+                    db_rows = []
+                    try:
+                        db_res = db.query_pl(
+                            """
+                            SELECT * FROM (
+                                SELECT trade_date, target_date_start, target_date_end, current_price,
+                                       actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
+                                       pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
+                                       actual_training_sessions, data_sufficiency_status
+                                FROM gold_tertip_multi_horizon_backtests
+                                WHERE symbol = %s AND horizon = %s AND trade_date <= %s
+                                ORDER BY trade_date DESC
+                                LIMIT %s
+                            ) sub
+                            ORDER BY trade_date ASC;
+                            """,
+                            params=[sym, h_key, as_of_str, n_eval_sessions],
+                        )
+                        if len(db_res) > 0:
+                            db_rows = db_res.to_dicts()
+                    except Exception:
+                        db_rows = []
+
+                    completed = [r for r in db_rows if not r.get("is_pending")]
+                    hits = sum(1 for r in completed if r.get("is_hit"))
+                    total = len(completed)
+                    hit_rate = round(hits / max(1, total) * 100.0, 1) if total > 0 else float(g.get("champion_dir_hit_rate_pct") or 0.0)
+                    errs = [float(r.get("err_pct", 0.0)) for r in completed]
+                    hit_errs = [float(r.get("err_pct", 0.0)) for r in completed if r.get("is_hit")]
+                    miss_errs = [float(r.get("err_pct", 0.0)) for r in completed if not r.get("is_hit")]
+                    mae = round(float(np.mean(errs)), 2) if errs else float(g.get("champion_mae_pct") or 0.0)
+                    h_mae = round(float(np.mean(hit_errs)), 2) if hit_errs else 0.0
+                    m_mae = round(float(np.mean(miss_errs)), 2) if miss_errs else 0.0
+                    loss = round((100.0 - hit_rate) + 1.0 * h_mae + 2.5 * m_mae, 2)
+
+                    ledger = [
+                        {
+                            "trade_date": str(r["trade_date"]),
+                            "target_date_start": str(r["target_date_start"]),
+                            "target_date_end": str(r["target_date_end"]),
+                            "current_price": float(r["current_price"] or 0.0),
+                            "actual_avg_price": float(r["actual_avg_price"] or 0.0),
+                            "actual_return_pct": float(r["actual_return_pct"] or 0.0),
+                            "pred_avg_price": float(r["pred_avg_price"] or 0.0),
+                            "pred_return_pct": float(r["pred_return_pct"] or 0.0),
+                            "pred_direction": r.get("pred_direction") or "NEUTRAL",
+                            "actual_direction": r.get("actual_direction") or "NEUTRAL",
+                            "err_pct": float(r["err_pct"] or 0.0),
+                            "is_hit": bool(r.get("is_hit", False)),
+                            "is_pending": bool(r.get("is_pending", False)),
+                            "champion_model": r.get("champion_model") or c_model,
+                            "actual_training_sessions": r.get("actual_training_sessions") or act_sess,
+                            "target_lookback_sessions": lb_sess,
+                            "actual_training_months": round((r.get("actual_training_sessions") or act_sess) / 21.0, 1),
+                            "data_sufficiency_status": r.get("data_sufficiency_status") or g.get("data_sufficiency_status") or "FULL",
+                        }
+                        for r in db_rows
+                    ]
+
+                    live_fc = {
+                        "as_of_date": as_of_str,
+                        "current_price": curr_p,
+                        "target_price": float(g.get("target_price") or curr_p),
+                        "expected_return_pct": float(g.get("expected_return_pct") or 0.0),
+                        "price_low": float(g.get("price_low") or curr_p),
+                        "price_high": float(g.get("price_high") or curr_p),
+                        "direction": g.get("stance") or "NEUTRAL",
+                        "stance": g.get("stance") or "NEUTRAL",
+                        "conviction": g.get("conviction") or "",
+                        "playbook": g.get("playbook") or "",
+                        "champion_model": c_model,
+                        "crowned_horizon": g.get("crowned_horizon") or "6m",
+                        "training_lookback_sessions": lb_sess,
+                        "actual_training_sessions": act_sess,
+                        "data_sufficiency_status": g.get("data_sufficiency_status") or "FULL",
+                    }
+
+                    horizons_result[h_key] = {
+                        "meta": {
+                            "horizon": h_key,
+                            "horizon_days": HORIZON_MAP[h_key],
+                            "crowned_model": c_model,
+                            "crowned_horizon": g.get("crowned_horizon") or "6m",
+                            "training_lookback_sessions": lb_sess,
+                            "hit_rate_pct": hit_rate,
+                            "hits": hits,
+                            "total_evals": total,
+                            "eval_sessions_requested": len(db_rows),
+                            "mae_pct": mae,
+                            "hit_mae_pct": h_mae,
+                            "miss_mae_pct": m_mae,
+                            "loss": loss,
+                        },
+                        "live_forecast": live_fc,
+                        "backtest_ledger": ledger,
+                    }
+
+                payload = {
+                    "status": "success",
+                    "symbol": sym,
+                    "as_of_date": as_of_str,
+                    "current_price": curr_p,
+                    "calculated_at": datetime.now(timezone.utc).isoformat(),
+                    "horizons": horizons_result,
+                }
+                _MULTI_HORIZON_CACHE[cache_key] = (now_ts, payload)
+                return payload
+        except Exception as e:
+            logger.warning(f"Error reading precomputed gold forecasts for {sym}: {e}")
+
     # Extract 3-pillar time series with 39 stationary features
     df = extract_3pillar_time_series(db, sym, lookback_days=550)
+    if target_date and not df.empty:
+        df = df[df["trade_date"] <= target_date]
     if df.empty or len(df) < 60:
         return {
             "status": "error",

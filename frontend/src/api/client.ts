@@ -139,11 +139,15 @@ export async function fetchShockDays(
 export async function fetchTertipMlForecast(
   symbol: string,
   fresh: boolean = false,
-  modelType: string = 'auto'
+  modelType: string = 'auto',
+  targetDate?: string,
 ): Promise<TertipMlForecastResponse> {
   let url = `${BASE_URL}/api/v1/tertip/ml-forecast?symbol=${encodeURIComponent(symbol)}&model_type=${encodeURIComponent(modelType)}`;
   if (fresh) {
     url += `&fresh=true&_t=${Date.now()}`;
+  }
+  if (targetDate) {
+    url += `&target_date=${encodeURIComponent(targetDate)}`;
   }
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch tertip ML forecast');
@@ -167,9 +171,14 @@ export async function fetchPredictedOpportunities(
 export async function fetchMultiHorizonForecast(
   symbol: string,
   fresh: boolean = false,
-  evalSessions: number = 60
+  evalSessions: number = 60,
+  targetDate?: string,
 ): Promise<MultiHorizonForecastResponse> {
-  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}&eval_sessions=${evalSessions}`);
+  let url = `${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}&eval_sessions=${evalSessions}`;
+  if (targetDate) {
+    url += `&target_date=${encodeURIComponent(targetDate)}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch multi-horizon forecast');
   return res.json();
 }
@@ -177,9 +186,14 @@ export async function fetchMultiHorizonForecast(
 export async function fetchMultiHorizonBacktest(
   symbol: string,
   horizon: string = '3d',
-  limit: number = 60
+  limit: number = 60,
+  targetDate?: string,
 ): Promise<MultiHorizonBacktestItem[]> {
-  const res = await fetch(`${BASE_URL}/api/v1/tertip/multi-horizon/backtest?symbol=${encodeURIComponent(symbol)}&horizon=${encodeURIComponent(horizon)}&limit=${limit}`);
+  let url = `${BASE_URL}/api/v1/tertip/multi-horizon/backtest?symbol=${encodeURIComponent(symbol)}&horizon=${encodeURIComponent(horizon)}&limit=${limit}`;
+  if (targetDate) {
+    url += `&target_date=${encodeURIComponent(targetDate)}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch multi-horizon backtest');
   return res.json();
 }
