@@ -3,51 +3,7 @@
 > vite
 
 
-  VITE v5.4.21  ready in 120 ms
+  VITE v5.4.21  ready in 129 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://192.168.178.55:5173/
-6:46:19 PM [vite] hmr update /src/components/WeekStartDashboard.tsx, /src/index.css
-6:47:22 PM [vite] Pre-transform error: Failed to load url /src/components/WeekStartDashboard.tsx (resolved id: /Users/ozkanyildirim/mdk-trade-oracle/frontend/src/components/WeekStartDashboard.tsx) in /Users/ozkanyildirim/mdk-trade-oracle/frontend/src/App.tsx. Does the file exist?
-6:48:32 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:48:41 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:48:49 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:49:02 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/TimeWindowTerminal.tsx, /src/components/CandleDashboard.tsx, /src/components/EventStudyDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-6:49:08 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/TimeWindowTerminal.tsx, /src/components/CandleDashboard.tsx, /src/components/EventStudyDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-6:49:19 PM [vite] page reload src/types/api.ts
-6:55:19 PM [vite] hmr update /src/components/TimeWindowTerminal.tsx, /src/index.css
-6:55:19 PM [vite] hmr update /src/components/EventStudyDashboard.tsx, /src/index.css
-6:55:32 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:55:45 PM [vite] hmr update /src/App.tsx, /src/index.css
-6:55:57 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-6:56:10 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-6:56:17 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-6:56:27 PM [vite] page reload src/types/api.ts
-7:16:41 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-7:16:56 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-7:20:01 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-7:20:16 PM [vite] hmr update /src/App.tsx, /src/index.css
-7:20:52 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-7:22:21 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-7:22:30 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-7:36:41 PM [vite] hmr update /src/App.tsx, /src/index.css
-7:41:38 PM [vite] page reload src/types/api.ts
-7:41:49 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-7:43:30 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-7:44:08 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-10:04:46 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-10:05:34 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-10:06:04 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-10:06:28 PM [vite] hmr update /src/App.tsx, /src/index.css
-10:06:38 PM [vite] hmr update /src/App.tsx, /src/index.css
-10:06:52 PM [vite] hmr update /src/App.tsx, /src/index.css
-10:07:13 PM [vite] hmr update /src/components/OpportunityActionsDashboard.tsx, /src/index.css
-10:07:19 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-10:25:56 PM [vite] page reload src/types/api.ts
-10:26:08 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-10:26:14 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
-10:27:28 PM [vite] hmr update /src/App.tsx, /src/index.css
-10:27:43 PM [vite] hmr update /src/App.tsx, /src/index.css
-11:01:36 PM [vite] page reload src/types/api.ts
-11:01:56 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
-11:02:07 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
