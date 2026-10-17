@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 QUANT_QTY = Decimal("0.000001")
 QUANT_MONEY = Decimal("0.000001")
 ZERO = Decimal("0")
+ONE = Decimal("1")
 
 
 def qquantity(v: Any) -> Decimal:
@@ -51,6 +52,7 @@ class Lot:
     quantity: Decimal
     value: Decimal
     unit_cost: Decimal
+    quantity_factor: Decimal = ONE  # cumulative split / bonus-issue multiplier applied since entry
 
     @property
     def is_empty(self) -> bool:
@@ -128,6 +130,7 @@ class LotChanges:
     def __init__(self):
         self.entries: Dict[str, LotEntryRecord] = {}
         self.realizations: List[LotRealizationRecord] = []
+        self.quantity_factors: Dict[str, Decimal] = {}  # lot_id -> cumulative corporate-action multiplier
         self._realization_seq: int = 0
 
     def next_realization_id(self, lot_id: str) -> str:
@@ -340,6 +343,24 @@ def apply_buy(
 
     state.cumulative_realized = qmoney(state.cumulative_realized + realized)
     return realized
+
+
+def apply_corporate_action(state: PositionState, multiplier: Any, changes: Optional[LotChanges] = None) -> None:
+    """Restate open lots for a split / bonus issue (bedelsiz) effective before the next session's flow.
+
+    Quantity is multiplied and unit cost divided by `multiplier`; the TL cost basis (lot value) is conserved,
+    so FIFO costs stay comparable with the post-action raw price and no PnL is created by the action itself.
+    Immutable entry records keep their original opened quantity; the cumulative multiplier is tracked per lot.
+    """
+    m = Decimal(str(multiplier))
+    if m <= ZERO or m == ONE:
+        return
+    for lot in (*state.long_lots, *state.short_lots):
+        lot.quantity = qquantity(lot.quantity * m)
+        lot.unit_cost = lot.unit_cost / m
+        lot.quantity_factor = lot.quantity_factor * m
+        if changes is not None:
+            changes.quantity_factors[lot.lot_id] = lot.quantity_factor
 
 
 def match_daily_flow(

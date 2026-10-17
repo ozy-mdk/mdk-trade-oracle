@@ -25,6 +25,7 @@ from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
     _check_hit,
+    adjusted_price,
     attach_prophet_rolling_features,
     calibrate_expected_return,
     clear_forecast_cache,
@@ -252,7 +253,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
 
         # Target: 1-session forward return
         tr_full = df.iloc[-train_lb:].dropna(subset=f_cols).copy()
-        y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
+        y_tr_full = adjusted_price(tr_full, "close").pct_change().shift(-1) * 100.0
         X_tr_full = tr_full[f_cols].iloc[:-1]
         y_tr_full = y_tr_full.iloc[:-1]
 
@@ -264,7 +265,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
                 continue
             # Adapt to available history
             tr_full = valid_rows.iloc[-train_lb:].copy()
-            y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
+            y_tr_full = adjusted_price(tr_full, "close").pct_change().shift(-1) * 100.0
             X_tr_full = tr_full[f_cols].iloc[:-1]
             y_tr_full = y_tr_full.iloc[:-1]
 
@@ -372,7 +373,10 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         if len(df) >= 2:
             prev_session_row = df.iloc[-2]
             p_close = float(prev_session_row["close_price"])
-            realized_ret = (latest_price - p_close) / p_close * 100.0
+            adj_close = adjusted_price(df, "close")
+            realized_ret = (float(adj_close.iloc[-1]) / float(adj_close.iloc[-2]) - 1.0) * 100.0
+            # Realized close restated in session T-1 share terms (split-consistent error measurement)
+            latest_price_eq = p_close * (1.0 + realized_ret / 100.0)
 
             # Predict on session T-1 for session T
             x_prev = prev_session_row[f_cols]
@@ -381,13 +385,13 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             prev_atr = float(prev_session_row.get("atr_14d_pct", 2.5))
             pred_prev_ret = calibrate_expected_return(raw_prev_ret, prev_atr, deadband=DEADBAND_PCT)
             pred_prev_price = p_close * (1.0 + pred_prev_ret / 100.0)
-            err_pct = abs(pred_prev_price - latest_price) / latest_price * 100.0
+            err_pct = abs(pred_prev_price - latest_price_eq) / latest_price_eq * 100.0
             is_hit = _check_hit(pred_prev_ret, realized_ret)
             direction = "UP" if pred_prev_ret > DEADBAND_PCT else ("DOWN" if pred_prev_ret < -DEADBAND_PCT else "FLAT")
 
             p_prophet_ret = float(latest_row.get("feat_prophet_ret_today_pct", 0.0))
             p_prophet_price = p_close * (1.0 + p_prophet_ret / 100.0)
-            p_prophet_err = abs(p_prophet_price - latest_price) / latest_price * 100.0
+            p_prophet_err = abs(p_prophet_price - latest_price_eq) / latest_price_eq * 100.0
             p_prophet_hit = _check_hit(p_prophet_ret, realized_ret)
             p_prophet_dir = "UP" if p_prophet_ret > DEADBAND_PCT else ("DOWN" if p_prophet_ret < -DEADBAND_PCT else "FLAT")
 

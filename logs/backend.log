@@ -488,3 +488,76 @@ INFO:     Finished server process [5673]
 INFO:     Started server process [5748]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+INFO:     127.0.0.1:50511 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/model_candidate_arena.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5748]
+INFO:     Started server process [8010]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/model_candidate_arena.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8010]
+INFO:     Started server process [8029]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8029]
+INFO:     Started server process [10379]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10379]
+INFO:     Started server process [10422]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10422]
+INFO:     Started server process [10463]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_forecasts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10463]
+INFO:     Started server process [10500]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_engine.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10500]
+INFO:     Started server process [10922]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10922]
+INFO:     Started server process [10969]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/data/test_tertip_engine.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10969]
+INFO:     Started server process [11014]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

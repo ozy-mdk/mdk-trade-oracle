@@ -48,6 +48,7 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     ALL_FIFO_COST_PNL_COLS,
     DEADBAND_PCT,
     YTD_FEATURE_COLS,
+    adjusted_price,
     calibrate_expected_return,
     extract_3pillar_time_series,
 )
@@ -129,6 +130,7 @@ def get_horizon_deadband(n_days: int) -> float:
 def compute_forward_terminal_return(
     close_prices: pd.Series,
     n_days: int,
+    adj_close_prices: pd.Series | None = None,
 ) -> tuple[pd.Series, pd.Series]:
     """Compute forward N-day terminal price and percentage return (P_{t+N} - P_t) / P_t * 100.
 
@@ -138,6 +140,9 @@ def compute_forward_terminal_return(
         Series of historical close prices sorted chronologically ascending.
     n_days : int
         Number of forward trading sessions (e.g. 3, 5, 10, 15, 30).
+    adj_close_prices : pd.Series, optional
+        Split-adjusted closes. When given, the return is measured on adjusted prices and the terminal price is
+        restated in session-t share terms (P_t * (1 + return)), so corporate actions never appear as moves.
 
     Returns
     -------
@@ -149,8 +154,9 @@ def compute_forward_terminal_return(
         nans = pd.Series([np.nan] * len(close_prices), index=close_prices.index)
         return nans, nans
 
-    fwd_terminal_price = close_prices.shift(-n_days)
-    fwd_terminal_ret = (fwd_terminal_price - close_prices) / close_prices * 100.0
+    basis = close_prices if adj_close_prices is None else adj_close_prices
+    fwd_terminal_ret = (basis.shift(-n_days) - basis) / basis * 100.0
+    fwd_terminal_price = close_prices * (1.0 + fwd_terminal_ret / 100.0)
     return fwd_terminal_price, fwd_terminal_ret
 
 
@@ -170,20 +176,21 @@ def engineer_multi_horizon_features(
         return df, filter_multi_horizon_features(feature_cols, feature_mode=feature_mode)
 
     df = df.copy()
+    px = adjusted_price(df, "close")  # split-consistent closes for all return / trend maths
 
     # 1. Multi-Day Trailing Price Momentum (%)
-    df["feat_close_ret_3d"] = ((df["close_price"] - df["close_price"].shift(3)) / df["close_price"].shift(3) * 100.0).fillna(0.0)
-    df["feat_close_ret_5d"] = ((df["close_price"] - df["close_price"].shift(5)) / df["close_price"].shift(5) * 100.0).fillna(0.0)
-    df["feat_close_ret_10d"] = ((df["close_price"] - df["close_price"].shift(10)) / df["close_price"].shift(10) * 100.0).fillna(0.0)
-    df["feat_close_ret_20d"] = ((df["close_price"] - df["close_price"].shift(20)) / df["close_price"].shift(20) * 100.0).fillna(0.0)
+    df["feat_close_ret_3d"] = ((px - px.shift(3)) / px.shift(3) * 100.0).fillna(0.0)
+    df["feat_close_ret_5d"] = ((px - px.shift(5)) / px.shift(5) * 100.0).fillna(0.0)
+    df["feat_close_ret_10d"] = ((px - px.shift(10)) / px.shift(10) * 100.0).fillna(0.0)
+    df["feat_close_ret_20d"] = ((px - px.shift(20)) / px.shift(20) * 100.0).fillna(0.0)
 
     # 2. Moving Average Trend Slopes & Distance (%)
-    sma10 = df["close_price"].rolling(10, min_periods=5).mean()
-    sma20 = df["close_price"].rolling(20, min_periods=10).mean()
-    sma50 = df["close_price"].rolling(50, min_periods=20).mean()
-    df["feat_price_vs_sma10_pct"] = ((df["close_price"] - sma10) / sma10 * 100.0).fillna(0.0)
-    df["feat_price_vs_sma20_pct"] = ((df["close_price"] - sma20) / sma20 * 100.0).fillna(0.0)
-    df["feat_price_vs_sma50_pct"] = ((df["close_price"] - sma50) / sma50 * 100.0).fillna(0.0)
+    sma10 = px.rolling(10, min_periods=5).mean()
+    sma20 = px.rolling(20, min_periods=10).mean()
+    sma50 = px.rolling(50, min_periods=20).mean()
+    df["feat_price_vs_sma10_pct"] = ((px - sma10) / sma10 * 100.0).fillna(0.0)
+    df["feat_price_vs_sma20_pct"] = ((px - sma20) / sma20 * 100.0).fillna(0.0)
+    df["feat_price_vs_sma50_pct"] = ((px - sma50) / sma50 * 100.0).fillna(0.0)
     df["feat_sma10_vs_sma20_pct"] = ((sma10 - sma20) / sma20 * 100.0).fillna(0.0)
     df["feat_sma20_vs_sma50_pct"] = ((sma20 - sma50) / sma50 * 100.0).fillna(0.0)
 
@@ -234,12 +241,13 @@ def engineer_multi_horizon_features(
     df["feat_stock_vol_20d"] = (df["daily_return_pct"].rolling(20, min_periods=10).std() * np.sqrt(252) * 100.0).fillna(0.0)
 
     if "high_price" in df.columns and "low_price" in df.columns:
-        prev_close_series = df["close_price"].shift(1)
-        tr_hl = (df["high_price"] - df["low_price"]).abs()
-        tr_hpc = (df["high_price"] - prev_close_series).abs()
-        tr_lpc = (df["low_price"] - prev_close_series).abs()
+        adj_high, adj_low = adjusted_price(df, "high"), adjusted_price(df, "low")
+        prev_close_series = px.shift(1)
+        tr_hl = (adj_high - adj_low).abs()
+        tr_hpc = (adj_high - prev_close_series).abs()
+        tr_lpc = (adj_low - prev_close_series).abs()
         tr_d = pd.concat([tr_hl, tr_hpc, tr_lpc], axis=1).max(axis=1)
-        df["atr_14d_pct"] = ((tr_d.rolling(14, min_periods=5).mean() / df["close_price"] * 100.0).clip(0.5, 15.0).fillna(2.2))
+        df["atr_14d_pct"] = ((tr_d.rolling(14, min_periods=5).mean() / px * 100.0).clip(0.5, 15.0).fillna(2.2))
     else:
         df["atr_14d_pct"] = 2.2
 
@@ -338,7 +346,7 @@ def evaluate_horizon_walk_forward(
     fwd_avg_ret_col = f"fwd_avg_ret_{horizon_key}"
 
     if fwd_avg_ret_col not in df.columns:
-        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days)
+        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days, adjusted_price(df, "close"))
         df[fwd_avg_price_col] = p_term
         df[fwd_avg_ret_col] = r_term
 
@@ -561,7 +569,7 @@ def generate_live_horizon_forecast(
     fwd_avg_ret_col = f"fwd_avg_ret_{horizon_key}"
 
     if fwd_avg_ret_col not in df.columns:
-        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days)
+        p_term, r_term = compute_forward_terminal_return(df["close_price"], n_days, adjusted_price(df, "close"))
         df[fwd_avg_price_col] = p_term
         df[fwd_avg_ret_col] = r_term
 

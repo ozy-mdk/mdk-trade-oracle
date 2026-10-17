@@ -7,6 +7,7 @@ from mdk_trading_oracle.data.silver.tertip_engine import (
     LotChanges,
     PositionState,
     apply_buy,
+    apply_corporate_action,
     apply_sell,
     execute_daily_flow_step,
 )
@@ -119,3 +120,48 @@ def test_three_day_full_numerical_scenario():
     assert res3.open_stock_quantity == Decimal("0.000000")
     assert res3.open_fifo_cost_tl == Decimal("0.000000")
     assert res3.cumulative_realized_pnl_tl == Decimal("-950.000000")  # 400 - 1800 + 400 + 50 = -950
+
+
+def test_split_restates_open_lots_and_conserves_cost_basis():
+    """A 2:1 bonus issue doubles lot quantity, halves unit cost and creates no PnL by itself."""
+    state = PositionState(broker_id="MLB", symbol="BIMAS")
+    changes = LotChanges()
+    apply_buy(state, Decimal("100"), Decimal("5000"), dt.date(2026, 5, 13), changes)  # 100 @ 50
+
+    apply_corporate_action(state, 2.0, changes)
+
+    lot = state.long_lots[0]
+    assert lot.quantity == Decimal("200.000000")
+    assert lot.value == Decimal("5000.000000")
+    assert lot.unit_cost == Decimal("25")
+    assert state.average_unit_cost == Decimal("25")
+    assert changes.quantity_factors[lot.lot_id] == Decimal("2.0")
+    # Immutable entry keeps the original pre-split quantity
+    assert changes.entries[lot.lot_id].opened_quantity == Decimal("100.000000")
+
+    # Post-split session: no flow, close 26 -> MTM gain of 200 (not a fake -2400 loss)
+    res = execute_daily_flow_step(state, dt.date(2026, 5, 14), 0.0, 0.0, 0.0, 0.0, 26.0, changes)
+    assert res.open_stock_quantity == Decimal("200.000000")
+    assert res.fifo_avg_cost == Decimal("25")
+    assert res.unrealized_pnl_tl == Decimal("200.000000")
+
+    # Selling the full post-split quantity closes the lot with the correct realized PnL
+    res = execute_daily_flow_step(state, dt.date(2026, 5, 15), 0.0, 0.0, 200.0, 5400.0, 27.0, changes)
+    assert res.carry_fifo_realized_pnl == Decimal("400.000000")
+    assert res.position_side == "FLAT"
+
+
+def test_split_restates_short_lots_and_ignores_unit_multiplier():
+    state = PositionState(broker_id="MLB", symbol="EREGL")
+    changes = LotChanges()
+    apply_sell(state, Decimal("50"), Decimal("2000"), dt.date(2024, 11, 26), changes)  # short 50 @ 40
+
+    apply_corporate_action(state, 1.0, changes)  # rename / unapplied paid rights: no-op
+    assert state.short_lots[0].quantity == Decimal("50.000000")
+    assert not changes.quantity_factors
+
+    apply_corporate_action(state, 2.0, changes)
+    res = execute_daily_flow_step(state, dt.date(2024, 11, 27), 0.0, 0.0, 0.0, 0.0, 19.0, changes)
+    assert res.position_side == "SHORT"
+    assert res.open_stock_quantity == Decimal("100.000000")
+    assert res.unrealized_pnl_tl == Decimal("100.000000")  # 2000 proceeds - 100 x 19

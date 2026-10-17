@@ -425,6 +425,7 @@ def initialize_silver_schema(db: PostgresManager) -> None:
             opened_quantity DOUBLE PRECISION NOT NULL,
             opened_value_tl DOUBLE PRECISION NOT NULL,
             opened_unit_cost DOUBLE PRECISION NOT NULL,
+            quantity_factor_applied DOUBLE PRECISION DEFAULT 1.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -440,6 +441,7 @@ def initialize_silver_schema(db: PostgresManager) -> None:
             remaining_quantity DOUBLE PRECISION NOT NULL,
             remaining_value_tl DOUBLE PRECISION NOT NULL,
             unit_cost DOUBLE PRECISION NOT NULL,
+            quantity_factor_applied DOUBLE PRECISION DEFAULT 1.0,
             last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)

@@ -10,6 +10,7 @@ from mdk_trading_oracle.data.silver.schema import initialize_silver_schema
 from mdk_trading_oracle.data.silver.tertip_engine import (
     LotChanges,
     PositionState,
+    apply_corporate_action,
     execute_daily_flow_step,
 )
 
@@ -1168,15 +1169,39 @@ class SilverTransformer:
             ORDER BY s.broker_id, s.symbol, s.trade_date ASC
         """).pl()
 
+        # Split / bonus-issue events (bedelsiz) restate open lots on the first session on or after the action date
+        actions_by_symbol: dict[str, list[tuple[Any, float]]] = {}
+        has_actions = conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'bronze_corporate_actions';"
+        ).fetchone()[0]
+        if has_actions:
+            for sym, action_date, multiplier in conn.execute("""
+                SELECT symbol, action_date, quantity_multiplier
+                FROM bronze_corporate_actions
+                WHERE quantity_multiplier IS NOT NULL AND quantity_multiplier <> 1.0
+                ORDER BY action_date ASC;
+            """).fetchall():
+                actions_by_symbol.setdefault(sym.strip().upper(), []).append((action_date, float(multiplier)))
+
         changes = LotChanges()
         states: dict[tuple[str, str], PositionState] = {}
+        applied_actions: dict[tuple[str, str], int] = {}
         daily_rows: list[dict[str, Any]] = []
+
+        def _apply_due_actions(key: tuple[str, str], as_of: Any) -> None:
+            pending = actions_by_symbol.get(key[1], [])
+            idx = applied_actions.get(key, 0)
+            while idx < len(pending) and pending[idx][0] <= as_of:
+                apply_corporate_action(states[key], pending[idx][1], changes)
+                idx += 1
+            applied_actions[key] = idx
 
         for row in df.iter_rows(named=True):
             key = (row["broker_id"], row["symbol"])
             if key not in states:
                 states[key] = PositionState(row["broker_id"], row["symbol"])
             st = states[key]
+            _apply_due_actions(key, row["trade_date"])
 
             res = execute_daily_flow_step(
                 state=st,
@@ -1225,6 +1250,12 @@ class SilverTransformer:
                     "cumulative_realized_pnl_tl": float(res.cumulative_realized_pnl_tl),
                 }
             )
+
+        # Restate lots carried without further trading through actions up to the latest session
+        if daily_rows:
+            latest_session = max(r["trade_date"] for r in daily_rows)
+            for key in states:
+                _apply_due_actions(key, latest_session)
 
         # 1. Register and persist daily summary
         pl_daily = (
@@ -1282,6 +1313,7 @@ class SilverTransformer:
                 "opened_quantity": float(e.opened_quantity),
                 "opened_value_tl": float(e.opened_value),
                 "opened_unit_cost": float(e.opened_unit_cost),
+                "quantity_factor_applied": float(changes.quantity_factors.get(e.lot_id, 1)),
             }
             for e in changes.entries.values()
         ]
@@ -1298,6 +1330,7 @@ class SilverTransformer:
                     "opened_quantity": pl.Series([], dtype=pl.Float64),
                     "opened_value_tl": pl.Series([], dtype=pl.Float64),
                     "opened_unit_cost": pl.Series([], dtype=pl.Float64),
+                    "quantity_factor_applied": pl.Series([], dtype=pl.Float64),
                 }
             )
         )
@@ -1322,6 +1355,7 @@ class SilverTransformer:
                             "remaining_quantity": float(lot.quantity),
                             "remaining_value_tl": float(lot.value),
                             "unit_cost": float(lot.unit_cost),
+                            "quantity_factor_applied": float(lot.quantity_factor),
                         }
                     )
         pl_active = (
@@ -1337,6 +1371,7 @@ class SilverTransformer:
                     "remaining_quantity": pl.Series([], dtype=pl.Float64),
                     "remaining_value_tl": pl.Series([], dtype=pl.Float64),
                     "unit_cost": pl.Series([], dtype=pl.Float64),
+                    "quantity_factor_applied": pl.Series([], dtype=pl.Float64),
                 }
             )
         )
@@ -1415,6 +1450,8 @@ class SilverTransformer:
                 e.opened_quantity,
                 e.opened_value_tl,
                 e.opened_unit_cost,
+                e.quantity_factor_applied,
+                e.opened_quantity * e.quantity_factor_applied AS opened_quantity_adjusted,
                 CASE 
                     WHEN COALESCE(r.is_final_closed, FALSE) THEN 'CLOSED'
                     ELSE 'OPEN'

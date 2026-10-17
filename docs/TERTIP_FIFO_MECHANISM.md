@@ -100,6 +100,19 @@ $$\text{PnL}_{\text{total\_daily}} = \text{PnL}_{\text{daily\_realized}} + (\tex
 
 ---
 
+### Corporate Actions: Splits & Bonus Issues (Bedelsiz)
+
+FIFO quantities and costs are kept in **point-in-time raw share terms**, so the cost basis is always comparable with that session's raw close. When a split or bonus issue (`bronze_corporate_actions.quantity_multiplier` $m \ne 1$) takes effect, every open lot of that symbol is restated **before the first session on or after the action date** is processed:
+
+$$\text{Lot.Quantity} \leftarrow \text{Lot.Quantity} \times m, \qquad \text{Lot.UnitCost} \leftarrow \frac{\text{Lot.UnitCost}}{m}, \qquad \text{Lot.Value (TL cost basis)} = \text{Conserved}$$
+
+- The action itself creates no realized or unrealized PnL: market value $Q \cdot m \times P / m$ is unchanged.
+- Lots carried without further trading are restated through the latest session as well.
+- Immutable entry records keep the original `opened_quantity`; the cumulative multiplier is stored as `quantity_factor_applied` (entries, active lots, lifecycle) and the lifecycle exposes `opened_quantity_adjusted` for reconciliation against post-action closures.
+- Paid rights issues (bedelli) are recorded with $m = 1$ and are not applied (subscription cash is not modelled); ticker renames are not merged across symbols.
+
+---
+
 ## 3. Step-by-Step Numerical Example
 
 ### Initial State

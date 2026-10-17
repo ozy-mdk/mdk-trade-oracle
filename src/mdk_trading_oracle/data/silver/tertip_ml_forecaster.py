@@ -185,6 +185,21 @@ def clear_forecast_cache() -> None:
     logger.info("Cleared Tertip ML Forecaster in-memory cache.")
 
 
+def adjusted_price(df: pd.DataFrame, field: str = "close") -> pd.Series:
+    """Split-consistent (back-adjusted) price series for return-based maths.
+
+    `adj_*_price` is back-adjusted by corporate-action quantity factors, so the latest bar equals the raw
+    price and historical bars are restated in today's share terms. Falls back to the raw column when the
+    adjusted one is unavailable. Raw `close_price` remains the price level for display and for FIFO cost
+    comparisons (FIFO costs are recorded in raw terms).
+    """
+    raw = df[f"{field}_price"].astype(float)
+    adj_col = f"adj_{field}_price"
+    if adj_col in df.columns:
+        return df[adj_col].astype(float).fillna(raw)
+    return raw
+
+
 def attach_prophet_rolling_features(
     df: pd.DataFrame,
     symbol: str,
@@ -199,6 +214,10 @@ def attach_prophet_rolling_features(
     - Calculates baseline return from predicted price:
       feat_prophet_ret_today_pct = (yhat_price - P_{k-1}) / P_{k-1} * 100.
     - Saves both predicted price and return to disk cache.
+
+    Prophet is fitted on split-adjusted closes; the cached price is restated in raw session T-1 share terms.
+    Prophet rescales y internally, so cached entries fitted on raw closes remain valid unless a corporate
+    action falls inside their training window; those entries are recomputed once and flagged `adjusted_basis`.
     """
     if df.empty or len(df) < 35:
         df["feat_prophet_ret_today_pct"] = 0.0
@@ -214,6 +233,7 @@ def attach_prophet_rolling_features(
     cache_file = PROPHET_CACHE_DIR / f"{sym}_prophet_price_daily.parquet"
     cached_dict: dict[str, float] = {}
     cached_prices: dict[str, float] = {}
+    adjusted_basis: set[str] = set()
 
     if cache_file.exists():
         try:
@@ -231,24 +251,34 @@ def attach_prophet_rolling_features(
                         cached_df["feat_prophet_price_today"].astype(float),
                     )
                 )
+                if "adjusted_basis" in cached_df.columns:
+                    adjusted_basis = set(
+                        pd.to_datetime(cached_df.loc[cached_df["adjusted_basis"].astype(bool), "trade_date"]).dt.strftime("%Y-%m-%d")
+                    )
         except Exception as e:
             logger.warning("Failed to load Prophet cache for %s: %s", sym, e)
 
     N = len(df)
     start_idx = max(train_lookback_sessions + 5, N - n_history_needed)
     close_prices = df["close_price"].astype(float).to_numpy()
+    adj_prices = adjusted_price(df, "close").to_numpy()
+    adj_factor = adj_prices / np.where(close_prices > 0, close_prices, np.nan)
     trade_dates = pd.to_datetime(df["trade_date"])
     date_strs = trade_dates.dt.strftime("%Y-%m-%d").to_numpy()
 
     dirty = False
     for k in range(start_idx, N):
         d_str = date_strs[k]
-        if d_str in cached_dict and d_str in cached_prices and pd.notna(cached_dict[d_str]):
+        window_factor = adj_factor[k - train_lookback_sessions : k]
+        spans_corporate_action = bool(np.nanmax(window_factor) - np.nanmin(window_factor) > 1e-6 * np.nanmax(window_factor))
+        cached_ok = d_str in cached_dict and d_str in cached_prices and pd.notna(cached_dict[d_str])
+        if cached_ok and (not spans_corporate_action or d_str in adjusted_basis):
             continue
 
         hist_dates = trade_dates.iloc[k - train_lookback_sessions : k]
-        hist_prices = close_prices[k - train_lookback_sessions : k]
-        prev_price = float(close_prices[k - 1])
+        hist_prices = adj_prices[k - train_lookback_sessions : k]
+        prev_price = float(adj_prices[k - 1])
+        prev_raw_price = float(close_prices[k - 1])
         target_date = trade_dates.iloc[k]
 
         try:
@@ -265,12 +295,14 @@ def attach_prophet_rolling_features(
             yhat_price = float(fc.iloc[-1]["yhat"])
             ret_today = ((yhat_price - prev_price) / prev_price * 100.0) if prev_price > 0 else 0.0
             cached_dict[d_str] = float(np.clip(ret_today, -15.0, 15.0))
-            cached_prices[d_str] = float(round(yhat_price, 2))
+            cached_prices[d_str] = float(round(prev_raw_price * (1.0 + ret_today / 100.0), 2))
+            adjusted_basis.add(d_str)
             dirty = True
         except Exception as e:
             logger.warning("Prophet fit failed for %s on %s: %s", sym, d_str, e)
             cached_dict[d_str] = 0.0
-            cached_prices[d_str] = float(prev_price) if prev_price > 0 else 0.0
+            cached_prices[d_str] = float(prev_raw_price) if prev_raw_price > 0 else 0.0
+            adjusted_basis.add(d_str)
             dirty = True
 
     if dirty or (not cache_file.exists() and cached_dict):
@@ -280,6 +312,7 @@ def attach_prophet_rolling_features(
                     "trade_date": d,
                     "feat_prophet_ret_today_pct": cached_dict[d],
                     "feat_prophet_price_today": cached_prices.get(d, 0.0),
+                    "adjusted_basis": d in adjusted_basis,
                 }
                 for d in cached_dict.keys()
             ])
@@ -301,7 +334,11 @@ def extract_3pillar_time_series(
     # 1. Stock Prices & Turnover
     df_prices = db.query_pl(
         """
-        SELECT trade_date, open_price, high_price, low_price, close_price, daily_return_pct, total_turnover_tl, total_volume
+        SELECT trade_date, open_price, high_price, low_price, close_price, daily_return_pct, total_turnover_tl, total_volume,
+               COALESCE(adj_open_price, open_price) AS adj_open_price,
+               COALESCE(adj_high_price, high_price) AS adj_high_price,
+               COALESCE(adj_low_price, low_price) AS adj_low_price,
+               COALESCE(adj_close_price, close_price) AS adj_close_price
         FROM silver_daily_stock_summary
         WHERE symbol = %s
         ORDER BY trade_date ASC;
@@ -448,8 +485,9 @@ def extract_3pillar_time_series(
     joined["feat_ret_yesterday_pct"] = (joined["daily_return_pct"].shift(1).fillna(0) * 100.0).clip(-25.0, 25.0)
 
     # 2b. Multi-Day Return Momentum & Acceleration (Stationary Percentage Features)
+    adj_close = adjusted_price(joined, "close")
     joined["feat_ret_3d_cum_pct"] = (
-        ((joined["close_price"] - joined["close_price"].shift(3)) / joined["close_price"].shift(3) * 100.0)
+        ((adj_close - adj_close.shift(3)) / adj_close.shift(3) * 100.0)
         .clip(-35.0, 35.0)
         .fillna(0.0)
     )
@@ -555,8 +593,8 @@ def extract_3pillar_time_series(
     )
 
     # 8f. Bollinger Bandwidth % ((4 * std_20) / sma_20 * 100)
-    sma_20 = joined["close_price"].rolling(20, min_periods=10).mean()
-    std_20 = joined["close_price"].rolling(20, min_periods=10).std()
+    sma_20 = adj_close.rolling(20, min_periods=10).mean()
+    std_20 = adj_close.rolling(20, min_periods=10).std()
     joined["feat_bollinger_bandwidth_pct"] = (
         ((4.0 * std_20) / sma_20 * 100.0)
         .clip(0.5, 50.0)
@@ -565,14 +603,15 @@ def extract_3pillar_time_series(
 
     # 8g. Rolling 14-Day Average True Range % (ATR % of Close)
     if "high_price" in joined.columns and "low_price" in joined.columns:
-        prev_close_series = joined["close_price"].shift(1)
-        tr_high_low = (joined["high_price"] - joined["low_price"]).abs()
-        tr_high_pc = (joined["high_price"] - prev_close_series).abs()
-        tr_low_pc = (joined["low_price"] - prev_close_series).abs()
+        adj_high, adj_low = adjusted_price(joined, "high"), adjusted_price(joined, "low")
+        prev_close_series = adj_close.shift(1)
+        tr_high_low = (adj_high - adj_low).abs()
+        tr_high_pc = (adj_high - prev_close_series).abs()
+        tr_low_pc = (adj_low - prev_close_series).abs()
         tr_daily = pd.concat([tr_high_low, tr_high_pc, tr_low_pc], axis=1).max(axis=1)
         atr_14 = tr_daily.rolling(14, min_periods=5).mean()
         joined["atr_14d_pct"] = (
-            (atr_14 / joined["close_price"] * 100.0)
+            (atr_14 / adj_close * 100.0)
             .clip(0.5, 15.0)
             .fillna(2.2)
         )
@@ -781,6 +820,7 @@ def run_30d_walk_forward_arena(
         if col not in df.columns:
             df[col] = 0.0
 
+    adj_close_all = adjusted_price(df, "close")
     step_records: list[dict[str, Any]] = []
     sessions_skipped_insufficient = 0
     sessions_with_partial_history = 0
@@ -813,7 +853,9 @@ def run_30d_walk_forward_arena(
         # Ground Truth
         actual_price = float(test_row["close_price"])
         prev_price = float(prev_row["close_price"])
-        actual_ret = (actual_price - prev_price) / prev_price * 100.0
+        actual_ret = (float(adj_close_all.iloc[idx]) / float(adj_close_all.iloc[idx - 1]) - 1.0) * 100.0
+        # Realized close restated in session t-1 share terms (split-consistent error measurement)
+        actual_price_eq = prev_price * (1.0 + actual_ret / 100.0)
 
         # Actual Realized Flows on session t
         mlb_actual_flow = float(test_row["mlb_flow"]) if pd.notna(test_row["mlb_flow"]) else 0.0
@@ -838,12 +880,13 @@ def run_30d_walk_forward_arena(
             raw_prophet_ret = float(ret_series.ewm(span=63).mean().iloc[-1]) if len(ret_series) > 0 else 0.0
         prophet_ret = calibrate_expected_return(raw_prophet_ret, prev_atr)
         prophet_price = prev_price * (1.0 + prophet_ret / 100.0)
-        prophet_err = abs(prophet_price - actual_price) / actual_price * 100.0
+        prophet_err = abs(prophet_price - actual_price_eq) / actual_price_eq * 100.0
         prophet_hit = _check_hit(prophet_ret, actual_ret)
 
         # 2. ML Candidate Features (strictly trailing actual_training_sessions)
         tr_clean = train_data.iloc[-actual_training_sessions:].dropna(subset=f_cols).copy()
-        y_tr = (tr_clean["close_price"].shift(-1) - tr_clean["close_price"]) / tr_clean["close_price"] * 100.0
+        tr_adj = adjusted_price(tr_clean, "close")
+        y_tr = (tr_adj.shift(-1) - tr_adj) / tr_adj * 100.0
         X_tr = tr_clean[f_cols].iloc[:-1]
         y_tr = y_tr.iloc[:-1]
         X_prev = pd.DataFrame([prev_row[f_cols]])
@@ -868,7 +911,7 @@ def run_30d_walk_forward_arena(
         raw_pred_ridge = max(-10.0, min(10.0, raw_pred_ridge))
         pred_ret_ridge = calibrate_expected_return(raw_pred_ridge, prev_atr)
         ridge_price = prev_price * (1.0 + pred_ret_ridge / 100.0)
-        ridge_err = abs(ridge_price - actual_price) / actual_price * 100.0
+        ridge_err = abs(ridge_price - actual_price_eq) / actual_price_eq * 100.0
         ridge_hit = _check_hit(pred_ret_ridge, actual_ret)
 
         # Candidate B: XGBoost (depth=3, lr=0.05, n_estimators=60)
@@ -886,7 +929,7 @@ def run_30d_walk_forward_arena(
         raw_pred_xgb = max(-10.0, min(10.0, raw_pred_xgb))
         pred_ret_xgb = calibrate_expected_return(raw_pred_xgb, prev_atr)
         xgb_price = prev_price * (1.0 + pred_ret_xgb / 100.0)
-        xgb_err = abs(xgb_price - actual_price) / actual_price * 100.0
+        xgb_err = abs(xgb_price - actual_price_eq) / actual_price_eq * 100.0
         xgb_hit = _check_hit(pred_ret_xgb, actual_ret)
 
         # Candidate C: LightGBM (depth=3, lr=0.05, n_estimators=60, leaves=11)
@@ -906,7 +949,7 @@ def run_30d_walk_forward_arena(
         raw_pred_lgbm = max(-10.0, min(10.0, raw_pred_lgbm))
         pred_ret_lgbm = calibrate_expected_return(raw_pred_lgbm, prev_atr)
         lgbm_price = prev_price * (1.0 + pred_ret_lgbm / 100.0)
-        lgbm_err = abs(lgbm_price - actual_price) / actual_price * 100.0
+        lgbm_err = abs(lgbm_price - actual_price_eq) / actual_price_eq * 100.0
         lgbm_hit = _check_hit(pred_ret_lgbm, actual_ret)
 
         # Candidate D: Huber Regressor (L1/L2 Hybrid with Scaler, alpha=1.0)
@@ -919,7 +962,7 @@ def run_30d_walk_forward_arena(
         raw_pred_huber = max(-10.0, min(10.0, raw_pred_huber))
         pred_ret_huber = calibrate_expected_return(raw_pred_huber, prev_atr)
         huber_price = prev_price * (1.0 + pred_ret_huber / 100.0)
-        huber_err = abs(huber_price - actual_price) / actual_price * 100.0
+        huber_err = abs(huber_price - actual_price_eq) / actual_price_eq * 100.0
         huber_hit = _check_hit(pred_ret_huber, actual_ret)
 
         # Candidate E: Bayesian Ridge (Automatic Relevance / Shrinkage with Scaler)
@@ -932,7 +975,7 @@ def run_30d_walk_forward_arena(
         raw_pred_bayes = max(-10.0, min(10.0, raw_pred_bayes))
         pred_ret_bayes = calibrate_expected_return(raw_pred_bayes, prev_atr)
         bayes_price = prev_price * (1.0 + pred_ret_bayes / 100.0)
-        bayes_err = abs(bayes_price - actual_price) / actual_price * 100.0
+        bayes_err = abs(bayes_price - actual_price_eq) / actual_price_eq * 100.0
         bayes_hit = _check_hit(pred_ret_bayes, actual_ret)
 
         # Shock day metrics on actual realization
@@ -2401,7 +2444,7 @@ def get_tertip_ml_forecast(
     latest_atr = float(latest_row.get("atr_14d_pct", 2.2))
 
     # 1. Prophet Actual Price Baseline for T+1 (fitted strictly on actual_live_sessions close prices)
-    price_history = df["close_price"].iloc[-actual_live_sessions:].astype(float)
+    price_history = adjusted_price(df, "close").iloc[-actual_live_sessions:]
     p_df = pd.DataFrame({
         "ds": pd.to_datetime(df["trade_date"].iloc[-actual_live_sessions:]),
         "y": price_history,
@@ -2421,7 +2464,8 @@ def get_tertip_ml_forecast(
 
     # 2. ML Challenger Prediction for T+1 (fitted strictly on actual_live_sessions)
     tr_full = df.iloc[-actual_live_sessions:].dropna(subset=active_features).copy()
-    y_tr_full = (tr_full["close_price"].shift(-1) - tr_full["close_price"]) / tr_full["close_price"] * 100.0
+    tr_full_adj = adjusted_price(tr_full, "close")
+    y_tr_full = (tr_full_adj.shift(-1) - tr_full_adj) / tr_full_adj * 100.0
     X_tr_full = tr_full[active_features].iloc[:-1]
     y_tr_full = y_tr_full.iloc[:-1]
 
