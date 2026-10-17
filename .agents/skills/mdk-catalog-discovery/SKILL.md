@@ -41,7 +41,7 @@ Scans `00_raw_data/central_bank_interest_rates/` for updated Central Bank 1-Week
 ## 2. Interactive Discovery & Audit Notebook
 
 For a visual, step-by-step audit of data inventory, in-scope vs out-of-scope boundaries, Central Bank policy rate decisions (2022–2026), and zero-loss completeness verification:
-- Open [`notebooks/00_data_discovery_and_catalog_analysis.ipynb`](file:///Users/ozkanyildirim/.gemini/antigravity-ide/scratch/mdk-trading-oracle/notebooks/00_data_discovery_and_catalog_analysis.ipynb)
+- Open [`notebooks/00_data_discovery_and_catalog_analysis.ipynb`](../../../notebooks/00_data_discovery_and_catalog_analysis.ipynb)
 - Select Jupyter Kernel: **`Python 3.9 (mdk-trading-oracle)`**
 
 ---

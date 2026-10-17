@@ -44,3 +44,480 @@ INFO:     127.0.0.1:49572 - "GET /api/v1/tertip/ml-forecast?symbol=ASTOR&model_t
 INFO:     127.0.0.1:49576 - "GET /api/v1/tertip/ytd-pnl?symbol=ASTOR&trade_date=2026-10-12 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:49577 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-12 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:49579 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49704 - "GET /api/v1/tertip/ytd-pnl?symbol=ASTOR&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49705 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49717 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49719 - "GET /api/v1/market/candles?symbol=ASTOR&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49723 - "GET /api/v1/tertip/horizons?symbol=ASTOR&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49722 - "GET /api/v1/market/summary?symbol=ASTOR&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49725 - "GET /api/v1/market/candles?symbol=ASTOR&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49728 - "GET /api/v1/tertip/timeseries?symbol=ASTOR&broker_id=MLB&limit_days=1500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49737 - "GET /api/v1/tertip/ml-forecast?symbol=ASTOR&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49731 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49716 - "GET /api/v1/tertip/ml-forecast?symbol=ASTOR&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49733 - "GET /api/v1/tertip/portfolio?broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49735 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASTOR&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49729 - "GET /api/v1/tertip/horizons?symbol=ASTOR&broker_id=MLB HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49749 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASTOR&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49751 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASTOR&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49753 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49755 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49759 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49776 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49775 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49778 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+[10/13/26 22:55:31] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+21:55:51 - cmdstanpy - INFO - Chain [1] start processing
+21:55:51 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49880 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&fresh=true&_t=1791921331539&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49886 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49888 - "GET /api/v1/market/candles?symbol=GARAN&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49894 - "GET /api/v1/market/candles?symbol=GARAN&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49892 - "GET /api/v1/tertip/horizons?symbol=GARAN&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49891 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49885 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49879 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=true&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49896 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49900 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49899 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49902 - "GET /api/v1/tertip/timeseries?symbol=GARAN&broker_id=MLB&limit_days=1500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49904 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49907 - "GET /api/v1/tertip/horizons?symbol=GARAN&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49908 - "GET /api/v1/tertip/portfolio?broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49910 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49920 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=30d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49922 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=90&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49924 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49926 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49928 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=3d&limit=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49931 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=10d&limit=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49937 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=10d&limit=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49933 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=30&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49936 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49953 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+22:01:17 - cmdstanpy - INFO - Chain [1] start processing
+22:01:17 - cmdstanpy - INFO - Chain [1] done processing
+22:01:17 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:18 - cmdstanpy - INFO - Chain [1] done processing
+22:01:18 - cmdstanpy - INFO - Chain [1] start processing
+22:01:19 - cmdstanpy - INFO - Chain [1] done processing
+22:02:43 - cmdstanpy - INFO - Chain [1] start processing
+22:02:43 - cmdstanpy - INFO - Chain [1] done processing
+INFO:     127.0.0.1:49955 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&fresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49975 - "GET /api/v1/tertip/opportunities?horizon=1d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49979 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49983 - "GET /api/v1/tertip/multi-horizon/THYAO HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49992 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49994 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50000 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49991 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49998 - "GET /api/v1/tertip/horizons?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49997 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50002 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50004 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50009 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50010 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=10d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50006 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50013 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50015 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50019 - "GET /api/v1/tertip/horizons?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50018 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50021 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50025 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50045 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50048 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50051 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50052 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=10d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50057 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50059 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50063 - "GET /api/v1/tertip/horizons?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50062 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50065 - "GET /api/v1/market/candles?symbol=YKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50067 - "GET /api/v1/market/summary?symbol=YKBNK&broker_id=MLB&trade_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50069 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50072 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50073 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=10d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50075 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=5d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50077 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50081 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50080 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50100 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50101 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50111 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50109 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50115 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50114 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50122 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=3d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50124 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=10d&limit=60&target_date=2026-10-12 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1991]
+INFO:     Started server process [4594]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4594]
+Process SpawnProcess-3:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 67, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 71, in serve
+    await self._serve(sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 78, in _serve
+    config.load()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/config.py", line 439, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1030, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 850, in exec_module
+  File "<frozen importlib._bootstrap>", line 228, in _call_with_frames_removed
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/api/app.py", line 20, in <module>
+    from mdk_trading_oracle.data.silver.tertip_analytics import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/__init__.py", line 5, in <module>
+    from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/__init__.py", line 6, in <module>
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/tertip_multi_horizon.py", line 18, in <module>
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py", line 959
+    except Exception as e:
+    ^
+SyntaxError: invalid syntax
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+Process SpawnProcess-4:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 67, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 71, in serve
+    await self._serve(sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 78, in _serve
+    config.load()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/config.py", line 439, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1030, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 850, in exec_module
+  File "<frozen importlib._bootstrap>", line 228, in _call_with_frames_removed
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/api/app.py", line 20, in <module>
+    from mdk_trading_oracle.data.silver.tertip_analytics import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/__init__.py", line 5, in <module>
+    from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/__init__.py", line 6, in <module>
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/tertip_multi_horizon.py", line 18, in <module>
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py", line 835
+    df = extract_3pillar_time_series(db, sym, lookback_days=550)
+IndentationError: expected an indented block
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+Process SpawnProcess-5:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 67, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/asyncio/base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 71, in serve
+    await self._serve(sockets)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/server.py", line 78, in _serve
+    config.load()
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/config.py", line 439, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/ozkanyildirim/mdk-trade-oracle/.venv/lib/python3.9/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1030, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 850, in exec_module
+  File "<frozen importlib._bootstrap>", line 228, in _call_with_frames_removed
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/api/app.py", line 20, in <module>
+    from mdk_trading_oracle.data.silver.tertip_analytics import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/__init__.py", line 5, in <module>
+    from mdk_trading_oracle.data.gold import GoldFeatureEngineer, initialize_gold_schema
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/__init__.py", line 6, in <module>
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/gold/tertip_multi_horizon.py", line 18, in <module>
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+  File "/Users/ozkanyildirim/mdk-trade-oracle/src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py", line 835
+    df = extract_3pillar_time_series(db, sym, lookback_days=550)
+IndentationError: expected an indented block
+INFO:     Started server process [5461]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50524 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50534 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50535 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50538 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50540 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50537 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50536 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50542 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50544 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50548 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50547 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50533 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50553 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50552 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50555 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50557 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50560 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50574 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50573 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50578 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50579 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50589 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50590 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50616 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=10d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50628 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=10d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50627 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50640 - "GET /api/v1/tertip/ytd-pnl?symbol=AKBNK&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50641 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50656 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50655 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50657 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=10d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50659 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=5d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50661 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50684 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=XU030&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50685 - "GET /api/v1/tertip/ml-forecast?symbol=XU030&model_type=auto&target_date=2026-10-13 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50686 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=XU030&horizon=5d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50688 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=XU030&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50690 - "GET /api/v1/tertip/ml-forecast?symbol=XU030&model_type=auto&target_date=2026-10-13 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50726 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50731 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50740 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50739 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50741 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=5d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50743 - "GET /api/v1/tertip/opportunities?horizon=5d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50745 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50748 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50749 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50763 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50770 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TTKOM&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50771 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50773 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TTKOM&horizon=10d&limit=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50776 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TTKOM&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50789 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TTKOM&horizon=10d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50797 - "GET /api/v1/market/candles?symbol=THYAO&interval=5m&broker_id=MLB&limit=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50813 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=TTKOM&horizon=10d&limit=180&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50812 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TTKOM&fresh=false&eval_sessions=180&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50818 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50820 - "GET /api/v1/market/candles?symbol=TTKOM&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50826 - "GET /api/v1/market/candles?symbol=TTKOM&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50817 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50824 - "GET /api/v1/tertip/horizons?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50823 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50830 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50832 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50837 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50840 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50842 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50844 - "GET /api/v1/tertip/portfolio?broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50849 - "GET /api/v1/tertip/opportunities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50852 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50856 - "GET /api/v1/tertip/multi-horizon/opportunities?horizon=3d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50859 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50862 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50865 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50875 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50880 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50882 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50884 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50888 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50890 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50892 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50896 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50898 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50900 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50915 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50917 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50925 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50928 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50932 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50934 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50936 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50941 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50943 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50947 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50959 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50961 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50963 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50968 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50970 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50973 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50975 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50977 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50979 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50981 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50995 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50998 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51000 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51006 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51009 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51011 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51015 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51017 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51022 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51035 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51037 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51039 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51062 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51065 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51068 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51070 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51072 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51074 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51086 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51089 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51091 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51093 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51097 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51099 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51102 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51104 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51107 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51109 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51119 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51122 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51125 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51127 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51131 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51133 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51135 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51138 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51140 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51142 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51158 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51160 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51162 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51165 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51169 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51171 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51173 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51176 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51178 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51181 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51193 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51195 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51198 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51200 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51204 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51207 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51209 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51211 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51213 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51227 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51232 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51234 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51236 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51239 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51241 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51246 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51249 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51253 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51256 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51269 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51271 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51273 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51276 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51280 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51282 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51285 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51287 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51289 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51292 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51303 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51305 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51307 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51309 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51313 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51316 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51318 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51320 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51323 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51325 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51352 - "GET /api/v1/market/summary?symbol=TTKOM&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5461]
