@@ -1396,6 +1396,7 @@ class SilverTransformer:
                 "realized_pnl_tl": float(r.realized_pnl),
                 "remaining_quantity_after": float(r.remaining_quantity_after),
                 "is_final": r.is_final,
+                "quantity_factor_at_close": float(r.quantity_factor_at_close),
             }
             for r in changes.realizations
         ]
@@ -1416,6 +1417,7 @@ class SilverTransformer:
                     "realized_pnl_tl": pl.Series([], dtype=pl.Float64),
                     "remaining_quantity_after": pl.Series([], dtype=pl.Float64),
                     "is_final": pl.Series([], dtype=pl.Boolean),
+                    "quantity_factor_at_close": pl.Series([], dtype=pl.Float64),
                 }
             )
         )
@@ -1433,6 +1435,7 @@ class SilverTransformer:
                     lot_id,
                     MAX(close_date) AS closed_date,
                     SUM(quantity_closed) AS total_quantity_closed,
+                    SUM(quantity_closed / quantity_factor_at_close) AS total_quantity_closed_entry_units,
                     SUM(entry_value_closed_tl) AS total_entry_value_closed_tl,
                     SUM(closing_value_tl) AS total_closing_value_tl,
                     SUM(realized_pnl_tl) AS total_realized_pnl_tl,
@@ -1461,6 +1464,7 @@ class SilverTransformer:
                     ELSE NULL
                 END AS closed_date,
                 COALESCE(r.total_quantity_closed, 0.0) AS total_quantity_closed,
+                COALESCE(r.total_quantity_closed_entry_units, 0.0) * e.quantity_factor_applied AS total_quantity_closed_adjusted,
                 COALESCE(r.total_entry_value_closed_tl, 0.0) AS total_entry_value_closed_tl,
                 COALESCE(r.total_closing_value_tl, 0.0) AS total_closing_value_tl,
                 COALESCE(r.total_realized_pnl_tl, 0.0) AS total_realized_pnl_tl,

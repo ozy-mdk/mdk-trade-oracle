@@ -89,6 +89,7 @@ class LotRealizationRecord:
     realized_pnl: Decimal
     remaining_quantity_after: Decimal
     is_final: bool
+    quantity_factor_at_close: Decimal = ONE  # lot's cumulative corporate-action multiplier when closed
 
 
 @dataclass
@@ -163,6 +164,7 @@ class LotChanges:
             realized_pnl=realized_pnl,
             remaining_quantity_after=lot.quantity,
             is_final=(lot.quantity == ZERO),
+            quantity_factor_at_close=lot.quantity_factor,
         )
         self.realizations.append(rec)
         return rec

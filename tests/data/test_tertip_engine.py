@@ -149,6 +149,7 @@ def test_split_restates_open_lots_and_conserves_cost_basis():
     res = execute_daily_flow_step(state, dt.date(2026, 5, 15), 0.0, 0.0, 200.0, 5400.0, 27.0, changes)
     assert res.carry_fifo_realized_pnl == Decimal("400.000000")
     assert res.position_side == "FLAT"
+    assert changes.realizations[-1].quantity_factor_at_close == Decimal("2.0")
 
 
 def test_split_restates_short_lots_and_ignores_unit_multiplier():

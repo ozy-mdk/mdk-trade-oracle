@@ -461,6 +461,7 @@ def initialize_silver_schema(db: PostgresManager) -> None:
             realized_pnl_tl DOUBLE PRECISION NOT NULL,
             remaining_quantity_after DOUBLE PRECISION NOT NULL,
             is_final BOOLEAN NOT NULL,
+            quantity_factor_at_close DOUBLE PRECISION DEFAULT 1.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
