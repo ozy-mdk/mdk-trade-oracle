@@ -6,6 +6,7 @@ backtest ledger in PostgreSQL whenever new Silver data arrives.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     extract_3pillar_time_series,
     get_feature_cols_for_mode,
 )
+from mdk_trading_oracle.models.stochastic_risk import build_forecast_distribution, get_volatility_state, legacy_band
 
 logger = logging.getLogger("mdk_oracle.data.gold.tertip_forecasts")
 CONFIG_PATH = Path("config/tertip_crowned_models.yaml")
@@ -79,6 +81,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
     );
 
     ALTER TABLE gold_tertip_daily_forecasts ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';
+    ALTER TABLE gold_tertip_daily_forecasts ADD COLUMN IF NOT EXISTS risk_profile JSONB;
 
     CREATE TABLE IF NOT EXISTS gold_tertip_walk_forward_backtests (
         symbol VARCHAR(16) NOT NULL,
@@ -132,14 +135,14 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         ml_champion_type, champion_dir_hits, champion_dir_hit_rate_pct, champion_mae_pct,
         prophet_target_price, prophet_expected_return_pct,
         training_lookback_sessions, crowned_horizon, actual_training_sessions, data_sufficiency_status,
-        feature_mode, calculated_at
+        feature_mode, risk_profile, calculated_at
     ) VALUES (
         %(symbol)s, %(as_of_date)s, %(current_price)s, %(target_price)s, %(expected_return_pct)s,
         %(price_low)s, %(price_high)s, %(stance)s, %(conviction)s, %(playbook)s,
         %(ml_champion_type)s, %(champion_dir_hits)s, %(champion_dir_hit_rate_pct)s, %(champion_mae_pct)s,
         %(prophet_target_price)s, %(prophet_expected_return_pct)s,
         %(training_lookback_sessions)s, %(crowned_horizon)s, %(actual_training_sessions)s, %(data_sufficiency_status)s,
-        %(feature_mode)s, CURRENT_TIMESTAMP
+        %(feature_mode)s, %(risk_profile)s::jsonb, CURRENT_TIMESTAMP
     ) ON CONFLICT (symbol, as_of_date) DO UPDATE SET
         current_price = EXCLUDED.current_price,
         target_price = EXCLUDED.target_price,
@@ -160,6 +163,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         actual_training_sessions = EXCLUDED.actual_training_sessions,
         data_sufficiency_status = EXCLUDED.data_sufficiency_status,
         feature_mode = EXCLUDED.feature_mode,
+        risk_profile = EXCLUDED.risk_profile,
         calculated_at = CURRENT_TIMESTAMP;
     """
 
@@ -296,10 +300,20 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         pred_ret = calibrate_expected_return(raw_pred_ret, latest_atr, deadband=DEADBAND_PCT)
         target_price = latest_price * (1.0 + pred_ret / 100.0)
 
-        # Range bounds using 20d volatility
-        vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
-        price_low = target_price * (1.0 - (1.645 * vol_20d / 100.0))
-        price_high = target_price * (1.0 + (1.645 * vol_20d / 100.0))
+        # Range bounds: GJR-GARCH-t filtered historical simulation with conformal calibration
+        risk_profile = build_forecast_distribution(
+            latest_price,
+            pred_ret,
+            get_volatility_state(db, sym, latest_trade_date),
+            1,
+            DEADBAND_PCT,
+            seed_key=f"{latest_trade_date}:1d",
+        )
+        if risk_profile:
+            price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
+        else:
+            vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
+            price_low, price_high = legacy_band(target_price, vol_20d)
 
         # Stance & Playbook
         if pred_ret >= 2.0:
@@ -351,6 +365,7 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
             "actual_training_sessions": actual_train_sessions,
             "data_sufficiency_status": data_sufficiency_status,
             "feature_mode": f_mode,
+            "risk_profile": json.dumps(risk_profile) if risk_profile else None,
         })
 
         # Check if the latest completed session T has realized ground truth to append to walk_forward_backtests

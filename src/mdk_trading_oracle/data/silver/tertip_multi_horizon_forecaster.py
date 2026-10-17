@@ -21,6 +21,7 @@ Zero-Lookahead Temporal Causality:
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -49,6 +50,13 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     YTD_FEATURE_COLS,
     calibrate_expected_return,
     extract_3pillar_time_series,
+)
+from mdk_trading_oracle.models.stochastic_risk import (
+    VolatilityState,
+    build_forecast_distribution,
+    get_volatility_state,
+    legacy_band,
+    volatility_state_from_prices,
 )
 
 logger = get_logger("mdk_oracle.tertip_multi_horizon")
@@ -533,8 +541,13 @@ def generate_live_horizon_forecast(
     champion_model: str,
     train_lookback_sessions: int,
     feature_mode: str = "FIFO_CORE",
+    vol_state: VolatilityState | None = None,
 ) -> dict[str, Any]:
     """Fit crowned champion model on all available history and produce live upcoming forecast.
+
+    The price band and risk profile come from the GJR-GARCH-t filtered historical simulation in
+    `models.stochastic_risk`. Pass `vol_state` built from adjusted prices; otherwise it is estimated
+    from the unadjusted closes in `df` with corporate-action jumps removed.
 
     Zero-lookahead & 3-Month Hard Stop:
         Training data is strictly limited to completed sessions (rows i where i + n_days <= T).
@@ -632,11 +645,17 @@ def generate_live_horizon_forecast(
     expected_ret = max(-max_bound, min(max_bound, expected_ret))
     target_price = current_price * (1.0 + expected_ret / 100.0)
 
-    # Price range envelope using 20-day historical return volatility scaled to horizon
-    vol_20d = float(df["feat_ret_today_pct"].iloc[-20:].std()) if len(df) >= 20 else 2.0
-    horizon_vol = max(1.0, vol_20d * math.sqrt(n_days / 5.0))
-    price_low = target_price * (1.0 - (1.645 * horizon_vol / 100.0))
-    price_high = target_price * (1.0 + (1.645 * horizon_vol / 100.0))
+    # Price range envelope: GJR-GARCH-t filtered historical simulation with conformal calibration
+    if vol_state is None:
+        vol_state = volatility_state_from_prices(df.set_index("trade_date")["close_price"], as_of_date)
+    risk_profile = build_forecast_distribution(
+        current_price, expected_ret, vol_state, n_days, deadband, seed_key=f"{as_of_date}:{horizon_key}"
+    )
+    if risk_profile:
+        price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
+    else:
+        vol_20d = float(df["feat_ret_today_pct"].iloc[-20:].std()) if len(df) >= 20 else 2.0
+        price_low, price_high = legacy_band(target_price, max(1.0, vol_20d * math.sqrt(n_days)))
 
     # Stance & Conviction
     if expected_ret > deadband:
@@ -693,6 +712,7 @@ def generate_live_horizon_forecast(
         "actual_window_desc": actual_window_desc,
         "data_sufficiency_status": sufficiency_status,
         "feature_mode": feature_mode,
+        "risk_profile": risk_profile,
     }
 
 
@@ -739,7 +759,8 @@ def get_multi_horizon_forecaster_payload(
                        ml_champion_type, champion_dir_hits, champion_total_evals,
                        champion_dir_hit_rate_pct, champion_mae_pct, training_lookback_sessions,
                        actual_training_sessions, data_sufficiency_status, crowned_horizon,
-                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode,
+                       risk_profile::text AS risk_profile_json
                 FROM gold_tertip_multi_horizon_forecasts
                 WHERE symbol = %s AND {date_filter};
                 """,
@@ -837,6 +858,7 @@ def get_multi_horizon_forecaster_payload(
                         "actual_training_sessions": act_sess,
                         "data_sufficiency_status": g.get("data_sufficiency_status") or "FULL",
                         "feature_mode": g.get("feature_mode") or "FIFO_CORE",
+                        "risk_profile": json.loads(g["risk_profile_json"]) if g.get("risk_profile_json") else None,
                     }
 
                     horizons_result[h_key] = {
@@ -891,6 +913,8 @@ def get_multi_horizon_forecaster_payload(
         composition = cfg_all.get("symbols", {}).get(sym, DEFAULT_CHAMPIONS)
     else:
         composition = selected_composition
+
+    vol_state = get_volatility_state(db, sym, str(df["trade_date"].iloc[-1])[:10])
 
     horizons_result = {}
 
@@ -1004,6 +1028,7 @@ def get_multi_horizon_forecaster_payload(
             champion_model=champ_model,
             train_lookback_sessions=lb_sessions,
             feature_mode=f_mode,
+            vol_state=vol_state,
         )
 
         horizons_result[h_key] = {

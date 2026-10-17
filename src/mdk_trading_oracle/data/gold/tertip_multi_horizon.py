@@ -8,6 +8,7 @@ backtest ledgers into PostgreSQL TimescaleDB:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ def ensure_multi_horizon_tables(db: PostgresManager) -> None:
         data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
         crowned_horizon VARCHAR(16) DEFAULT '6m',
         feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE',
+        risk_profile JSONB,
         calculated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, as_of_date, horizon)
     );
@@ -84,7 +86,8 @@ def ensure_multi_horizon_tables(db: PostgresManager) -> None:
     ALTER TABLE gold_tertip_multi_horizon_forecasts
         ADD COLUMN IF NOT EXISTS actual_training_sessions INTEGER DEFAULT 126,
         ADD COLUMN IF NOT EXISTS data_sufficiency_status VARCHAR(32) DEFAULT 'FULL',
-        ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE';
+        ADD COLUMN IF NOT EXISTS feature_mode VARCHAR(32) DEFAULT 'FIFO_CORE',
+        ADD COLUMN IF NOT EXISTS risk_profile JSONB;
 
     ALTER TABLE gold_tertip_multi_horizon_backtests
         ADD COLUMN IF NOT EXISTS actual_training_sessions INTEGER,
@@ -159,14 +162,14 @@ def update_gold_tertip_multi_horizon_forecasts(
                         ml_champion_type, champion_dir_hits, champion_total_evals,
                         champion_dir_hit_rate_pct, champion_mae_pct,
                         training_lookback_sessions, actual_training_sessions,
-                        data_sufficiency_status, crowned_horizon, feature_mode, calculated_at
+                        data_sufficiency_status, crowned_horizon, feature_mode, risk_profile, calculated_at
                     ) VALUES (
                         %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s,
-                        %s, %s, %s, %s, %s, NOW()
+                        %s, %s, %s, %s, %s, %s::jsonb, NOW()
                     )
                     ON CONFLICT (symbol, as_of_date, horizon) DO UPDATE SET
                         current_price = EXCLUDED.current_price,
@@ -187,6 +190,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                         data_sufficiency_status = EXCLUDED.data_sufficiency_status,
                         crowned_horizon = EXCLUDED.crowned_horizon,
                         feature_mode = EXCLUDED.feature_mode,
+                        risk_profile = EXCLUDED.risk_profile,
                         calculated_at = NOW();
                     """,
                     params=[
@@ -212,6 +216,7 @@ def update_gold_tertip_multi_horizon_forecasts(
                         fc.get("data_sufficiency_status", "FULL"),
                         meta.get("crowned_horizon", "6m"),
                         meta.get("feature_mode", "FIFO_CORE"),
+                        json.dumps(fc["risk_profile"]) if fc.get("risk_profile") else None,
                     ],
                 )
 

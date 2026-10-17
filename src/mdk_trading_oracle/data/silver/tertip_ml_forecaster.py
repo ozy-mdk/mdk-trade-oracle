@@ -13,6 +13,7 @@ recording the exact next-day actions executed by each institutional pillar.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import warnings
@@ -38,6 +39,7 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
     KAMU_BROKERS,
     get_tertip_horizons_analysis,
 )
+from mdk_trading_oracle.models.stochastic_risk import build_forecast_distribution, get_volatility_state, legacy_band
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
@@ -1704,7 +1706,8 @@ def _get_precomputed_forecast_from_db(
                        prophet_target_price, prophet_expected_return_pct,
                        calculated_at, training_lookback_sessions, crowned_horizon,
                        actual_training_sessions, data_sufficiency_status,
-                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode,
+                       risk_profile::text AS risk_profile_json
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s AND as_of_date = %s
                 ORDER BY calculated_at DESC
@@ -1718,7 +1721,8 @@ def _get_precomputed_forecast_from_db(
                        prophet_target_price, prophet_expected_return_pct,
                        calculated_at, training_lookback_sessions, crowned_horizon,
                        actual_training_sessions, data_sufficiency_status,
-                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode
+                       COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode,
+                       risk_profile::text AS risk_profile_json
                 FROM gold_tertip_daily_forecasts
                 WHERE symbol = %s
                 ORDER BY as_of_date DESC, calculated_at DESC
@@ -2070,6 +2074,7 @@ def _get_precomputed_forecast_from_db(
             "pillar_matrix": pillar_matrix,
             "pillar_execution": pillar_execution,
             "walk_forward_ledger": ledger,
+            "risk_profile": json.loads(f_row[22]) if len(f_row) > 22 and f_row[22] else None,
             "calculated_at": str(f_row[16]),
         }
     except Exception as e:
@@ -2511,10 +2516,20 @@ def get_tertip_ml_forecast(
     convex_w_ml = float(tournament.get("convex_weight_ml", 0.70))
     convex_w_p = float(tournament.get("convex_weight_prophet", 0.30))
 
-    # Range envelope (using 20-day historical volatility)
-    vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
-    price_low = champion_target_price * (1.0 - (1.645 * vol_20d / 100.0))
-    price_high = champion_target_price * (1.0 + (1.645 * vol_20d / 100.0))
+    # Range envelope: GJR-GARCH-t filtered historical simulation with conformal calibration
+    risk_profile = build_forecast_distribution(
+        latest_price,
+        champion_pred_ret,
+        get_volatility_state(db, sym, latest_date_str),
+        1,
+        DEADBAND_PCT,
+        seed_key=f"{latest_date_str}:1d",
+    )
+    if risk_profile:
+        price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
+    else:
+        vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
+        price_low, price_high = legacy_band(champion_target_price, vol_20d)
 
     def _derive_stance(ret_val: float) -> tuple[str, str, str]:
         if ret_val >= 2.0:
@@ -2677,6 +2692,7 @@ def get_tertip_ml_forecast(
         "pillar_matrix": pillar_matrix,
         "pillar_execution": pillar_execution,
         "walk_forward_ledger": ledger,
+        "risk_profile": risk_profile,
         "calculated_at": datetime.now(timezone.utc).isoformat(),
     }
 

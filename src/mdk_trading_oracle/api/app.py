@@ -510,6 +510,36 @@ class Bist30Trend(BaseModel):
     day_before_pct: float = 0.0
 
 
+class RiskProfile(BaseModel):
+    """GJR-GARCH-t filtered historical simulation risk profile (closing-price basis)."""
+
+    horizon_days: int
+    coverage_pct: float
+    price_low: float
+    price_high: float
+    median_price: float
+    target_price: float
+    risk_center_return_pct: float
+    center_shrinkage: float
+    return_low_pct: float
+    return_high_pct: float
+    median_return_pct: float
+    p_up_pct: float
+    p_down_pct: float
+    p_flat_pct: float
+    position_side: str
+    stop_price: Optional[float] = None
+    p_target_before_stop_pct: Optional[float] = None
+    p_stop_before_target_pct: Optional[float] = None
+    expected_shortfall_95_pct: float
+    sigma_next_session_pct: float
+    sigma_horizon_pct: float
+    band_scale: float
+    vol_method: str
+    garch_persistence: float
+    student_t_nu: Optional[float] = None
+
+
 class TertipMlForecastResponse(BaseModel):
     symbol: str
     champion: Optional[str] = None
@@ -558,6 +588,7 @@ class TertipMlForecastResponse(BaseModel):
     data_sufficiency_status: Optional[str] = "FULL"
     active_features: Optional[List[str]] = None
     excluded_features: Optional[List[str]] = None
+    risk_profile: Optional[RiskProfile] = None
     calculated_at: str
 
 
@@ -676,6 +707,7 @@ class MultiHorizonLiveForecast(BaseModel):
     target_training_months: float = 6.0
     actual_window_desc: str = ""
     data_sufficiency_status: str = "FULL"
+    risk_profile: Optional[RiskProfile] = None
 
 
 class MultiHorizonItem(BaseModel):
