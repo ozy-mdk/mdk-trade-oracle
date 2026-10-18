@@ -1,4 +1,4 @@
-generated_at: '2026-10-17 19:57:52'
+generated_at: '2026-10-17 23:41:53'
 method: GJR_GARCH_T_FHS_CONFORMAL
 coverage: 0.9
 fit_methods:
@@ -6,67 +6,67 @@ fit_methods:
 horizons:
   1d:
     scale: 1.01
-    center_shrinkage: 0.1016
+    center_shrinkage: 0.1013
     n_rows: 5208
     legacy_band_coverage_pct: 79.0
-    uncalibrated_coverage_pct: 83.6
+    uncalibrated_coverage_pct: 83.5
     holdout_center_shrinkage: 0.0
     holdout_scale: 1.04
     holdout_coverage_pct: 91.4
     holdout_model_directional_prob_pct: 45.5
-    holdout_realized_directional_freq_pct: 51.2
+    holdout_realized_directional_freq_pct: 51.1
   3d:
     scale: 1.0
-    center_shrinkage: 0.0506
+    center_shrinkage: 0.0419
     n_rows: 5040
-    legacy_band_coverage_pct: 38.3
-    uncalibrated_coverage_pct: 78.6
-    holdout_center_shrinkage: 0.0
-    holdout_scale: 1.06
-    holdout_coverage_pct: 93.3
-    holdout_model_directional_prob_pct: 46.2
-    holdout_realized_directional_freq_pct: 55.7
-  5d:
-    scale: 1.0
-    center_shrinkage: 0.0965
-    n_rows: 5040
-    legacy_band_coverage_pct: 37.0
-    uncalibrated_coverage_pct: 77.7
+    legacy_band_coverage_pct: 37.3
+    uncalibrated_coverage_pct: 77.6
     holdout_center_shrinkage: 0.0
     holdout_scale: 1.07
-    holdout_coverage_pct: 93.9
+    holdout_coverage_pct: 93.3
     holdout_model_directional_prob_pct: 46.3
-    holdout_realized_directional_freq_pct: 59.2
-  10d:
-    scale: 0.97
-    center_shrinkage: 0.1315
+    holdout_realized_directional_freq_pct: 54.2
+  5d:
+    scale: 1.0
+    center_shrinkage: 0.1154
     n_rows: 5040
-    legacy_band_coverage_pct: 39.5
-    uncalibrated_coverage_pct: 80.8
+    legacy_band_coverage_pct: 36.8
+    uncalibrated_coverage_pct: 78.5
     holdout_center_shrinkage: 0.0
-    holdout_scale: 1.06
-    holdout_coverage_pct: 95.6
+    holdout_scale: 1.07
+    holdout_coverage_pct: 93.8
     holdout_model_directional_prob_pct: 46.2
-    holdout_realized_directional_freq_pct: 62.8
-  15d:
-    scale: 0.97
-    center_shrinkage: 0.115
+    holdout_realized_directional_freq_pct: 58.0
+  10d:
+    scale: 0.98
+    center_shrinkage: 0.1296
     n_rows: 5040
-    legacy_band_coverage_pct: 44.1
-    uncalibrated_coverage_pct: 82.7
+    legacy_band_coverage_pct: 38.6
+    uncalibrated_coverage_pct: 80.6
+    holdout_center_shrinkage: 0.0
+    holdout_scale: 1.07
+    holdout_coverage_pct: 95.8
+    holdout_model_directional_prob_pct: 46.1
+    holdout_realized_directional_freq_pct: 60.6
+  15d:
+    scale: 0.96
+    center_shrinkage: 0.0706
+    n_rows: 5040
+    legacy_band_coverage_pct: 43.0
+    uncalibrated_coverage_pct: 82.2
     holdout_center_shrinkage: 0.0
     holdout_scale: 1.08
     holdout_coverage_pct: 96.3
-    holdout_model_directional_prob_pct: 46.0
-    holdout_realized_directional_freq_pct: 62.9
+    holdout_model_directional_prob_pct: 45.9
+    holdout_realized_directional_freq_pct: 59.1
   30d:
     scale: 0.97
-    center_shrinkage: 0.2373
+    center_shrinkage: 0.1751
     n_rows: 5040
-    legacy_band_coverage_pct: 53.4
-    uncalibrated_coverage_pct: 86.9
+    legacy_band_coverage_pct: 51.1
+    uncalibrated_coverage_pct: 86.8
     holdout_center_shrinkage: 0.0
     holdout_scale: 1.14
     holdout_coverage_pct: 97.6
     holdout_model_directional_prob_pct: 46.6
-    holdout_realized_directional_freq_pct: 69.1
+    holdout_realized_directional_freq_pct: 64.2
