@@ -46,9 +46,8 @@ isolation fix, raw-feed locale fix (`ingestor.py`, `tests/data/test_raw_number_l
 ## 3. Data state (as of 2026-10-18)
 
 - Bronze/silver complete through **2026-10-16** (incl. FIFO restatement, ZRY backfill).
-- Gold T+1: all stocks as of 2026-10-16 (computed **before** the ZRY change).
-- Gold multi-horizon: **mixed** — 24 stocks as of 2026-10-16, the rest 2026-10-13 (gold step was stopped on purpose).
-- **A full gold run is pending** until the model decisions in §6 are made.
+- Gold T+1 and multi-horizon: **all 29 stocks as of 2026-10-16**, rebuilt on clean data (locale fix, ZRY/BIG5) with
+  volatility-based sizing (gold run of 2026-10-18). The T+1 ledger history still contains leaky rows (§4.5).
 
 ---
 
@@ -180,6 +179,34 @@ Files for 2026-10-14..16 use English number format ("68.65", "3,340") while the 
 (`tests/data/test_raw_number_locale.py`); the three days were re-ingested and silver rebuilt. Gold rows computed on
 2026-10-18 from those days are invalid until the next gold run.
 
+### 4.7 Feature pipeline audit (focus stocks, since 2024)
+
+- **No look-ahead in features.** No feature uses future rows; next-day correlations are small while same-day
+  correlations of flow features are large (price impact), as expected.
+- **Flows are computed correctly.** MLB net flow, turnover and volume recomputed from `bronze_raw_trades` match silver
+  exactly (AKBNK, ASELS 2026-10-16).
+- **Broker coverage is fine for liquid names.** MLB and all BIG5/KAMU desks trade the focus stocks on 99.7–100% of
+  days. (`silver_broker_fifo_daily` only has rows on days a broker trades; inventory/cost features drop a desk to 0 on
+  its non-trading days — matters for illiquid stocks only.)
+- **BUG — FIFO features ignore position side.** `extract_3pillar_time_series` sums `open_stock_quantity` and blends
+  `fifo_avg_cost` across LONG and SHORT ledgers. Latest examples: YKBNK BIG5 = YKR long 244M + GRM short 200M counted as
+  444M "inventory"; MLB short 176.7M in YKBNK counted as inventory. Share of broker-days SHORT since 2024: VKY 99%,
+  TRA 97%, HLY 89%, GRM 44%, MLB 35%, IYM 26%, YKR 25%, AKM 18%, ZRY 10%. Affects cost spreads, tertip shares,
+  profitable shares, inventory z-score. Shorts are largely artificial: the ledger starts flat in Jan 2022, so
+  persistent net sellers (custodian-like flow) look permanently short. Fix direction: signed quantities, side-aware
+  PnL (`unrealized_pnl_tl` is already side-aware) and position size relative to ADV instead of side-blind shares.
+- **Degenerate features:** `feat_mlb/big5/kamu_profitable_tertip_share` are 0 / at clip bounds 14–41% of days;
+  `feat_kamu_post_shock_defense` is 0 on 68% of days.
+- **Minor:** `feat_ret_today/yesterday`, shock-distance features use open→close (no overnight gap); YTD features are
+  lagged one extra session; `lookback_days` in `extract_3pillar_time_series` is ignored (full history loaded).
+- **Where the signal is:** next-day Spearman IC is tiny overall (median |IC| 0.014 across 68 features) but a small,
+  **consistent** MLB-flow effect exists: `feat_mlb_turnover_intensity` 0.059, `feat_bofa_aggression_ratio` 0.058,
+  `feat_mlb_ewma_flow_share_5d` 0.058, `feat_mlb_buy_share_today` 0.054 — same sign on 6/6 stocks (per-stock
+  significance ≈ 0.076). Same-day IC of the same features is 0.4–0.53: **MLB flow is mostly priced in the same
+  session**. Research leads: (a) intraday — early-window MLB/institutional flow vs the rest of the session;
+  (b) a lean, fixed linear model on the few MLB-flow features instead of 35–44 features with tree models.
+  Full table: `~/data/mdk_oracle/experiments/feature_ic_focus6.csv`.
+
 ---
 
 ## 5. Limitations & caveats
@@ -204,7 +231,20 @@ Files for 2026-10-14..16 use English number format ("68.65", "3,340") while the 
    `conviction` / P(up/down) (API fields exist, UI not yet updated).
 4. Full gold run — done 2026-10-18 on clean data; rerun after the ledger fix.
 
-## 7. Next research question (new session)
+## 7. Agreed plan for the next phase (user, 2026-10-18)
+
+Focus set: ASELS, GARAN, AKBNK, YKBNK, ISCTR, TTKOM.
+
+1. **Leak fix + comparison on the focus set:** ledger rows grade the forecast stored at the previous close
+   (`gold_tertip_daily_forecasts`), history rebuilt with a clean walk-forward; compare leaky vs clean per stock.
+2. **Modelling / feature research on the focus set** — current direction skill is ≈ random out of sample.
+   Honest protocol for every idea:
+   - selection only on data before the scored period; strict direction accuracy vs random, per stock, with bootstrap CIs;
+   - a fixed simple per-stock model first (e.g. Ridge/252) so gains come from information, not selection;
+   - one feature family at a time, each with an institutional-behaviour hypothesis;
+   - keep a family only if it beats random beyond the CI on most focus stocks.
+
+## 8. Next research question (feature ideas)
 
 What information is *not* in today's features but plausibly predicts direction out of sample? Ideas to evaluate with the
 honest protocol (crown/select strictly before the scored period):
@@ -215,7 +255,7 @@ honest protocol (crown/select strictly before the scored period):
 - Derivatives (VİOP single-stock futures basis, open interest) if available.
 - Event calendar (MPC meetings, index rebalancing, dividend/split dates).
 
-## 8. How to reproduce
+## 9. How to reproduce
 
 ```bash
 .venv/bin/python scripts/calibrate_volatility_bands.py --dry-run                     # band coverage report
