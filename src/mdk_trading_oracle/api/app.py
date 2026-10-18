@@ -2244,10 +2244,12 @@ class IntradaySignalResponse(BaseModel):
     loss_typ_pct: Optional[float] = None
     record_hit_rate_pct: Optional[float] = None
     record_trades: Optional[int] = None
+    record_high_hit_rate_pct: Optional[float] = None
+    record_high_sessions: Optional[int] = None
     record_avg_after_cost_pct: Optional[float] = None
     grid_morning_pct: List[float] = Field(default_factory=list)
     grid_forecast_pct: List[float] = Field(default_factory=list)
-    trade_threshold_pct: Optional[float] = None
+    grid_high_conviction: List[bool] = Field(default_factory=list)
     prev_close: Optional[float] = None
 
 
@@ -2255,6 +2257,7 @@ class IntradayLedgerItem(BaseModel):
     session_date: str
     source: str
     candidate: Optional[str] = None
+    conviction: Optional[str] = None
     morning_move_pct: Optional[float] = None
     call: int
     forecast_pct: Optional[float] = None
@@ -2271,6 +2274,8 @@ class IntradayLedgerSummary(BaseModel):
     trades: int
     hits: int
     hit_rate_pct: Optional[float] = None
+    high_sessions: int = 0
+    high_hit_rate_pct: Optional[float] = None
     avg_gain_after_cost_pct: Optional[float] = None
     mae_pp: Optional[float] = None
     first_session: Optional[str] = None
@@ -2287,9 +2292,9 @@ class IntradayStandingItem(BaseModel):
     model: str
     feature_set: str
     training_window: int
-    trades: int
+    sessions: int
     hit_rate_pct: float
-    avg_gain_after_cost_pct: float
+    mae_pp: float
     eligible: bool
     is_champion: bool
 
@@ -2298,7 +2303,7 @@ class IntradayTournamentResponse(BaseModel):
     symbol: str
     month_start: str
     crown_sessions: int
-    min_trades: int
+    min_sessions: int
     standings: List[IntradayStandingItem]
 
 
@@ -2320,7 +2325,7 @@ def get_intraday_universe() -> List[IntradayUniverseItem]:
 @app.get("/api/v1/intraday/signal", response_model=IntradaySignalResponse)
 def get_intraday_signal(symbol: str = Query("GARAN"), session_date: Optional[str] = Query(None)) -> IntradaySignalResponse:
     """Latest published signal (or the one for `session_date`): levels, morning-move -> forecast grid, champion, numbers."""
-    from mdk_trading_oracle.models.intraday_session import GRID, REGRESSION_TRADE_PCT, RULE
+    from mdk_trading_oracle.models.intraday_session import GRID
 
     sym = symbol.strip().upper()
     where = "AND session_date = %(d)s" if session_date else ""
@@ -2343,9 +2348,10 @@ def get_intraday_signal(symbol: str = Query("GARAN"), session_date: Optional[str
         buy_level_pct=_f(r.get("buy_level_pct")), sell_level_pct=_f(r.get("sell_level_pct")), sigma_pct=_f(r.get("sigma_pct")),
         win_typ_pct=_f(r.get("win_typ_pct")), win_q75_pct=_f(r.get("win_q75_pct")), loss_typ_pct=_f(r.get("loss_typ_pct")),
         record_hit_rate_pct=_f(r.get("record_hit_rate_pct")), record_trades=r.get("record_trades"),
+        record_high_hit_rate_pct=_f(r.get("record_high_hit_rate_pct")), record_high_sessions=r.get("record_high_sessions"),
         record_avg_after_cost_pct=_f(r.get("record_avg_after_cost_pct")),
         grid_morning_pct=[float(x) for x in GRID] if grid else [], grid_forecast_pct=grid,
-        trade_threshold_pct=None if r["candidate"] == RULE else REGRESSION_TRADE_PCT,
+        grid_high_conviction=[bool(x) for x in (r.get("grid_high_conviction") or [])],
         prev_close=_f(prev[0]["close_price"]) if prev else None,
     )
 
@@ -2364,15 +2370,18 @@ def get_intraday_ledger(symbol: str = Query("GARAN"), limit: int = Query(250, le
         rs = [r for r in rows if r["source"] == src]
         tr = [r for r in rs if r["call"] != 0]
         hits = sum(1 for r in tr if r["hit"])
+        hi = [r for r in tr if r.get("conviction") == "HIGH"]
         summary.append(IntradayLedgerSummary(
             source=src, sessions=len(rs), trades=len(tr), hits=hits,
             hit_rate_pct=round(100 * hits / len(tr), 1) if tr else None,
+            high_sessions=len(hi), high_hit_rate_pct=round(100 * sum(1 for r in hi if r["hit"]) / len(hi), 1) if hi else None,
             avg_gain_after_cost_pct=round(sum(r["call"] * r["actual_pct"] for r in tr) / len(tr) - COST_PCT, 3) if tr else None,
             mae_pp=round(sum(r["abs_error_pp"] for r in rs) / len(rs), 3) if rs else None,
             first_session=str(min(r["session_date"] for r in rs)) if rs else None,
         ))
     items = [IntradayLedgerItem(
-        session_date=str(r["session_date"]), source=r["source"], candidate=r.get("candidate"), morning_move_pct=_f(r.get("morning_move_pct")),
+        session_date=str(r["session_date"]), source=r["source"], candidate=r.get("candidate"), conviction=r.get("conviction"),
+        morning_move_pct=_f(r.get("morning_move_pct")),
         call=int(r["call"]), forecast_pct=_f(r.get("forecast_pct")), actual_pct=_f(r.get("actual_pct")), hit=r.get("hit"),
         abs_error_pp=_f(r.get("abs_error_pp")), price_1130=_f(r.get("price_1130")), close_price=_f(r.get("close_price")),
     ) for r in rows[:limit]]
@@ -2381,7 +2390,7 @@ def get_intraday_ledger(symbol: str = Query("GARAN"), limit: int = Query(250, le
 
 @app.get("/api/v1/intraday/tournament", response_model=IntradayTournamentResponse)
 def get_intraday_tournament(symbol: str = Query("GARAN")) -> IntradayTournamentResponse:
-    """The standings behind the current champion: every candidate's trades over the crowning window."""
+    """The standings behind the current daily forecaster: every regression candidate's every-day hit rate in the crowning window."""
     import pandas as pd
 
     from mdk_trading_oracle.models import intraday_session as ism
@@ -2393,20 +2402,20 @@ def get_intraday_tournament(symbol: str = Query("GARAN")) -> IntradayTournamentR
     d = pd.Timestamp(sig[0]["session_date"])
     month_start = pd.Timestamp(d.year, d.month, 1)
     res = db.query_df(
-        "SELECT candidate, session_date, forecast_pct, actual_pct, traded FROM gold_intraday_candidate_results WHERE symbol = %s AND session_date < %s",
+        "SELECT candidate, session_date, forecast_pct, actual_pct FROM gold_intraday_candidate_results WHERE symbol = %s AND session_date < %s",
         (sym, month_start.date()),
     )
     res["session_date"] = pd.to_datetime(res["session_date"])
-    st = ism.standings(res, month_start)
+    st = ism.daily_standings(res, month_start)
     items = []
     for _, r in st.iterrows():
         c = ism.parse_candidate(r["candidate"])
         items.append(IntradayStandingItem(candidate=r["candidate"], model=c["model"], feature_set=c["features"], training_window=c["window"],
-                                          trades=int(r["trades"]), hit_rate_pct=round(float(r["hit_rate"]) * 100, 1),
-                                          avg_gain_after_cost_pct=round(float(r["gain"]), 3), eligible=bool(r["eligible"]),
+                                          sessions=int(r["sessions"]), hit_rate_pct=round(float(r["hit_rate"]) * 100, 1),
+                                          mae_pp=round(float(r["mae"]), 3), eligible=bool(r["eligible"]),
                                           is_champion=r["candidate"] == sig[0]["candidate"]))
     return IntradayTournamentResponse(symbol=sym, month_start=str(month_start.date()), crown_sessions=ism.CROWN_SESSIONS,
-                                      min_trades=ism.MIN_CROWN_TRADES, standings=items)
+                                      min_sessions=ism.MIN_CROWN_SESSIONS, standings=items)
 
 
 @app.get("/api/v1/tertip/ytd-pnl")

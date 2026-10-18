@@ -7,6 +7,7 @@ import {
   LineChart,
   MinusCircle,
   ShieldCheck,
+  Star,
   Table as TableIcon,
   XCircle,
 } from 'lucide-react';
@@ -16,8 +17,8 @@ import { formatPercent } from '../utils/formatters';
 /**
  * Audited walk-forward reality track for the Intraday Session Forecaster, mirroring the Multi-Horizon Hub:
  * chart / table / both, 30-60-90-180 session windows, scorecards, predicted vs realized chart (price or return) with
- * hit / miss / no-trade points and hover tooltip, and the audit ledger. Prediction = 11:30 price x (1 + forecast);
- * reality = the closing-auction price. Hit rate and errors are on trades; no-trade sessions forecast 0%.
+ * hit / miss points and hover tooltip, and the audit ledger. Every session has a forecast: prediction = 11:30 price x
+ * (1 + forecast); reality = the closing-auction price. HIGH conviction sessions are marked and can be filtered.
  */
 
 interface Props {
@@ -29,13 +30,14 @@ interface Props {
   costPct?: number;
 }
 
-type Row = IntradayLedgerItem & { pred_close: number | null; outcome: 'HIT' | 'MISS' | 'NO_TRADE' };
+type Row = IntradayLedgerItem & { pred_close: number | null; outcome: 'HIT' | 'MISS' | 'FLAT' };
 
 export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, championLabel, featureLabel, isLoading, costPct = 0.14 }) => {
   const [evalSessions, setEvalSessions] = useState<number>(60);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
   const [chartView, setChartView] = useState<'price' | 'return'>('return');
   const [source, setSource] = useState<'ALL' | 'LIVE' | 'SIMULATED'>('ALL');
+  const [onlyHigh, setOnlyHigh] = useState<boolean>(false);
   const [hovered, setHovered] = useState<string | null>(null);
 
   // newest first (ledger order), limited to the selected window
@@ -43,18 +45,21 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
     return items
       .filter((r) => source === 'ALL' || r.source === source)
       .slice(0, evalSessions)
+      .filter((r) => !onlyHigh || r.conviction === 'HIGH')
       .map((r) => ({
         ...r,
-        pred_close: r.price_1130 == null ? null : r.price_1130 * (1 + (r.call === 0 ? 0 : (r.forecast_pct ?? 0)) / 100),
-        outcome: r.call === 0 ? 'NO_TRADE' : r.hit ? 'HIT' : 'MISS',
+        pred_close: r.price_1130 == null ? null : r.price_1130 * (1 + (r.forecast_pct ?? 0) / 100),
+        outcome: r.call === 0 ? 'FLAT' : r.hit ? 'HIT' : 'MISS',
       }));
-  }, [items, source, evalSessions]);
+  }, [items, source, evalSessions, onlyHigh]);
   const chrono = useMemo(() => [...ledger].sort((a, b) => a.session_date.localeCompare(b.session_date)), [ledger]);
 
   const trades = useMemo(() => ledger.filter((r) => r.call !== 0), [ledger]);
   const hits = trades.filter((r) => r.hit).length;
   const hitRate = trades.length ? (100 * hits) / trades.length : null;
-  const mae = trades.length ? trades.reduce((a, r) => a + (r.abs_error_pp ?? 0), 0) / trades.length : null;
+  const highRows = trades.filter((r) => r.conviction === 'HIGH');
+  const highHits = highRows.filter((r) => r.hit).length;
+  const mae = ledger.length ? ledger.reduce((a, r) => a + (r.abs_error_pp ?? 0), 0) / ledger.length : null;
   const hitMae = hits ? trades.filter((r) => r.hit).reduce((a, r) => a + (r.abs_error_pp ?? 0), 0) / hits : null;
   const missN = trades.length - hits;
   const missMae = missN ? trades.filter((r) => !r.hit).reduce((a, r) => a + (r.abs_error_pp ?? 0), 0) / missN : null;
@@ -71,17 +76,17 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
   const prices = chrono.flatMap((r) => [r.close_price ?? 0, r.pred_close ?? 0]).filter((p) => p > 0);
   const minPrice = prices.length ? Math.min(...prices) * 0.985 : 0;
   const maxPrice = prices.length ? Math.max(...prices) * 1.015 : 100;
-  const rets = chrono.flatMap((r) => [Math.abs(r.actual_pct ?? 0), Math.abs(r.call === 0 ? 0 : (r.forecast_pct ?? 0))]);
+  const rets = chrono.flatMap((r) => [Math.abs(r.actual_pct ?? 0), Math.abs(r.forecast_pct ?? 0)]);
   const maxAbs = rets.length ? Math.max(2.0, Math.max(...rets) * 1.15) : 5.0;
   const getX = (i: number) => (chrono.length <= 1 ? paddingX + innerW / 2 : paddingX + (i / (chrono.length - 1)) * innerW);
   const getYPrice = (v: number) => (maxPrice <= minPrice ? paddingY + innerH / 2 : paddingY + innerH - ((v - minPrice) / (maxPrice - minPrice)) * innerH);
   const getYReturn = (v: number) => paddingY + innerH / 2 - (v / maxAbs) * (innerH / 2);
   const yAct = (r: Row) => (chartView === 'price' ? getYPrice(r.close_price ?? 0) : getYReturn(r.actual_pct ?? 0));
-  const yPred = (r: Row) => (chartView === 'price' ? getYPrice(r.pred_close ?? 0) : getYReturn(r.call === 0 ? 0 : (r.forecast_pct ?? 0)));
+  const yPred = (r: Row) => (chartView === 'price' ? getYPrice(r.pred_close ?? 0) : getYReturn(r.forecast_pct ?? 0));
   const path = (f: (r: Row) => number) => chrono.map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${f(r).toFixed(1)}`).join(' ');
   const dateInterval = chrono.length > 50 ? Math.ceil(chrono.length / 8) : 5;
   const hoveredItem = hovered ? chrono.find((r) => r.session_date === hovered) ?? null : null;
-  const dotColor = (r: Row) => (r.outcome === 'NO_TRADE' ? '#475569' : r.outcome === 'HIT' ? '#10b981' : '#f43f5e');
+  const dotColor = (r: Row) => (r.outcome === 'FLAT' ? '#475569' : r.outcome === 'HIT' ? '#10b981' : '#f43f5e');
 
   const pill = (active: boolean) =>
     `px-2 py-0.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white'}`;
@@ -128,6 +133,9 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
               <button key={s} onClick={() => setSource(s)} className={pill(source === s)}>{s === 'ALL' ? 'All' : s === 'LIVE' ? 'Live' : 'Simulated'}</button>
             ))}
           </div>
+          <button onClick={() => setOnlyHigh(!onlyHigh)} className={`flex items-center gap-1 font-mono text-xs border border-slate-800 rounded-xl px-2 py-1 ${onlyHigh ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'text-slate-400 bg-slate-900/90'}`}>
+            <Star className="w-3 h-3" />High conviction only
+          </button>
         </div>
       </div>
 
@@ -136,12 +144,12 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
           <div className="text-[10px] text-slate-400 font-mono uppercase">Directional Hit Rate ({evalSessions}D)</div>
           <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">{hitRate == null ? '---' : `${hitRate.toFixed(1)}%`}</div>
-          <div className="text-[10px] text-slate-400 font-mono">{hits} hits / {trades.length} trades</div>
+          <div className="text-[10px] text-slate-400 font-mono">{hits} hits / {trades.length} sessions</div>
         </div>
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
           <div className="text-[10px] text-slate-400 font-mono uppercase">Mean Absolute Error ({evalSessions}D)</div>
           <div className="text-lg font-bold text-slate-200 font-mono mt-0.5">{mae == null ? '---' : `${mae.toFixed(2)}%`}</div>
-          <div className="text-[10px] text-slate-400 font-mono">On trades, forecast vs actual</div>
+          <div className="text-[10px] text-slate-400 font-mono">Forecast vs actual, every session</div>
         </div>
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
           <div className="text-[10px] text-slate-400 font-mono uppercase">Hit MAE vs Miss MAE</div>
@@ -152,16 +160,14 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
           <div className="text-[10px] text-slate-400 font-mono">Calibration & safety</div>
         </div>
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-400 font-mono uppercase">Avg Gain per Trade</div>
-          <div className={`text-lg font-bold font-mono mt-0.5 ${gain == null ? 'text-slate-400' : gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {gain == null ? '---' : formatPercent(gain)}
-          </div>
-          <div className="text-[10px] text-slate-400 font-mono">After ~{costPct.toFixed(2)}% costs</div>
+          <div className="text-[10px] text-slate-400 font-mono uppercase">★ High Conviction Hit Rate</div>
+          <div className="text-lg font-bold text-amber-400 font-mono mt-0.5">{highRows.length ? `${((100 * highHits) / highRows.length).toFixed(1)}%` : '---'}</div>
+          <div className="text-[10px] text-slate-400 font-mono">{highHits} hits / {highRows.length} sessions</div>
         </div>
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-          <div className="text-[10px] text-slate-400 font-mono uppercase">Trade Frequency</div>
-          <div className="text-lg font-bold text-amber-400 font-mono mt-0.5">{ledger.length ? `${((100 * trades.length) / ledger.length).toFixed(0)}%` : '---'}</div>
-          <div className="text-[10px] text-slate-400 font-mono">{trades.length} trades / {ledger.length} sessions</div>
+          <div className="text-[10px] text-slate-400 font-mono uppercase">Big Moves (≥ 2%)</div>
+          <div className="text-lg font-bold text-amber-400 font-mono mt-0.5">{big.length ? `${((100 * bigHits) / big.length).toFixed(1)}%` : '---'}</div>
+          <div className="text-[10px] text-slate-400 font-mono">{bigHits} hits / {big.length} sessions{gain != null ? ` · ${formatPercent(gain)} avg after costs` : ''}</div>
         </div>
       </div>
 
@@ -181,7 +187,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                   {hitRate != null && ` (${hitRate.toFixed(1)}%)`}
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                  Last 10 trades: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> / <span className="text-rose-400 font-bold">{last10.length - l10Hits}✗</span>
+                  Last 10: <span className="text-emerald-400 font-bold">{l10Hits}✓</span> / <span className="text-rose-400 font-bold">{last10.length - l10Hits}✗</span>
                 </span>
                 <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold" title="Trades where |actual move| >= 2.0%">
                   ⚡ Big Moves: <span className="text-amber-400 font-bold">{bigHits}/{big.length}{big.length ? ` (${((100 * bigHits) / big.length).toFixed(0)}%)` : ''}</span>
@@ -261,16 +267,16 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                 <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
                   <span className="text-slate-300 font-bold flex items-center gap-1"><Calendar className="w-3 h-3 text-cyan-400" />{hoveredItem.session_date}</span>
                   <span className={`px-1.5 rounded text-[8px] font-black border ${hoveredItem.outcome === 'HIT' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : hoveredItem.outcome === 'MISS' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-slate-700/40 text-slate-300 border-slate-600/40'}`}>
-                    {hoveredItem.outcome === 'HIT' ? '✓ HIT' : hoveredItem.outcome === 'MISS' ? '✗ MISS' : 'NO TRADE'}
+                    {hoveredItem.outcome === 'HIT' ? '✓ HIT' : hoveredItem.outcome === 'MISS' ? '✗ MISS' : 'FLAT'}{hoveredItem.conviction === 'HIGH' ? ' ★' : ''}
                   </span>
                 </div>
                 <div className="space-y-1 text-[11px]">
                   <div className="flex justify-between"><span className="text-slate-400">Morning move:</span><span className="text-slate-200">{formatPercent(hoveredItem.morning_move_pct ?? 0)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Call at 11:30:</span><span className={hoveredItem.call > 0 ? 'text-emerald-400 font-bold' : hoveredItem.call < 0 ? 'text-rose-400 font-bold' : 'text-slate-400'}>{hoveredItem.call > 0 ? 'BUY' : hoveredItem.call < 0 ? 'SELL' : 'no trade'} @ ₺{hoveredItem.price_1130?.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Call at 11:30:</span><span className={hoveredItem.call > 0 ? 'text-emerald-400 font-bold' : hoveredItem.call < 0 ? 'text-rose-400 font-bold' : 'text-slate-400'}>{hoveredItem.call > 0 ? 'UP' : hoveredItem.call < 0 ? 'DOWN' : 'FLAT'} @ ₺{hoveredItem.price_1130?.toFixed(2)} · {hoveredItem.conviction === 'HIGH' ? 'HIGH' : 'normal'}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Realized Close:</span><span className="text-sky-300 font-bold">₺{hoveredItem.close_price?.toFixed(2)} ({formatPercent(hoveredItem.actual_pct ?? 0)})</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Predicted Target:</span><span className="text-amber-300 font-bold">₺{hoveredItem.pred_close?.toFixed(2)} ({formatPercent(hoveredItem.call === 0 ? 0 : (hoveredItem.forecast_pct ?? 0))})</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Predicted Target:</span><span className="text-amber-300 font-bold">₺{hoveredItem.pred_close?.toFixed(2)} ({formatPercent(hoveredItem.forecast_pct ?? 0)})</span></div>
                   <div className="flex justify-between pt-1 border-t border-slate-800 text-[10px]"><span className="text-slate-400">Absolute Error:</span><span className="text-slate-200">{hoveredItem.abs_error_pp?.toFixed(2)}%</span></div>
-                  <div className="flex justify-between text-[9.5px]"><span className="text-slate-500">Model · source:</span><span className="text-slate-400 truncate max-w-[140px]">{hoveredItem.candidate === 'RULE' ? 'Rule' : hoveredItem.candidate} · {hoveredItem.source === 'LIVE' ? 'live' : 'sim'}</span></div>
+                  <div className="flex justify-between text-[9.5px]"><span className="text-slate-500">Model · source:</span><span className="text-slate-400 truncate max-w-[140px]">{hoveredItem.candidate} · {hoveredItem.source === 'LIVE' ? 'live' : 'sim'}</span></div>
                 </div>
               </div>
             )}
@@ -282,7 +288,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
               <span className="flex items-center space-x-1.5"><span className="w-3 h-0.5 bg-amber-400 border-b border-dashed border-amber-400 inline-block" /><span className="text-amber-300 font-semibold">{championLabel} Predicted</span></span>
               <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-emerald-400">Hit (✓)</span></span>
               <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-rose-400">Miss (✗)</span></span>
-              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-slate-600 inline-block" /><span className="text-slate-400">No trade (0%)</span></span>
+              
               <span className="flex items-center space-x-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" /><span className="text-emerald-300">Live session</span></span>
             </div>
             <div className="text-slate-500 text-[9.5px]">Hover over data points to inspect individual session call and error spread</div>
@@ -299,7 +305,8 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                 <th className="py-2.5 px-3">Session</th>
                 <th className="py-2.5 px-3 text-center">Source</th>
                 <th className="py-2.5 px-3 text-right">Morning Move</th>
-                <th className="py-2.5 px-3 text-center">Call</th>
+                <th className="py-2.5 px-3 text-center">Direction</th>
+                <th className="py-2.5 px-3 text-center">Conviction</th>
                 <th className="py-2.5 px-3 text-right">11:30 Price</th>
                 <th className="py-2.5 px-3 text-right">Target Close</th>
                 <th className="py-2.5 px-3 text-right">Realized Close</th>
@@ -311,13 +318,13 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
             </thead>
             <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
               {isLoading ? (
-                <tr><td colSpan={11} className="py-8 text-center text-slate-400 font-mono">Loading audited sessions...</td></tr>
+                <tr><td colSpan={12} className="py-8 text-center text-slate-400 font-mono">Loading audited sessions...</td></tr>
               ) : ledger.length === 0 ? (
-                <tr><td colSpan={11} className="py-8 text-center text-slate-400 font-mono">No audited sessions for this selection yet.</td></tr>
+                <tr><td colSpan={12} className="py-8 text-center text-slate-400 font-mono">No audited sessions for this selection yet.</td></tr>
               ) : (
                 ledger.map((r, idx) => {
                   const isHov = hovered === r.session_date;
-                  const pred = r.call === 0 ? 0 : (r.forecast_pct ?? 0);
+                  const pred = r.forecast_pct ?? 0;
                   return (
                     <tr key={`${r.session_date}-${idx}`} onMouseEnter={() => setHovered(r.session_date)} onMouseLeave={() => setHovered(null)}
                       className={`transition-colors ${isHov ? 'bg-slate-800/60 ring-1 ring-cyan-500/30' : 'hover:bg-slate-900/40'}`}>
@@ -326,7 +333,8 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                         <span className={`text-[8px] font-bold px-1 rounded border ${r.source === 'LIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-700/30 text-slate-400 border-slate-600/40'}`}>{r.source === 'LIVE' ? 'LIVE' : 'SIM'}</span>
                       </td>
                       <td className={`py-2 px-3 text-right ${(r.morning_move_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPercent(r.morning_move_pct ?? 0)}</td>
-                      <td className="py-2 px-3 text-center font-bold">{r.call > 0 ? <span className="text-emerald-400">BUY</span> : r.call < 0 ? <span className="text-rose-400">SELL</span> : <span className="text-slate-500 font-normal">—</span>}</td>
+                      <td className="py-2 px-3 text-center font-bold">{r.call > 0 ? <span className="text-emerald-400">UP</span> : r.call < 0 ? <span className="text-rose-400">DOWN</span> : <span className="text-slate-500 font-normal">FLAT</span>}</td>
+                      <td className="py-2 px-3 text-center">{r.conviction === 'HIGH' ? <span className="text-amber-300 font-bold">★ HIGH</span> : <span className="text-slate-500">normal</span>}</td>
                       <td className="py-2 px-3 text-right text-slate-300">₺{r.price_1130?.toFixed(2)}</td>
                       <td className="py-2 px-3 text-right text-cyan-300 font-bold">₺{r.pred_close?.toFixed(2)}</td>
                       <td className="py-2 px-3 text-right text-white font-bold">₺{r.close_price?.toFixed(2)}</td>
@@ -339,7 +347,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                         ) : r.outcome === 'MISS' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30"><XCircle className="w-3 h-3" /> MISS</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700/30 text-slate-400 border border-slate-600/40"><MinusCircle className="w-3 h-3" /> NO TRADE</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700/30 text-slate-400 border border-slate-600/40"><MinusCircle className="w-3 h-3" /> FLAT</span>
                         )}
                       </td>
                     </tr>

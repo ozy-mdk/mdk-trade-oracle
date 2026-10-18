@@ -814,10 +814,12 @@ export interface IntradaySignalResponse {
   loss_typ_pct: number | null;
   record_hit_rate_pct: number | null;
   record_trades: number | null;
+  record_high_hit_rate_pct: number | null;
+  record_high_sessions: number | null;
   record_avg_after_cost_pct: number | null;
   grid_morning_pct: number[];
   grid_forecast_pct: number[];
-  trade_threshold_pct: number | null;
+  grid_high_conviction: boolean[];
   prev_close: number | null;
 }
 
@@ -825,6 +827,7 @@ export interface IntradayLedgerItem {
   session_date: string;
   source: 'LIVE' | 'SIMULATED';
   candidate: string | null;
+  conviction: 'HIGH' | 'NORMAL' | null;
   morning_move_pct: number | null;
   call: number;
   forecast_pct: number | null;
@@ -841,6 +844,8 @@ export interface IntradayLedgerSummary {
   trades: number;
   hits: number;
   hit_rate_pct: number | null;
+  high_sessions: number;
+  high_hit_rate_pct: number | null;
   avg_gain_after_cost_pct: number | null;
   mae_pp: number | null;
   first_session: string | null;
@@ -857,9 +862,9 @@ export interface IntradayStandingItem {
   model: string;
   feature_set: string;
   training_window: number;
-  trades: number;
+  sessions: number;
   hit_rate_pct: number;
-  avg_gain_after_cost_pct: number;
+  mae_pp: number;
   eligible: boolean;
   is_champion: boolean;
 }
@@ -868,6 +873,6 @@ export interface IntradayTournamentResponse {
   symbol: string;
   month_start: string;
   crown_sessions: number;
-  min_trades: number;
+  min_sessions: number;
   standings: IntradayStandingItem[];
 }

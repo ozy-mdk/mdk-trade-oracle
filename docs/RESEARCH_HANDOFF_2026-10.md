@@ -111,19 +111,23 @@ The 11:30 signal is productionized as its own model and frontend tab (all BIST30
 - **Model:** `models/intraday_session.py`. Every candidate (RULE + Ridge / BayesianRidge / Huber / XGBoost / LightGBM ×
   LEAN_MLB / LEAN_INST / OLD_39 × 63 / 126 / 252 / 504 sessions) publishes each evening a forecast grid over the morning
   move (−6%..+6%); BUY/SELL levels and grading read the same frozen grid.
-- **Tournament (user decision):** monthly, trailing 120 sessions, incumbent rule — a challenger replaces RULE only with
-  +2 pp hit rate and positive gain after costs; regressions trade only on forecasts ≥ 1%. "Best hit rate wins" was
-  rejected: it crowned lucky regressions (86% of months) and lost money after costs.
-- **Simulated history (2023–26, after 0.14% costs):** focus six 57.1% / 52.6% hit, +0.07% / +0.05% per trade
-  (2023–24 / 2025–26); other 24: 55.7% / 54.2%, +0.09% / +0.05%. Rule-only on the focus six was better on gain
-  (+0.11% / +0.15%); the incumbent tournament had the higher 2023–24 hit rate. Simulation refits regressions every 5
-  sessions (always on earlier data); production refits daily.
+- **Daily forecasts (user decision, replaces "selective calls only"):** every stock gets a forecast every session. The
+  daily forecaster is the regression candidate with the best every-day hit rate over the trailing 120 sessions
+  (re-chosen monthly, MAE tie-break, ≥ 60 sessions); where the BofA-flow rule fires its forecast is used and the session
+  is **HIGH conviction**, elsewhere **NORMAL**. Earlier designs (incumbent-rule selective calls; "best hit rate wins" on
+  trades) remain in git history.
+- **Simulated history (2023–26):** focus six 53.5% / 53.1% hit every day (2023–24 / 2025–26), HIGH conviction 55.6% /
+  54.0% (~30% of sessions), big moves (≥ 2%) 56.1% / 54.6%; other 24: 53.0% / 52.2%. Last 60 sessions, focus six:
+  55.8% (201/360). Simulation refits regressions every 5 sessions (always on earlier data); production refits daily.
+- **Live input stays open → 11:30:** a one-input variant (previous close → 11:30) was worse in both periods
+  (`scripts/experiments/intraday_variant_close1130.py`).
 - **Gold:** `gold_intraday_candidate_results`, `gold_intraday_session_signals` (frozen; LIVE / SIMULATED),
   `gold_intraday_session_ledger`; nightly = first step of `run_pipeline.py --target gold`
   (or `scripts/run_intraday_session.py --nightly`). First LIVE session: 2026-10-19.
-- **API / UI:** `/api/v1/intraday/{universe,signal,ledger,tournament}`; tab "Intraday Session Forecaster" with levels,
-  an 11:30 calculator (trader enters open + 11:30 price → forecast %, expected close, BUY/SELL/NO TRADE, typical
-  win/loss), calibrated potential/risk/record, hub-style audited walk-forward track, tournament standings.
+- **API / UI:** `/api/v1/intraday/{universe,signal,ledger,tournament}`; tab "Intraday Session Forecaster": 11:30
+  calculator (trader enters open + 11:30 price → forecast %, expected close, conviction, suggestion, typical win/loss),
+  morning-move → forecast table with ★ HIGH conviction cells, record (all days / HIGH), hub-style audited walk-forward
+  track (every session graded; HIGH filter), tournament standings.
 - The experiment forward log (`session_triggers.py --forward`) still runs after the pipeline; retire it once the gold
   LIVE ledger has a few weeks of history.
 

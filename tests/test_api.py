@@ -241,15 +241,13 @@ def test_intraday_endpoints(client):
 
     sig = client.get(f"/api/v1/intraday/signal?symbol={sym}").json()
     assert sig["symbol"] == sym and sig["as_of_close"] < sig["session_date"]
-    assert len(sig["grid_morning_pct"]) == len(sig["grid_forecast_pct"]) > 0
+    assert len(sig["grid_morning_pct"]) == len(sig["grid_forecast_pct"]) == len(sig["grid_high_conviction"]) > 0
 
     led = client.get(f"/api/v1/intraday/ledger?symbol={sym}&limit=50").json()
     assert {s["source"] for s in led["summary"]} == {"LIVE", "SIMULATED"}
     for item in led["items"]:
-        assert item["call"] in (-1, 0, 1)
-        if item["call"] == 0:
-            assert item["hit"] is None and item["forecast_pct"] == 0.0
-        else:
+        assert item["call"] in (-1, 0, 1) and item["conviction"] in ("HIGH", "NORMAL")
+        if item["call"] != 0:
             assert item["hit"] == ((item["forecast_pct"] > 0) == (item["actual_pct"] > 0))
 
     t = client.get(f"/api/v1/intraday/tournament?symbol={sym}").json()

@@ -1,23 +1,21 @@
 """Intraday Session Forecaster: % change from the 11:30 price to the closing auction, published after the previous close.
 
-Decision rule for the trader: at 11:30 compare the price with the day's opening price (the "morning move" m). Everything
-else is known at the close of the previous session, so each evening every candidate publishes a *grid*: its forecast
-f(m) of the 11:30 -> close % change for morning moves m in [-6%, +6%] (0.1% steps). BUY / SELL levels are read off
-the grid, and grading reads the same frozen grid at the realized m, so what is published is exactly what is graded.
+Every stock gets a forecast every session. At 11:30 the trader compares the price with the day's opening price (the
+"morning move" m); everything else is known at the close of the previous session, so each evening the forecaster
+publishes a *grid*: the forecast f(m) of the 11:30 -> close % change for m in [-6%, +6%] (0.1% steps), plus a
+conviction marker per m. Grading reads the same frozen grid at the realized m, so what is published is what is graded.
 
 Row = session D. Features are yesterday's values (shifted one session); the morning move and target of D are only used
 for rows before the forecast session (training) or for grading.
 
-Candidates
-    RULE                     z(yesterday MLB intensity) + z(morning move) beyond the trailing 80/20 percentile of past
-                             scores (trailing 252 sessions); size = mean outcome of its last 60 trades (>= 20)
-    <features>|<model>|<w>   regression on yesterday's features + morning move, fitted on the last w sessions before D;
-                             trades only when |f(m)| >= REGRESSION_TRADE_PCT
-Tournament (incumbent rule): on the first session of each month, per stock, RULE stays champion unless the best
-challenger over the trailing CROWN_SESSIONS sessions of out-of-sample trades (>= MIN_CROWN_TRADES trades; ranked by hit
-rate, then mean gain after costs) beat RULE's hit rate by CHALLENGER_MARGIN with a positive mean gain after costs.
-Chosen over "best hit rate wins" (which crowned lucky regressions and lost money) on 2023-24 results and confirmed on
-2025-26: see docs/RESEARCH_HANDOFF_2026-10.md.
+Daily forecast
+    regression champion      <features>|<model>|<window>: regression on yesterday's features + morning move, fitted on
+                             the last <window> sessions before D; re-crowned monthly as the regression candidate with the
+                             best every-day hit rate over the trailing CROWN_SESSIONS sessions (MAE breaks ties)
+    rule override            where the RULE fires (z(yesterday MLB intensity) + z(morning move) beyond the trailing 80/20
+                             percentile of past scores), its direction and size replace the regression forecast and the
+                             session is HIGH conviction; elsewhere the regression forecast is published as NORMAL
+Track record (per stock): the last RECORD_SESSIONS graded sessions of what was actually published.
 """
 
 from __future__ import annotations
@@ -38,6 +36,9 @@ RULE = "RULE"
 RULE_WINDOW, RULE_MIN_P, RULE_Q, Z_CLIP = 252, 126, 0.8, 5.0
 SIZE_CALLS, MIN_SIZE_CALLS = 60, 20
 CROWN_SESSIONS, MIN_CROWN_TRADES = 120, 20
+MIN_CROWN_SESSIONS = 60  # a regression candidate needs this many out-of-sample sessions in the window to be crowned
+DEFAULT_REGRESSION = "LEAN_MLB|Ridge|252"
+RECORD_SESSIONS = 60
 RECORD_TRADES, MIN_RECORD_TRADES = 60, 20
 EWMA_LAMBDA = 0.94
 # Trading days without raw data: the next session's "yesterday" would skip a day, so it is neither traded nor graded.
@@ -296,3 +297,69 @@ def trader_numbers(results: pd.DataFrame, candidate: str, before: pd.Timestamp, 
         "win_q75_pct": round(float(np.percentile(win_u, 75) * sigma_next), 3) if len(win_u) else None,
         "loss_typ_pct": round(float(loss_u.median() * sigma_next), 3) if len(loss_u) else None,
     }
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Daily forecaster (every session): regression champion + rule override with conviction
+
+
+def daily_standings(results: pd.DataFrame, month_start: pd.Timestamp) -> pd.DataFrame:
+    """Regression candidates' every-day hit rate and MAE over the trailing CROWN_SESSIONS sessions before `month_start`."""
+    r = results[(results["session_date"] < month_start) & (results["candidate"] != RULE)]
+    sessions = sorted(r["session_date"].unique())[-CROWN_SESSIONS:]
+    r = r[r["session_date"].isin(sessions)]
+    if r.empty:
+        return pd.DataFrame(columns=["candidate", "sessions", "hit_rate", "mae", "eligible"])
+    r = r.assign(hit=np.sign(r["forecast_pct"]) == np.sign(r["actual_pct"]), err=(r["forecast_pct"] - r["actual_pct"]).abs())
+    s = r.groupby("candidate").agg(sessions=("hit", "size"), hit_rate=("hit", "mean"), mae=("err", "mean")).reset_index()
+    s["eligible"] = s["sessions"] >= MIN_CROWN_SESSIONS
+    return s.sort_values(["eligible", "hit_rate", "mae"], ascending=[False, False, True]).reset_index(drop=True)
+
+
+def crown_daily(results: pd.DataFrame, month_start: pd.Timestamp) -> Champion:
+    s = daily_standings(results, month_start)
+    s = s[s["eligible"]] if not s.empty else s
+    if s.empty:
+        return Champion(DEFAULT_REGRESSION, month_start, None, 0, None)
+    b = s.iloc[0]
+    return Champion(str(b["candidate"]), month_start, round(float(b["hit_rate"]) * 100, 1), int(b["sessions"]), round(float(b["mae"]), 3))
+
+
+def final_grid(rule_g: np.ndarray, reg_g: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+    """Published forecast grid and conviction grid: the rule where it fires (HIGH), the regression elsewhere (NORMAL)."""
+    reg = np.zeros_like(GRID, dtype=float) if reg_g is None else np.asarray(reg_g, dtype=float)
+    high = np.asarray(rule_g, dtype=float) != 0.0
+    return np.where(high, rule_g, reg), high
+
+
+def high_at(conviction_grid: np.ndarray, morning_ret: float) -> bool:
+    i = int(np.argmin(np.abs(GRID - np.clip(morning_ret, GRID[0], GRID[-1]))))
+    return bool(conviction_grid[i])
+
+
+def daily_record(ledger: pd.DataFrame, before: pd.Timestamp, sigma_next: float) -> dict[str, float | int | None]:
+    """Track record of what was published: the last RECORD_SESSIONS graded sessions before `before`, plus potential /
+    risk (typical move when right / wrong, in volatility units, scaled to the current volatility)."""
+    if ledger.empty:
+        return {"record_trades": 0}
+    h = ledger[(pd.to_datetime(ledger["session_date"]) < before) & ledger["hit"].notna()].sort_values("session_date").tail(RECORD_SESSIONS)
+    if len(h) < 20:
+        return {"record_trades": len(h)}
+    hit = h["hit"].astype(bool)
+    hi = h[h["conviction"] == "HIGH"]
+    out: dict[str, float | int | None] = {
+        "record_trades": len(h),
+        "record_hit_rate_pct": round(float(hit.mean() * 100), 1),
+        "record_high_sessions": len(hi),
+        "record_high_hit_rate_pct": round(float(hi["hit"].astype(bool).mean() * 100), 1) if len(hi) else None,
+        "record_avg_after_cost_pct": round(float((np.sign(h["forecast_pct"]) * h["actual_pct"]).mean() - COST_PCT), 3),
+    }
+    if np.isfinite(sigma_next) and "sigma_pct" in h and h["sigma_pct"].notna().all():
+        u = h["actual_pct"].abs() / h["sigma_pct"]
+        win_u, loss_u = u[hit], u[~hit]
+        out.update({
+            "win_typ_pct": round(float(win_u.median() * sigma_next), 3) if len(win_u) else None,
+            "win_q75_pct": round(float(np.percentile(win_u, 75) * sigma_next), 3) if len(win_u) else None,
+            "loss_typ_pct": round(float(loss_u.median() * sigma_next), 3) if len(loss_u) else None,
+        })
+    return out

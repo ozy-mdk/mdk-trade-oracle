@@ -121,3 +121,41 @@ def test_published_signals_are_frozen() -> None:
         assert db.query_df("SELECT buy_level_pct FROM gold_intraday_session_signals")["buy_level_pct"].iloc[0] == pytest.approx(2.0)
     finally:
         db.close()
+
+
+def test_final_grid_is_rule_where_it_fires_else_regression() -> None:
+    rule_g = np.where(m.GRID >= 1.0, 0.4, np.where(m.GRID <= -1.0, -0.4, 0.0))
+    reg_g = np.full(len(m.GRID), -0.2)
+    final, high = m.final_grid(rule_g, reg_g)
+    assert m.forecast_at(final, 1.5) == pytest.approx(0.4) and m.high_at(high, 1.5)
+    assert m.forecast_at(final, 0.0) == pytest.approx(-0.2) and not m.high_at(high, 0.0)  # a forecast every day
+
+
+def test_daily_crowning_ignores_the_crowning_month_and_needs_history() -> None:
+    rng = np.random.default_rng(5)
+    days = pd.bdate_range("2024-01-01", "2024-08-30")
+    regs = [n for n in NAMES if n != m.RULE]
+    r = pd.DataFrame([{"candidate": c, "session_date": d, "forecast_pct": rng.normal(), "actual_pct": rng.normal()} for d in days for c in NAMES])
+    month = pd.Timestamp("2024-07-01")
+    a = m.crown_daily(r, month)
+    assert a.name in regs  # the rule is not a daily forecaster
+    r2 = r.copy()
+    late = r2["session_date"] >= month
+    r2.loc[late, "actual_pct"] = r2.loc[late, "forecast_pct"]  # perfect future
+    assert m.crown_daily(r2, month).name == a.name
+    assert m.crown_daily(r[r["session_date"] < "2024-02-15"], pd.Timestamp("2024-03-01")).name == m.DEFAULT_REGRESSION  # < 60 sessions
+
+
+def test_every_usable_session_is_graded_with_conviction() -> None:
+    from mdk_trading_oracle.data.gold.intraday_session import grade
+
+    final, high = m.final_grid(np.where(m.GRID >= 1.0, 0.4, 0.0), np.full(len(m.GRID), -0.2))
+    sig = {"symbol": "TEST", "session_date": pd.Timestamp("2026-10-19").date(), "source": "LIVE", "candidate": "LEAN_MLB|Ridge|63",
+           "grid_forecast_pct": list(final), "grid_high_conviction": list(high)}
+    quiet = pd.Series({"usable": True, "morning_ret": 0.1, "target": 0.5, "open_price": 100.0, "price_1130": 100.1, "close_price": 100.6, "sigma_pct": 2.0})
+    g = grade(sig, quiet)
+    assert g["conviction"] == "NORMAL" and g["call"] == -1 and g["hit"] is False and g["abs_error_pp"] == pytest.approx(0.7)
+    strong = quiet.copy()
+    strong["morning_ret"] = 1.6
+    g2 = grade(sig, strong)
+    assert g2["conviction"] == "HIGH" and g2["call"] == 1 and g2["hit"] is True
