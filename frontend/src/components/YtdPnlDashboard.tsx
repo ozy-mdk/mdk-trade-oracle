@@ -306,7 +306,7 @@ export const YtdPnlDashboard: React.FC<YtdPnlDashboardProps> = ({
                   </span>
                 </div>
                 <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                  YKR, IYM, AKM, GRM, ZRY
+                  YKR, IYM, AKM, GRM
                 </span>
               </div>
 

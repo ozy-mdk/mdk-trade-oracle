@@ -52,7 +52,7 @@ day_start:
     # Cluster 4: Top-5 Competitor Closing Posture & Imbalance
     competitor_deltas:
       enabled: true
-      description: "Domestic bank (IYM, YKR, AKM, GRM, ZRY) flows, W4 delta, and total delta"
+      description: "Domestic bank (IYM, YKR, AKM, GRM) flows, W4 delta, and total delta"
       features:
         - feat_top5_domestic_w4_net_flow_tl
         - feat_top5_domestic_prev_day_net_flow_tl

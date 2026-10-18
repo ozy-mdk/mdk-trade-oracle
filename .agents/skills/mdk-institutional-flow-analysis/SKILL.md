@@ -30,12 +30,13 @@ Whenever designing, extending, or refining the predictive modeling architecture:
 ## 2. Primary Institutional Target & Competitor Matrix
 
 - **Primary Target**: **`MLB`** (Bank of America / Merrill Lynch Yatırım Bank A.Ş.) — dominant foreign algorithmic flow driver.
-- **Top 5 Domestic Competitor Powerhouses**:
+- **BIG5 Bundle — Top Domestic Private Desks** (bundle id kept as `BIG5`):
   - `IYM` (İş Yatırım) — largest domestic aggregator.
   - `YKR` (Yapı Kredi) — active institutional & prop desk.
   - `AKM` (Ak Yatırım) — high-volume domestic participant.
   - `GRM` (Garanti BBVA) — institutional liquidity provider.
-  - `ZRY` (Ziraat) — public/state institution flow.
+- **KAMU Bundle — State Conduits**: `ZRY` (Ziraat), `VKY` (Vakıf), `HLY` (Halk), plus `TRA` in the analytics bundle.
+  `ZRY` belongs to KAMU only; it is never counted in BIG5, so state flow is not double-counted.
 - **Retail Panic Indicator**:
   - `TRA` (Tera Yatırım) — key proxy for aggressive retail speculation and stop-loss cascading.
 

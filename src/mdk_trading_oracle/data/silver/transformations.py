@@ -415,7 +415,7 @@ class SilverTransformer:
                     SUM(CASE WHEN rank_in_stock <= 5 AND net_flow_tl < 0 THEN net_flow_tl ELSE 0.0 END) AS top_5_sellers_net_flow_tl,
                     SUM(CASE WHEN rank_in_stock <= 5 THEN total_turnover_tl ELSE 0.0 END) / 
                         NULLIF(SUM(total_turnover_tl), 0.0) AS top_5_concentration_ratio,
-                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM', 'ZRY') THEN net_flow_tl ELSE 0.0 END) AS top_5_domestic_net_flow_tl,
+                    SUM(CASE WHEN broker_id IN ('IYM', 'YKR', 'AKM', 'GRM') THEN net_flow_tl ELSE 0.0 END) AS top_5_domestic_net_flow_tl,
                     SUM(CASE WHEN broker_id = 'MLB' OR is_primary_target = TRUE THEN buy_turnover_tl ELSE 0.0 END) AS bofa_buy_turnover_tl,
                     SUM(CASE WHEN broker_id = 'MLB' OR is_primary_target = TRUE THEN sell_turnover_tl ELSE 0.0 END) AS bofa_sell_turnover_tl,
                     SUM(CASE WHEN broker_id = 'MLB' OR is_primary_target = TRUE THEN net_flow_tl ELSE 0.0 END) AS bofa_net_flow_tl,

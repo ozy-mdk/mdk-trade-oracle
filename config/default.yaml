@@ -69,7 +69,7 @@ models:
     windows: ["first_reaction", "midday_followup", "closing_session"]
 
     # Broker universe for FIFO Tertip inventory tracking
-    # MLB = BofA (primary), IYM/YKR/AKM/GRM/ZRY = Top-5 domestic, TRA = Tera (retail contra)
+    # MLB = BofA (primary), IYM/YKR/AKM/GRM = top domestic, ZRY = Ziraat (state, KAMU), TRA = Tera (retail contra)
     fifo_brokers:
       - MLB   # Bank of America (primary institutional target)
       - IYM   # Is Yatirim (largest domestic aggregator)
@@ -85,7 +85,7 @@ models:
       - IYM   # Is Yatirim (largest domestic aggregator)
       - AKM   # Ak Yatirim (high-volume domestic major bank)
       - GRM   # Garanti BBVA (institutional liquidity provider)
-      - ZRY   # Ziraat (state/public institutional flow desk)
+      # ZRY (Ziraat) is tracked in kamu_brokers only
 
     # State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits)
     kamu_brokers:

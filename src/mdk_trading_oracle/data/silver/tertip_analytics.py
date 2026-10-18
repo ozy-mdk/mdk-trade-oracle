@@ -21,8 +21,10 @@ from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.tertip_analytics")
 
-# Big Five Institutional Bundle (Next 5 largest players excluding Bank of America)
-BIG_FIVE_BROKERS = ("YKR", "IYM", "AKM", "GRM", "ZRY")
+# Big Five Institutional Bundle (largest private domestic desks excluding Bank of America).
+# ZRY (Ziraat) belongs to KAMU only, so state flow is never double-counted across bundles. The bundle keeps its
+# historical "BIG5" id for API / table compatibility.
+BIG_FIVE_BROKERS = ("YKR", "IYM", "AKM", "GRM")
 
 # State-Backed Institutional Bundle (Kamu Bankaları / TVF Conduits + TRA)
 KAMU_BROKERS = ("ZRY", "VKY", "HLY", "TRA")

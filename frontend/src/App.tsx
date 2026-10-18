@@ -174,7 +174,7 @@ export const App: React.FC = () => {
                     .filter((b) => b.broker_id === 'BIG5')
                     .map((b) => (
                       <option key={b.broker_id} value={b.broker_id} className="bg-slate-900 text-cyan-300 font-bold">
-                        BIG FIVE — (Bundle: YKR, IYM, AKM, GRM, ZRY)
+                        BIG FIVE — (Bundle: YKR, IYM, AKM, GRM)
                       </option>
                     ))}
                   {(brokers || [])

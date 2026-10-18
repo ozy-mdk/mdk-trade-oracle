@@ -4,7 +4,7 @@ Pits a univariate time-series base model (Prophet) against trained Machine Learn
 challenger models (Bayesian Ridge / LightGBM) armed with scarce 3-pillar institutional
 microstructure features:
     - Pillar 1: Bank of America (MLB)
-    - Pillar 2: Domestic Big 5 Desks (BIG5: YKR, IYM, AKM, GRM, ZRY)
+    - Pillar 2: Domestic Big 5 Desks (BIG5: YKR, IYM, AKM, GRM)
     - Pillar 3: State Conduits (KAMU: ZRY, VKY, HLY, TRA)
 
 Features zero-lookahead point-in-time training and a 30-day walk-forward reality ledger
@@ -657,7 +657,7 @@ def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, A
 
     pillars_meta = [
         {"key": "MLB", "name": "Bank of America (MLB)", "desc": "Foreign Algo Powerhouse"},
-        {"key": "BIG5", "name": "Top 5 Domestic Desks", "desc": "YKR, IYM, AKM, GRM, ZRY"},
+        {"key": "BIG5", "name": "Top Domestic Desks", "desc": "YKR, IYM, AKM, GRM"},
         {"key": "KAMU", "name": "State-Backed Conduits", "desc": "ZRY, VKY, HLY, TRA (State Support Floor)"},
     ]
 

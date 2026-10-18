@@ -852,7 +852,7 @@ def get_brokers() -> List[BrokerItem]:
     # Insert bundles directly after MLB
     big5_item = BrokerItem(
         broker_id="BIG5",
-        broker_name="BIG FIVE (YKR, IYM, AKM, GRM, ZRY)",
+        broker_name="BIG FIVE (YKR, IYM, AKM, GRM)",
         category="Institutional Bundle",
         is_primary_target=True,
     )
