@@ -257,6 +257,27 @@ def initialize_silver_schema(db: PostgresManager) -> None:
         );
     """)
 
+    # 5b. Silver Table: Daily Session Prices (Stock x Day) for the intraday session forecaster.
+    #     open = first print (opening auction), price_1030 / price_1130 = last print strictly before 10:30 / 11:30,
+    #     close = last print (closing auction / trading at last price), VWAPs just after the 11:30 decision.
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS silver_daily_session_prices (
+            trade_date DATE NOT NULL,
+            symbol VARCHAR NOT NULL,
+            open_price DOUBLE PRECISION,
+            price_1030 DOUBLE PRECISION,
+            price_1130 DOUBLE PRECISION,
+            vwap_1130_1135 DOUBLE PRECISION,
+            vwap_1130_1145 DOUBLE PRECISION,
+            close_price DOUBLE PRECISION,
+            last_trade_time TIME,
+            is_half_day BOOLEAN,
+            trade_count BIGINT,
+            calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (trade_date, symbol)
+        );
+    """)
+
     # 6. Silver Table: Intraday Sector Window Summary (Sector x Broker x Time Window)
     db.execute("""
         CREATE TABLE IF NOT EXISTS silver_intraday_sector_window_summary (

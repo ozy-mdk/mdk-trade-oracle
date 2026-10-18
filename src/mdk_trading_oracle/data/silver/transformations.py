@@ -736,6 +736,67 @@ class SilverTransformer:
         logger.info(f"Successfully populated `silver_intraday_broker_window_summary`: {rows:,} rows.")
         return {"table": "silver_intraday_broker_window_summary", "rows": rows, "status": "success"}
 
+    def transform_daily_session_prices(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
+        """Per (trade_date, symbol) session reference prices from `bronze_raw_trades`.
+
+        Reference prices are the volume-weighted average of the prints in the decisive second (the feed has no
+        sequence number, so "the last print" within a second is ambiguous): open = first second of the day,
+        price_1030 / price_1130 = last second strictly before 10:30 / 11:30, close = last second of the day.
+        Without `target_dates` only bronze dates not yet in the table are computed (bronze keeps a few stray partial
+        historical days; history comes from `scripts/backfill_session_prices.py`).
+        """
+        conn = self.db.get_connection()
+        initialize_silver_schema(self.db)
+        if target_dates:
+            dates = list(target_dates)
+        else:
+            dates = [str(r[0]) for r in conn.execute("""
+                SELECT DISTINCT CAST(timestamp AS DATE) FROM bronze_raw_trades
+                EXCEPT SELECT DISTINCT trade_date FROM silver_daily_session_prices;""").fetchall()]
+        if not dates:
+            return {"table": "silver_daily_session_prices", "rows": 0, "dates": 0, "status": "up_to_date"}
+        dates_in = ", ".join(f"'{d}'" for d in dates)
+        conn.execute(f"""
+            INSERT INTO silver_daily_session_prices (
+                trade_date, symbol, open_price, price_1030, price_1130, vwap_1130_1135, vwap_1130_1145,
+                close_price, last_trade_time, is_half_day, trade_count, calculated_at
+            )
+            WITH b AS (
+                SELECT CAST(timestamp AS DATE) AS d, symbol, timestamp AS ts, CAST(timestamp AS TIME) AS t, price, volume
+                FROM bronze_raw_trades WHERE CAST(timestamp AS DATE) IN ({dates_in}) AND volume > 0
+            ),
+            k AS (
+                SELECT d, symbol, MIN(ts) AS ts_open, MAX(ts) AS ts_close,
+                       MAX(ts) FILTER (WHERE t < '10:30:00') AS ts_1030, MAX(ts) FILTER (WHERE t < '11:30:00') AS ts_1130,
+                       COUNT(*) AS n, MAX(t) AS last_t,
+                       SUM(price * volume) FILTER (WHERE t >= '11:30:00' AND t < '11:35:00')
+                           / NULLIF(SUM(volume) FILTER (WHERE t >= '11:30:00' AND t < '11:35:00'), 0.0) AS v5,
+                       SUM(price * volume) FILTER (WHERE t >= '11:30:00' AND t < '11:45:00')
+                           / NULLIF(SUM(volume) FILTER (WHERE t >= '11:30:00' AND t < '11:45:00'), 0.0) AS v15
+                FROM b GROUP BY 1, 2
+            ),
+            s AS (
+                SELECT b.d, b.symbol,
+                    SUM(b.price * b.volume) FILTER (WHERE b.ts = k.ts_open) / NULLIF(SUM(b.volume) FILTER (WHERE b.ts = k.ts_open), 0.0) AS p_open,
+                    SUM(b.price * b.volume) FILTER (WHERE b.ts = k.ts_1030) / NULLIF(SUM(b.volume) FILTER (WHERE b.ts = k.ts_1030), 0.0) AS p_1030,
+                    SUM(b.price * b.volume) FILTER (WHERE b.ts = k.ts_1130) / NULLIF(SUM(b.volume) FILTER (WHERE b.ts = k.ts_1130), 0.0) AS p_1130,
+                    SUM(b.price * b.volume) FILTER (WHERE b.ts = k.ts_close) / NULLIF(SUM(b.volume) FILTER (WHERE b.ts = k.ts_close), 0.0) AS p_close
+                FROM b JOIN k USING (d, symbol)
+                WHERE b.ts IN (k.ts_open, k.ts_1030, k.ts_1130, k.ts_close)
+                GROUP BY 1, 2
+            )
+            SELECT k.d, k.symbol, s.p_open, s.p_1030, s.p_1130, k.v5, k.v15, s.p_close, k.last_t, k.last_t < '17:00:00', k.n, CURRENT_TIMESTAMP
+            FROM k JOIN s USING (d, symbol)
+            ON CONFLICT (trade_date, symbol) DO UPDATE SET
+                open_price = EXCLUDED.open_price, price_1030 = EXCLUDED.price_1030, price_1130 = EXCLUDED.price_1130,
+                vwap_1130_1135 = EXCLUDED.vwap_1130_1135, vwap_1130_1145 = EXCLUDED.vwap_1130_1145,
+                close_price = EXCLUDED.close_price, last_trade_time = EXCLUDED.last_trade_time,
+                is_half_day = EXCLUDED.is_half_day, trade_count = EXCLUDED.trade_count, calculated_at = CURRENT_TIMESTAMP;
+        """)
+        rows = conn.execute(f"SELECT COUNT(*) FROM silver_daily_session_prices WHERE trade_date IN ({dates_in});").fetchone()[0]
+        logger.info(f"Computed `silver_daily_session_prices` for {len(dates)} date(s): {rows:,} rows.")
+        return {"table": "silver_daily_session_prices", "rows": rows, "dates": len(dates), "status": "success"}
+
     def transform_intraday_sector_windows(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
         """Aggregate intraday sector windows (trade_date, sector, broker_id, window_name)."""
         conn = self.db.get_connection()
@@ -1549,6 +1610,7 @@ class SilverTransformer:
         res_sector = self.transform_daily_sector_summary(target_dates=target_dates)
         res_win_broker = self.transform_intraday_broker_windows(target_dates=target_dates)
         res_win_sector = self.transform_intraday_sector_windows(target_dates=target_dates)
+        res_session_prices = self.transform_daily_session_prices(target_dates=target_dates)
         res_macro_rates = self.transform_daily_macro_rates()
         res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()
@@ -1564,6 +1626,7 @@ class SilverTransformer:
             "silver_daily_sector_summary": res_sector,
             "silver_intraday_broker_window_summary": res_win_broker,
             "silver_intraday_sector_window_summary": res_win_sector,
+            "silver_daily_session_prices": res_session_prices,
             "silver_daily_macro_rates": res_macro_rates,
             "silver_daily_benchmark_index": res_benchmark,
             "silver_bofa_historical_flow_thresholds": res_flow_thresholds,
