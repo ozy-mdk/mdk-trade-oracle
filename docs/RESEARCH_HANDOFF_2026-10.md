@@ -104,6 +104,29 @@ and `bank_pair_wl`. First file: session 2026-10-19 (from the 2026-10-16 close).
 **While production is frozen use `--target silver`** for daily ingestion: `--target all` still runs the gold step,
 which keeps appending leaky ledger rows (§4.5) until the fix is wired in.
 
+### 0.7a Intraday Session Forecaster — in production (2026-10-18, commit 926fad4)
+The 11:30 signal is productionized as its own model and frontend tab (all BIST30; focus six shown first).
+- **Data:** `silver_daily_session_prices` (open / 10:30 / 11:30 / close, each the volume-weighted price of the decisive
+  second; close = silver close on 100% of BIST30 days). Archive back-fill: `scripts/backfill_session_prices.py`.
+- **Model:** `models/intraday_session.py`. Every candidate (RULE + Ridge / BayesianRidge / Huber / XGBoost / LightGBM ×
+  LEAN_MLB / LEAN_INST / OLD_39 × 63 / 126 / 252 / 504 sessions) publishes each evening a forecast grid over the morning
+  move (−6%..+6%); BUY/SELL levels and grading read the same frozen grid.
+- **Tournament (user decision):** monthly, trailing 120 sessions, incumbent rule — a challenger replaces RULE only with
+  +2 pp hit rate and positive gain after costs; regressions trade only on forecasts ≥ 1%. "Best hit rate wins" was
+  rejected: it crowned lucky regressions (86% of months) and lost money after costs.
+- **Simulated history (2023–26, after 0.14% costs):** focus six 57.1% / 52.6% hit, +0.07% / +0.05% per trade
+  (2023–24 / 2025–26); other 24: 55.7% / 54.2%, +0.09% / +0.05%. Rule-only on the focus six was better on gain
+  (+0.11% / +0.15%); the incumbent tournament had the higher 2023–24 hit rate. Simulation refits regressions every 5
+  sessions (always on earlier data); production refits daily.
+- **Gold:** `gold_intraday_candidate_results`, `gold_intraday_session_signals` (frozen; LIVE / SIMULATED),
+  `gold_intraday_session_ledger`; nightly = first step of `run_pipeline.py --target gold`
+  (or `scripts/run_intraday_session.py --nightly`). First LIVE session: 2026-10-19.
+- **API / UI:** `/api/v1/intraday/{universe,signal,ledger,tournament}`; tab "Intraday Session Forecaster" with levels,
+  an 11:30 calculator (trader enters open + 11:30 price → forecast %, expected close, BUY/SELL/NO TRADE, typical
+  win/loss), calibrated potential/risk/record, hub-style audited walk-forward track, tournament standings.
+- The experiment forward log (`session_triggers.py --forward`) still runs after the pipeline; retire it once the gold
+  LIVE ledger has a few weeks of history.
+
 ### 0.7 Open decisions / next steps
 1. Let the forward log run 2-3 months (the only clean test of the watchlist and of regime vs luck).
 2. Product framing with the traders: a session signal (pre-open triggers, 11:30 confirm, exit at the close) showing
