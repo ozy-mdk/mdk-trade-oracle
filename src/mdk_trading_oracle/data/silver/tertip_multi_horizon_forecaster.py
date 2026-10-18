@@ -57,6 +57,7 @@ from mdk_trading_oracle.models.stochastic_risk import (
     build_forecast_distribution,
     get_volatility_state,
     legacy_band,
+    size_forecast,
     volatility_state_from_prices,
 )
 
@@ -651,15 +652,25 @@ def generate_live_horizon_forecast(
 
     max_bound = min(25.0, 5.0 * math.sqrt(n_days))
     expected_ret = max(-max_bound, min(max_bound, expected_ret))
+
+    # Volatility-based sizing: direction from the crowned model, size from the GJR-GARCH-t distribution
+    if vol_state is None:
+        vol_state = volatility_state_from_prices(df.set_index("trade_date")["close_price"], as_of_date)
+    model_ret = expected_ret
+    sized = size_forecast(model_ret, vol_state, n_days, seed_key=f"{as_of_date}:{horizon_key}")
+    if sized:
+        expected_ret = sized["expected_return_pct"]
     target_price = current_price * (1.0 + expected_ret / 100.0)
 
     # Price range envelope: GJR-GARCH-t filtered historical simulation with conformal calibration
-    if vol_state is None:
-        vol_state = volatility_state_from_prices(df.set_index("trade_date")["close_price"], as_of_date)
+    # (centred on the calibrated model output; target / stop odds use the published sized forecast)
     risk_profile = build_forecast_distribution(
-        current_price, expected_ret, vol_state, n_days, deadband, seed_key=f"{as_of_date}:{horizon_key}"
+        current_price, model_ret, vol_state, n_days, deadband, seed_key=f"{as_of_date}:{horizon_key}",
+        target_return_pct=expected_ret,
     )
     if risk_profile:
+        risk_profile["model_expected_return_pct"] = round(model_ret, 2)
+        risk_profile["sizing_confidence"] = sized["sizing_confidence"] if sized else None
         price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
     else:
         vol_20d = float(df["feat_ret_today_pct"].iloc[-20:].std()) if len(df) >= 20 else 2.0
@@ -720,6 +731,8 @@ def generate_live_horizon_forecast(
         "actual_window_desc": actual_window_desc,
         "data_sufficiency_status": sufficiency_status,
         "feature_mode": feature_mode,
+        "model_expected_return_pct": round(model_ret, 2),
+        "sizing_confidence": sized["sizing_confidence"] if sized else None,
         "risk_profile": risk_profile,
     }
 

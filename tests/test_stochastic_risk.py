@@ -149,3 +149,40 @@ def test_uncalibrated_defaults_and_written_calibration(tmp_path, monkeypatch):
     assert sr.get_band_scale(5) == 1.2
     assert sr.get_center_shrinkage(5) == 0.1
     assert sr.get_band_scale(10) == 1.0
+
+
+def test_size_forecast_direction_scale_and_t1_cap(tmp_path, monkeypatch):
+    state = sr.fit_volatility_state(pd.Series(_simulate_gjr(1500)))
+    up = sr.size_forecast(9.0, state, 1, seed_key="a")
+    dn = sr.size_forecast(-0.4, state, 5, seed_key="a")
+    assert up["expected_return_pct"] > 0 and dn["expected_return_pct"] < 0
+    assert up["expected_return_pct"] <= sr.T1_CEILING  # T+1 never near the +/-10% limit
+    assert up["model_expected_return_pct"] == 9.0
+    assert sr.size_forecast(0.0, state, 1) is None and sr.size_forecast(1.0, None, 1) is None
+    # Not lazy: even a tiny model output gets a realistic directional size
+    tiny = sr.size_forecast(0.01, state, 5, seed_key="a")
+    assert abs(tiny["expected_return_pct"]) > 0.5
+    # Uncalibrated confidence defaults to 0.5; a reference makes larger signal-to-noise -> larger confidence
+    assert up["sizing_confidence"] == 0.5
+    path = tmp_path / "cal.yaml"
+    monkeypatch.setattr(sr, "CALIBRATION_PATH", path)
+    sr.write_sizing_reference({"horizons": {"1d": {"snr_quantiles": [0.0, 0.5, 1.0, 2.0, 4.0]}}})
+    sr.write_band_calibration({"coverage": 0.9, "horizons": {}})  # must preserve the sizing section
+    assert sr.sizing_confidence(4.0, 1) == 1.0 and sr.sizing_confidence(0.5, 1) == 0.25
+    assert sr.sizing_confidence(1.0, 5) == 0.5  # horizon without a reference
+
+
+def test_compress_t1_and_conviction_labels():
+    assert sr.compress_t1_size(3.0) == 3.0
+    assert 5.0 < sr.compress_t1_size(6.0) < sr.compress_t1_size(20.0) < sr.T1_CEILING
+    assert sr.direction_conviction(-1.0) == "LOW" and sr.direction_conviction(5.0) == "MODERATE"
+    assert sr.direction_conviction(15.0) == "HIGH"
+
+
+def test_distribution_target_override_keeps_center():
+    state = sr.fit_volatility_state(pd.Series(_simulate_gjr(1500)))
+    base = sr.build_forecast_distribution(100.0, 3.0, state, 5, 0.5, band_scale=1.0, center_shrinkage=0.1, seed_key="t")
+    sized = sr.build_forecast_distribution(100.0, 3.0, state, 5, 0.5, band_scale=1.0, center_shrinkage=0.1, seed_key="t", target_return_pct=1.5)
+    assert sized["price_low"] == base["price_low"] and sized["p_up_pct"] == base["p_up_pct"]  # same calibrated distribution
+    assert sized["target_price"] == 101.5 and base["target_price"] == 103.0
+    assert sized["conviction"] in ("LOW", "MODERATE", "HIGH")

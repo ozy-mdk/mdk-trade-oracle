@@ -32,7 +32,12 @@ from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     extract_3pillar_time_series,
     get_feature_cols_for_mode,
 )
-from mdk_trading_oracle.models.stochastic_risk import build_forecast_distribution, get_volatility_state, legacy_band
+from mdk_trading_oracle.models.stochastic_risk import (
+    build_forecast_distribution,
+    get_volatility_state,
+    legacy_band,
+    size_forecast,
+)
 
 logger = logging.getLogger("mdk_oracle.data.gold.tertip_forecasts")
 CONFIG_PATH = Path("config/tertip_crowned_models.yaml")
@@ -298,19 +303,28 @@ def update_gold_tertip_forecasts(db: PostgresManager) -> dict[str, Any]:
         raw_pred_ret = float(model.predict(pd.DataFrame([latest_row[f_cols]]))[0])
         raw_pred_ret = max(-10.0, min(10.0, raw_pred_ret))
         latest_atr = float(latest_row.get("atr_14d_pct", 2.5))
-        pred_ret = calibrate_expected_return(raw_pred_ret, latest_atr, deadband=DEADBAND_PCT)
+        model_ret = calibrate_expected_return(raw_pred_ret, latest_atr, deadband=DEADBAND_PCT)
+
+        # Volatility-based sizing: direction from the crowned model, size from the GJR-GARCH-t distribution
+        vol_state = get_volatility_state(db, sym, latest_trade_date)
+        sized = size_forecast(model_ret, vol_state, 1, seed_key=f"{latest_trade_date}:1d")
+        pred_ret = sized["expected_return_pct"] if sized else model_ret
         target_price = latest_price * (1.0 + pred_ret / 100.0)
 
         # Range bounds: GJR-GARCH-t filtered historical simulation with conformal calibration
+        # (centred on the calibrated model output; target / stop odds use the published sized forecast)
         risk_profile = build_forecast_distribution(
             latest_price,
-            pred_ret,
-            get_volatility_state(db, sym, latest_trade_date),
+            model_ret,
+            vol_state,
             1,
             DEADBAND_PCT,
             seed_key=f"{latest_trade_date}:1d",
+            target_return_pct=pred_ret,
         )
         if risk_profile:
+            risk_profile["model_expected_return_pct"] = round(model_ret, 2)
+            risk_profile["sizing_confidence"] = sized["sizing_confidence"] if sized else None
             price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
         else:
             vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5

@@ -51,6 +51,8 @@ EWMA_LAMBDA = 0.94
 DEFAULT_COVERAGE = 0.90
 DEFAULT_N_PATHS = 4000
 STOP_SIGMA_MULT = 1.0  # adverse stop placed 1 horizon-sigma away from entry
+T1_SOFT_START, T1_CEILING = 5.0, 7.0  # T+1 sizes above 5% are compressed smoothly towards ~7% (BIST +/-10% limit)
+CONVICTION_EDGE_PCT = (2.0, 10.0)  # P(direction) - P(opposite) thresholds for LOW / MODERATE / HIGH
 CORPORATE_ACTION_LOG_JUMP = 25.0  # |log return| % beyond any BIST price limit -> corporate action
 MAX_PERSISTENCE = 0.999
 
@@ -307,12 +309,14 @@ def build_forecast_distribution(
     center_shrinkage: float | None = None,
     n_paths: int = DEFAULT_N_PATHS,
     seed_key: str = "",
+    target_return_pct: float | None = None,
 ) -> dict[str, Any] | None:
     """Simulate the forecast distribution and derive trader risk metrics.
 
     The distribution is centred on `center_shrinkage * expected_return_pct`, the share of predicted magnitude that
     has historically been realized out-of-sample, so probabilities are not inflated by over-sized point forecasts.
-    Target/stop first-passage odds are still measured against the ML target price.
+    Target/stop first-passage odds are measured against `target_return_pct` (the published, volatility-sized forecast)
+    when given, otherwise against `expected_return_pct` (the raw model output).
     All probabilities are evaluated on session closing prices.
     """
     if state is None or current_price <= 0:
@@ -329,21 +333,22 @@ def build_forecast_distribution(
     ret_lo, ret_med, ret_hi = np.quantile(term_ret, [lo_q, 0.5, hi_q])
     sigma_h = horizon_sigma_pct(state, n_days) * scale
 
-    if expected_return_pct > deadband_pct:
+    tgt_ret = float(target_return_pct) if target_return_pct is not None else expected_return_pct
+    if tgt_ret > deadband_pct:
         side = "LONG"
-    elif expected_return_pct < -deadband_pct:
+    elif tgt_ret < -deadband_pct:
         side = "SHORT"
     else:
         side = "FLAT"
 
-    target_price = current_price * (1.0 + expected_return_pct / 100.0)
+    target_price = current_price * (1.0 + tgt_ret / 100.0)
     p_target_first = p_stop_first = None
     stop_price = None
     if side != "FLAT":
         sign = 1.0 if side == "LONG" else -1.0
         stop_gross = math.exp(-sign * STOP_SIGMA_MULT * sigma_h / 100.0)
         stop_price = current_price * stop_gross
-        tgt_gross = 1.0 + expected_return_pct / 100.0
+        tgt_gross = 1.0 + tgt_ret / 100.0
         hit_t = (gross * sign >= tgt_gross * sign)
         hit_s = (gross * sign <= stop_gross * sign)
         never = n_days + 1
@@ -360,6 +365,10 @@ def build_forecast_distribution(
         tail = term_ret[term_ret <= np.quantile(term_ret, 0.05)]
         es_95 = float(-tail.mean())
 
+    p_up = float(np.mean(term_ret > deadband_pct) * 100.0)
+    p_down = float(np.mean(term_ret < -deadband_pct) * 100.0)
+    edge = (p_up - p_down) if tgt_ret >= 0 else (p_down - p_up)  # probability edge in the forecast direction
+
     return {
         "horizon_days": n_days,
         "coverage_pct": round(coverage * 100.0, 1),
@@ -372,8 +381,8 @@ def build_forecast_distribution(
         "return_low_pct": round(float(ret_lo), 2),
         "return_high_pct": round(float(ret_hi), 2),
         "median_return_pct": round(float(ret_med), 2),
-        "p_up_pct": round(float(np.mean(term_ret > deadband_pct) * 100.0), 1),
-        "p_down_pct": round(float(np.mean(term_ret < -deadband_pct) * 100.0), 1),
+        "p_up_pct": round(p_up, 1),
+        "p_down_pct": round(p_down, 1),
         "p_flat_pct": round(float(np.mean(np.abs(term_ret) <= deadband_pct) * 100.0), 1),
         "position_side": side,
         "stop_price": round(stop_price, 2) if stop_price is not None else None,
@@ -386,6 +395,71 @@ def build_forecast_distribution(
         "vol_method": state.params.method,
         "garch_persistence": round(state.params.persistence, 4),
         "student_t_nu": round(state.params.nu, 2) if state.params.nu else None,
+        "direction_edge_pct": round(edge, 1),
+        "conviction": direction_conviction(edge),
+    }
+
+
+def direction_conviction(edge_pct: float) -> str:
+    """LOW when the calibrated probabilities do not clearly back the forecast direction."""
+    low, high = CONVICTION_EDGE_PCT
+    if edge_pct < low:
+        return "LOW"
+    return "MODERATE" if edge_pct < high else "HIGH"
+
+
+def compress_t1_size(size_pct: float) -> float:
+    """Smoothly compress T+1 sizes above 5% towards a ~7% ceiling (never near the +/-10% daily limit)."""
+    if size_pct <= T1_SOFT_START:
+        return size_pct
+    width = T1_CEILING - T1_SOFT_START
+    return T1_SOFT_START + width * math.tanh((size_pct - T1_SOFT_START) / width)
+
+
+def sizing_confidence(signal_to_noise: float, n_days: int) -> float:
+    """Percentile of |forecast| / horizon-sigma against the validated reference distribution (0.5 if uncalibrated)."""
+    ref = ((load_band_calibration().get("sizing", {}) or {}).get("horizons", {}) or {}).get(f"{int(n_days)}d", {})
+    q = ref.get("snr_quantiles") if isinstance(ref, dict) else None
+    if not q:
+        return 0.5
+    levels = np.linspace(0.0, 1.0, len(q))
+    return float(np.interp(signal_to_noise, np.asarray(q, dtype=float), levels))
+
+
+def size_forecast(
+    model_return_pct: float,
+    state: VolatilityState | None,
+    n_days: int,
+    n_paths: int = DEFAULT_N_PATHS,
+    seed_key: str = "",
+) -> dict[str, Any] | None:
+    """Volatility-based forecast size in the model's direction.
+
+    Direction comes from the model; size is the typical move in that direction from the GJR-GARCH-t filtered historical
+    simulation, scaled by confidence (0.75x - 1.25x of the conditional median) and capped at the conditional 90th
+    percentile. T+1 sizes above 5% are compressed towards ~7%. Validated in
+    `scripts/experiments/direction_size_experiment.py` (REG_Z): realized/forecast on correct calls ~1.0.
+    """
+    if state is None or not math.isfinite(model_return_pct) or model_return_pct == 0.0:
+        return None
+    n_days = max(1, int(n_days))
+    rng = np.random.default_rng(_seed("size", seed_key, state.as_of_date, n_days))
+    term = (np.exp(simulate_log_paths(state, n_days, n_paths, rng)[:, -1] / 100.0) - 1.0) * 100.0
+    up = model_return_pct > 0
+    side = term[term > 0] if up else -term[term < 0]
+    sigma_h = float(np.std(term))
+    if len(side) == 0 or sigma_h <= 0:
+        return None
+    snr = abs(model_return_pct) / sigma_h
+    conf = sizing_confidence(snr, n_days)
+    size = min((0.75 + 0.5 * conf) * float(np.median(side)), float(np.quantile(side, 0.9)))
+    if n_days == 1:
+        size = compress_t1_size(size)
+    return {
+        "expected_return_pct": round(size if up else -size, 2),
+        "model_expected_return_pct": round(model_return_pct, 2),
+        "sizing_confidence": round(conf, 3),
+        "signal_to_noise": round(snr, 3),
     }
 
 
@@ -507,13 +581,36 @@ def directional_reliability(
     return float(p_model.mean() * 100.0), float(hit.mean() * 100.0)
 
 
+def _read_calibration_file(path: Path) -> dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+
+
 def write_band_calibration(result: dict[str, Any], path: Path | None = None) -> Path:
+    """Write band calibration, preserving an existing `sizing` reference section."""
     path = path or CALIBRATION_PATH
+    existing = _read_calibration_file(path)
     payload = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "method": "GJR_GARCH_T_FHS_CONFORMAL",
         **result,
     }
+    if "sizing" in existing and "sizing" not in payload:
+        payload["sizing"] = existing["sizing"]
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(payload, f, sort_keys=False)
+    clear_volatility_cache()
+    return path
+
+
+def write_sizing_reference(sizing: dict[str, Any], path: Path | None = None) -> Path:
+    """Merge the forecast-sizing reference (signal-to-noise quantiles per horizon) into the calibration file."""
+    path = path or CALIBRATION_PATH
+    payload = _read_calibration_file(path)
+    payload["sizing"] = {"generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), **sizing}
     with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump(payload, f, sort_keys=False)
     clear_volatility_cache()

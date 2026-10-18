@@ -538,6 +538,10 @@ class RiskProfile(BaseModel):
     vol_method: str
     garch_persistence: float
     student_t_nu: Optional[float] = None
+    direction_edge_pct: Optional[float] = None
+    conviction: Optional[str] = None
+    model_expected_return_pct: Optional[float] = None
+    sizing_confidence: Optional[float] = None
 
 
 class TertipMlForecastResponse(BaseModel):
@@ -707,6 +711,8 @@ class MultiHorizonLiveForecast(BaseModel):
     target_training_months: float = 6.0
     actual_window_desc: str = ""
     data_sufficiency_status: str = "FULL"
+    model_expected_return_pct: Optional[float] = None
+    sizing_confidence: Optional[float] = None
     risk_profile: Optional[RiskProfile] = None
 
 

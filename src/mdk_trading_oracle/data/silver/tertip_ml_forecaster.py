@@ -39,7 +39,12 @@ from mdk_trading_oracle.data.silver.tertip_analytics import (
     KAMU_BROKERS,
     get_tertip_horizons_analysis,
 )
-from mdk_trading_oracle.models.stochastic_risk import build_forecast_distribution, get_volatility_state, legacy_band
+from mdk_trading_oracle.models.stochastic_risk import (
+    build_forecast_distribution,
+    get_volatility_state,
+    legacy_band,
+    size_forecast,
+)
 
 logger = get_logger("mdk_oracle.tertip_ml_forecaster")
 
@@ -2542,6 +2547,19 @@ def get_tertip_ml_forecast(
     raw_pred_ret_ml = max(-10.0, min(10.0, raw_pred_ret_ml))
     pred_ret_ml = calibrate_expected_return(raw_pred_ret_ml, latest_atr)
 
+    # Volatility-based sizing: direction from each model, size from the GJR-GARCH-t distribution
+    vol_state = get_volatility_state(db, sym, latest_date_str)
+    model_ret_ml, model_ret_prophet = pred_ret_ml, prophet_ret_pct
+    sizing_conf: dict[str, float | None] = {}
+
+    def _size(ret: float, tag: str) -> float:
+        sized = size_forecast(ret, vol_state, 1, seed_key=f"{latest_date_str}:1d")
+        sizing_conf[tag] = sized["sizing_confidence"] if sized else None
+        return sized["expected_return_pct"] if sized else ret
+
+    pred_ret_ml = _size(model_ret_ml, "ml")
+    prophet_ret_pct = _size(model_ret_prophet, "prophet")
+    prophet_target_price = round(latest_price * (1.0 + prophet_ret_pct / 100.0), 2)
     ml_target_price = latest_price * (1.0 + pred_ret_ml / 100.0)
 
     # Headline Operational Forecast is the Pure Crowned Champion (blended score winner, zero convex dilution)
@@ -2561,15 +2579,21 @@ def get_tertip_ml_forecast(
     convex_w_p = float(tournament.get("convex_weight_prophet", 0.30))
 
     # Range envelope: GJR-GARCH-t filtered historical simulation with conformal calibration
+    # (centred on the calibrated model output; target / stop odds use the published sized forecast)
+    champion_is_prophet = grand_champ == "PROPHET_BASE"
+    champion_model_ret = model_ret_prophet if champion_is_prophet else model_ret_ml
     risk_profile = build_forecast_distribution(
         latest_price,
-        champion_pred_ret,
-        get_volatility_state(db, sym, latest_date_str),
+        champion_model_ret,
+        vol_state,
         1,
         DEADBAND_PCT,
         seed_key=f"{latest_date_str}:1d",
+        target_return_pct=champion_pred_ret,
     )
     if risk_profile:
+        risk_profile["model_expected_return_pct"] = round(champion_model_ret, 2)
+        risk_profile["sizing_confidence"] = sizing_conf.get("prophet" if champion_is_prophet else "ml")
         price_low, price_high = risk_profile["price_low"], risk_profile["price_high"]
     else:
         vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
