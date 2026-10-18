@@ -330,6 +330,52 @@ def attach_prophet_rolling_features(
     return df
 
 
+PILLAR_BROKERS = {"mlb": ("MLB",), "big5": BIG_FIVE_BROKERS, "kamu": KAMU_BROKERS}
+
+
+def institutional_positions(
+    positions: pd.DataFrame, trade_dates: pd.Series, close_prices: pd.Series
+) -> pd.DataFrame:
+    """Side-aware, carried-forward FIFO positions per pillar on every trading date.
+
+    `silver_broker_fifo_daily` only has a row on days a broker trades the stock; a desk's position persists between
+    trades, so each broker's last known position is carried forward. Quantities are signed (LONG +, SHORT -) and
+    unrealized PnL is marked at each day's raw close against the FIFO cost basis (raw, split-restated terms):
+        LONG: qty * close - cost_basis        SHORT: cost_basis - qty * close
+    Returns per pillar: net_qty, gross_qty, cost_basis_tl, unrealized_pnl_tl_mtm, profitable_qty.
+    """
+    dates = pd.to_datetime(trade_dates).dt.normalize()
+    close = pd.Series(np.asarray(close_prices, dtype=float), index=dates.values)
+    out = pd.DataFrame(index=dates.values)
+    if positions is None or positions.empty:
+        for p in PILLAR_BROKERS:
+            for c in ["net_qty", "gross_qty", "cost_basis_tl", "unrealized_pnl_tl_mtm", "profitable_qty"]:
+                out[f"{p}_{c}"] = 0.0
+        return out.reset_index(drop=True)
+    pos = positions.copy()
+    pos["trade_date"] = pd.to_datetime(pos["trade_date"]).dt.normalize()
+    sign = np.where(pos["position_side"] == "SHORT", -1.0, 1.0)
+    pos["qty"] = pos["open_stock_quantity"].astype(float).fillna(0.0)
+    pos["signed_qty"] = sign * pos["qty"]
+    pos["basis"] = pos["open_fifo_cost_tl"].astype(float).fillna(0.0)
+    pos["sign"] = sign
+    wide = {c: pos.pivot_table(index="trade_date", columns="broker_id", values=c, aggfunc="last")
+            .reindex(out.index).ffill().fillna(0.0) for c in ["qty", "signed_qty", "basis", "sign"]}
+    unreal = wide["sign"].mul(wide["qty"].mul(close, axis=0) - wide["basis"])
+    for p, members in PILLAR_BROKERS.items():
+        cols = [b for b in members if b in wide["qty"].columns]
+        if not cols:
+            for c in ["net_qty", "gross_qty", "cost_basis_tl", "unrealized_pnl_tl_mtm", "profitable_qty"]:
+                out[f"{p}_{c}"] = 0.0
+            continue
+        out[f"{p}_net_qty"] = wide["signed_qty"][cols].sum(axis=1)
+        out[f"{p}_gross_qty"] = wide["qty"][cols].sum(axis=1)
+        out[f"{p}_cost_basis_tl"] = wide["basis"][cols].sum(axis=1)
+        out[f"{p}_unrealized_pnl_tl_mtm"] = unreal[cols].sum(axis=1)
+        out[f"{p}_profitable_qty"] = wide["qty"][cols].where(unreal[cols] > 0, 0.0).sum(axis=1)
+    return out.reset_index(drop=True)
+
+
 def extract_3pillar_time_series(
     db: PostgresManager, symbol: str, lookback_days: int = 550
 ) -> pd.DataFrame:
@@ -362,22 +408,16 @@ def extract_3pillar_time_series(
         f"""
         SELECT 
             trade_date,
-            SUM(CASE WHEN broker_id = 'MLB' THEN open_stock_quantity ELSE 0 END) AS mlb_open_qty,
-            MAX(CASE WHEN broker_id = 'MLB' THEN fifo_avg_cost ELSE 0 END) AS mlb_fifo_cost,
             SUM(CASE WHEN broker_id = 'MLB' THEN buy_turnover_tl ELSE 0 END) AS mlb_buy_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN sell_turnover_tl ELSE 0 END) AS mlb_sell_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN total_daily_pnl_tl ELSE 0 END) AS mlb_daily_pnl_tl,
             SUM(CASE WHEN broker_id = 'MLB' THEN unrealized_pnl_tl ELSE 0 END) AS mlb_unrealized_pnl_tl,
 
-            SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity ELSE 0 END) AS big5_open_qty,
-            COALESCE(SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity * fifo_avg_cost ELSE 0 END) / NULLIF(SUM(CASE WHEN broker_id IN ({big5_in}) THEN open_stock_quantity ELSE 0 END), 0), 0.0) AS big5_fifo_cost,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN buy_turnover_tl ELSE 0 END) AS big5_buy_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN sell_turnover_tl ELSE 0 END) AS big5_sell_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN total_daily_pnl_tl ELSE 0 END) AS big5_daily_pnl_tl,
             SUM(CASE WHEN broker_id IN ({big5_in}) THEN unrealized_pnl_tl ELSE 0 END) AS big5_unrealized_pnl_tl,
 
-            SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity ELSE 0 END) AS kamu_open_qty,
-            COALESCE(SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity * fifo_avg_cost ELSE 0 END) / NULLIF(SUM(CASE WHEN broker_id IN ({kamu_in}) THEN open_stock_quantity ELSE 0 END), 0), 0.0) AS kamu_fifo_cost,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN buy_turnover_tl ELSE 0 END) AS kamu_buy_tl,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN sell_turnover_tl ELSE 0 END) AS kamu_sell_tl,
             SUM(CASE WHEN broker_id IN ({kamu_in}) THEN total_daily_pnl_tl ELSE 0 END) AS kamu_daily_pnl_tl,
@@ -389,6 +429,18 @@ def extract_3pillar_time_series(
         """,
         params=[sym],
     )
+
+    # 2b. Per-broker FIFO positions (side + cost basis) for side-aware, carried-forward institutional inventory
+    pos_brokers = ["MLB", *BIG_FIVE_BROKERS, *KAMU_BROKERS]
+    df_positions = db.query_pl(
+        """
+        SELECT trade_date, broker_id, position_side, open_stock_quantity, open_fifo_cost_tl
+        FROM silver_broker_fifo_daily
+        WHERE symbol = %s AND broker_id = ANY(%s)
+        ORDER BY trade_date ASC;
+        """,
+        params=[sym, pos_brokers],
+    ).to_pandas()
 
     # 3. 3-Pillar Aggregated Daily Flows
     df_flows = db.query_pl(
@@ -468,22 +520,19 @@ def extract_3pillar_time_series(
     joined["total_turnover_tl"] = joined["total_turnover_tl"].replace(0, np.nan).fillna(1e6)
     tt_today = joined["total_turnover_tl"]
 
-    # 1. 3-Pillar Cost Spreads %: ((Close - FIFO_Cost) / FIFO_Cost) * 100
-    joined["feat_mlb_cost_spread_pct"] = np.where(
-        (joined["mlb_fifo_cost"] > 0) & (joined["close_price"] > 0),
-        (joined["close_price"] - joined["mlb_fifo_cost"]) / joined["mlb_fifo_cost"] * 100.0,
-        0.0,
-    )
-    joined["feat_big5_cost_spread_pct"] = np.where(
-        (joined["big5_fifo_cost"] > 0) & (joined["close_price"] > 0),
-        (joined["close_price"] - joined["big5_fifo_cost"]) / joined["big5_fifo_cost"] * 100.0,
-        0.0,
-    )
-    joined["feat_kamu_cost_spread_pct"] = np.where(
-        (joined["kamu_fifo_cost"] > 0) & (joined["close_price"] > 0),
-        (joined["close_price"] - joined["kamu_fifo_cost"]) / joined["kamu_fifo_cost"] * 100.0,
-        0.0,
-    )
+    # 1. Side-aware 3-pillar positions (signed quantity, cost basis, mark-to-market PnL at today's close)
+    positions = institutional_positions(df_positions, joined["trade_date"], joined["close_price"])
+    for col in positions.columns:
+        joined[col] = positions[col].to_numpy()
+    tt_20d_median_tl = tt_today.rolling(20, min_periods=5).median().replace(0, np.nan)
+
+    # 1a. Cost spread % = group unrealized PnL / group cost basis (side-aware; equals (close - cost) / cost for a long)
+    for p in ["mlb", "big5", "kamu"]:
+        joined[f"feat_{p}_cost_spread_pct"] = (
+            (joined[f"{p}_unrealized_pnl_tl_mtm"] / joined[f"{p}_cost_basis_tl"].replace(0, np.nan) * 100.0)
+            .clip(-100.0, 100.0)
+            .fillna(0.0)
+        )
 
     # 2. Today's & Yesterday's Price Returns %
     joined["feat_ret_today_pct"] = (joined["daily_return_pct"].fillna(0) * 100.0).clip(-25.0, 25.0)
@@ -512,19 +561,16 @@ def extract_3pillar_time_series(
     joined["feat_big5_w5_share"] = (joined["big5_w5_flow"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
     joined["feat_kamu_w5_share"] = (joined["kamu_w5_flow"].fillna(0) / tt_today * 100.0).clip(-100.0, 100.0)
 
-    # 4. 3-Pillar Point-in-Time Tertip Inventory Shares & Profitable Shares %
-    total_inst_qty = (joined["mlb_open_qty"].fillna(0) + joined["big5_open_qty"].fillna(0) + joined["kamu_open_qty"].fillna(0)).replace(0, np.nan)
-    joined["feat_mlb_tertip_share"] = (joined["mlb_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
-    joined["feat_big5_tertip_share"] = (joined["big5_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
-    joined["feat_kamu_tertip_share"] = (joined["kamu_open_qty"].fillna(0) / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
-
-    mlb_prof_qty = np.where((joined["mlb_fifo_cost"] > 0) & (joined["close_price"] > joined["mlb_fifo_cost"]), joined["mlb_open_qty"].fillna(0), 0.0)
-    big5_prof_qty = np.where((joined["big5_fifo_cost"] > 0) & (joined["close_price"] > joined["big5_fifo_cost"]), joined["big5_open_qty"].fillna(0), 0.0)
-    kamu_prof_qty = np.where((joined["kamu_fifo_cost"] > 0) & (joined["close_price"] > joined["kamu_fifo_cost"]), joined["kamu_open_qty"].fillna(0), 0.0)
-
-    joined["feat_mlb_profitable_tertip_share"] = (mlb_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
-    joined["feat_big5_profitable_tertip_share"] = (big5_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
-    joined["feat_kamu_profitable_tertip_share"] = (kamu_prof_qty / total_inst_qty * 100.0).fillna(0.0).clip(0.0, 100.0)
+    # 4. Side-aware 3-pillar inventory:
+    #    tertip share = net signed position value (long +, short -) in % of the 20d median daily turnover (TL, split-safe)
+    #    profitable share = % of the group's gross position held by desks whose own position is in profit
+    for p in ["mlb", "big5", "kamu"]:
+        joined[f"feat_{p}_tertip_share"] = (
+            (joined[f"{p}_net_qty"] * joined["close_price"] / tt_20d_median_tl * 100.0).clip(-2000.0, 2000.0).fillna(0.0)
+        )
+        joined[f"feat_{p}_profitable_tertip_share"] = (
+            (joined[f"{p}_profitable_qty"] / joined[f"{p}_gross_qty"].replace(0, np.nan) * 100.0).clip(0.0, 100.0).fillna(0.0)
+        )
 
     # 5. Today's Execution Breakdown (Buy, Sell, Realized PnL) normalized by Today's Total Turnover %
     for p in ["mlb", "big5", "kamu"]:
@@ -574,7 +620,7 @@ def extract_3pillar_time_series(
     joined["feat_volatility_pinch_5d_20d"] = (vol_5d / vol_20d).clip(0.1, 3.0).fillna(1.0)
 
     # 8d. Tertip Inventory Saturation Z-Score (Open FIFO inventory deviation from 30-day mean)
-    mlb_q = joined["mlb_open_qty"].fillna(0)
+    mlb_q = joined["mlb_net_qty"].fillna(0)  # signed: long +, short -
     mlb_q_mean = mlb_q.rolling(30, min_periods=10).mean()
     mlb_q_std = mlb_q.rolling(30, min_periods=10).std().replace(0, np.nan)
     joined["feat_tertip_inventory_zscore"] = ((mlb_q - mlb_q_mean) / mlb_q_std).clip(-4.0, 4.0).fillna(0.0)

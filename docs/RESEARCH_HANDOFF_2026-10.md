@@ -188,13 +188,25 @@ Files for 2026-10-14..16 use English number format ("68.65", "3,340") while the 
 - **Broker coverage is fine for liquid names.** MLB and all BIG5/KAMU desks trade the focus stocks on 99.7–100% of
   days. (`silver_broker_fifo_daily` only has rows on days a broker trades; inventory/cost features drop a desk to 0 on
   its non-trading days — matters for illiquid stocks only.)
-- **BUG — FIFO features ignore position side.** `extract_3pillar_time_series` sums `open_stock_quantity` and blends
+- **FIXED 2026-10-18 (see below) — FIFO features ignored position side.** `extract_3pillar_time_series` sums `open_stock_quantity` and blends
   `fifo_avg_cost` across LONG and SHORT ledgers. Latest examples: YKBNK BIG5 = YKR long 244M + GRM short 200M counted as
   444M "inventory"; MLB short 176.7M in YKBNK counted as inventory. Share of broker-days SHORT since 2024: VKY 99%,
   TRA 97%, HLY 89%, GRM 44%, MLB 35%, IYM 26%, YKR 25%, AKM 18%, ZRY 10%. Affects cost spreads, tertip shares,
   profitable shares, inventory z-score. Shorts are largely artificial: the ledger starts flat in Jan 2022, so
   persistent net sellers (custodian-like flow) look permanently short. Fix direction: signed quantities, side-aware
   PnL (`unrealized_pnl_tl` is already side-aware) and position size relative to ADV instead of side-blind shares.
+- **Fix implemented** (`institutional_positions()` in `tertip_ml_forecaster.py`, test in
+  `tests/test_split_adjustment.py`): per-broker FIFO positions are carried forward to every trading day, quantities are
+  signed (LONG +, SHORT −) and marked to market side-aware. Feature names kept, new meaning:
+  `feat_{p}_cost_spread_pct` = group unrealized PnL / cost basis; `feat_{p}_tertip_share` = net signed position value
+  in % of 20d median turnover; `feat_{p}_profitable_tertip_share` = % of gross position held by desks in profit;
+  `feat_tertip_inventory_zscore` on MLB's signed position. YKBNK 2026-10-16: MLB −176.7M (short), BIG5 net +319M
+  (was 719M side-blind), KAMU +227M. Effect: next-day IC of these features stays ≈ 0 (|IC| ≤ 0.023). Hit rates with
+  the *crowned* configs drop (1D −4.1 pp, 10D −7.8 pp) because those configs were selected on the old features;
+  with a fixed never-selected config (Ridge/252/FIFO_CORE) old vs new features are identical (47.6% → 47.6% strict,
+  random 45.6%, no horizon significant). Conclusion: correct now, but FIFO inventory carries no next-day edge here;
+  re-crown (or move to fixed configs) before trusting crowned numbers. Gold of 2026-10-16 was built with the OLD
+  features — rerun gold after re-crowning.
 - **Degenerate features:** `feat_mlb/big5/kamu_profitable_tertip_share` are 0 / at clip bounds 14–41% of days;
   `feat_kamu_post_shock_defense` is 0 on 68% of days.
 - **Minor:** `feat_ret_today/yesterday`, shock-distance features use open→close (no overnight gap); YTD features are
