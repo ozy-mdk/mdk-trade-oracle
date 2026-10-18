@@ -12,10 +12,9 @@ from mdk_trading_oracle.data.bronze.schema import initialize_bronze_schema
 
 
 @pytest.fixture
-def temp_db(tmp_path):
-    """Create an isolated test DuckDB instance."""
-    db_file = tmp_path / "test_bist30.duckdb"
-    db = DuckDBManager(db_path=db_file)
+def temp_db():
+    """Isolated PostgreSQL sandbox schema (dropped on close); never touches production BIST 30 tables."""
+    db = DuckDBManager(in_memory=True)
     initialize_bronze_schema(db)
     yield db
     db.close()

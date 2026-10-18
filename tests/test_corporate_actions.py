@@ -183,7 +183,7 @@ def test_monetary_invariance():
 
 def test_duckdb_corporate_actions_pipeline_integration():
     """Integration test with in-memory DuckDB validating schema, ingestion, and Silver periods."""
-    db = DuckDBManager(":memory:")
+    db = DuckDBManager(in_memory=True)
     initialize_bronze_schema(db)
     initialize_silver_schema(db)
 

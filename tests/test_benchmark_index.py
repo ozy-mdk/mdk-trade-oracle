@@ -12,24 +12,15 @@ from mdk_trading_oracle.data.silver.transformations import SilverTransformer
 
 
 @pytest.fixture
-def in_memory_db(tmp_path):
-    """Create a temporary DuckDB database for test isolation, with benchmark restoration teardown."""
-    db_file = tmp_path / "test_benchmark.duckdb"
-    manager = DuckDBManager(db_path=db_file)
+def in_memory_db():
+    """Isolated PostgreSQL sandbox schema (dropped on close); never touches production benchmark tables."""
+    manager = DuckDBManager(in_memory=True)
     initialize_bronze_schema(manager)
     initialize_silver_schema(manager)
 
     yield manager
 
-    # Teardown: ensure real benchmark data is restored if modified during tests
-    conn = manager.get_connection()
-    count = conn.execute("SELECT COUNT(*) FROM bronze_bist_index_benchmarks;").fetchone()[0]
-    if count < 100:
-        from mdk_trading_oracle.data.bronze.ingestor import BronzeIngestor
-        from mdk_trading_oracle.data.silver.transformations import SilverTransformer
-        ingestor = BronzeIngestor(manager)
-        ingestor.ingest_bist30_benchmarks(force=True)
-        SilverTransformer(manager).transform_daily_benchmark_index()
+    manager.close()
 
 
 def test_bronze_benchmark_schema_and_sync(in_memory_db):

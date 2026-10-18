@@ -5,7 +5,9 @@ binary COPY bulk ingestion, multi-user MVCC concurrency, and graceful fallback.
 """
 
 import io
+import os
 import re
+import uuid
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
@@ -17,6 +19,8 @@ from mdk_trading_oracle.core.config import Settings, get_settings
 from mdk_trading_oracle.core.logger import get_logger
 
 logger = get_logger("mdk_oracle.core.db")
+
+SANDBOX_PREFIX = "test_sandbox_"
 
 
 class CursorResultWrapper:
@@ -123,10 +127,11 @@ def normalize_pg_query(q: str) -> str:
     if "DAYOFMONTH" in q.upper():
         q = re.sub(r"DAYOFMONTH\s*\(\s*(.*?)\s*\)", r"(CAST(EXTRACT(DAY FROM \1) AS INTEGER))", q, flags=re.IGNORECASE)
 
+    # DuckDB's default schema maps to the active schema: `public` in production, the sandbox under tests
     if "table_schema = 'main'" in q:
-        q = q.replace("table_schema = 'main'", "table_schema = 'public'")
+        q = q.replace("table_schema = 'main'", "table_schema = current_schema()")
     if 'table_schema = "main"' in q:
-        q = q.replace('table_schema = "main"', "table_schema = 'public'")
+        q = q.replace('table_schema = "main"', "table_schema = current_schema()")
 
     # Normalize standalone DOUBLE to DOUBLE PRECISION for PostgreSQL
     if "DOUBLE" in q.upper():
@@ -294,7 +299,9 @@ class PostgresManager:
         self.in_memory = in_memory
         self.db_path = str(db_path) if db_path else None
         self.db_url = db_url or self.settings.postgres_uri
-        self.schema = schema or (f"test_sandbox_{id(self)}" if in_memory else None)
+        # Sandbox schemas carry the process id so a test session can drop exactly the schemas it created, plus a
+        # random suffix (id() values are reused after garbage collection, which would share a stale sandbox)
+        self.schema = schema or (f"{SANDBOX_PREFIX}{os.getpid()}_{uuid.uuid4().hex[:12]}" if in_memory else None)
         self._conn: Optional[psycopg.Connection] = None
 
     def get_connection(self) -> psycopg.Connection:
@@ -320,7 +327,7 @@ class PostgresManager:
     def close(self) -> None:
         """Close database connection and clean up temporary schema if in_memory."""
         if self._conn is not None and not self._conn.closed:
-            if self.schema and self.schema.startswith("test_sandbox_"):
+            if self.schema and self.schema.startswith(SANDBOX_PREFIX):
                 try:
                     with self._conn.cursor() as cur:
                         cur.execute(f"DROP SCHEMA IF EXISTS {self.schema} CASCADE;")
@@ -387,6 +394,7 @@ class PostgresManager:
         sync_reference_data(self)
 
 
-# Backward-compatibility aliases so existing modules continue operating seamlessly
+# Backward-compatibility aliases so existing modules continue operating seamlessly.
+# NOTE: these connect to the configured PostgreSQL database; pass `in_memory=True` for an isolated test sandbox.
 DuckDBManager = PostgresManager
 DatabaseManager = PostgresManager
