@@ -3,6 +3,118 @@
 Context for continuing in a new session. Read `AGENTS.md` first; this note records what changed, what was measured,
 what was rejected and why, and what is still open. All numbers are walk-forward / zero look-ahead unless stated.
 
+**Read §0 first** (session 2, 2026-10-18): it supersedes the open items of §4.5, §6 and §7. Sections 1–9 below are the
+record of session 1 and remain valid as history.
+
+---
+
+## 0. Session 2 (2026-10-18) — leak quantified, features audited, first honest signal, forward log live
+
+Working agreement with the user (also in memory): focus stocks first (ASELS, GARAN, AKBNK, YKBNK, ISCTR, TTKOM);
+order = honesty → improve together → scale; every idea runs as an **isolated experiment** (`scripts/experiments/`,
+outputs under `~/data/mdk_oracle/experiments/`, read-only on the DB) before anything touches gold or the hub.
+Production T+1 is **frozen** (no trader uses it) because of the §4.5 leak.
+
+### 0.1 Protocol used for every result below
+- Walk-forward everywhere: every prediction uses only trailing data (z-scores / thresholds over the trailing 252
+  sessions ending d-1; Ridge refits daily or monthly on trailing windows). Nothing is "trained on 2023-24".
+- **Discovery 2023-01..2024-12 decides** (features, rules, combinations); **holdout 2025-01..2026-10 only confirms**.
+  Several candidates looked better in the holdout than in discovery and were *not* adopted (watchlist instead).
+- Apples to apples: each signal is graded only on the target it predicts. Verified: silver `close_price` = the
+  closing-auction / trading-at-last-price print on 99.9% of days (tick archive check; the auction moves the close on
+  81% of days); ledger actuals = SQL `adj_close(T)/adj_close(T-1)` exactly; split days consistent.
+- Metrics: strict hit (move > 0.25% in the called direction) vs the stock's base rate or shuffled-prediction random
+  baseline, sign accuracy on called sessions, block-bootstrap CIs, per-stock consistency, and the trader gate
+  (share of rolling 60-session windows with ≥ 60% sign accuracy).
+- **Data constraint:** broker-level data arrives only after the close. A forecast for session N may use data through
+  the close of N-1 (plus public live price observed by the trader).
+
+### 0.2 T+1 ledger leak (§4.5) — quantified on the focus stocks, 2024-01..2026-10 (695 sessions each)
+`scripts/experiments/t1_ledger_rebuild.py`; shared point-in-time model `src/mdk_trading_oracle/models/t1_forecast.py`
+(training labels must be realized by the forecast origin; not yet wired into gold); guard tests
+`tests/test_t1_leakage.py` (label timing, future-invariance for all 5 model families, sensitivity to the §4.5 pattern,
+arena invariance — the arena's *training* is clean; its "auto" champion is selected on the displayed 30 sessions).
+
+| Crowned configs, model forecast, all 6 | Leaky (production) | Clean |
+|---|---|---|
+| Hub hit % | 67.8 | 53.4 (random 51.8) |
+| Strict % | 53.7 | 39.1 (random 37.9) |
+| Big-move sign % | 79.6 | 53.0 |
+| MAE % | 2.58 | 3.61 |
+
+Worst: 63-session configs (GARAN Huber/63, TTKOM Ridge/63: leaky 70-72% strict, 95-99% big-move sign vs 44% / 49%
+clean) — with 62 training rows the 6x-weighted graded day dominates. Clean published (sized) forecasts:
+crowned 46.9% strict [45.5, 48.4] vs random 45.5; fixed Ridge/252 44.8 vs 45.4 — no stock beats random beyond its CI.
+Only 18 nightly ledger rows are reproducible from current code; older rows came from different hyperparameters / old
+features (~47% direction agreement), so the stored ledger must be rebuilt, not patched.
+Also: published sized forecasts are never NEUTRAL (any nonzero model output gets a full volatility-sized move).
+
+### 0.3 Feature audit (`feature_diagnostics.py`; focus stocks 2023-2026, placebos included)
+- **Persistent features are price-level proxies** (YTD PnL x5, cost spreads x3, tertip shares x3, profitable shares
+  x3, inventory z-score, Bollinger): their within-window IC is a mechanical artifact — the placebo *log price level*
+  scores IC -0.169 (t = -17), a random walk 0. They cannot be used forward and let trees identify regimes (overfit).
+- **~20 fast features carry nothing** (returns today/yesterday/3d/acceleration, BIST30 return, range, pinch,
+  shock distances, all BIG5/KAMU buy/sell/PnL/intensity/W5 shares, `kamu_post_shock_defense` (0 on 65% of days),
+  MLB PnL share).
+- **Only the MLB flow family carries information** (IC ≈ +0.05, same sign discovery & holdout, 5-6/6 stocks), via the
+  next session's open->close, not the overnight gap; internally redundant (`mlb_turnover_intensity` ≈
+  `bofa_aggression_ratio`, ρ = 0.98). IC 0.05 caps all-days sign accuracy near 52%.
+- Lean MLB model (`lean_mlb_baseline.py`): pooled-6 beats per-stock; selective holdout edge +2-3 pp, not significant.
+
+### 0.4 Best honest signal: the 11:30 session signal (`intraday_flow_experiment.py`, `session_signal_robustness.py`)
+score = z(yesterday's MLB intensity) + z(morning move open -> 11:30); call when beyond the trailing 80/20 percentile of
+past scores; enter 11:30, exit at the closing auction. Chosen on discovery.
+
+| | Coverage | Sign acc. | Strict vs base | Edge [95% CI] | Mean / call | Stocks + |
+|---|---|---|---|---|---|---|
+| Discovery 2023-24 | 40% | 55.3% | 51.3 vs 45.3 | +6.0 pp [3.2, 8.7] | +0.21% (t 3.2) | 5/6 |
+| Holdout 2025-26 | 39% | 55.1% | 49.1 vs 43.4 | +5.7 pp [3.2, 8.9] | +0.30% (t 4.9) | 6/6 |
+
+Positive in 7/8 half-years (2025H2 flat). Costs: entry half-spread ≈ 0.036% (tick sizes), exit in the auction pays no
+spread; with 11:30-11:35 VWAP entry and 0.10% round-trip commission: +0.19% per call, t 3.2, 6/6 stocks net
+positive. z-window 63/126/252 all work; 252 best in both periods. MAE: sizing calls at the typical move is *worse*
+than a zero forecast (1.63 vs 1.46); the MAE-optimal size is the conditional mean (~0.2-0.3%) → publish direction +
+probability edge + volatility range, not a confident price target.
+**Trader gate:** only 34-39% of 60-session windows show ≥ 60% sign accuracy. Binomial reality: a truly 60% model
+passes a 60-call ≥60% screen only 56% of the time (65% → 83%, 70% → 96%).
+
+**Operational form under end-of-day data** (`session_triggers.py`): yesterday's MLB intensity, trailing statistics and
+thresholds are known at the previous close; the morning move is public price the trader sees. Published after the
+close as conditional triggers ("at 11:30 BUY if price ≥ open × (1 + up%), SELL if ≤ open × (1 + down%)"), which equal
+the backtested calls on 100% of 5,610 sessions. End-of-day-only variant (yesterday's MLB flow, open->close via the
+auctions): 52.0% / 54.9% sign accuracy (discovery / holdout).
+
+### 0.5 Rejected this session (decided on discovery)
+| Idea | Result |
+|---|---|
+| MLB flow persistence across days | Day-to-day autocorr 0.05; multi-day sums worse. MLB is contrarian across days (today's return → tomorrow's MLB flow −0.14 on 6/6) |
+| Same-morning MLB flow → rest of session | IC 0.02-0.04; W1-only weak |
+| MLB urgency (VWAP vs market), BIST30-wide MLB flow (sign flips), peer-bank morning move | No discovery gain |
+| Bank-sector MLB flow added to the session score | Worse in discovery, better in holdout → watchlist |
+| Intraday MLB flow persistence → afternoon price | Morning→afternoon MLB flow ρ ≈ 0.3 (all stocks, both periods) but the predictable part does not move price; "absorbed flow" hypothesis rejected |
+| Aggressor-side flow (tick rule; `aggressor_flow_experiment.py`) | Classification valid (OFI vs same-window return ρ 0.74; ~60% of MLB volume aggressive; MLB passive flow also co-moves → execution algo, not liquidity provider). Aggressive/passive split adds nothing over net flow; morning OFI not operational (needs live broker data) |
+| Bank relative value (`bank_relative_value.py`) | 7-bank pair long top / short bottom relative MLB flow: 59% hit (71% on wide-gap days) in discovery → 54.5% / 51% in holdout. Faded → watchlist |
+
+### 0.6 Forward log (truly out-of-sample test, running)
+`~/data/mdk_oracle/experiments/intraday_flow/forward_log/`. After each ingestion `scripts/run_pipeline.py`
+(`--target all|silver|gold`, unless `--skip-forward-log`) runs `session_triggers.py --forward`: publishes the next
+session's triggers once (frozen; `--restate "reason"` before the open is logged in `restatements.log`) and grades all
+earlier files. Variants frozen 2026-10-18 (window 252, q 0.8): `session_v1` (main), watchlist `session_bank_wl`
+and `bank_pair_wl`. First file: session 2026-10-19 (from the 2026-10-16 close).
+**While production is frozen use `--target silver`** for daily ingestion: `--target all` still runs the gold step,
+which keeps appending leaky ledger rows (§4.5) until the fix is wired in.
+
+### 0.7 Open decisions / next steps
+1. Let the forward log run 2-3 months (the only clean test of the watchlist and of regime vs luck).
+2. Product framing with the traders: a session signal (pre-open triggers, 11:30 confirm, exit at the close) showing
+   direction, probability edge and volatility range; and the 60%-in-60-days gate (sampling noise makes it fail
+   ~44% of the time even for a true 60% model — prefer expectancy + track record vs the random baseline).
+3. Production wiring (after 1-2): gold grades stored forecasts (frozen first-published), clean ledger rebuild via
+   `t1_forecast.py`, hub labels "live since" vs "simulated"; replace the 44-feature crowned T+1 models (≈ random).
+4. New information is needed to approach 62-65% true accuracy; daily institutional aggregates are exhausted in the
+   forms tested. Candidates not yet tested: VİOP single-stock futures / index futures basis and open interest,
+   event calendar (MPC, index rebalancing, dividends), order-book data if obtainable.
+
 ---
 
 ## 1. TL;DR
