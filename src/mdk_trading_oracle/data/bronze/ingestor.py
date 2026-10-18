@@ -278,8 +278,17 @@ class BronzeIngestor:
                 schema_overrides={f"column_{i}": pl.Utf8 for i in range(1, 9)},
                 ignore_errors=True,
             )
-            price_expr = pl.col("column_3").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
-            vol_expr = pl.col("column_4").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+            # Feeds arrive in two number locales: Turkish ("68,25" / "1.068,50") and English ("68.65" / "1,068.50").
+            # Detect per file from the decimal separator that ends the price strings (majority vote).
+            price_sample = df.get_column("column_3").drop_nulls().head(5000)
+            comma_decimal = int(price_sample.str.contains(r",\d+$").sum())
+            dot_decimal = int(price_sample.str.contains(r"\.\d+$").sum())
+            if comma_decimal >= dot_decimal and comma_decimal > 0:
+                price_expr = pl.col("column_3").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+                vol_expr = pl.col("column_4").str.replace_all(r"\.", "").str.replace_all(",", ".").cast(pl.Float64)
+            else:
+                price_expr = pl.col("column_3").str.replace_all(",", "").cast(pl.Float64)
+                vol_expr = pl.col("column_4").str.replace_all(",", "").cast(pl.Float64)
             ts_expr = (pl.lit(date_prefix + " ") + pl.col("column_1")).str.to_datetime(strict=False)
 
             df = df.select([
