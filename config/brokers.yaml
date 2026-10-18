@@ -51,13 +51,13 @@ brokers:
   name: Aktif Portföy / Menkul
   type: Domestic Broker
   is_primary_target: false
-- code: IYF
-  name: İş Portföy / Finans
-  type: Institutional Fund
-  is_primary_target: false
 - code: TBY
   name: TEB Yatırım Menkul Değerler (BNP Paribas)
   type: Institutional / Bank
+  is_primary_target: false
+- code: IYF
+  name: İş Portföy / Finans
+  type: Institutional Fund
   is_primary_target: false
 - code: HLY
   name: Halk Yatırım Menkul Değerler
@@ -139,12 +139,12 @@ brokers:
   name: Dinamik Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
-- code: ALM
-  name: Alnus Yatırım Menkul Değerler
-  type: Domestic Broker
-  is_primary_target: false
 - code: IKN
   name: İkon Menkul Değerler
+  type: Domestic Broker
+  is_primary_target: false
+- code: ALM
+  name: Alnus Yatırım Menkul Değerler
   type: Domestic Broker
   is_primary_target: false
 - code: FBY
