@@ -148,11 +148,17 @@ export const IntradaySessionDashboard: React.FC<{ symbol?: string }> = ({ symbol
                 const expClose = p1130 * (1 + f / 100);
                 const right = sig.win_typ_pct === null ? null : p1130 * (1 + (dir * sig.win_typ_pct) / 100);
                 const wrong = sig.loss_typ_pct === null ? null : p1130 * (1 - (dir * sig.loss_typ_pct) / 100);
+                const prev = sig.prev_close;
+                const soFar = prev ? (p1130 / prev - 1) * 100 : null;
+                const expDay = prev ? (expClose / prev - 1) * 100 : null;
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <Stat label="Morning move" value={<span className={tone(mm)}>{pct(mm)}</span>} sub="11:30 price vs today's open" />
-                    <Stat label="Forecast to the close" value={<span className={tone(f)}>{pct(f)}</span>} sub={<span className="flex items-center gap-1.5">conviction <Conviction high={high} /></span>} />
-                    <Stat label="Expected close" value={`${expClose.toFixed(2)} TL`} sub={`from ${p1130.toFixed(2)} TL at 11:30`} />
+                    <Stat label="Now (11:30)" value={<span className={tone(soFar)}>{soFar === null ? pct(mm) : `${pct(soFar)} on the day`}</span>}
+                      sub={`${pct(mm)} since today's open${prev ? ` · yesterday's close ${prev.toFixed(2)} TL` : ''}`} />
+                    <Stat label="Forecast for the rest of the day" value={<span className={tone(f)}>{pct(f)}</span>}
+                      sub={<span className="flex items-center gap-1.5">11:30 → close · <Conviction high={high} /></span>} />
+                    <Stat label="Expected close" value={`${expClose.toFixed(2)} TL`}
+                      sub={expDay === null ? `from ${p1130.toFixed(2)} TL at 11:30` : <span>expected day: <span className={`font-semibold ${tone(expDay)}`}>{pct(expDay)}</span> vs yesterday&apos;s close</span>} />
                     <div className={`rounded-lg border px-3 py-2 ${dir > 0 ? 'bg-emerald-500/10 border-emerald-500/40' : dir < 0 ? 'bg-rose-500/10 border-rose-500/40' : 'bg-slate-800/40 border-slate-700'}`}>
                       <div className="text-[10px] uppercase tracking-wider text-slate-500">Suggestion</div>
                       <div className={`text-lg font-bold ${dir > 0 ? 'text-emerald-300' : dir < 0 ? 'text-rose-300' : 'text-slate-300'}`}>
@@ -179,8 +185,14 @@ export const IntradaySessionDashboard: React.FC<{ symbol?: string }> = ({ symbol
                   </tr>
                 </thead>
                 <tbody>
+                  {hasOpen && (
+                    <tr>
+                      <td className="py-1 pr-2 font-sans text-slate-400">…i.e. an 11:30 price of (TL)</td>
+                      {GRID_SHOW.map((mv) => <td key={mv} className="text-right px-1.5 text-slate-300">{(open * (1 + mv / 100)).toFixed(2)}</td>)}
+                    </tr>
+                  )}
                   <tr>
-                    <td className="py-1 pr-2 font-sans text-slate-400">…our forecast from 11:30 to the close</td>
+                    <td className="py-1 pr-2 font-sans text-slate-400">…our forecast for the rest of the day (11:30 → close)</td>
                     {GRID_SHOW.map((mv) => {
                       const { f, high } = gridAt(sig, mv);
                       return (
@@ -190,8 +202,28 @@ export const IntradaySessionDashboard: React.FC<{ symbol?: string }> = ({ symbol
                       );
                     })}
                   </tr>
+                  {hasOpen && (
+                    <tr>
+                      <td className="py-1 pr-2 font-sans text-slate-400">…expected close (TL)</td>
+                      {GRID_SHOW.map((mv) => {
+                        const { f } = gridAt(sig, mv);
+                        return <td key={mv} className="text-right px-1.5 text-slate-200">{(open * (1 + mv / 100) * (1 + f / 100)).toFixed(2)}</td>;
+                      })}
+                    </tr>
+                  )}
+                  {hasOpen && sig.prev_close && (
+                    <tr className="border-t border-slate-800">
+                      <td className="py-1 pr-2 font-sans text-slate-300 font-semibold">…expected day vs yesterday&apos;s close ({sig.prev_close.toFixed(2)})</td>
+                      {GRID_SHOW.map((mv) => {
+                        const { f } = gridAt(sig, mv);
+                        const day = ((open * (1 + mv / 100) * (1 + f / 100)) / (sig.prev_close as number) - 1) * 100;
+                        return <td key={mv} className={`text-right px-1.5 font-semibold ${tone(day)}`}>{pct(day)}</td>;
+                      })}
+                    </tr>
+                  )}
                 </tbody>
               </table>
+              {!hasOpen && <div className="text-[11px] text-cyan-300/80 pt-1">Enter today&apos;s opening price above to see 11:30 prices, expected closes and the expected day change vs yesterday&apos;s close.</div>}
               <div className="text-[11px] text-slate-500 pt-1">
                 ★ = HIGH conviction
                 {sig.buy_level_pct !== null && `: morning move ≥ ${pct(sig.buy_level_pct, 1)}${hasOpen ? ` (price ≥ ${toTick(open * (1 + sig.buy_level_pct / 100), true).toFixed(2)} TL)` : ''}`}

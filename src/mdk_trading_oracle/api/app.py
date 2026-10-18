@@ -2264,8 +2264,10 @@ class IntradayLedgerItem(BaseModel):
     actual_pct: Optional[float] = None
     hit: Optional[bool] = None
     abs_error_pp: Optional[float] = None
+    open_price: Optional[float] = None
     price_1130: Optional[float] = None
     close_price: Optional[float] = None
+    prev_close: Optional[float] = None  # yesterday's close in today's share terms (split-safe)
 
 
 class IntradayLedgerSummary(BaseModel):
@@ -2363,7 +2365,17 @@ def get_intraday_ledger(symbol: str = Query("GARAN"), limit: int = Query(250, le
 
     sym = symbol.strip().upper()
     rows = db.query_pl(
-        "SELECT * FROM gold_intraday_session_ledger WHERE symbol = %(s)s ORDER BY session_date DESC", {"s": sym}
+        """
+        WITH px AS (
+            SELECT trade_date, close_price, adj_close_price,
+                   LAG(adj_close_price) OVER (ORDER BY trade_date) AS prev_adj
+            FROM silver_daily_stock_summary WHERE symbol = %(s)s
+        )
+        SELECT l.*, px.prev_adj * px.close_price / NULLIF(px.adj_close_price, 0) AS prev_close
+        FROM gold_intraday_session_ledger l LEFT JOIN px ON px.trade_date = l.session_date
+        WHERE l.symbol = %(s)s ORDER BY l.session_date DESC
+        """,
+        {"s": sym},
     ).to_dicts()
     summary = []
     for src in ("LIVE", "SIMULATED"):
@@ -2383,7 +2395,8 @@ def get_intraday_ledger(symbol: str = Query("GARAN"), limit: int = Query(250, le
         session_date=str(r["session_date"]), source=r["source"], candidate=r.get("candidate"), conviction=r.get("conviction"),
         morning_move_pct=_f(r.get("morning_move_pct")),
         call=int(r["call"]), forecast_pct=_f(r.get("forecast_pct")), actual_pct=_f(r.get("actual_pct")), hit=r.get("hit"),
-        abs_error_pp=_f(r.get("abs_error_pp")), price_1130=_f(r.get("price_1130")), close_price=_f(r.get("close_price")),
+        abs_error_pp=_f(r.get("abs_error_pp")), open_price=_f(r.get("open_price")), price_1130=_f(r.get("price_1130")),
+        close_price=_f(r.get("close_price")), prev_close=_f(r.get("prev_close")),
     ) for r in rows[:limit]]
     return IntradayLedgerResponse(symbol=sym, items=items, summary=summary)
 

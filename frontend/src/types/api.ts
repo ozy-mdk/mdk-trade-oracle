@@ -834,8 +834,10 @@ export interface IntradayLedgerItem {
   actual_pct: number | null;
   hit: boolean | null;
   abs_error_pp: number | null;
+  open_price: number | null;
   price_1130: number | null;
   close_price: number | null;
+  prev_close: number | null;
 }
 
 export interface IntradayLedgerSummary {

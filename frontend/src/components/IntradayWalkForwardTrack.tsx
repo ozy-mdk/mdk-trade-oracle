@@ -30,12 +30,12 @@ interface Props {
   costPct?: number;
 }
 
-type Row = IntradayLedgerItem & { pred_close: number | null; outcome: 'HIT' | 'MISS' | 'FLAT' };
+type Row = IntradayLedgerItem & { pred_close: number | null; pred_day: number | null; act_day: number | null; outcome: 'HIT' | 'MISS' | 'FLAT' };
 
 export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, championLabel, featureLabel, isLoading, costPct = 0.14 }) => {
   const [evalSessions, setEvalSessions] = useState<number>(60);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
-  const [chartView, setChartView] = useState<'price' | 'return'>('return');
+  const [chartView, setChartView] = useState<'price' | 'return' | 'day'>('day');
   const [source, setSource] = useState<'ALL' | 'LIVE' | 'SIMULATED'>('ALL');
   const [onlyHigh, setOnlyHigh] = useState<boolean>(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -49,6 +49,8 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
       .map((r) => ({
         ...r,
         pred_close: r.price_1130 == null ? null : r.price_1130 * (1 + (r.forecast_pct ?? 0) / 100),
+        pred_day: r.price_1130 == null || !r.prev_close ? null : ((r.price_1130 * (1 + (r.forecast_pct ?? 0) / 100)) / r.prev_close - 1) * 100,
+        act_day: r.close_price == null || !r.prev_close ? null : (r.close_price / r.prev_close - 1) * 100,
         outcome: r.call === 0 ? 'FLAT' : r.hit ? 'HIT' : 'MISS',
       }));
   }, [items, source, evalSessions, onlyHigh]);
@@ -76,13 +78,15 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
   const prices = chrono.flatMap((r) => [r.close_price ?? 0, r.pred_close ?? 0]).filter((p) => p > 0);
   const minPrice = prices.length ? Math.min(...prices) * 0.985 : 0;
   const maxPrice = prices.length ? Math.max(...prices) * 1.015 : 100;
-  const rets = chrono.flatMap((r) => [Math.abs(r.actual_pct ?? 0), Math.abs(r.forecast_pct ?? 0)]);
+  const rets = chrono.flatMap((r) =>
+    chartView === 'day' ? [Math.abs(r.act_day ?? 0), Math.abs(r.pred_day ?? 0)] : [Math.abs(r.actual_pct ?? 0), Math.abs(r.forecast_pct ?? 0)],
+  );
   const maxAbs = rets.length ? Math.max(2.0, Math.max(...rets) * 1.15) : 5.0;
   const getX = (i: number) => (chrono.length <= 1 ? paddingX + innerW / 2 : paddingX + (i / (chrono.length - 1)) * innerW);
   const getYPrice = (v: number) => (maxPrice <= minPrice ? paddingY + innerH / 2 : paddingY + innerH - ((v - minPrice) / (maxPrice - minPrice)) * innerH);
   const getYReturn = (v: number) => paddingY + innerH / 2 - (v / maxAbs) * (innerH / 2);
-  const yAct = (r: Row) => (chartView === 'price' ? getYPrice(r.close_price ?? 0) : getYReturn(r.actual_pct ?? 0));
-  const yPred = (r: Row) => (chartView === 'price' ? getYPrice(r.pred_close ?? 0) : getYReturn(r.forecast_pct ?? 0));
+  const yAct = (r: Row) => (chartView === 'price' ? getYPrice(r.close_price ?? 0) : chartView === 'day' ? getYReturn(r.act_day ?? 0) : getYReturn(r.actual_pct ?? 0));
+  const yPred = (r: Row) => (chartView === 'price' ? getYPrice(r.pred_close ?? 0) : chartView === 'day' ? getYReturn(r.pred_day ?? 0) : getYReturn(r.forecast_pct ?? 0));
   const path = (f: (r: Row) => number) => chrono.map((r, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${f(r).toFixed(1)}`).join(' ');
   const dateInterval = chrono.length > 50 ? Math.ceil(chrono.length / 8) : 5;
   const hoveredItem = hovered ? chrono.find((r) => r.session_date === hovered) ?? null : null;
@@ -195,7 +199,8 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
               </div>
               <div className="flex items-center bg-slate-950 rounded border border-slate-800 p-0.5 font-mono text-xs">
                 <button onClick={() => setChartView('price')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${chartView === 'price' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'}`}>Price Series (₺)</button>
-                <button onClick={() => setChartView('return')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${chartView === 'return' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'}`}>Return % Divergence</button>
+                <button onClick={() => setChartView('day')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${chartView === 'day' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'}`}>Day % vs Prev Close</button>
+                <button onClick={() => setChartView('return')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${chartView === 'return' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'}`}>11:30 → Close %</button>
               </div>
             </div>
           </div>
@@ -275,6 +280,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                   <div className="flex justify-between"><span className="text-slate-400">Call at 11:30:</span><span className={hoveredItem.call > 0 ? 'text-emerald-400 font-bold' : hoveredItem.call < 0 ? 'text-rose-400 font-bold' : 'text-slate-400'}>{hoveredItem.call > 0 ? 'UP' : hoveredItem.call < 0 ? 'DOWN' : 'FLAT'} @ ₺{hoveredItem.price_1130?.toFixed(2)} · {hoveredItem.conviction === 'HIGH' ? 'HIGH' : 'normal'}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Realized Close:</span><span className="text-sky-300 font-bold">₺{hoveredItem.close_price?.toFixed(2)} ({formatPercent(hoveredItem.actual_pct ?? 0)})</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Predicted Target:</span><span className="text-amber-300 font-bold">₺{hoveredItem.pred_close?.toFixed(2)} ({formatPercent(hoveredItem.forecast_pct ?? 0)})</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Day vs prev close:</span><span className="text-slate-200">pred {formatPercent(hoveredItem.pred_day ?? 0)} · actual {formatPercent(hoveredItem.act_day ?? 0)}</span></div>
                   <div className="flex justify-between pt-1 border-t border-slate-800 text-[10px]"><span className="text-slate-400">Absolute Error:</span><span className="text-slate-200">{hoveredItem.abs_error_pp?.toFixed(2)}%</span></div>
                   <div className="flex justify-between text-[9.5px]"><span className="text-slate-500">Model · source:</span><span className="text-slate-400 truncate max-w-[140px]">{hoveredItem.candidate} · {hoveredItem.source === 'LIVE' ? 'live' : 'sim'}</span></div>
                 </div>
@@ -284,7 +290,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 px-1 font-mono text-[10px] text-slate-400">
             <div className="flex flex-wrap items-center gap-4">
-              <span className="flex items-center space-x-1.5"><span className="w-3 h-0.5 bg-sky-400 inline-block rounded" /><span className="text-sky-300 font-semibold">Realized Reality ({chartView === 'price' ? '₺' : '%'})</span></span>
+              <span className="flex items-center space-x-1.5"><span className="w-3 h-0.5 bg-sky-400 inline-block rounded" /><span className="text-sky-300 font-semibold">Realized Reality ({chartView === 'price' ? '₺ close' : chartView === 'day' ? 'day % vs previous close' : '% from 11:30'})</span></span>
               <span className="flex items-center space-x-1.5"><span className="w-3 h-0.5 bg-amber-400 border-b border-dashed border-amber-400 inline-block" /><span className="text-amber-300 font-semibold">{championLabel} Predicted</span></span>
               <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-emerald-400">Hit (✓)</span></span>
               <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /><span className="text-rose-400">Miss (✗)</span></span>
@@ -310,17 +316,19 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                 <th className="py-2.5 px-3 text-right">11:30 Price</th>
                 <th className="py-2.5 px-3 text-right">Target Close</th>
                 <th className="py-2.5 px-3 text-right">Realized Close</th>
-                <th className="py-2.5 px-3 text-right">Pred Return</th>
-                <th className="py-2.5 px-3 text-right">Actual Return</th>
+                <th className="py-2.5 px-3 text-right">Pred 11:30→Close</th>
+                <th className="py-2.5 px-3 text-right">Actual 11:30→Close</th>
+                <th className="py-2.5 px-3 text-right">Pred Day vs Prev Close</th>
+                <th className="py-2.5 px-3 text-right">Actual Day vs Prev Close</th>
                 <th className="py-2.5 px-3 text-right">Error %</th>
                 <th className="py-2.5 px-3 text-center">Outcome</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
               {isLoading ? (
-                <tr><td colSpan={12} className="py-8 text-center text-slate-400 font-mono">Loading audited sessions...</td></tr>
+                <tr><td colSpan={14} className="py-8 text-center text-slate-400 font-mono">Loading audited sessions...</td></tr>
               ) : ledger.length === 0 ? (
-                <tr><td colSpan={12} className="py-8 text-center text-slate-400 font-mono">No audited sessions for this selection yet.</td></tr>
+                <tr><td colSpan={14} className="py-8 text-center text-slate-400 font-mono">No audited sessions for this selection yet.</td></tr>
               ) : (
                 ledger.map((r, idx) => {
                   const isHov = hovered === r.session_date;
@@ -340,6 +348,8 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
                       <td className="py-2 px-3 text-right text-white font-bold">₺{r.close_price?.toFixed(2)}</td>
                       <td className={`py-2 px-3 text-right font-bold ${pred > 0 ? 'text-emerald-400' : pred < 0 ? 'text-rose-400' : 'text-slate-500'}`}>{formatPercent(pred)}</td>
                       <td className={`py-2 px-3 text-right font-bold ${(r.actual_pct ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPercent(r.actual_pct ?? 0)}</td>
+                      <td className={`py-2 px-3 text-right font-bold ${(r.pred_day ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{r.pred_day == null ? '–' : formatPercent(r.pred_day)}</td>
+                      <td className={`py-2 px-3 text-right font-bold ${(r.act_day ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{r.act_day == null ? '–' : formatPercent(r.act_day)}</td>
                       <td className="py-2 px-3 text-right text-slate-300">{r.abs_error_pp?.toFixed(2)}%</td>
                       <td className="py-2 px-3 text-center">
                         {r.outcome === 'HIT' ? (
