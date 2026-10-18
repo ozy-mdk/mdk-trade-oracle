@@ -65,7 +65,7 @@ def daily_context() -> pd.DataFrame:
     d["group_mlb"] = np.where(d["symbol"].isin(BANKS), d["bank_mlb"], d["market_mlb"])
     d["urgent_intensity"] = np.where(np.sign(d["urgency"]) == np.sign(d["intensity"]), d["intensity"], 0.0)
     # yesterday's values aligned to today's row
-    out = d[["symbol", "trade_date"]].copy()
+    out = d[["symbol", "trade_date", "group_mlb"]].rename(columns={"group_mlb": "group_mlb_today"})
     for src, dst in (("urgency", "urgency_yday"), ("urgent_intensity", "urgent_intensity"), ("group_mlb", "group_mlb_yday"), ("market_mlb", "market_mlb_yday")):
         out[dst] = d.groupby("symbol")[src].shift(1)
     return out
