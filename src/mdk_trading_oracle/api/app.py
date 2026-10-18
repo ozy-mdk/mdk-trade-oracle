@@ -2211,6 +2211,204 @@ def get_multi_horizon_opportunities_endpoint(
     return get_tertip_predicted_opportunities(target_date=target_date, horizon=horizon)
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Intraday Session Forecaster (11:30 -> close), served from gold_intraday_session_* tables
+
+
+INTRADAY_FOCUS = ["ASELS", "GARAN", "AKBNK", "YKBNK", "ISCTR", "TTKOM"]
+
+
+class IntradayUniverseItem(BaseModel):
+    symbol: str
+    is_focus: bool
+    latest_session: Optional[str] = None
+
+
+class IntradaySignalResponse(BaseModel):
+    symbol: str
+    session_date: str
+    as_of_close: Optional[str] = None
+    source: str
+    candidate: str
+    model: Optional[str] = None
+    feature_set: Optional[str] = None
+    training_window: Optional[int] = None
+    crowned_on: Optional[str] = None
+    crown_hit_rate_pct: Optional[float] = None
+    crown_trades: Optional[int] = None
+    buy_level_pct: Optional[float] = None
+    sell_level_pct: Optional[float] = None
+    sigma_pct: Optional[float] = None
+    win_typ_pct: Optional[float] = None
+    win_q75_pct: Optional[float] = None
+    loss_typ_pct: Optional[float] = None
+    record_hit_rate_pct: Optional[float] = None
+    record_trades: Optional[int] = None
+    record_avg_after_cost_pct: Optional[float] = None
+    grid_morning_pct: List[float] = Field(default_factory=list)
+    grid_forecast_pct: List[float] = Field(default_factory=list)
+    trade_threshold_pct: Optional[float] = None
+    prev_close: Optional[float] = None
+
+
+class IntradayLedgerItem(BaseModel):
+    session_date: str
+    source: str
+    candidate: Optional[str] = None
+    morning_move_pct: Optional[float] = None
+    call: int
+    forecast_pct: Optional[float] = None
+    actual_pct: Optional[float] = None
+    hit: Optional[bool] = None
+    abs_error_pp: Optional[float] = None
+    price_1130: Optional[float] = None
+    close_price: Optional[float] = None
+
+
+class IntradayLedgerSummary(BaseModel):
+    source: str
+    sessions: int
+    trades: int
+    hits: int
+    hit_rate_pct: Optional[float] = None
+    avg_gain_after_cost_pct: Optional[float] = None
+    mae_pp: Optional[float] = None
+    first_session: Optional[str] = None
+
+
+class IntradayLedgerResponse(BaseModel):
+    symbol: str
+    items: List[IntradayLedgerItem]
+    summary: List[IntradayLedgerSummary]
+
+
+class IntradayStandingItem(BaseModel):
+    candidate: str
+    model: str
+    feature_set: str
+    training_window: int
+    trades: int
+    hit_rate_pct: float
+    avg_gain_after_cost_pct: float
+    eligible: bool
+    is_champion: bool
+
+
+class IntradayTournamentResponse(BaseModel):
+    symbol: str
+    month_start: str
+    crown_sessions: int
+    min_trades: int
+    standings: List[IntradayStandingItem]
+
+
+def _f(x: Any) -> Optional[float]:
+    return None if x is None or (isinstance(x, float) and math.isnan(x)) else float(x)
+
+
+@app.get("/api/v1/intraday/universe", response_model=List[IntradayUniverseItem])
+def get_intraday_universe() -> List[IntradayUniverseItem]:
+    """Stocks covered by the intraday session forecaster; the six focus stocks first."""
+    try:
+        rows = db.query_pl("SELECT symbol, MAX(session_date) AS latest FROM gold_intraday_session_signals GROUP BY symbol").to_dicts()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Intraday forecaster tables not available: {e}")
+    items = [IntradayUniverseItem(symbol=r["symbol"], is_focus=r["symbol"] in INTRADAY_FOCUS, latest_session=str(r["latest"])) for r in rows]
+    return sorted(items, key=lambda i: (not i.is_focus, INTRADAY_FOCUS.index(i.symbol) if i.is_focus else 0, i.symbol))
+
+
+@app.get("/api/v1/intraday/signal", response_model=IntradaySignalResponse)
+def get_intraday_signal(symbol: str = Query("GARAN"), session_date: Optional[str] = Query(None)) -> IntradaySignalResponse:
+    """Latest published signal (or the one for `session_date`): levels, morning-move -> forecast grid, champion, numbers."""
+    from mdk_trading_oracle.models.intraday_session import GRID, REGRESSION_TRADE_PCT, RULE
+
+    sym = symbol.strip().upper()
+    where = "AND session_date = %(d)s" if session_date else ""
+    rows = db.query_pl(
+        f"SELECT * FROM gold_intraday_session_signals WHERE symbol = %(s)s {where} ORDER BY session_date DESC LIMIT 1",
+        {"s": sym, "d": session_date},
+    ).to_dicts()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No intraday signal for {sym}")
+    r = rows[0]
+    prev = db.query_pl(
+        "SELECT close_price FROM silver_daily_stock_summary WHERE symbol = %(s)s AND trade_date = %(d)s", {"s": sym, "d": r["as_of_close"]}
+    ).to_dicts()
+    grid = [float(x) for x in (r.get("grid_forecast_pct") or [])]
+    return IntradaySignalResponse(
+        symbol=sym, session_date=str(r["session_date"]), as_of_close=str(r["as_of_close"]) if r.get("as_of_close") else None,
+        source=r["source"], candidate=r["candidate"], model=r.get("model"), feature_set=r.get("feature_set"),
+        training_window=r.get("training_window"), crowned_on=str(r["crowned_on"]) if r.get("crowned_on") else None,
+        crown_hit_rate_pct=_f(r.get("crown_hit_rate_pct")), crown_trades=r.get("crown_trades"),
+        buy_level_pct=_f(r.get("buy_level_pct")), sell_level_pct=_f(r.get("sell_level_pct")), sigma_pct=_f(r.get("sigma_pct")),
+        win_typ_pct=_f(r.get("win_typ_pct")), win_q75_pct=_f(r.get("win_q75_pct")), loss_typ_pct=_f(r.get("loss_typ_pct")),
+        record_hit_rate_pct=_f(r.get("record_hit_rate_pct")), record_trades=r.get("record_trades"),
+        record_avg_after_cost_pct=_f(r.get("record_avg_after_cost_pct")),
+        grid_morning_pct=[float(x) for x in GRID] if grid else [], grid_forecast_pct=grid,
+        trade_threshold_pct=None if r["candidate"] == RULE else REGRESSION_TRADE_PCT,
+        prev_close=_f(prev[0]["close_price"]) if prev else None,
+    )
+
+
+@app.get("/api/v1/intraday/ledger", response_model=IntradayLedgerResponse)
+def get_intraday_ledger(symbol: str = Query("GARAN"), limit: int = Query(250, le=2000)) -> IntradayLedgerResponse:
+    """Published signals graded against what happened (LIVE and SIMULATED), newest first, with per-source summaries."""
+    from mdk_trading_oracle.models.intraday_session import COST_PCT
+
+    sym = symbol.strip().upper()
+    rows = db.query_pl(
+        "SELECT * FROM gold_intraday_session_ledger WHERE symbol = %(s)s ORDER BY session_date DESC", {"s": sym}
+    ).to_dicts()
+    summary = []
+    for src in ("LIVE", "SIMULATED"):
+        rs = [r for r in rows if r["source"] == src]
+        tr = [r for r in rs if r["call"] != 0]
+        hits = sum(1 for r in tr if r["hit"])
+        summary.append(IntradayLedgerSummary(
+            source=src, sessions=len(rs), trades=len(tr), hits=hits,
+            hit_rate_pct=round(100 * hits / len(tr), 1) if tr else None,
+            avg_gain_after_cost_pct=round(sum(r["call"] * r["actual_pct"] for r in tr) / len(tr) - COST_PCT, 3) if tr else None,
+            mae_pp=round(sum(r["abs_error_pp"] for r in rs) / len(rs), 3) if rs else None,
+            first_session=str(min(r["session_date"] for r in rs)) if rs else None,
+        ))
+    items = [IntradayLedgerItem(
+        session_date=str(r["session_date"]), source=r["source"], candidate=r.get("candidate"), morning_move_pct=_f(r.get("morning_move_pct")),
+        call=int(r["call"]), forecast_pct=_f(r.get("forecast_pct")), actual_pct=_f(r.get("actual_pct")), hit=r.get("hit"),
+        abs_error_pp=_f(r.get("abs_error_pp")), price_1130=_f(r.get("price_1130")), close_price=_f(r.get("close_price")),
+    ) for r in rows[:limit]]
+    return IntradayLedgerResponse(symbol=sym, items=items, summary=summary)
+
+
+@app.get("/api/v1/intraday/tournament", response_model=IntradayTournamentResponse)
+def get_intraday_tournament(symbol: str = Query("GARAN")) -> IntradayTournamentResponse:
+    """The standings behind the current champion: every candidate's trades over the crowning window."""
+    import pandas as pd
+
+    from mdk_trading_oracle.models import intraday_session as ism
+
+    sym = symbol.strip().upper()
+    sig = db.query_pl("SELECT session_date, candidate FROM gold_intraday_session_signals WHERE symbol = %(s)s ORDER BY session_date DESC LIMIT 1", {"s": sym}).to_dicts()
+    if not sig:
+        raise HTTPException(status_code=404, detail=f"No intraday signal for {sym}")
+    d = pd.Timestamp(sig[0]["session_date"])
+    month_start = pd.Timestamp(d.year, d.month, 1)
+    res = db.query_df(
+        "SELECT candidate, session_date, forecast_pct, actual_pct, traded FROM gold_intraday_candidate_results WHERE symbol = %s AND session_date < %s",
+        (sym, month_start.date()),
+    )
+    res["session_date"] = pd.to_datetime(res["session_date"])
+    st = ism.standings(res, month_start)
+    items = []
+    for _, r in st.iterrows():
+        c = ism.parse_candidate(r["candidate"])
+        items.append(IntradayStandingItem(candidate=r["candidate"], model=c["model"], feature_set=c["features"], training_window=c["window"],
+                                          trades=int(r["trades"]), hit_rate_pct=round(float(r["hit_rate"]) * 100, 1),
+                                          avg_gain_after_cost_pct=round(float(r["gain"]), 3), eligible=bool(r["eligible"]),
+                                          is_champion=r["candidate"] == sig[0]["candidate"]))
+    return IntradayTournamentResponse(symbol=sym, month_start=str(month_start.date()), crown_sessions=ism.CROWN_SESSIONS,
+                                      min_trades=ism.MIN_CROWN_TRADES, standings=items)
+
+
 @app.get("/api/v1/tertip/ytd-pnl")
 def get_ytd_pnl_endpoint(
     symbol: str = Query("THYAO", description="Stock ticker symbol"),

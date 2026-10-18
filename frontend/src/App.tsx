@@ -6,6 +6,7 @@ import { TertipDashboard } from './components/TertipDashboard';
 import { OpportunityActionsDashboard } from './components/OpportunityActionsDashboard';
 import { MultiHorizonDashboard } from './components/MultiHorizonDashboard';
 import { YtdPnlDashboard } from './components/YtdPnlDashboard';
+import { IntradaySessionDashboard } from './components/IntradaySessionDashboard';
 import {
   LineChart,
   Boxes,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'opportunities' | 'multihorizon' | 'ytd_pnl'>('candles');
+  const [activeTab, setActiveTab] = useState<'candles' | 'tertip' | 'opportunities' | 'multihorizon' | 'ytd_pnl' | 'intraday'>('candles');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('THYAO');
   const [selectedBroker, setSelectedBroker] = useState<string>('MLB');
   const [selectedDate, setSelectedDate] = useState<string>('2026-09-29');
@@ -272,6 +273,7 @@ export const App: React.FC = () => {
           {[
             { id: 'candles', label: 'Candlestick & Order Flow', icon: LineChart },
             { id: 'tertip', label: 'FIFO Tertip Inventory', icon: Boxes },
+            { id: 'intraday', label: 'Intraday Session Forecaster', icon: Clock },
             { id: 'multihorizon', label: 'Multi-Horizon Hub', icon: Layers },
             { id: 'opportunities', label: 'Predicted Opportunity Actions', icon: Compass },
             { id: 'ytd_pnl', label: 'Institutional YTD P&L', icon: Coins },
@@ -326,6 +328,8 @@ export const App: React.FC = () => {
           />
         )}
 
+
+        {activeTab === 'intraday' && <IntradaySessionDashboard symbol={selectedSymbol} />}
 
         {activeTab === 'multihorizon' && (
           <MultiHorizonDashboard

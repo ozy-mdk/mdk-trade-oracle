@@ -224,3 +224,35 @@ def test_market_shock_days(client):
         assert s["shock_magnitude_pct"] >= 0.015
 
 
+
+
+def _intraday_ready(client) -> bool:
+    r = client.get("/api/v1/intraday/universe")
+    return r.status_code == 200 and len(r.json()) > 0
+
+
+def test_intraday_endpoints(client):
+    if not _intraday_ready(client):
+        pytest.skip("intraday session tables not populated")
+    universe = client.get("/api/v1/intraday/universe").json()
+    focus = [u["symbol"] for u in universe if u["is_focus"]]
+    assert focus[:6] == ["ASELS", "GARAN", "AKBNK", "YKBNK", "ISCTR", "TTKOM"]
+    sym = focus[0]
+
+    sig = client.get(f"/api/v1/intraday/signal?symbol={sym}").json()
+    assert sig["symbol"] == sym and sig["as_of_close"] < sig["session_date"]
+    assert len(sig["grid_morning_pct"]) == len(sig["grid_forecast_pct"]) > 0
+
+    led = client.get(f"/api/v1/intraday/ledger?symbol={sym}&limit=50").json()
+    assert {s["source"] for s in led["summary"]} == {"LIVE", "SIMULATED"}
+    for item in led["items"]:
+        assert item["call"] in (-1, 0, 1)
+        if item["call"] == 0:
+            assert item["hit"] is None and item["forecast_pct"] == 0.0
+        else:
+            assert item["hit"] == ((item["forecast_pct"] > 0) == (item["actual_pct"] > 0))
+
+    t = client.get(f"/api/v1/intraday/tournament?symbol={sym}").json()
+    assert t["standings"] and sum(s["is_champion"] for s in t["standings"]) <= 1
+
+    assert client.get("/api/v1/intraday/signal?symbol=NOSUCH").status_code == 404

@@ -784,3 +784,90 @@ export interface YtdConstituentOverviewItem {
 }
 
 
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Intraday Session Forecaster (11:30 -> close)
+
+export interface IntradayUniverseItem {
+  symbol: string;
+  is_focus: boolean;
+  latest_session: string | null;
+}
+
+export interface IntradaySignalResponse {
+  symbol: string;
+  session_date: string;
+  as_of_close: string | null;
+  source: 'LIVE' | 'SIMULATED';
+  candidate: string;
+  model: string | null;
+  feature_set: string | null;
+  training_window: number | null;
+  crowned_on: string | null;
+  crown_hit_rate_pct: number | null;
+  crown_trades: number | null;
+  buy_level_pct: number | null;
+  sell_level_pct: number | null;
+  sigma_pct: number | null;
+  win_typ_pct: number | null;
+  win_q75_pct: number | null;
+  loss_typ_pct: number | null;
+  record_hit_rate_pct: number | null;
+  record_trades: number | null;
+  record_avg_after_cost_pct: number | null;
+  grid_morning_pct: number[];
+  grid_forecast_pct: number[];
+  trade_threshold_pct: number | null;
+  prev_close: number | null;
+}
+
+export interface IntradayLedgerItem {
+  session_date: string;
+  source: 'LIVE' | 'SIMULATED';
+  candidate: string | null;
+  morning_move_pct: number | null;
+  call: number;
+  forecast_pct: number | null;
+  actual_pct: number | null;
+  hit: boolean | null;
+  abs_error_pp: number | null;
+  price_1130: number | null;
+  close_price: number | null;
+}
+
+export interface IntradayLedgerSummary {
+  source: 'LIVE' | 'SIMULATED';
+  sessions: number;
+  trades: number;
+  hits: number;
+  hit_rate_pct: number | null;
+  avg_gain_after_cost_pct: number | null;
+  mae_pp: number | null;
+  first_session: string | null;
+}
+
+export interface IntradayLedgerResponse {
+  symbol: string;
+  items: IntradayLedgerItem[];
+  summary: IntradayLedgerSummary[];
+}
+
+export interface IntradayStandingItem {
+  candidate: string;
+  model: string;
+  feature_set: string;
+  training_window: number;
+  trades: number;
+  hit_rate_pct: number;
+  avg_gain_after_cost_pct: number;
+  eligible: boolean;
+  is_champion: boolean;
+}
+
+export interface IntradayTournamentResponse {
+  symbol: string;
+  month_start: string;
+  crown_sessions: number;
+  min_trades: number;
+  standings: IntradayStandingItem[];
+}

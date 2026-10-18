@@ -242,7 +242,19 @@ class MedallionPipeline:
         start_time = datetime.now()
 
         initialize_gold_schema(self.db)
+
+        # Intraday Session Forecaster first: quick, and the next session's levels must not wait behind the T+1 jobs
+        intraday_res: dict[str, Any] = {}
+        try:
+            logger.info("Updating Gold Intraday Session Forecaster (grade new sessions, publish next session)...")
+            from mdk_trading_oracle.data.gold.intraday_session import update_gold_intraday_session
+
+            intraday_res = update_gold_intraday_session(self.db)
+        except Exception as e_is:
+            logger.warning(f"Could not update the Intraday Session Forecaster: {e_is}")
+
         gold_res = self.gold_engineer.run_all()
+        gold_res["intraday_session"] = intraday_res
 
         # Update Gold Layer Tertip ML Forecasts & Walk-Forward Backtests for the Frontend
         try:

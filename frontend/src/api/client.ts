@@ -17,6 +17,10 @@ import {
   MultiHorizonOpportunitiesResponse,
   StockYtdPnlResponse,
   YtdConstituentOverviewItem,
+  IntradayUniverseItem,
+  IntradaySignalResponse,
+  IntradayLedgerResponse,
+  IntradayTournamentResponse,
 } from '../types/api';
 
 const BASE_URL = ''; // Relative URL handled by Vite proxy to localhost:8000
@@ -234,3 +238,29 @@ export async function fetchYtdOverview(
 }
 
 
+
+// Intraday Session Forecaster (11:30 -> close)
+
+export async function fetchIntradayUniverse(): Promise<IntradayUniverseItem[]> {
+  const res = await fetch(`${BASE_URL}/api/v1/intraday/universe`);
+  if (!res.ok) throw new Error('Failed to fetch intraday universe');
+  return res.json();
+}
+
+export async function fetchIntradaySignal(symbol: string): Promise<IntradaySignalResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/intraday/signal?symbol=${encodeURIComponent(symbol)}`);
+  if (!res.ok) throw new Error(`No intraday signal for ${symbol}`);
+  return res.json();
+}
+
+export async function fetchIntradayLedger(symbol: string, limit: number = 2000): Promise<IntradayLedgerResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/intraday/ledger?symbol=${encodeURIComponent(symbol)}&limit=${limit}`);
+  if (!res.ok) throw new Error(`Failed to fetch intraday ledger for ${symbol}`);
+  return res.json();
+}
+
+export async function fetchIntradayTournament(symbol: string): Promise<IntradayTournamentResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/intraday/tournament?symbol=${encodeURIComponent(symbol)}`);
+  if (!res.ok) throw new Error(`Failed to fetch intraday tournament for ${symbol}`);
+  return res.json();
+}
