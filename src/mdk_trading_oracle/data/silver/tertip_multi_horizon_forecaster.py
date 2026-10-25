@@ -751,7 +751,7 @@ def get_multi_horizon_forecaster_payload(
     db: PostgresManager,
     symbol: str,
     selected_composition: dict[str, dict[str, Any]] | None = None,
-    n_eval_sessions: int = 180,
+    n_eval_sessions: int = 90,
     force_recompute: bool = False,
     target_date: str | None = None,
 ) -> dict[str, Any]:

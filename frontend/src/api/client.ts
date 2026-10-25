@@ -177,7 +177,7 @@ export async function fetchPredictedOpportunities(
 export async function fetchMultiHorizonForecast(
   symbol: string,
   fresh: boolean = false,
-  evalSessions: number = 60,
+  evalSessions: number = 90,
   targetDate?: string,
 ): Promise<MultiHorizonForecastResponse> {
   let url = `${BASE_URL}/api/v1/tertip/multi-horizon/forecast?symbol=${encodeURIComponent(symbol)}&fresh=${fresh}&eval_sessions=${evalSessions}`;
@@ -192,7 +192,7 @@ export async function fetchMultiHorizonForecast(
 export async function fetchMultiHorizonBacktest(
   symbol: string,
   horizon: string = '3d',
-  limit: number = 60,
+  limit: number = 90,
   targetDate?: string,
 ): Promise<MultiHorizonBacktestItem[]> {
   let url = `${BASE_URL}/api/v1/tertip/multi-horizon/backtest?symbol=${encodeURIComponent(symbol)}&horizon=${encodeURIComponent(horizon)}&limit=${limit}`;

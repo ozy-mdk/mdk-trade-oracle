@@ -1,6 +1,6 @@
-"""Export 180-Day Multi-Horizon Walk-Forward Backtest Track Data for BIST 30 to Database & CSV.
+"""Export 90-Day Multi-Horizon Walk-Forward Backtest Track Data for BIST 30 to Database & CSV.
 
-Evaluates 180 out-of-sample trading sessions for all 30 BIST 30 equities.
+Evaluates 90 out-of-sample trading sessions (app standard) for all 30 BIST 30 equities.
 Supports lookback modes:
 - auto (default): multi-horizon tournament crowning the best lookback (3M=63, 6M=126, 12M=252) per stock
 - 12m: production baseline 12-month structural carry lookback (252 sessions)
@@ -318,8 +318,8 @@ def save_forecast_to_database(db: PostgresManager, symbol: str, fc: dict[str, An
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export 180-Day Multi-Horizon Backtest Data")
-    parser.add_argument("--eval-sessions", type=int, default=180, help="Out-of-sample evaluation sessions (default 180)")
+    parser = argparse.ArgumentParser(description="Export 90-Day Multi-Horizon Backtest Data")
+    parser.add_argument("--eval-sessions", type=int, default=90, help="Out-of-sample evaluation sessions (default 90, the app standard)")
     parser.add_argument("--lookback-mode", type=str, default="auto", choices=["auto", "12m", "6m", "3m"], help="Lookback horizon mode")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols (default: all 30 BIST 30)")
     args = parser.parse_args()
@@ -472,7 +472,7 @@ def main() -> None:
             logger.error(f"Failed processing {sym}: {e}", exc_info=True)
             fail_count += 1
 
-    # 1. Export 180-Day Reality Ledger CSV
+    # 1. Export Reality Ledger CSV
     if all_ledger_rows:
         df_ledger = pd.DataFrame(all_ledger_rows)
         priority_cols = [

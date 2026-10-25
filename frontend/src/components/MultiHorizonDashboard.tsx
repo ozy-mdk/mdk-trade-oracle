@@ -53,7 +53,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   const [selectedSymbol, setSelectedSymbol] = useState<string>(symbol);
   const [activeHorizon, setActiveHorizon] = useState<string>(externalHorizon || '1d');
   const [show30D, setShow30D] = useState<boolean>(false);
-  const [evalSessions, setEvalSessions] = useState<number>(60);
+  const [evalSessions, setEvalSessions] = useState<number>(90);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
   const [chartView, setChartView] = useState<'price' | 'return'>('return');
   const [hoveredTradeDate, setHoveredTradeDate] = useState<string | null>(null);
@@ -478,11 +478,11 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               </div>
             </div>
 
-            {/* Hit Rate Horizon Window (30, 60, 90, 180) with 60 as default */}
+            {/* Hit Rate Horizon Window (30, 60, 90) with 90 as default */}
             <div className="text-right border-l border-slate-800 pl-4 hidden md:block">
               <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Hit Rate Window</div>
               <div className="flex items-center space-x-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 mt-0.5 font-mono">
-                {([30, 60, 90, 180] as const).map((sessions) => (
+                {([30, 60, 90] as const).map((sessions) => (
                   <button
                     key={sessions}
                     onClick={() => setEvalSessions(sessions)}
@@ -848,9 +848,9 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               </button>
             </div>
 
-            {/* Hit Rate Window Selector Pills (30, 60, 90, 180) */}
+            {/* Hit Rate Window Selector Pills (30, 60, 90) */}
             <div className="flex items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 font-mono text-xs">
-              {([30, 60, 90, 180] as const).map((sessions) => (
+              {([30, 60, 90] as const).map((sessions) => (
                 <button
                   key={sessions}
                   onClick={() => setEvalSessions(sessions)}

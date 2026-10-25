@@ -239,7 +239,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Multi-Horizon Tournament Referee")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols")
     parser.add_argument("--all-bist30", action="store_true", help="Run tournament for all BIST 30 symbols")
-    parser.add_argument("--eval-sessions", type=int, default=90, help="Evaluation sessions (e.g. 90 or 180)")
+    parser.add_argument("--eval-sessions", type=int, default=90, help="Evaluation sessions (90 = app standard)")
     parser.add_argument("--workers", type=int, default=8, help="Number of parallel worker processes (default 8)")
     parser.add_argument("--skip-completed", action="store_true", default=False, help="Skip symbols already crowned with feature_mode")
     parser.add_argument("--sync-gold", action="store_true", default=True, help="Sync forecasts to Gold layer")

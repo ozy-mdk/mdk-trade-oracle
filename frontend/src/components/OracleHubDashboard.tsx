@@ -42,7 +42,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const [activeSymbol, setActiveSymbol] = useState<string>(symbol);
   const [modelType, setModelType] = useState<'auto' | 'ridge' | 'xgboost'>('auto');
   const [activeModel, setActiveModel] = useState<'champion' | 'ml' | 'prophet'>('champion');
-  const [evalSessions, setEvalSessions] = useState<number>(60);
+  const [evalSessions, setEvalSessions] = useState<number>(90);
   const [chartView, setChartView] = useState<'price' | 'return'>('price');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -75,7 +75,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const ledger = forecast?.walk_forward_ledger || [];
   const latestPrice = forecast?.latest_close_price || 0;
 
-  // Horizon slice: Trailing evalSessions (30, 60, 90, 180 with 60 default)
+  // Horizon slice: Trailing evalSessions (30, 60, 90 with 90 default)
   const displayLedger = ledger.slice(-evalSessions);
 
 
@@ -412,7 +412,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
             Hit Rate Horizon:
           </span>
           <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 font-mono text-xs">
-            {([30, 60, 90, 180] as const).map((sessions) => (
+            {([30, 60, 90] as const).map((sessions) => (
               <button
                 key={sessions}
                 onClick={() => setEvalSessions(sessions)}

@@ -16,7 +16,7 @@ import { formatPercent } from '../utils/formatters';
 
 /**
  * Audited walk-forward reality track for the Intraday Session Forecaster, mirroring the Multi-Horizon Hub:
- * chart / table / both, 30-60-90-180 session windows, scorecards, predicted vs realized chart (price or return) with
+ * chart / table / both, 30-60-90 session windows, scorecards, predicted vs realized chart (price or return) with
  * hit / miss points and hover tooltip, and the audit ledger. Every session has a forecast: prediction = 11:30 price x
  * (1 + forecast); reality = the closing-auction price. HIGH conviction sessions are marked and can be filtered.
  */
@@ -33,7 +33,7 @@ interface Props {
 type Row = IntradayLedgerItem & { pred_close: number | null; pred_day: number | null; act_day: number | null; outcome: 'HIT' | 'MISS' | 'FLAT' };
 
 export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, championLabel, featureLabel, isLoading, costPct = 0.14 }) => {
-  const [evalSessions, setEvalSessions] = useState<number>(60);
+  const [evalSessions, setEvalSessions] = useState<number>(90);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
   const [chartView, setChartView] = useState<'price' | 'return' | 'day'>('day');
   const [source, setSource] = useState<'ALL' | 'LIVE' | 'SIMULATED'>('ALL');
@@ -128,7 +128,7 @@ export const IntradayWalkForwardTrack: React.FC<Props> = ({ items, summary, cham
             ))}
           </div>
           <div className="flex items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 font-mono text-xs">
-            {([30, 60, 90, 180] as const).map((n) => (
+            {([30, 60, 90] as const).map((n) => (
               <button key={n} onClick={() => setEvalSessions(n)} className={pill(evalSessions === n)}>{n}D</button>
             ))}
           </div>

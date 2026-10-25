@@ -2379,7 +2379,7 @@ def get_tertip_ml_forecast(
     if horizon_comparison:
         tournament["horizon_comparison"] = horizon_comparison
 
-    # Hydrate full multi-month ledger (up to 180 sessions) if available in gold_tertip_walk_forward_backtests
+    # Hydrate full multi-month ledger (the frontend shows at most 90 sessions) if available in gold_tertip_walk_forward_backtests
     try:
         cur_res = db.execute("""
             SELECT trade_date, actual_price, actual_return_pct, bist30_ret_pct,

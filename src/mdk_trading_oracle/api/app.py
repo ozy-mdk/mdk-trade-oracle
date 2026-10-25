@@ -676,7 +676,7 @@ class MultiHorizonMeta(BaseModel):
     hit_rate_pct: float
     hits: int
     total_evals: int
-    eval_sessions_requested: int = 180
+    eval_sessions_requested: int = 90
     sessions_skipped_insufficient: int = 0
     sessions_with_partial_history: int = 0
     sessions_with_full_history: int = 0
@@ -2107,7 +2107,7 @@ def get_tertip_predicted_opportunities(
 def get_multi_horizon_forecast_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     fresh: bool = Query(False, description="Bypass in-memory cache"),
-    eval_sessions: int = Query(60, le=365, description="Number of evaluation sessions for hit rates"),
+    eval_sessions: int = Query(90, ge=1, le=90, description="Number of evaluation sessions for hit rates (90 = app standard)"),
     target_date: Optional[str] = Query(None, description="Optional target session date YYYY-MM-DD"),
 ) -> MultiHorizonForecastResponse:
     """Return forward multi-horizon predictions (3d, 5d, 10d, 15d, 30d) and walk-forward track."""
@@ -2152,7 +2152,7 @@ def get_multi_horizon_forecast_endpoint(
 def get_multi_horizon_backtest_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
     horizon: str = Query("3d", description="Horizon: 3d, 5d, 10d, 15d, 30d"),
-    limit: int = Query(60, le=365, description="Max backtest records"),
+    limit: int = Query(90, ge=1, le=90, description="Max backtest records (90 = app standard)"),
 ) -> List[MultiHorizonBacktestItem]:
     """Return historical walk-forward backtest ledger for a specific symbol and horizon."""
     sym = symbol.strip().upper()

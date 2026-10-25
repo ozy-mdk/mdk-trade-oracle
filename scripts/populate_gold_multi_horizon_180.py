@@ -25,7 +25,7 @@ def process_symbol(sym: str):
 
 def main():
     db = PostgresManager()
-    # Find all active BIST 30 symbols that do NOT yet have 900 records (180 sessions x 5 horizons)
+    # Find all active BIST 30 symbols that do NOT yet have 450 records (90 sessions x 5 horizons)
     df = db.query_pl("""
         SELECT m.symbol, COALESCE(b.cnt, 0) as cnt
         FROM bronze_bist30_membership m
@@ -38,13 +38,13 @@ def main():
         ORDER BY m.symbol ASC;
     """).to_pandas()
     
-    needed = df[df["cnt"] < 900]["symbol"].tolist()
-    already_done = df[df["cnt"] >= 900]["symbol"].tolist()
-    print(f"Already hydrated (900 rows): {already_done}", flush=True)
-    print(f"Symbols needing 180-session hydration ({len(needed)}): {needed}", flush=True)
+    needed = df[df["cnt"] < 450]["symbol"].tolist()
+    already_done = df[df["cnt"] >= 450]["symbol"].tolist()
+    print(f"Already hydrated (450 rows): {already_done}", flush=True)
+    print(f"Symbols needing 90-session hydration ({len(needed)}): {needed}", flush=True)
     
     if not needed:
-        print("All symbols already fully hydrated to 180 sessions!", flush=True)
+        print("All symbols already fully hydrated to 90 sessions!", flush=True)
         return
 
     t_start = time.time()

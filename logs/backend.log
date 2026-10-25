@@ -561,3 +561,1001 @@ INFO:     Finished server process [10969]
 INFO:     Started server process [11014]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_engine.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11014]
+INFO:     Started server process [11604]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/schema.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11604]
+INFO:     Started server process [11624]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51172 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51176 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51173 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51184 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51186 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51188 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51175 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51174 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51192 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51191 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51194 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51171 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51197 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51198 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51200 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51204 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51205 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51208 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51213 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TTKOM&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51214 - "GET /api/v1/tertip/ml-forecast?symbol=TTKOM&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51216 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=TTKOM&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51230 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51231 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51237 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=5d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51239 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=YKBNK&horizon=10d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54958 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AEFES&horizon=10d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54956 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AEFES&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "GET /api/v1/tertip/ml-forecast?symbol=AEFES&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54964 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=10d&limit=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54962 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54963 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54967 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=60&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55083 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=30&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55096 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55097 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55098 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55100 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55101 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55103 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55107 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55109 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55099 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55115 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55114 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55121 - "GET /api/v1/market/candles?symbol=GARAN&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55123 - "GET /api/v1/tertip/horizons?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55122 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55084 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55118 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55127 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55133 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55138 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55141 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55144 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55150 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55153 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55165 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55169 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55173 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55175 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55179 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55181 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55185 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55188 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55191 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55193 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55205 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55207 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55209 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55212 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55217 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55219 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55221 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55223 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55227 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55233 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55248 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55251 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55254 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55259 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55263 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55266 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55270 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55279 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55282 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55299 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55304 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55306 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55309 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55314 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55316 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55318 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55322 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55326 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55328 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55340 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55342 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55345 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55348 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55352 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55354 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/direction_size_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11624]
+INFO:     Started server process [34608]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55361 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55364 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55368 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55371 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55388 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/direction_size_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34608]
+INFO:     Started server process [34752]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55400 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55405 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55409 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55413 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55415 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55418 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55427 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55429 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55442 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/direction_size_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34752]
+INFO:     Started server process [34932]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55445 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/direction_size_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34932]
+INFO:     Started server process [35094]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55461 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55466 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55468 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55470 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55474 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55482 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55487 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55502 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55507 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55512 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55517 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55526 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55528 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55530 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55545 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55549 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55552 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55554 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55575 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55577 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55579 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55584 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55596 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55598 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55610 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55612 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55617 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55619 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55623 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55625 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55628 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55638 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55647 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55649 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55663 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/hit_rate_experiments.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35094]
+INFO:     Started server process [35884]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55667 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55671 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55687 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55691 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55707 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55711 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55715 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55742 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'tests/test_corporate_actions.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35884]
+INFO:     Started server process [36288]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55745 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55753 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55755 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55759 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55761 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55765 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55774 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55777 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55791 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55794 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55797 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55807 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55809 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55816 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55818 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55821 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55832 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55835 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55842 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55845 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55849 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55852 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55855 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55857 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55867 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55881 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55885 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55887 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55889 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55894 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55896 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55899 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55903 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55914 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55916 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55932 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55938 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55940 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55948 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55951 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55953 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55956 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55958 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55962 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55965 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55992 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55998 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56001 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56003 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56005 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56010 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56012 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56024 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56027 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56029 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56031 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56036 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56038 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56045 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56051 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56053 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56055 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56068 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56074 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56076 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [36288]
+INFO:     Started server process [37974]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:56084 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56083 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56085 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56090 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56095 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56097 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56105 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56109 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56114 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56117 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/bronze/ingestor.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37974]
+INFO:     Started server process [38299]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:56132 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/bronze/ingestor.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38299]
+INFO:     Started server process [38374]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:56137 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56144 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56146 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56150 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56153 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56156 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56161 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56164 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56178 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56181 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56186 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56188 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56192 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56194 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56196 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56228 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56230 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56242 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56249 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56251 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56256 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56277 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56279 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56282 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56289 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56298 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56305 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56317 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56321 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56325 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56327 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56330 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56335 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56350 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56351 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56354 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56356 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56358 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56353 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56352 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56374 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56378 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56377 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56384 - "GET /api/v1/market/candles?symbol=ASELS&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56386 - "GET /api/v1/tertip/horizons?symbol=ASELS&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56385 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56349 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56388 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=60&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56383 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56390 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56444 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=30&target_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/ledger_leak_check.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38374]
+INFO:     Started server process [40227]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/stochastic_risk.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40227]
+INFO:     Started server process [40391]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/stochastic_risk.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40391]
+INFO:     Started server process [40438]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/calibrate_forecast_sizing.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40438]
+INFO:     Started server process [40476]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_multi_horizon_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40476]
+INFO:     Started server process [40532]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_forecasts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40532]
+INFO:     Started server process [40572]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40572]
+INFO:     Started server process [40612]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_stochastic_risk.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40612]
+INFO:     Started server process [40634]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/sizing_preview.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40634]
+INFO:     Started server process [41350]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:57141 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57142 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57145 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57153 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57144 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57155 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57143 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57158 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57162 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57161 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57140 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57171 - "GET /api/v1/market/candles?symbol=ASELS&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57170 - "GET /api/v1/tertip/horizons?symbol=ASELS&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57169 - "GET /api/v1/market/summary?symbol=ASELS&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57165 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57177 - "GET /api/v1/market/candles?symbol=GARAN&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57179 - "GET /api/v1/tertip/horizons?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57178 - "GET /api/v1/market/summary?symbol=GARAN&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57173 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57183 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&model_type=auto&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57182 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=false&eval_sessions=60&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57189 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=GARAN&horizon=3d&limit=60&target_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/tertip_ml_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [41350]
+INFO:     Started server process [44739]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_split_adjustment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [44739]
+INFO:     Started server process [44772]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/t1_forecast.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [44772]
+INFO:     Started server process [46096]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_t1_leakage.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46096]
+INFO:     Started server process [46183]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/t1_ledger_rebuild.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46183]
+INFO:     Started server process [46353]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/feature_diagnostics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46353]
+INFO:     Started server process [46741]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/feature_diagnostics.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46741]
+INFO:     Started server process [46848]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/extreme_flow_check.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46848]
+INFO:     Started server process [47185]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/intraday_flow_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [47185]
+INFO:     Started server process [48004]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/intraday_flow_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [48004]
+INFO:     Started server process [48036]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/intraday_flow_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [48036]
+INFO:     Started server process [48213]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/session_signal_robustness.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [48213]
+INFO:     Started server process [48421]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/aggressor_flow_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [48421]
+INFO:     Started server process [49059]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/session_signal_extensions.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [49059]
+INFO:     Started server process [50177]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/session_triggers.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [50177]
+INFO:     Started server process [50466]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/run_pipeline.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [50466]
+INFO:     Started server process [50795]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/kamu_defense_experiment.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [50795]
+INFO:     Started server process [51393]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/sequential_backtest.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [51393]
+INFO:     Started server process [53113]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/model_tournament.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53113]
+INFO:     Started server process [53408]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/model_tournament.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53408]
+INFO:     Started server process [53434]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/model_tournament.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53434]
+INFO:     Started server process [53568]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/schema.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53568]
+INFO:     Started server process [55654]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [55654]
+INFO:     Started server process [55686]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/backfill_session_prices.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [55686]
+INFO:     Started server process [55964]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/backfill_session_prices.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [55964]
+INFO:     Started server process [57055]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57055]
+INFO:     Started server process [57639]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57639]
+INFO:     Started server process [57703]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57703]
+INFO:     Started server process [57789]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/pipeline.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57789]
+INFO:     Started server process [57873]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/run_intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57873]
+INFO:     Started server process [57928]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57928]
+INFO:     Started server process [57985]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [57985]
+INFO:     Started server process [58047]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58761 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58762 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58765 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58773 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58764 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58775 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58777 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58763 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58781 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58780 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58760 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58784 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58788 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58802 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58804 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58805 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58808 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'tests/test_api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [58047]
+INFO:     Started server process [58290]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58811 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58814 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58824 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58827 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58829 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58835 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58845 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58846 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58849 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58851 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58853 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58848 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58847 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58856 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58860 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58859 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58844 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58870 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58875 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58891 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58903 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58906 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58908 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58911 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58914 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58917 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58921 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58931 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58933 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58945 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58948 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58951 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58953 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58960 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58963 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58965 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58968 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58974 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58976 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58987 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58989 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58992 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58995 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59001 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59004 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59024 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59029 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59031 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59034 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59046 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59050 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59056 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'tests/test_intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [58290]
+INFO:     Started server process [58981]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59067 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59071 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59070 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59068 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59081 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59083 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59069 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59085 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59089 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59088 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59066 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59093 - "GET /api/v1/intraday/universe HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59098 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59099 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'tests/test_intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [58981]
+INFO:     Started server process [59034]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59116 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59117 - "GET /api/v1/intraday/tournament?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59115 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59129 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=60&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59130 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto&target_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59146 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59145 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59151 - "GET /api/v1/intraday/ledger?symbol=AKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59148 - "GET /api/v1/intraday/signal?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59152 - "GET /api/v1/intraday/tournament?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59157 - "GET /api/v1/intraday/ledger?symbol=YKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59155 - "GET /api/v1/intraday/signal?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59158 - "GET /api/v1/intraday/tournament?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59168 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59167 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59177 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59176 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59218 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59217 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59219 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59222 - "GET /api/v1/intraday/universe HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59228 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59294 - "GET /api/v1/intraday/ledger?symbol=AKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59293 - "GET /api/v1/intraday/signal?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59295 - "GET /api/v1/intraday/tournament?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59324 - "GET /api/v1/intraday/universe HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59328 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59325 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59329 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59387 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59386 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59388 - "GET /api/v1/intraday/tournament?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59393 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59392 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59394 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59399 - "GET /api/v1/intraday/ledger?symbol=AKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59396 - "GET /api/v1/intraday/signal?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59400 - "GET /api/v1/intraday/tournament?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59406 - "GET /api/v1/intraday/signal?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59409 - "GET /api/v1/intraday/ledger?symbol=YKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59410 - "GET /api/v1/intraday/tournament?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59419 - "GET /api/v1/intraday/ledger?symbol=ISCTR&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59417 - "GET /api/v1/intraday/signal?symbol=ISCTR HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59420 - "GET /api/v1/intraday/tournament?symbol=ISCTR HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59425 - "GET /api/v1/intraday/ledger?symbol=TTKOM&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59422 - "GET /api/v1/intraday/signal?symbol=TTKOM HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59426 - "GET /api/v1/intraday/tournament?symbol=TTKOM HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [59034]
+INFO:     Started server process [62202]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62202]
+INFO:     Started server process [62239]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62239]
+INFO:     Started server process [62271]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/intraday_session.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62271]
+INFO:     Started server process [62342]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62342]
+INFO:     Started server process [62436]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59724 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59725 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59728 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59736 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59727 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59738 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59726 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59740 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59744 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59743 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59723 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59747 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59750 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59755 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59760 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59764 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59769 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59779 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59782 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59793 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59795 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59797 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59801 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59808 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59815 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59821 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59827 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59832 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59834 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59848 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59853 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59953 - "GET /api/v1/intraday/universe HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59955 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59954 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59956 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59961 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59960 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59962 - "GET /api/v1/intraday/tournament?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60011 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60012 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60013 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/api/app.py'. Reloading...
+INFO:     Shutting down
+INFO:     127.0.0.1:60016 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60018 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60020 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     127.0.0.1:60015 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60022 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60014 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62436]
+INFO:     Started server process [64285]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:60027 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60026 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60031 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60034 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-16 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60044 - "GET /api/v1/intraday/universe HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60046 - "GET /api/v1/intraday/ledger?symbol=GARAN&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60045 - "GET /api/v1/intraday/signal?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60047 - "GET /api/v1/intraday/tournament?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60057 - "GET /api/v1/intraday/ledger?symbol=ASELS&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60055 - "GET /api/v1/intraday/signal?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60058 - "GET /api/v1/intraday/tournament?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60060 - "GET /api/v1/intraday/signal?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60063 - "GET /api/v1/intraday/ledger?symbol=YKBNK&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60064 - "GET /api/v1/intraday/tournament?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [64285]
+INFO:     Stopping reloader process [4391]
