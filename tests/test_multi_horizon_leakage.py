@@ -7,9 +7,6 @@ require the same champions, and check the selection rule against the production 
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -127,31 +124,20 @@ def test_simulated_track_grades_only_after_each_crowning() -> None:
     assert (track.groupby(["crown_date", "horizon"])["config_key"].nunique() == 1).all()
 
 
-def _production_tournament_module():
-    path = Path(__file__).resolve().parents[1] / "scripts" / "run_multi_horizon_tournament.py"
-    spec = importlib.util.spec_from_file_location("run_multi_horizon_tournament", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+def test_selection_rule_is_the_documented_tournament() -> None:
+    """75 candidates (5 models x 3 feature modes x 5 lookbacks) in fixed order; option-1 recency weights 0.5/0.3/0.2."""
+    from mdk_trading_oracle.data.silver.tertip_ml_forecaster import FEATURE_MODES as PIPELINE_MODES
+    from mdk_trading_oracle.models.horizon_crowning import FEATURE_MODES, LOOKBACKS
 
-
-def test_selection_rule_matches_production_tournament() -> None:
-    prod = _production_tournament_module()
-    rng = np.random.default_rng(3)
-    for n in (20, 45, 75, 90):
-        hits = rng.random(n) < 0.55
-        ledger = [{"is_hit": bool(h)} for h in hits]
-        assert option1_recency_score(hits) == pytest.approx(prod.compute_option1_recency_score(ledger))
-    assert {k: tuple(v) for k, v in prod.FAMILIES.items()} == FAMILIES
-    assert tuple(prod.HORIZONS) == HORIZONS
-    expected = [
-        (fam, m, lb, mode)
-        for fam, models in prod.FAMILIES.items()
-        for m in models
-        for mode in prod.FEATURE_MODES
-        for _, lb in prod.LOOKBACKS
-    ]
-    assert [(c.family, c.model, c.lookback, c.feature_mode) for c in candidate_configs()] == expected
+    cfgs = candidate_configs()
+    assert len(cfgs) == 75 and len({c.key for c in cfgs}) == 75
+    assert tuple(PIPELINE_MODES) == FEATURE_MODES
+    assert [lb for _, lb in LOOKBACKS] == [63, 126, 252, 378, 504]
+    assert sum(len(m) for m in FAMILIES.values()) == 5
+    hits = np.r_[np.ones(30), np.zeros(30), np.ones(15), np.zeros(15)]  # oldest .. newest
+    score, r1, r2, r3 = option1_recency_score(hits)
+    assert (r1, r2, r3) == (50.0, 0.0, 100.0)
+    assert score == pytest.approx(0.5 * 50.0 + 0.3 * 0.0 + 0.2 * 100.0)
 
 
 # ── models/horizon_forecast.py: point-in-time fit with explicit drift treatment ──────────────────────────────────────
@@ -184,7 +170,11 @@ def test_horizon_fit_reproduces_production_walk_forward(model: str) -> None:
 @pytest.mark.parametrize("model", ["Ridge", "BayesianRidge", "LightGBM"])
 def test_raw_target_equals_demeaned_plus_trailing_mean(model: str) -> None:
     """Training on raw labels = demeaned model + mean(label) for models with a free intercept (kappa = 1)."""
-    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import _build_model, _compute_sample_weights
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
+        _build_model,
+        _compute_sample_weights,
+        _fit_model,
+    )
     from mdk_trading_oracle.models.horizon_forecast import fit_horizon
 
     df = synthetic_frame()
@@ -192,8 +182,7 @@ def test_raw_target_equals_demeaned_plus_trailing_mean(model: str) -> None:
     t, n, lb = 240, 5, 126
     fit = fit_horizon(X, y, t, n, lb, model, 0.56)
     Xt, yt = X[t - n - lb + 1 : t - n + 1], y[t - n - lb + 1 : t - n + 1]
-    m = _build_model(model)
-    m.fit(Xt, yt, sample_weight=_compute_sample_weights(yt, deadband=0.56))
+    m = _fit_model(_build_model(model), Xt, yt, _compute_sample_weights(yt, deadband=0.56))
     assert float(m.predict(X[t : t + 1])[0]) == pytest.approx(fit.demeaned_pred + fit.train_mean, abs=1e-6)
 
 
@@ -207,3 +196,62 @@ def test_horizon_fit_invariant_to_future_data(n_days: int) -> None:
     _, Xs, ys = _arrays(scramble_after(df, t), n_days)
     a, b = fit_horizon(X, y, t, n_days, 252, "Ridge", 0.5), fit_horizon(Xs, ys, t, n_days, 252, "Ridge", 0.5)
     assert (a.demeaned_pred, a.train_mean) == pytest.approx((b.demeaned_pred, b.train_mean), abs=1e-9)
+
+
+@pytest.mark.parametrize("model", ["Ridge", "BayesianRidge", "Huber", "XGBoost", "LightGBM"])
+def test_sample_weights_reach_every_model(model: str) -> None:
+    """The piecewise sample weights change the fit of every candidate (sklearn / XGBoost wrap `fit`)."""
+    from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import _build_model, _fit_model
+
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(200, 4))
+    y = X[:, 0] + rng.normal(size=200)
+    w = np.where(np.arange(200) < 100, 0.1, 5.0)
+    weighted = _fit_model(_build_model(model), X, y, w).predict(X[:5])
+    plain = _fit_model(_build_model(model), X, y, None).predict(X[:5])
+    assert np.max(np.abs(weighted - plain)) > 1e-6
+
+
+# ── published swing forecast: shrunk trailing drift ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("n_days", [3, 10, 30])
+def test_drift_forecast_uses_only_realized_labels(n_days: int) -> None:
+    from mdk_trading_oracle.models.horizon_forecast import DRIFT_SHRINKAGE, drift_forecast, horizon_labels
+
+    df = synthetic_frame()
+    t = 280
+    y = horizon_labels(df, n_days).to_numpy(float)
+    fc = drift_forecast(y, t, n_days, lookback=200)
+    assert fc.train_label_end_idx <= t
+    assert fc.drift_pct == pytest.approx(np.mean(y[t - n_days - 199 : t - n_days + 1]))
+    assert fc.expected_return_pct == pytest.approx(DRIFT_SHRINKAGE * fc.drift_pct)
+    ys = horizon_labels(scramble_after(df, t), n_days).to_numpy(float)
+    assert drift_forecast(ys, t, n_days, lookback=200).drift_pct == pytest.approx(fc.drift_pct, abs=1e-12)
+
+
+def test_recrowned_track_uses_champion_in_force_and_never_a_later_one() -> None:
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import champion_track
+
+    led = synthetic_ledger()
+    crowns = pd.DataFrame([
+        {"horizon": "10d", "crown_date": "2025-07-01", "config_key": "Ridge/252/FIFO_CORE", "model": "Ridge",
+         "lookback_label": "12m", "lookback": 252, "feature_mode": "FIFO_CORE", "family": "Regularized Linear"},
+        {"horizon": "10d", "crown_date": "2025-08-01", "config_key": "LightGBM/126/FIFO_PLUS_YTD", "model": "LightGBM",
+         "lookback_label": "6m", "lookback": 126, "feature_mode": "FIFO_PLUS_YTD", "family": "GBDT"},
+    ])
+    track = champion_track(led, crowns, "10d")
+    assert track["trade_date"].min() >= "2025-07-01"
+    july = track[track["trade_date"] < "2025-08-01"]
+    later = track[track["trade_date"] >= "2025-08-01"]
+    assert set(july["config_key"]) == {"Ridge/252/FIFO_CORE"} and set(later["config_key"]) == {"LightGBM/126/FIFO_PLUS_YTD"}
+    assert (track["trade_date"] >= track["crown_date"]).all()
+
+
+def test_constant_call_baselines_follow_hub_rule() -> None:
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import constant_call_hit_rates
+
+    # 10D deadband 0.79, calls +/-1.58. +3 and +2: UP hits; -3: DOWN hits; -0.5 is flat, which the hub rule counts
+    # as a hit for the call with the same sign (DOWN)
+    up, down = constant_call_hit_rates(np.array([3.0, -3.0, 2.0, -0.5]), 10)
+    assert up == pytest.approx(50.0) and down == pytest.approx(50.0)

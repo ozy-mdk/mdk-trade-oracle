@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchMultiHorizonForecast,
   fetchMultiHorizonBacktest,
-  fetchTertipMlForecast,
 } from '../api/client';
 import {
   MultiHorizonBacktestItem,
@@ -28,8 +27,6 @@ import {
   LineChart,
   Table as TableIcon,
   Calendar,
-  Eye,
-  EyeOff,
 } from 'lucide-react';
 
 interface MultiHorizonDashboardProps {
@@ -41,8 +38,17 @@ interface MultiHorizonDashboardProps {
   onHorizonChange?: (horizon: string) => void;
 }
 
-const CORE_HORIZONS = ['1d', '3d', '5d', '10d', '15d'] as const;
 const ALL_HORIZONS = ['1d', '3d', '5d', '10d', '15d', '30d'] as const;
+const normalizeHorizon = (h?: string): string => (h && (ALL_HORIZONS as readonly string[]).includes(h) ? h : '1d');
+const HORIZON_DAYS: Record<string, number> = { '1d': 1, '3d': 3, '5d': 5, '10d': 10, '15d': 15, '30d': 30 };
+
+// Backend hit rule (_check_hit) with the horizon deadband min(1.5, 0.25 * sqrt(N)); used for the constant-call baselines
+const horizonDeadband = (n: number): number => Math.min(1.5, Math.round(0.25 * Math.sqrt(n) * 100) / 100);
+const hubHit = (pred: number, actual: number, db: number, tol = 0.25): boolean => {
+  if (Math.abs(pred - actual) <= tol) return true;
+  if (Math.abs(actual) <= db) return Math.abs(pred) <= db || pred * actual >= 0;
+  return actual > db ? pred > 0 : pred < 0;
+};
 
 export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   symbol = 'THYAO',
@@ -51,8 +57,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
   onHorizonChange,
 }) => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>(symbol);
-  const [activeHorizon, setActiveHorizon] = useState<string>(externalHorizon || '1d');
-  const [show30D, setShow30D] = useState<boolean>(false);
+  const [activeHorizon, setActiveHorizon] = useState<string>(normalizeHorizon(externalHorizon));
   const [evalSessions, setEvalSessions] = useState<number>(90);
   const [displayMode, setDisplayMode] = useState<'both' | 'chart' | 'ledger'>('both');
   const [chartView, setChartView] = useState<'price' | 'return'>('return');
@@ -67,15 +72,13 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
 
   // Sync with external horizon changes (e.g. from Opportunity Actions launch)
   useEffect(() => {
-    if (externalHorizon && externalHorizon !== activeHorizon) {
-      setActiveHorizon(externalHorizon);
-      if (externalHorizon === '30d') setShow30D(true);
+    if (externalHorizon && normalizeHorizon(externalHorizon) !== activeHorizon) {
+      setActiveHorizon(normalizeHorizon(externalHorizon));
     }
   }, [externalHorizon]);
 
   const handleHorizonSelect = (hKey: string) => {
     setActiveHorizon(hKey);
-    if (hKey === '30d') setShow30D(true);
     if (onHorizonChange) onHorizonChange(hKey);
   };
 
@@ -95,194 +98,44 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     refetchOnWindowFocus: false,
   });
 
-  // 2. Fetch Next-Day (1D) ML Forecast Payload
-  const {
-    data: nextDayData,
-    isLoading: isLoading1d,
-    isFetching: isFetching1d,
-    refetch: refetch1d,
-  } = useQuery({
-    queryKey: ['tertipMlForecast', selectedSymbol, 'auto', tradeDate],
-    queryFn: () => fetchTertipMlForecast(selectedSymbol, false, 'auto', tradeDate),
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([
-        fetchMultiHorizonForecast(selectedSymbol, true, evalSessions, tradeDate),
-        fetchTertipMlForecast(selectedSymbol, true, 'auto', tradeDate),
-      ]);
+      await fetchMultiHorizonForecast(selectedSymbol, true, evalSessions, tradeDate);
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-forecast', selectedSymbol] });
       await queryClient.invalidateQueries({ queryKey: ['multi-horizon-backtest', selectedSymbol] });
-      await queryClient.invalidateQueries({ queryKey: ['tertipMlForecast', selectedSymbol] });
-      await Promise.all([refetchMulti(), refetch1d()]);
+      await refetchMulti();
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // 3. Fetch Backtest Ledger for active inspected horizon (when not 1d)
+  // 2. Fetch Backtest Ledger for the active inspected horizon
   const {
     data: backtestData,
     isLoading: isLoadingBt,
   } = useQuery({
     queryKey: ['multi-horizon-backtest', selectedSymbol, activeHorizon, evalSessions, tradeDate],
     queryFn: () => fetchMultiHorizonBacktest(selectedSymbol, activeHorizon, evalSessions, tradeDate),
-    enabled: activeHorizon !== '1d',
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
-  // 4. Synthesize 1D model into uniform MultiHorizonItem structure
-  const oneDayHorizonItem: MultiHorizonItem | null = useMemo(() => {
-    if (!nextDayData) return null;
-    const tourney = nextDayData.tournament_summary;
-    const rawLedger = nextDayData.walk_forward_ledger || [];
-    const slicedRaw = rawLedger.slice(-evalSessions);
-    const completedRaw = slicedRaw.filter((r) => r.actual_price != null && r.actual_price > 0);
-    const hits = completedRaw.filter((r) => r.champion_is_hit ?? r.ml_is_hit).length;
-    const total = completedRaw.length;
-    const hitRate = total > 0 ? (hits / total) * 100 : (tourney?.champion_dir_hit_rate_pct ?? 0);
-
-    const errs = completedRaw.map((r) => r.champion_err_pct ?? r.ml_err_pct ?? 0);
-    const mae = errs.length > 0 ? errs.reduce((a, b) => a + b, 0) / errs.length : (tourney?.champion_mae_pct ?? 0);
-
-    const hitErrs = completedRaw.filter((r) => r.champion_is_hit ?? r.ml_is_hit).map((r) => r.champion_err_pct ?? r.ml_err_pct ?? 0);
-    const hitMae = hitErrs.length > 0 ? hitErrs.reduce((a, b) => a + b, 0) / hitErrs.length : (tourney?.champion_hit_mae_pct ?? 0);
-
-    const missErrs = completedRaw.filter((r) => !(r.champion_is_hit ?? r.ml_is_hit)).map((r) => r.champion_err_pct ?? r.ml_err_pct ?? 0);
-    const missMae = missErrs.length > 0 ? missErrs.reduce((a, b) => a + b, 0) / missErrs.length : (tourney?.champion_miss_mae_pct ?? 0);
-
-    const loss = (100.0 - hitRate) + 1.0 * hitMae + 2.5 * missMae;
-
-    const cleanModelName = (() => {
-      if (tourney?.champion?.toLowerCase() === 'prophet' || tourney?.champion_label?.toLowerCase().includes('prophet')) {
-        return 'Prophet';
-      }
-      if (tourney?.ml_champion_type) return tourney.ml_champion_type;
-      if (tourney?.grand_champion_key) return tourney.grand_champion_key;
-      if (tourney?.champion_label) {
-        const match = tourney.champion_label.match(/\(([^)]+)\)/);
-        if (match) return match[1];
-        const stripped = tourney.champion_label.replace(/^(?:Crowned|Grand|ML)?\s*Champion\s*(?:\()?/i, '').replace(/\)$/, '').trim();
-        if (stripped) return stripped;
-      }
-      if (tourney?.champion) return tourney.champion;
-      return 'BayesianRidge';
-    })();
-
-    const backtestLedger: MultiHorizonBacktestItem[] = [...slicedRaw].reverse().map((r) => ({
-      trade_date: r.date,
-      target_date_start: r.date,
-      target_date_end: r.date,
-      current_price: r.actual_price,
-      actual_avg_price: r.actual_price,
-      actual_return_pct: r.actual_return_pct,
-      pred_avg_price: r.champion_pred_price ?? r.ml_pred_price,
-      pred_return_pct: r.champion_pred_return_pct ?? r.ml_pred_return_pct ?? 0,
-      pred_direction: r.champion_direction ?? r.ml_direction ?? (r.champion_pred_return_pct && r.champion_pred_return_pct >= 0 ? 'UP' : 'DOWN'),
-      actual_direction: r.actual_return_pct >= 0.25 ? 'UP' : r.actual_return_pct <= -0.25 ? 'DOWN' : 'FLAT',
-      err_pct: r.champion_err_pct ?? r.ml_err_pct ?? 0,
-      is_hit: r.champion_is_hit ?? r.ml_is_hit ?? false,
-      is_pending: false,
-      champion_model: cleanModelName,
-      actual_training_sessions: nextDayData.actual_training_sessions ?? nextDayData.train_lookback_sessions ?? 63,
-      data_sufficiency_status: nextDayData.data_sufficiency_status || 'FULL',
-    }));
-
-    const expRet = nextDayData.expected_return_pct ?? 0;
-    const conviction =
-      expRet >= 2.0
-        ? 'STRONG_BUY'
-        : expRet >= 0.5
-        ? 'BUY'
-        : expRet >= 0.2
-        ? 'WEAK_BUY'
-        : expRet <= -2.0
-        ? 'STRONG_SELL'
-        : expRet <= -0.5
-        ? 'SELL'
-        : expRet <= -0.2
-        ? 'WEAK_SELL'
-        : 'NEUTRAL';
-
-    return {
-      meta: {
-        horizon: '1d',
-        horizon_days: 1,
-        crowned_model: cleanModelName,
-        crowned_horizon: tourney?.crowned_horizon || '3m',
-        training_lookback_sessions: nextDayData.actual_training_sessions ?? nextDayData.train_lookback_sessions ?? 63,
-        hit_rate_pct: hitRate,
-        hits,
-        total_evals: total,
-        mae_pct: mae,
-        hit_mae_pct: hitMae,
-        miss_mae_pct: missMae,
-        loss,
-        data_sufficiency_pct: 100.0,
-        target_lookback_months: (nextDayData.train_lookback_sessions ?? 63) >= 200 ? 12 : (nextDayData.train_lookback_sessions ?? 63) >= 100 ? 6 : 3,
-        target_lookback_sessions: nextDayData.train_lookback_sessions ?? 63,
-        min_required_train_sessions: 63,
-      },
-      live_forecast: {
-        horizon: '1d',
-        horizon_days: 1,
-        as_of_date: nextDayData.as_of_date,
-        current_price: nextDayData.latest_close_price,
-        target_price: nextDayData.target_price,
-        expected_return_pct: nextDayData.expected_return_pct,
-        price_low: nextDayData.price_low,
-        price_high: nextDayData.price_high,
-        stance: nextDayData.stance,
-        conviction,
-        playbook: nextDayData.playbook_headline || 'Tactical Momentum',
-        champion_model: cleanModelName,
-        training_lookback_sessions: nextDayData.actual_training_sessions ?? nextDayData.train_lookback_sessions ?? 63,
-        actual_training_sessions: nextDayData.actual_training_sessions,
-        actual_training_months: nextDayData.actual_training_months,
-        target_training_months: nextDayData.target_training_months,
-        actual_window_desc: nextDayData.actual_window_desc,
-        data_sufficiency_status: nextDayData.data_sufficiency_status || 'FULL',
-      },
-      backtest_ledger: backtestLedger,
-    };
-  }, [nextDayData, evalSessions]);
-
-  // 5. Unified Horizons Mapping
-  const horizons = useMemo<Record<string, MultiHorizonItem>>(() => {
-    const combined: Record<string, MultiHorizonItem> = { ...(forecastData?.horizons || {}) };
-    if (oneDayHorizonItem) {
-      combined['1d'] = oneDayHorizonItem;
-    }
-    return combined;
-  }, [forecastData, oneDayHorizonItem]);
-
-  // Visible horizons for cards & term structure
-  const visibleHorizons = useMemo(() => {
-    if (show30D || activeHorizon === '30d') {
-      return ALL_HORIZONS;
-    }
-    return CORE_HORIZONS;
-  }, [show30D, activeHorizon]);
+  // 3. Horizons (1d, 3d, 5d, 10d, 15d, 30d), all from the same honest re-crowned gold tables
+  const horizons = useMemo<Record<string, MultiHorizonItem>>(() => ({ ...(forecastData?.horizons || {}) }), [forecastData]);
+  const visibleHorizons = ALL_HORIZONS;
 
   const activeHorizonData = horizons[activeHorizon];
   const activeMeta = activeHorizonData?.meta;
 
   // Unified Backtest Ledger (DESC - newest first for table)
   const ledger = useMemo<MultiHorizonBacktestItem[]>(() => {
-    if (activeHorizon === '1d') {
-      return oneDayHorizonItem?.backtest_ledger || [];
-    }
     if (backtestData && backtestData.length > 0) {
       return [...backtestData.slice(0, evalSessions)].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
     }
     const full = activeHorizonData?.backtest_ledger || [];
     return [...full.slice(-evalSessions)].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
-  }, [activeHorizon, oneDayHorizonItem, backtestData, activeHorizonData, evalSessions]);
+  }, [backtestData, activeHorizonData, evalSessions]);
 
   // Chronological data for left-to-right chart rendering (oldest first)
   const chronologicalChartData = useMemo<MultiHorizonBacktestItem[]>(() => {
@@ -297,6 +150,16 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
     if (dynamicTotal > 0) return (dynamicHits / dynamicTotal) * 100.0;
     return activeMeta?.hit_rate_pct ?? 0.0;
   }, [dynamicHits, dynamicTotal, activeMeta]);
+  // The bar to beat: always-UP and always-DOWN graded on the same sessions with the same rule
+  const constantBaselines = useMemo(() => {
+    if (completedLedger.length === 0) return null;
+    const db = horizonDeadband(HORIZON_DAYS[activeHorizon] ?? 3);
+    const tol = activeHorizon === '1d' ? 0.2 : 0.25; // 1D rows are graded with the T+1 rule
+    const rate = (pred: number) =>
+      (completedLedger.filter((r) => hubHit(pred, r.actual_return_pct, db, tol)).length / completedLedger.length) * 100.0;
+    return { up: rate(2 * db), down: rate(-2 * db) };
+  }, [completedLedger, activeHorizon]);
+  const beatsBoth = constantBaselines != null && dynamicHitRatePct > Math.max(constantBaselines.up, constantBaselines.down);
   const dynamicMaePct = useMemo(() => {
     if (completedLedger.length === 0) return activeMeta?.mae_pct ?? 0.0;
     const errs = completedLedger.map((r) => r.err_pct || 0);
@@ -425,12 +288,19 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
         return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
       case 'WEAK_SELL':
         return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      // 3D-30D drift forecasts: probability edge of the calibrated risk distribution in the forecast direction
+      case 'HIGH':
+        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+      case 'MODERATE':
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      case 'LOW':
+        return 'bg-slate-800 text-slate-400 border-slate-700';
       default:
         return 'bg-slate-800 text-slate-400 border-slate-700';
     }
   };
 
-  const isPageLoading = (isLoadingMulti && isLoading1d) || isRefreshing;
+  const isPageLoading = isLoadingMulti || isRefreshing;
 
   return (
     <div className="space-y-6 pb-12">
@@ -456,7 +326,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  Zero-Lookahead Institutional Target Predictions Across 1D (Next-Day), 3D, 5D, 10D, 15D, & 30D Market Windows
+                  Zero-Lookahead Institutional Target Predictions Across 1D (Next-Day), 3D, 5D, 10D, 15D & 30D Market Windows
                 </p>
               </div>
             </div>
@@ -467,14 +337,14 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
             <div className="text-right">
               <div className="text-xs text-slate-400 font-mono">Current Session Close</div>
               <div className="text-lg font-bold text-white font-mono">
-                ₺{(forecastData?.current_price ?? nextDayData?.latest_close_price)?.toFixed(2) || '---'}
+                ₺{forecastData?.current_price?.toFixed(2) || '---'}
               </div>
             </div>
 
             <div className="text-right border-l border-slate-800 pl-4 hidden sm:block">
               <div className="text-xs text-slate-400 font-mono">As of Date</div>
               <div className="text-xs font-semibold text-slate-200 font-mono">
-                {forecastData?.as_of_date || nextDayData?.as_of_date || '---'}
+                {forecastData?.as_of_date || '---'}
               </div>
             </div>
 
@@ -501,17 +371,17 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
 
             <button
               onClick={handleRefresh}
-              disabled={isFetchingMulti || isFetching1d || isRefreshing}
+              disabled={isFetchingMulti || isRefreshing}
               className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 text-slate-300 hover:text-white transition-all shadow-inner disabled:opacity-50"
               title="Refresh Forecast Data (Force Fresh)"
             >
-              <RefreshCw className={`w-4 h-4 ${(isFetchingMulti || isFetching1d || isRefreshing) ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${(isFetchingMulti || isRefreshing) ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Forward Prediction Horizon Cards (1D, 3D, 5D, 10D, 15D, ±30D) ────────── */}
+      {/* ── Forward Prediction Horizon Cards (1D, 3D, 5D, 10D, 15D, 30D) ────────── */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
           <div className="flex items-center space-x-2">
@@ -525,36 +395,13 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* 30D Macro Horizon Visibility Toggle */}
-            <button
-              onClick={() => setShow30D(!show30D)}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all border ${
-                show30D || activeHorizon === '30d'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-              title="Toggle 30-Day Forward Macro Horizon visibility"
-            >
-              {show30D || activeHorizon === '30d' ? (
-                <Eye className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              <span>{show30D || activeHorizon === '30d' ? '30D Macro: Visible' : '+ 30D (Macro)'}</span>
-            </button>
-
             <span className="text-xs text-slate-400 font-mono hidden md:inline">
               Click any card to inspect audited reality track
             </span>
           </div>
         </div>
 
-        {/* Dynamic Responsive Grid: 5 columns for 1D-15D, 6 columns when 30D is enabled */}
-        <div
-          className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${
-            visibleHorizons.length > 5 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
-          } gap-3`}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {visibleHorizons.map((hKey) => {
             const hData = horizons[hKey];
             const meta = hData?.meta;
@@ -586,7 +433,7 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
                       {hKey.toUpperCase()}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400">
-                      ({hKey === '1d' ? 'Next-Day' : `${meta?.horizon_days || (hKey === '3d' ? 3 : hKey === '5d' ? 5 : hKey === '10d' ? 10 : hKey === '15d' ? 15 : 30)}d`})
+                      ({hKey === '1d' ? 'Next-Day' : `${meta?.horizon_days || HORIZON_DAYS[hKey]}d`})
                     </span>
                   </div>
                   <span
@@ -804,6 +651,11 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
               <p className="text-xs text-slate-400">
                 Session-by-session zero-lookahead backtest tracking over trailing {evalSessions} evaluated sessions
               </p>
+              <p className="text-[11px] text-slate-500 mt-0.5 max-w-3xl">
+                The champion is re-crowned on the first trading day of each month using only earlier sessions
+                {activeMeta?.crowned_on ? ` (current champion crowned ${activeMeta.crowned_on})` : ''}; every row is
+                graded with the champion that was in force on that day, so no row was used to pick its own model.
+              </p>
             </div>
           </div>
 
@@ -888,12 +740,23 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
             <div className="text-[10px] text-slate-400 font-mono uppercase">Directional Hit Rate ({evalSessions}D)</div>
-            <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
+            <div className={`text-lg font-bold font-mono mt-0.5 ${beatsBoth ? 'text-emerald-400' : 'text-amber-400'}`}>
               {dynamicHitRatePct != null ? `${dynamicHitRatePct.toFixed(1)}%` : '---'}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
               {dynamicHits} hits / {dynamicTotal} sessions
             </div>
+            {constantBaselines && (
+              <div
+                className="text-[10px] font-mono mt-0.5 text-slate-500"
+                title="Same sessions, same hit rule. A forecast has an edge only if it beats both constant calls."
+              >
+                Always UP {constantBaselines.up.toFixed(1)}% · Always DOWN {constantBaselines.down.toFixed(1)}%
+                <span className={beatsBoth ? 'text-emerald-400 ml-1' : 'text-amber-400 ml-1'}>
+                  {beatsBoth ? 'beats both' : 'does not beat both'}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">

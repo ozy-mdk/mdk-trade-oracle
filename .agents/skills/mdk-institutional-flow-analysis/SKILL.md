@@ -98,7 +98,7 @@ All features are computed **strictly from prior completed windows / $T-1$ Close 
 
 ## 6. Walk-Forward Candidate Arena & 3-Criteria Tournament Champion Selection
 
-To prevent overfitting and adapt to changing market regimes, model and lookback horizon selection is performed through the walk-forward tournament arena (`test_multi_horizon_180d_arena.py` / `export_tertip_180d_track.py`).
+To prevent overfitting and adapt to changing market regimes, model and lookback horizon selection is performed through the walk-forward tournament arena (`data/gold/tertip_multi_horizon_crowning.py` (monthly, realized outcomes only)).
 
 The **tournament run is the single source of truth** for crowning the optimal model and lookback horizon (3M, 6M, 12M) per stock, persisted to `config/tertip_crowned_models.yaml` and PostgreSQL `gold_tertip_daily_forecasts`.
 
@@ -131,12 +131,12 @@ Step 30: Train on [Day 1 … 249] ──► Predict Day 250 ──────�
 ### Automated BIST 30 Tournament Execution:
 To benchmark all 30 BIST 30 stocks across 15 candidate configurations (5 models $\times$ 3 horizons) and crown models via composite loss:
 ```bash
-.venv/bin/python scripts/run_full_bist30_crowned_tournament.py
+.venv/bin/python scripts/backfill_multi_horizon_crowning.py   # honest monthly re-crowning (1D + 3D-30D), then gold
 ```
 This script acts as the automated tournament referee: it computes out-of-sample directional hits, hit MAE, and miss MAE over the trailing 30 evaluation sessions, selects the champion for each equity, writes the results to `config/tertip_crowned_models.yaml`, and synchronizes `gold_tertip_daily_forecasts`.
 
 ### Strategic Tournament Crowning vs. Daily Pipeline Execution:
-1. **Periodic Strategic Crowning (`scripts/run_full_bist30_crowned_tournament.py`)**:
+1. **Periodic Strategic Crowning (`scripts/backfill_multi_horizon_crowning.py`, honest monthly re-crowning; the former tournament script crowned on the displayed sessions and was removed)**:
    - Run occasionally (e.g. quarterly, or after major macro interest rate or regulatory regime shifts).
    - Establishes the champion model and lookback horizon per stock in `config/tertip_crowned_models.yaml`.
 2. **Daily Incremental Pipeline (`scripts/run_pipeline.py --target all`)**:
@@ -235,7 +235,7 @@ During short-horizon tuning on AKBNK, ASELS, and ISCTR, candidate intraday ratio
 - **Experimental Outcome**: Adding these 4 collinear features diluted regularized coefficients on short lookbacks, causing ASELS 5D to drop from 71.7% to 66.7% and ISCTR 5D to drop from 61.7% to 55.0%.
 - **Architectural Decision**: Rejected the collinear additions. The lean 21-25 feature set provides the highest signal-to-noise ratio and superior out-of-sample generalization.
 
-### E. Multi-Horizon Candidate Arena & Crowning (`scripts/run_multi_horizon_tournament.py`):
+### E. Multi-Horizon Candidate Arena & Crowning (`data/gold/tertip_multi_horizon_crowning.py`, honest monthly re-crowning):
 Evaluates candidate models (`BayesianRidge`, `LightGBM`, `XGBoost`, `Ridge`, `Huber`) across 5 training lookbacks (3M: 63s, 6M: 126s, 12M: 252s, 18M: 378s, 24M: 504s) for each of the 5 forward horizons.
 - **Recency-Weighted 3-Criteria Composite Loss**:
   - Evaluation weights scale linearly across the evaluation horizon:

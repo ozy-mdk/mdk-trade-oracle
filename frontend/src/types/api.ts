@@ -629,6 +629,8 @@ export interface MultiHorizonBacktestItem {
   is_hit: boolean;
   is_pending?: boolean;
   champion_model?: string;
+  feature_mode?: string | null;
+  crown_date?: string | null;
   actual_training_sessions?: number;
   target_lookback_sessions?: number;
   actual_training_months?: number;
@@ -640,6 +642,9 @@ export interface MultiHorizonMeta {
   horizon_days: number;
   crowned_model: string;
   crowned_horizon: string;
+  crowned_on?: string | null; // first trading day of the month the champion was chosen (past data only)
+  always_up_hit_rate_pct?: number | null; // constant-call baselines on the same sessions
+  always_down_hit_rate_pct?: number | null;
   training_lookback_sessions: number;
   target_lookback_months?: number;
   target_lookback_sessions?: number;
@@ -674,6 +679,7 @@ export interface MultiHorizonLiveForecast {
   conviction: string;
   playbook: string;
   champion_model: string;
+  crowned_on?: string | null;
   feature_mode?: string;
   training_lookback_sessions: number;
   actual_training_sessions?: number;

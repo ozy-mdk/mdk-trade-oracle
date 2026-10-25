@@ -661,6 +661,8 @@ class MultiHorizonBacktestItem(BaseModel):
     is_hit: bool
     is_pending: bool = False
     champion_model: Optional[str] = None
+    feature_mode: Optional[str] = None
+    crown_date: Optional[str] = None
     actual_training_sessions: Optional[int] = None
     target_lookback_sessions: Optional[int] = None
     actual_training_months: Optional[float] = None
@@ -672,6 +674,9 @@ class MultiHorizonMeta(BaseModel):
     horizon_days: int
     crowned_model: str
     crowned_horizon: str
+    crowned_on: Optional[str] = None  # first trading day of the month the champion was chosen (past data only)
+    always_up_hit_rate_pct: Optional[float] = None  # constant-call baselines on the same sessions (the bar to beat)
+    always_down_hit_rate_pct: Optional[float] = None
     training_lookback_sessions: int
     hit_rate_pct: float
     hits: int
@@ -705,6 +710,7 @@ class MultiHorizonLiveForecast(BaseModel):
     conviction: str
     playbook: str
     champion_model: str
+    crowned_on: Optional[str] = None
     training_lookback_sessions: int
     actual_training_sessions: int = 126
     actual_training_months: float = 6.0
@@ -2161,7 +2167,7 @@ def get_multi_horizon_backtest_endpoint(
         query_bt = """
             SELECT trade_date, target_date_start, target_date_end, current_price,
                    actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
-                   pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model
+                   pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model, feature_mode
             FROM gold_tertip_multi_horizon_backtests
             WHERE symbol = %(symbol)s AND horizon = %(horizon)s
             ORDER BY trade_date DESC
@@ -2194,6 +2200,7 @@ def get_multi_horizon_backtest_endpoint(
                 is_hit=bool(b.get("is_hit")),
                 is_pending=bool(b.get("is_pending", False)),
                 champion_model=str(b.get("champion_model") or "Auto"),
+                feature_mode=b.get("feature_mode"),
             )
             for b in bt_rows
         ]

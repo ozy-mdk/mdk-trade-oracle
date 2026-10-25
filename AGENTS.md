@@ -48,12 +48,13 @@ A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars +
 - **Gold Layer (`gold_institutional_daily_signals`, `gold_tertip_daily_forecasts`, `gold_tertip_walk_forward_backtests`) & Institutional Predictive Hub**:
   - Feature-engineered rolling 5-day / 20-day institutional accumulation metrics and BofA flow Z-scores persisted to `gold_institutional_daily_signals`.
   - **`gold_tertip_daily_forecasts`**: Daily constituent snapshot persisting live T+1 forecast, target price, expected return %, price range bounds `[price_low, price_high]`, stance, playbook, champion type, hit rate %, training lookback sessions, and crowned horizon (`3m`, `6m`, `12m`).
-  - **`gold_tertip_walk_forward_backtests`**: Audited session-by-session out-of-sample backtest ledger across the trailing evaluation horizon.
+  - **`gold_tertip_walk_forward_backtests`**: Audited 90-session T+1 track; each session is graded with the forecast that the champion in force made at the previous close (no row is ever re-created by a model that saw its outcome).
+  - **Honest re-crowning tables (`gold_tertip_multi_horizon_candidates`, `gold_tertip_multi_horizon_crowns`)**: every tournament candidate's point-in-time forecasts (1D and 3D-30D) and one champion per stock / horizon / month, crowned on the month's first trading day from realized outcomes only (`data/gold/tertip_multi_horizon_crowning.py`). Backfill: `scripts/backfill_multi_horizon_crowning.py`.
   - **Institutional Tertip ML Forecaster (`TertipMLForecaster`)**: Live predictive engine powered by 21 lean microstructure features, point-in-time FIFO inventory tracking, intraday matched volume, carry FIFO PnL, carry costs, macro rates, benchmark index momentum, systemic regime shock distance, aggregate institutional net flow, piecewise sample weighting on extreme moves ($|\Delta| \ge 1.0\%$ and $\ge 2.0\%$), and zero-leakage Prophet univariate baseline expectations.
-  - **Walk-Forward Tournament Arena**: Dynamic candidate model arena benchmarking LightGBM, Ridge, XGBoost, Bayesian Ridge, and Huber against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks, with champion selection crowned primarily by **Directional Hit Rate %** (evaluated against a calibrated $\pm 0.25\%$ / 25 bps market consolidation deadband, with MAE tie-breaker).
+  - **Walk-Forward Tournament Arena**: 75 candidates (LightGBM, Ridge, XGBoost, Bayesian Ridge, Huber x 3M-24M lookbacks x 3 feature modes), re-crowned monthly inside the gold job on outcomes realized before the crowning date; Prophet is shown as a fixed baseline. The former ad-hoc tournament scripts and crowned yaml files were removed (they crowned on the displayed sessions).
   - **Trader Workstation Modules**:
     - **Predicted Opportunity Actions (`OpportunityActionsDashboard.tsx`, `GET /api/v1/tertip/opportunities`)**: Pre-market tactical radar ranking highest upside and downside opportunities across all 30 BIST 30 constituents with tiered conviction badges (`★ High Conviction`), visual bidirectional return gauges, quick filters, and one-click launch.
-    - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Single-stock deep dive with live T+1 signal cards, dynamic horizon badges (`3M`, `6M`, `12M`), 30-day audited ledger, and institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `BUY ABSORPTION REBOUND`, `STRONG SELL PRESSURE`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
+    - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`, served from gold only)**: Single-stock deep dive with live T+1 signal cards, dynamic horizon badges (`3M`, `6M`, `12M`), 90-session audited ledger with always-UP / always-DOWN baselines, and institutional playbooks (`SQUEEZE_LONG`, `MOMENTUM_EXPANSION`, `BUY ABSORPTION REBOUND`, `STRONG SELL PRESSURE`, `LIQUIDITY_FADE`, `DEFENSE_SUPPORT`).
 
 ---
 
@@ -74,6 +75,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - *Benchmark Index & Univariate Prior*: `feat_bist30_volatility_20d_pct`, `feat_bist30_trend_vs_20d_sma_pct`, `feat_prophet_ret_today_pct`.
      - *Calendar Dynamics*: `feat_day_of_week`, `feat_is_monday`, `feat_is_friday`.
 3. **Walk-Forward Model Tournament & Unified Recency-Weighted Selection Rules**:
+   - **Honesty rules (2026-10-25):** champions are crowned monthly from earlier sessions only and graded only after their crowning date; every displayed hit rate is shown next to always-UP and always-DOWN on the same sessions, and a model has an edge only if it beats both. Production selection = option-1 recency score (0.5 x last 30 + 0.3 x 30-60 + 0.2 x 60-90 graded sessions), tie-break last-30 hit rate then recency-weighted MAE; 3D-30D crown family first (`models/horizon_crowning.py`). The criteria below describe the loss reported alongside.
    - The tournament arena crowns champions across all predictive models (Multi-Horizon 3D, 5D, 10D, 15D, 30D and Next-Day T+1) strictly minimizing 3-criteria composite tournament loss:
      1. **Percentage of Directional Hits (`hit_rate_pct`)**: Out-of-sample sign accuracy against the calibrated +-0.25% (25 bps) market consolidation deadband.
      2. **Percentage Error on Directional Hits (`hit_mae_pct`)**: Measures price calibration precision on winning calls (e.g. predicting +0.5% when realized is +1.5% vs +10.0%).
@@ -109,6 +111,12 @@ The predictive architecture is centered around the **Tertip Machine Learning For
    - **Trader Outputs (`risk_profile`)**: 90% band, median price, `p_up_pct` / `p_down_pct` / `p_flat_pct` beyond the deadband, 1-sigma adverse `stop_price`, `p_target_before_stop_pct`, `expected_shortfall_95_pct`, next-session and horizon sigma.
    - Not used: short-rate models (Vasicek / CIR / Hull-White — TCMB policy rate is a decision-driven step function) and option-calibrated Heston / Black-Scholes delta hedging (no liquid BIST single-stock options surface).
 7. **Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)**:
+   - **Honest monthly re-crowning (since 2026-10-25).** On the first trading day of each month the tournament
+     crowns one champion per stock and horizon using only outcomes realized before that day
+     (`data/gold/tertip_multi_horizon_crowning.py`, `models/horizon_crowning.py`). The displayed 90-session track
+     grades every session with the champion in force that day, never a later one; the live forecast uses the current
+     month's champion. Every hit rate is shown next to **always-UP and always-DOWN** on the same sessions; a model has
+     an edge only if it beats both. Never display a crowning window as a track record.
    - **Direct Forecasting Specialists vs Recursive Chaining**: Every forward horizon (3D, 5D, 10D, 15D, 30D) is an independent specialist trained directly on actual, verified market data up to session T Close. This completely avoids compounding error and hallucination loops inherent in recursive/chained forecasting.
    - **Zero-Drift Target Demeaning (Eliminating Secular Trend Bias)**:
      - *Failure Mode*: During multi-quarter secular bull markets (e.g. ASELS surging +530% from 71 TL to 375 TL), raw multi-day forward returns average +3% to +5% per window. Unadjusted regression models learn a structural upward intercept, persistently forecasting BUY (+8% to +10%) into cycle tops and cascading corrections.

@@ -116,8 +116,8 @@ flowchart TD
 - **`gold_tertip_multi_horizon_forecasts`**: Primary key `(symbol, as_of_date, horizon)`. Point-in-time snapshots for 5 forward horizons (`3d`, `5d`, `10d`, `15d`, `30d`): `target_price`, `expected_return_pct`, price bounds, stance, conviction, playbook, champion model, lookback, and hit rate %.
 - **`gold_tertip_multi_horizon_backtests`**: Primary key `(symbol, horizon, trade_date)`. Audited session-by-session out-of-sample ledger for multi-horizon swing forecasts across trailing 60 evaluation sessions.
 - **Automated Gold Forecast Pipeline (`update_gold_tertip_forecasts`, `update_gold_tertip_multi_horizon_forecasts`)**: Wired directly into `MedallionPipeline.run_gold()`. On every pipeline run (`--target gold` or `--target all`), it retrains the crowned models (`XGBoost`, `LightGBM`, `BayesianRidge`, `Huber`, `Ridge`) on trailing market closes, audits newly completed sessions into walk-forward backtest tables, upserts live opportunity snapshots, and invalidates frontend caches for instant serving.
-- **Next-Day Walk-Forward Tournament Arena (`scripts/run_full_bist30_crowned_tournament.py`)**: Benchmarking 15 configurations (5 models x 3 horizons) against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks.
-- **Multi-Horizon Tournament Arena (`scripts/run_multi_horizon_tournament.py`)**: Evaluates candidate models across 5 lookbacks (3M to 24M) and 5 horizons (3D to 30D) using zero-drift target demeaning, BofA flow divergence, and recency-weighted 3-criteria composite loss.
+- **Next-Day Walk-Forward Tournament Arena (`scripts/backfill_multi_horizon_crowning.py`, honest monthly re-crowning; the former tournament script crowned on the displayed sessions and was removed)**: Benchmarking 15 configurations (5 models x 3 horizons) against Prophet baseline across dynamic 3M, 6M, and 12M lookbacks.
+- **Multi-Horizon Tournament Arena (`data/gold/tertip_multi_horizon_crowning.py`, honest monthly re-crowning)**: Evaluates candidate models across 5 lookbacks (3M to 24M) and 5 horizons (3D to 30D) using zero-drift target demeaning, BofA flow divergence, and recency-weighted 3-criteria composite loss.
 - **Trader Workstation Modules**:
   - **Predicted Opportunity Actions (`OpportunityActionsDashboard.tsx`, `GET /api/v1/tertip/opportunities`)**: Pre-market radar ranking highest positive upside and highest negative downside opportunities across all 30 constituents, with tiered conviction badges (`★ High Conviction`), visual bidirectional return gauges, and one-click workstation launch.
   - **Gold Predictive Hub (`OracleHubDashboard.tsx`, `GET /api/v1/tertip/ml-forecast`)**: Deep-dive single-stock forecaster with 30D backtest ledger, pillar matrix breakdown, and live T+1 actionable playbooks.
@@ -142,10 +142,9 @@ The pipeline is fully automated with dependency DAG resolution (e.g. running `go
 .venv/bin/python scripts/run_pipeline.py --target gold
 
 # 4. Next-Day BIST 30 Model Tournament Arena (periodic strategic re-crowning across all 30 equities)
-.venv/bin/python scripts/run_full_bist30_crowned_tournament.py
+.venv/bin/python scripts/backfill_multi_horizon_crowning.py   # honest monthly re-crowning (1D + 3D-30D), then gold
 
-# 5. Multi-Horizon Tournament Arena (periodic re-crowning across 3D, 5D, 10D, 15D, 30D horizons)
-.venv/bin/python scripts/run_multi_horizon_tournament.py --all-bist30 --eval-sessions 60
+# 5. (3D-30D are re-crowned by the same backfill / the nightly gold job; no separate tournament script)
 
 # 6. Selective Single-Date Re-ingestion (atomically replaces single trading day)
 .venv/bin/python scripts/run_pipeline.py --target all --date 2026-03-09

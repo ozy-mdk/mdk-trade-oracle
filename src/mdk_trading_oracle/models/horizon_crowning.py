@@ -2,9 +2,9 @@
 
 The per-session walk-forward in `evaluate_horizon_walk_forward` is clean: at origin t it trains on rows i <= t - n,
 whose labels r(i -> i+n) are realized by the close of t. The leak in the displayed 3D-30D track records is the
-*selection*: `scripts/run_multi_horizon_tournament.py` picks, per stock and horizon, the best of 75 configurations
-(5 models x 5 lookbacks x 3 feature modes, family first) on the most recent 90 graded sessions, and the hub then shows
-a 180-session ledger of that champion, half of which is the crowning window itself.
+*selection*: the former tournament script picked, per stock and horizon, the best of 75 configurations
+(5 models x 5 lookbacks x 3 feature modes, family first) on the most recent 90 graded sessions, and the hub then showed
+a 180-session ledger of that champion, half of which was the crowning window itself.
 
 This module reproduces the production selection rule but lets it see only ledger rows whose outcome is realized
 before the crowning date (target_date_end < crown_date). Crowning repeatedly (e.g. monthly) and grading each champion
@@ -171,3 +171,26 @@ def month_starts(trade_dates: pd.Series, first: str) -> list[str]:
     d = pd.Series(pd.to_datetime(trade_dates).sort_values().unique())
     d = d[d >= pd.Timestamp(first)]
     return [x.strftime("%Y-%m-%d") for x in d.groupby(d.dt.to_period("M")).min()]
+
+
+def crown_single(
+    ledger: pd.DataFrame,
+    crown_date: str,
+    horizon: str,
+    configs: list[HorizonConfig] | None = None,
+    eval_sessions: int = CROWN_EVAL_SESSIONS,
+    min_window: int = 60,
+) -> dict | None:
+    """Crown one horizon on its own (used for 1D, which has no family stage): best option-1 recency score, then the
+    last-30 hit rate, then the recency-weighted MAE, over rows realized before `crown_date` only."""
+    configs = configs or candidate_configs()
+    scores = score_window(ledger[ledger["horizon"] == horizon], crown_date, eval_sessions)
+    if scores.empty:
+        return None
+    by_key = {r.config_key: r for r in scores.itertuples(index=False)}
+    if any(by_key.get(c.key) is None or by_key[c.key].n_window < min_window for c in configs):
+        return None
+    best = max(configs, key=lambda c: (by_key[c.key].opt1_score, by_key[c.key].r_0_30, -by_key[c.key].mae_pct))
+    r = by_key[best.key]
+    assert r.window_label_end_date < crown_date, "crowning used an outcome realized on/after the crowning date"
+    return {"config": best, "family": best.family, "opt1_score": r.opt1_score, "window_label_end_date": r.window_label_end_date}

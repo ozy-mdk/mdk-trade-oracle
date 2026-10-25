@@ -21,20 +21,13 @@ Zero-Lookahead Temporal Causality:
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import math
-import os
 import warnings
 from datetime import datetime, timezone
 from typing import Any
-
-# Prevent OpenMP / BLAS thread contention and deadlocks on macOS
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import lightgbm as lgb
 import numpy as np
@@ -44,6 +37,7 @@ from xgboost import XGBRegressor
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
+from mdk_trading_oracle.core.threads import pin_native_threads
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     ALL_FIFO_COST_PNL_COLS,
     DEADBAND_PCT,
@@ -62,6 +56,10 @@ from mdk_trading_oracle.models.stochastic_risk import (
 )
 
 logger = get_logger("mdk_oracle.tertip_multi_horizon")
+
+# Many small sequential fits: one BLAS / OpenMP thread per process (environment variables alone are too late once
+# numpy is loaded, see core/threads.py)
+pin_native_threads()
 
 
 def filter_multi_horizon_features(
@@ -103,13 +101,6 @@ LOOKBACK_MAP: dict[str, int] = {
 MIN_TRAIN_SESSIONS: int = 63
 
 
-DEFAULT_CHAMPIONS: dict[str, dict[str, Any]] = {
-    "3d": {"model": "LightGBM", "horizon": "6m", "lookback": 126},
-    "5d": {"model": "XGBoost", "horizon": "12m", "lookback": 252},
-    "10d": {"model": "BayesianRidge", "horizon": "12m", "lookback": 252},
-    "15d": {"model": "Ridge", "horizon": "18m", "lookback": 378},
-    "30d": {"model": "BayesianRidge", "horizon": "24m", "lookback": 504},
-}
 
 # In-memory cache for fast UI serving (TTL 24 hours)
 _MULTI_HORIZON_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -311,6 +302,18 @@ def _build_model(model_name: str, seed: int = 42) -> Any:
         return Ridge(alpha=2.0, random_state=seed)
 
 
+def _fit_model(model: Any, X: Any, y: Any, weights: np.ndarray | None) -> Any:
+    """Fit with sample weights whenever the estimator accepts them.
+
+    `inspect.signature` follows the decorators of sklearn (1.6 wraps `fit` in `_fit_context`) and XGBoost; the
+    former `model.fit.__code__.co_varnames` check saw only the wrapper and silently dropped the weights for Ridge,
+    BayesianRidge, Huber and XGBoost.
+    """
+    if weights is not None and "sample_weight" in inspect.signature(model.fit).parameters:
+        return model.fit(X, y, sample_weight=weights)
+    return model.fit(X, y)
+
+
 def _compute_sample_weights(y: np.ndarray | pd.Series, deadband: float = 0.50) -> np.ndarray:
     """Piecewise volatility calibration sample weights adapted for multi-day returns."""
     abs_y = np.abs(y)
@@ -443,11 +446,7 @@ def evaluate_horizon_walk_forward(
 
         model = _build_model(model_name)
         try:
-            if hasattr(model, "fit"):
-                if "sample_weight" in model.fit.__code__.co_varnames:
-                    model.fit(X_train, y_train, sample_weight=weights)
-                else:
-                    model.fit(X_train, y_train)
+            _fit_model(model, X_train, y_train, weights)
 
             X_test = X_matrix[t_idx : t_idx + 1]
             raw_pred_ret = float(model.predict(X_test)[0])
@@ -635,11 +634,7 @@ def generate_live_horizon_forecast(
 
         model = _build_model(champion_model)
         try:
-            if hasattr(model, "fit"):
-                if "sample_weight" in model.fit.__code__.co_varnames:
-                    model.fit(X_train, y_train, sample_weight=weights)
-                else:
-                    model.fit(X_train, y_train)
+            _fit_model(model, X_train, y_train, weights)
 
             X_live = pd.DataFrame([latest_row[f_cols]])
             raw_exp_ret = float(model.predict(X_live)[0])
@@ -737,6 +732,29 @@ def generate_live_horizon_forecast(
     }
 
 
+def _ledger_metrics(ledger: list[dict[str, Any]]) -> dict[str, float]:
+    """Hit rate, recency-weighted MAE split by hits / misses and the composite loss, as in the walk-forward arena."""
+    total = len(ledger)
+    if total == 0:
+        return {"hits": 0, "hit_rate_pct": 0.0, "mae_pct": 0.0, "hit_mae_pct": 0.0, "miss_mae_pct": 0.0, "loss": 999.0}
+    w = np.linspace(0.5, 1.5, total) if total > 1 else np.ones(1)
+    w = w / w.mean()
+    hit = np.array([bool(r["is_hit"]) for r in ledger])
+    err = np.array([float(r["err_pct"]) for r in ledger])
+    mae = float(np.average(err, weights=w))
+    hit_mae = float(np.average(err[hit], weights=w[hit])) if hit.any() else mae
+    miss_mae = float(np.average(err[~hit], weights=w[~hit])) if (~hit).any() else mae
+    weighted_hit_rate = float(np.sum(hit * w) / np.sum(w) * 100.0)
+    return {
+        "hits": int(hit.sum()),
+        "hit_rate_pct": round(hit.mean() * 100.0, 1),
+        "mae_pct": round(mae, 2),
+        "hit_mae_pct": round(hit_mae, 2),
+        "miss_mae_pct": round(miss_mae, 2),
+        "loss": round((100.0 - weighted_hit_rate) + 1.0 * hit_mae + 2.5 * miss_mae, 2),
+    }
+
+
 def _clean_champ_name(name: str | None) -> str:
     if not name:
         return "Auto"
@@ -781,6 +799,7 @@ def get_multi_horizon_forecaster_payload(
                        champion_dir_hit_rate_pct, champion_mae_pct, training_lookback_sessions,
                        actual_training_sessions, data_sufficiency_status, crowned_horizon,
                        COALESCE(feature_mode, 'FIFO_CORE') AS feature_mode,
+                       crowned_on::text AS crowned_on,
                        risk_profile::text AS risk_profile_json
                 FROM gold_tertip_multi_horizon_forecasts
                 WHERE symbol = %s AND {date_filter};
@@ -794,8 +813,11 @@ def get_multi_horizon_forecaster_payload(
                 curr_p = float(gold_rows[0].get("current_price") or 0.0)
                 horizons_result = {}
 
-                for h_key in ["3d", "5d", "10d", "15d", "30d"]:
-                    g = gold_map.get(h_key, {})
+                days_of = {"1d": 1, **HORIZON_MAP}
+                for h_key in ["1d", "3d", "5d", "10d", "15d", "30d"]:
+                    if h_key not in gold_map:
+                        continue
+                    g = gold_map[h_key]
                     c_model = _clean_champ_name(g.get("ml_champion_type"))
                     lb_sess = int(g.get("training_lookback_sessions") or 126)
                     act_sess = int(g.get("actual_training_sessions") or lb_sess)
@@ -809,7 +831,7 @@ def get_multi_horizon_forecaster_payload(
                                 SELECT trade_date, target_date_start, target_date_end, current_price,
                                        actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
                                        pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
-                                       actual_training_sessions, data_sufficiency_status
+                                       actual_training_sessions, data_sufficiency_status, feature_mode
                                 FROM gold_tertip_multi_horizon_backtests
                                 WHERE symbol = %s AND horizon = %s AND trade_date <= %s
                                 ORDER BY trade_date DESC
@@ -835,6 +857,11 @@ def get_multi_horizon_forecaster_payload(
                     h_mae = round(float(np.mean(hit_errs)), 2) if hit_errs else 0.0
                     m_mae = round(float(np.mean(miss_errs)), 2) if miss_errs else 0.0
                     loss = round((100.0 - hit_rate) + 1.0 * h_mae + 2.5 * m_mae, 2)
+                    from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import constant_call_hit_rates
+
+                    up_rate, down_rate = constant_call_hit_rates(
+                        np.array([float(r.get("actual_return_pct") or 0.0) for r in completed]), days_of[h_key]
+                    )
 
                     ledger = [
                         {
@@ -852,6 +879,7 @@ def get_multi_horizon_forecaster_payload(
                             "is_hit": bool(r.get("is_hit", False)),
                             "is_pending": bool(r.get("is_pending", False)),
                             "champion_model": r.get("champion_model") or c_model,
+                            "feature_mode": r.get("feature_mode"),
                             "actual_training_sessions": r.get("actual_training_sessions") or act_sess,
                             "target_lookback_sessions": lb_sess,
                             "actual_training_months": round((r.get("actual_training_sessions") or act_sess) / 21.0, 1),
@@ -862,7 +890,7 @@ def get_multi_horizon_forecaster_payload(
 
                     live_fc = {
                         "horizon": h_key,
-                        "horizon_days": HORIZON_MAP[h_key],
+                        "horizon_days": days_of[h_key],
                         "as_of_date": as_of_str,
                         "current_price": curr_p,
                         "target_price": float(g.get("target_price") or curr_p),
@@ -875,6 +903,7 @@ def get_multi_horizon_forecaster_payload(
                         "playbook": g.get("playbook") or "",
                         "champion_model": c_model,
                         "crowned_horizon": g.get("crowned_horizon") or "6m",
+                        "crowned_on": g.get("crowned_on"),
                         "training_lookback_sessions": lb_sess,
                         "actual_training_sessions": act_sess,
                         "data_sufficiency_status": g.get("data_sufficiency_status") or "FULL",
@@ -885,11 +914,14 @@ def get_multi_horizon_forecaster_payload(
                     horizons_result[h_key] = {
                         "meta": {
                             "horizon": h_key,
-                            "horizon_days": HORIZON_MAP[h_key],
+                            "horizon_days": days_of[h_key],
                             "crowned_model": c_model,
                             "crowned_horizon": g.get("crowned_horizon") or "6m",
+                            "crowned_on": g.get("crowned_on"),
                             "training_lookback_sessions": lb_sess,
                             "feature_mode": g.get("feature_mode") or "FIFO_CORE",
+                            "always_up_hit_rate_pct": up_rate,
+                            "always_down_hit_rate_pct": down_rate,
                             "hit_rate_pct": hit_rate,
                             "hits": hits,
                             "total_evals": total,
@@ -928,168 +960,15 @@ def get_multi_horizon_forecaster_payload(
             "horizons": {},
         }
 
-    if selected_composition is None:
-        from mdk_trading_oracle.data.gold.tertip_multi_horizon import load_crowned_multi_horizon_config
-        cfg_all = load_crowned_multi_horizon_config()
-        composition = cfg_all.get("symbols", {}).get(sym, DEFAULT_CHAMPIONS)
-    else:
-        composition = selected_composition
+    # Champions come from the monthly re-crowning tables (data/gold/tertip_multi_horizon_crowning.py, refreshed by
+    # the gold job); `selected_composition` is kept for callers of the research tournament and is not used here.
+    from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import build_recrowned_payload
 
     vol_state = get_volatility_state(db, sym, str(df["trade_date"].iloc[-1])[:10])
-
-    horizons_result = {}
-
-    for h_key in ["3d", "5d", "10d", "15d", "30d"]:
-        cfg = composition.get(h_key, DEFAULT_CHAMPIONS[h_key])
-        champ_model = cfg.get("model", "Ridge")
-        lb_sessions = cfg.get("lookback", cfg.get("training_lookback_sessions", 126))
-        horizon_lb_str = cfg.get("horizon", "6m")
-        f_mode = cfg.get("feature_mode", "FIFO_CORE")
-
-        # Check if pre-computed backtest ledger exists in database
-        db_rows = []
-        if db is not None and not force_recompute:
-            try:
-                db_res = db.query_pl(
-                    """
-                    SELECT * FROM (
-                        SELECT trade_date, target_date_start, target_date_end, current_price,
-                               actual_avg_price, actual_return_pct, pred_avg_price, pred_return_pct,
-                               pred_direction, actual_direction, err_pct, is_hit, is_pending, champion_model,
-                               actual_training_sessions, data_sufficiency_status
-                        FROM gold_tertip_multi_horizon_backtests
-                        WHERE symbol = %s AND horizon = %s AND (champion_model = %s OR champion_model IS NULL)
-                        ORDER BY trade_date DESC
-                        LIMIT %s
-                    ) sub
-                    ORDER BY trade_date ASC;
-                    """,
-                    params=[sym, h_key, champ_model, n_eval_sessions],
-                )
-                if len(db_res) > 0:
-                    db_rows = db_res.to_dicts()
-            except Exception as e:
-                logger.debug(f"Could not load precomputed backtests from DB: {e}")
-
-        if db_rows:
-            # Reconstruct bt_eval from persisted records
-            completed = [r for r in db_rows if not r.get("is_pending")]
-            hits = sum(1 for r in completed if r.get("is_hit"))
-            total = len(completed)
-            hit_rate = round(hits / max(1, total) * 100.0, 1)
-            errs = [float(r.get("err_pct", 0.0)) for r in completed]
-            hit_errs = [float(r.get("err_pct", 0.0)) for r in completed if r.get("is_hit")]
-            miss_errs = [float(r.get("err_pct", 0.0)) for r in completed if not r.get("is_hit")]
-            mae = round(float(np.mean(errs)), 2) if errs else 0.0
-            h_mae = round(float(np.mean(hit_errs)), 2) if hit_errs else 0.0
-            m_mae = round(float(np.mean(miss_errs)), 2) if miss_errs else 0.0
-            loss = round((100.0 - hit_rate) + 1.0 * h_mae + 2.5 * m_mae, 2)
-
-            partial_cnt = sum(1 for r in db_rows if r.get("data_sufficiency_status") == "PARTIAL_HISTORY")
-            full_cnt = sum(1 for r in db_rows if r.get("data_sufficiency_status") != "PARTIAL_HISTORY")
-            train_sess_list = [r.get("actual_training_sessions") for r in db_rows if r.get("actual_training_sessions")]
-
-            ledger = []
-            for r in db_rows:
-                act_s = r.get("actual_training_sessions") or lb_sessions
-                ledger.append({
-                    "trade_date": str(r["trade_date"]),
-                    "target_date_start": str(r["target_date_start"]),
-                    "target_date_end": str(r["target_date_end"]),
-                    "current_price": float(r["current_price"] or 0.0),
-                    "actual_avg_price": float(r["actual_avg_price"] or 0.0),
-                    "actual_return_pct": float(r["actual_return_pct"] or 0.0),
-                    "pred_avg_price": float(r["pred_avg_price"] or 0.0),
-                    "pred_return_pct": float(r["pred_return_pct"] or 0.0),
-                    "pred_direction": r.get("pred_direction") or "NEUTRAL",
-                    "actual_direction": r.get("actual_direction") or "NEUTRAL",
-                    "err_pct": float(r["err_pct"] or 0.0),
-                    "is_hit": bool(r.get("is_hit", False)),
-                    "is_pending": bool(r.get("is_pending", False)),
-                    "champion_model": r.get("champion_model") or champ_model,
-                    "actual_training_sessions": act_s,
-                    "target_lookback_sessions": lb_sessions,
-                    "actual_training_months": round(act_s / 21.0, 1),
-                    "data_sufficiency_status": r.get("data_sufficiency_status") or "FULL",
-                })
-
-            bt_eval = {
-                "hit_rate_pct": hit_rate,
-                "hits": hits,
-                "total_evals": total,
-                "eval_sessions_requested": len(db_rows),
-                "sessions_skipped_insufficient": 0,
-                "sessions_with_partial_history": partial_cnt,
-                "sessions_with_full_history": full_cnt,
-                "min_training_sessions_used": min(train_sess_list) if train_sess_list else lb_sessions,
-                "max_training_sessions_used": max(train_sess_list) if train_sess_list else lb_sessions,
-                "data_sufficiency_pct": round(full_cnt / max(1, (full_cnt + partial_cnt)) * 100.0, 1),
-                "target_lookback_months": lb_sessions // 21,
-                "mae_pct": mae,
-                "hit_mae_pct": h_mae,
-                "miss_mae_pct": m_mae,
-                "loss": loss,
-                "ledger": ledger,
-            }
-        else:
-            # Fall back to dynamic walk-forward evaluation
-            bt_eval = evaluate_horizon_walk_forward(
-                df=df,
-                horizon_key=h_key,
-                model_name=champ_model,
-                train_lookback_sessions=lb_sessions,
-                n_eval_sessions=n_eval_sessions,
-                feature_mode=f_mode,
-            )
-
-        # 2. Generate Live T+1 Upcoming Forecast
-        live_fc = generate_live_horizon_forecast(
-            df=df,
-            horizon_key=h_key,
-            champion_model=champ_model,
-            train_lookback_sessions=lb_sessions,
-            feature_mode=f_mode,
-            vol_state=vol_state,
-        )
-
-        horizons_result[h_key] = {
-            "meta": {
-                "horizon": h_key,
-                "horizon_days": HORIZON_MAP[h_key],
-                "crowned_model": champ_model,
-                "crowned_horizon": horizon_lb_str,
-                "training_lookback_sessions": lb_sessions,
-                "feature_mode": f_mode,
-                "hit_rate_pct": bt_eval.get("hit_rate_pct", 0.0),
-                "hits": bt_eval.get("hits", 0),
-                "total_evals": bt_eval.get("total_evals", 0),
-                "eval_sessions_requested": bt_eval.get("eval_sessions_requested", n_eval_sessions),
-                "sessions_skipped_insufficient": bt_eval.get("sessions_skipped_insufficient", 0),
-                "sessions_with_partial_history": bt_eval.get("sessions_with_partial_history", 0),
-                "sessions_with_full_history": bt_eval.get("sessions_with_full_history", 0),
-                "min_training_sessions_used": bt_eval.get("min_training_sessions_used", 0),
-                "max_training_sessions_used": bt_eval.get("max_training_sessions_used", 0),
-                "data_sufficiency_pct": bt_eval.get("data_sufficiency_pct", 100.0),
-                "target_lookback_months": bt_eval.get("target_lookback_months", lb_sessions // 21),
-                "target_lookback_sessions": lb_sessions,
-                "min_required_train_sessions": MIN_TRAIN_SESSIONS,
-                "mae_pct": bt_eval.get("mae_pct", 0.0),
-                "hit_mae_pct": bt_eval.get("hit_mae_pct", 0.0),
-                "miss_mae_pct": bt_eval.get("miss_mae_pct", 0.0),
-                "loss": bt_eval.get("loss", 0.0),
-            },
-            "live_forecast": live_fc,
-            "backtest_ledger": bt_eval.get("ledger", []),
-        }
-
-    payload = {
-        "status": "success",
-        "symbol": sym,
-        "as_of_date": str(df.iloc[-1]["trade_date"]),
-        "current_price": round(float(df.iloc[-1]["close_price"]), 2),
-        "calculated_at": datetime.now(timezone.utc).isoformat(),
-        "horizons": horizons_result,
-    }
+    payload = build_recrowned_payload(db, sym, df, n_eval_sessions=n_eval_sessions, vol_state=vol_state, refresh=False)
+    if payload.get("status") != "success":
+        return payload
+    payload["calculated_at"] = datetime.now(timezone.utc).isoformat()
 
     _MULTI_HORIZON_CACHE[cache_key] = (now_ts, payload)
     return payload

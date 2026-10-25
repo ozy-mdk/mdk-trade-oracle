@@ -3,7 +3,7 @@
 Context for continuing in a new session. Read `AGENTS.md` first; this note records what changed, what was measured,
 what was rejected and why, and what is still open. All numbers are walk-forward / zero look-ahead unless stated.
 
-**Read §0 first** (session 2, 2026-10-18): it supersedes the open items of §4.5, §6 and §7. Sections 1–9 below are the
+**Read §0 first** (session 2, 2026-10-18; session 3 in §0.8, 2026-10-25): it supersedes the open items of §4.5, §6 and §7. Sections 1–9 below are the
 record of session 1 and remain valid as history.
 
 ---
@@ -141,6 +141,86 @@ The 11:30 signal is productionized as its own model and frontend tab (all BIST30
 4. New information is needed to approach 62-65% true accuracy; daily institutional aggregates are exhausted in the
    forms tested. Candidates not yet tested: VİOP single-stock futures / index futures basis and open interest,
    event calendar (MPC, index rebalancing, dividends), order-book data if obtainable.
+
+### 0.8 Session 3 (2026-10-25) — 3D-30D swing models: selection leak, drift, lean MLB
+Focus six, sessions since 2024-01, hub hit rule (`_check_hit`, horizon deadband) unless stated. Isolated experiments;
+gold / nightly / hub untouched except the 90-session standard below.
+
+**Leak = selection, not training.** `evaluate_horizon_walk_forward` trains on rows i <= t - N only (guard tests
+`tests/test_multi_horizon_leakage.py`: future invariance for all 5 models, label timing). The inflation comes from the
+tournament (`run_multi_horizon_tournament.py`) choosing the best of 75 configs per stock/horizon on the last 90 graded
+sessions, and the hub showing that champion's ledger, which contains the crowning window.
+`models/horizon_crowning.py` reproduces the production rule (two-stage family-first, option-1 recency score, same
+tie-break; equivalence test vs the script) seeing only outcomes realized before the crowning date.
+`scripts/experiments/multi_horizon_ledger_rebuild.py` (full 75-config grid with production code, 1.85M fits):
+
+| hub hit % | 3D | 5D | 10D | 15D | 30D |
+|---|---|---|---|---|---|
+| Hub shows (gold 10-18, pre side-aware FIFO) | 51.5 | 55.9 | 58.4 | 60.6 | 62.8 |
+| Current crowns inside their crowning window | 55.2 | 59.6 | 56.5 | 67.8 | 63.7 |
+| Same crowns, sessions before the window | 49.5 | 47.6 | 47.6 | 48.9 | 49.6 |
+| **Monthly re-crowning on realized outcomes only** | **50.4** | **49.9** | **47.9** | **51.5** | **50.5** |
+| Fixed Ridge/252/FIFO_CORE | 50.2 | 50.2 | 49.5 | 51.3 | 49.8 |
+| Random (shuffled) | 51.0 | 50.9 | 50.3 | 50.5 | 51.3 |
+| **Always UP** | **53.4** | **54.7** | **56.4** | **59.3** | **61.7** |
+| Best of 75 in hindsight | 54.1 | 55.9 | 56.1 | 59.4 | 60.1 |
+
+**(a) Drift + (c) non-overlapping evaluation** (`scripts/experiments/multi_horizon_drift_experiment.py`,
+`models/horizon_forecast.py`; fixed configs only, pred = demeaned model + kappa x trailing label mean, production ATR
+calibration). Zero-drift demeaning makes the models call UP only 36-42% (2024) while ~60-68% of windows rose:
+kappa=0 scores 41-48% in discovery vs always-UP 55-68%. Restoring drift (kappa=1) helps (2024 30D 41.4 -> 52.9) but
+**no variant beats always-UP**: edges negative in discovery, ~0 in holdout. Non-overlapping samples are tiny (30D:
+8-14 independent dates per period, 15D: 17-29); always-UP 30D 67.9% has CI [45, 87] — **15D/30D direction cannot be
+validated on this history**, 3D/5D edges are measurable to about ±5 pp.
+
+**(b) Lean MLB flow family** (10 MLB flow features, per-stock trailing-252 z-scores; per-stock and pooled-6 Ridge,
+252 / 504). With drift, the models converge to always-UP (86-98% UP calls, edge ~0); without drift they stay below it.
+**Information beyond drift** (rank IC of demeaned forecast vs demeaned outcome, non-overlapping, bootstrap CI): full
+features -0.03..-0.26 in 2024 (10D LightGBM significant), +0.0..+0.12 in 2025-26 — sign flips; lean MLB per stock
+~0 both periods; pooled lean MLB Ridge/504 +0.06..+0.12 in 2024 (n.s.) -> ~0 in 2025-26. Faded; not adopted.
+
+**Conclusion:** daily institutional aggregates carry no stable directional information at 3D-30D beyond the stock's
+drift. Honest swing output = drift-based direction (or none) + the GJR-GARCH-t FHS range (§1, calibrated), not a model
+target.
+
+**Production findings — fixed 2026-10-25:**
+- Thread pinning set `OMP/OPENBLAS_NUM_THREADS` after numpy was loaded (no effect; 18 OpenBLAS threads per process
+  made sklearn fits 30-450x slower, BayesianRidge 543 ms -> 1.2 ms). Now `core/threads.py:pin_native_threads()`
+  (threadpoolctl at runtime + env for children), called by both forecaster modules.
+- `"sample_weight" in model.fit.__code__.co_varnames` was False for Ridge / BayesianRidge / Huber (sklearn 1.6 wraps
+  `fit`) and XGBoost, so the §4 piecewise weights reached LightGBM only. Now `_fit_model` checks
+  `inspect.signature`; test `test_sample_weights_reach_every_model`. Research tournaments therefore change slightly.
+- `run_multi_horizon_tournament.py` graded on raw closes; now split-adjusted like gold.
+
+**Swing forecast in production (user decisions 2026-10-25):** briefly drift (0.5 x trailing-252 N-day mean), then
+replaced the same day: drift lost to always-DOWN at every horizon in the last 90 sessions. Production now runs the
+**honest monthly re-crowning** for all five horizons (one treatment for every horizon, so traders see one method):
+`gold_tertip_multi_horizon_candidates` (all 75 candidates' point-in-time walk-forward forecasts, trailing 300
+origins, extended nightly), `gold_tertip_multi_horizon_crowns` (one champion per symbol / horizon / month, crowned on
+the month's first trading day from realized outcomes only), and the displayed 90-session `..._backtests` track graded
+with the champion in force on each session. `crowned_on` is stored with each forecast; the swing tab shows
+always-UP / always-DOWN on the displayed sessions and whether the hit rate beats both. Backfill:
+`scripts/backfill_multi_horizon_crowning.py`. 1D removed from the multi-horizon tab (it lives in the Gold Predictive
+Hub). `drift_forecast` stays in `models/horizon_forecast.py` as a research baseline.
+Last 90 graded sessions to 2026-10-16, focus six (experiment grid, pre weight fix): re-crowned 50.7 / 45.7 / 58.3 /
+58.5 / 62.6 vs always-DOWN 53.1 / 53.7 / 56.1 / 54.1 / 55.6 (3D / 5D / 10D / 15D / 30D) — beats both at 10D-30D by
++1 to +4 pp but with 3-9 independent outcomes per stock (CI lower bounds -27 to -45 pp).
+
+**Beat-both rule (user decision 2026-10-25):** a directional forecaster counts only if it beats BOTH always-UP and
+always-DOWN in the same period (paired non-overlapping CI of the edge vs the better constant above 0;
+`multi_horizon_drift_experiment.py` reports it). Result: **0 of 140** config x horizon combinations (full features,
+lean MLB per stock / pooled, kappa 0 / 0.5 / 1) beat both, in discovery or holdout. Drift ties always-UP in 2024 and
+trails the better constant by 0.6-5.4 pp in 2025-26 (15D significantly). Gold ledger, last 90 sessions to 2026-10-16
+(a falling stretch): always-DOWN 53-59% wins every horizon; drift 41-52% beats always-UP but not always-DOWN.
+Implication: drift does not pass the rule either (hence the switch to re-crowning).
+
+**90-session standard (user decision 2026-10-25):** backend and frontend use at most 90 evaluation sessions (API
+`eval_sessions` / `limit` default and max 90, gold `n_eval_sessions=90`, hub / multi-horizon / intraday pills
+30-60-90, default 90).
+
+**Still open:** T+1 (1D) remains frozen with the leaky ledger (§4.5): wire `models/t1_forecast.py` or a drift / no-call
+T+1 the same way. New information (VİOP basis / open interest, event calendar, order book) is the only route to a real
+swing edge.
 
 ---
 

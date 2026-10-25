@@ -171,6 +171,19 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
   const prophetHits = displayLedger.filter((r) => r.prophet_is_hit).length;
   const prophetHitRatePct = displayLedger.length > 0 ? (prophetHits / displayLedger.length) * 100 : 0;
 
+  // The bar to beat: always-UP / always-DOWN on the same sessions with the backend T+1 hit rule
+  // (_check_hit: 0.20 pp tolerance, 0.25% consolidation deadband; constant calls of +/-0.50%)
+  const t1Hit = (pred: number, actual: number): boolean => {
+    if (Math.abs(pred - actual) <= 0.2) return true;
+    if (Math.abs(actual) <= 0.25) return Math.abs(pred) <= 0.25 || pred * actual >= 0;
+    return actual > 0.25 ? pred > 0 : pred < 0;
+  };
+  const alwaysUpPct = displayLedger.length > 0
+    ? (displayLedger.filter((r) => t1Hit(0.5, r.actual_return_pct)).length / displayLedger.length) * 100 : 0;
+  const alwaysDownPct = displayLedger.length > 0
+    ? (displayLedger.filter((r) => t1Hit(-0.5, r.actual_return_pct)).length / displayLedger.length) * 100 : 0;
+  const beatsBothConstants = displayLedger.length > 0 && activeHitRatePct > Math.max(alwaysUpPct, alwaysDownPct);
+
   const last10Ledger = displayLedger.slice(-10);
   const l10Hits = last10Ledger.filter((r) => getRowHit(r)).length;
   const l10Miss = last10Ledger.length - l10Hits;
@@ -598,7 +611,7 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                   {/* Criterion 1: Directional Hit % */}
                   <div className="flex items-center justify-between p-1.5 px-2 rounded bg-slate-950/60 border border-slate-800">
                     <span className="text-slate-400 text-[11px]">1. Directional Hits:</span>
-                    <span className="font-bold text-emerald-400 text-xs">
+                    <span className={`font-bold text-xs ${beatsBothConstants ? 'text-emerald-400' : 'text-amber-400'}`}>
                       {activeHits}/{displayLedger.length} ({activeHitRatePct.toFixed(1)}%)
                     </span>
                   </div>
@@ -653,6 +666,18 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
                       <span className="text-slate-400">Prophet:</span>
                       <span className="text-purple-300 font-semibold">{prophetHits}/{displayLedger.length} ({prophetHitRatePct.toFixed(0)}%)</span>
                     </div>
+                    <div className="p-1 rounded bg-slate-950/40 border border-slate-800/60 flex justify-between" title="Same sessions, same hit rule">
+                      <span className="text-slate-400">Always UP:</span>
+                      <span className="text-slate-300 font-semibold">{alwaysUpPct.toFixed(0)}%</span>
+                    </div>
+                    <div className="p-1 rounded bg-slate-950/40 border border-slate-800/60 flex justify-between" title="Same sessions, same hit rule">
+                      <span className="text-slate-400">Always DOWN:</span>
+                      <span className="text-slate-300 font-semibold">{alwaysDownPct.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className={`text-[10px] font-mono mt-1 ${beatsBothConstants ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {beatsBothConstants ? 'Beats both constant calls' : 'Does not beat both constant calls'} · champion re-crowned monthly
+                    from earlier sessions only
                   </div>
                 </div>
               </div>

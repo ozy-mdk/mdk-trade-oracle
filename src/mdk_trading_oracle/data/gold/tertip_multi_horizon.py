@@ -9,23 +9,17 @@ backtest ledgers into PostgreSQL TimescaleDB:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
-
-import yaml
 
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
-from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import (
-    DEFAULT_CHAMPIONS,
-    HORIZON_MAP,
-    get_multi_horizon_forecaster_payload,
-)
+from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import build_recrowned_payload, ensure_crowning_tables
+from mdk_trading_oracle.data.silver.tertip_ml_forecaster import extract_3pillar_time_series
+from mdk_trading_oracle.data.silver.tertip_multi_horizon_forecaster import HORIZON_MAP
+from mdk_trading_oracle.models.stochastic_risk import get_volatility_state
 
 logger = get_logger("mdk_oracle.gold.tertip_multi_horizon")
-
-CONFIG_PATH = Path.cwd() / "config" / "tertip_multi_horizon_crowned_models.yaml"
-
+HORIZON_DAYS = {"1d": 1, **HORIZON_MAP}
 
 def ensure_multi_horizon_tables(db: PostgresManager) -> None:
     """Ensure multi-horizon Gold hypertable/tables exist in PostgreSQL."""
@@ -101,27 +95,165 @@ def ensure_multi_horizon_tables(db: PostgresManager) -> None:
     """)
 
 
-def load_crowned_multi_horizon_config() -> dict[str, Any]:
-    """Load crowned multi-horizon model configuration or return defaults."""
-    if not CONFIG_PATH.exists():
-        return {}
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-    except Exception as e:
-        logger.warning(f"Failed to read {CONFIG_PATH}: {e}")
-        return {}
+def upsert_horizon(
+    db: PostgresManager, sym: str, as_of_date: str, current_price: float, h_key: str, h_data: dict[str, Any]
+) -> None:
+    """Upsert one horizon's live forecast and replace its displayed backtest ledger (also used for 1D)."""
+    meta = h_data.get("meta", {})
+    fc = h_data.get("live_forecast", {})
+    ledger = h_data.get("backtest_ledger", [])
+
+    # 1. Upsert live forecast
+    db.execute(
+        """
+        INSERT INTO gold_tertip_multi_horizon_forecasts (
+            symbol, as_of_date, horizon, horizon_days,
+            current_price, target_price, expected_return_pct,
+            price_low, price_high, stance, conviction, playbook,
+            ml_champion_type, champion_dir_hits, champion_total_evals,
+            champion_dir_hit_rate_pct, champion_mae_pct,
+            training_lookback_sessions, actual_training_sessions,
+            data_sufficiency_status, crowned_horizon, feature_mode, risk_profile, crowned_on, calculated_at
+        ) VALUES (
+            %s, %s, %s, %s,
+            %s, %s, %s,
+            %s, %s, %s, %s, %s,
+            %s, %s, %s,
+            %s, %s,
+            %s, %s, %s, %s, %s, %s::jsonb, %s, NOW()
+        )
+        ON CONFLICT (symbol, as_of_date, horizon) DO UPDATE SET
+            current_price = EXCLUDED.current_price,
+            target_price = EXCLUDED.target_price,
+            expected_return_pct = EXCLUDED.expected_return_pct,
+            price_low = EXCLUDED.price_low,
+            price_high = EXCLUDED.price_high,
+            stance = EXCLUDED.stance,
+            conviction = EXCLUDED.conviction,
+            playbook = EXCLUDED.playbook,
+            ml_champion_type = EXCLUDED.ml_champion_type,
+            champion_dir_hits = EXCLUDED.champion_dir_hits,
+            champion_total_evals = EXCLUDED.champion_total_evals,
+            champion_dir_hit_rate_pct = EXCLUDED.champion_dir_hit_rate_pct,
+            champion_mae_pct = EXCLUDED.champion_mae_pct,
+            training_lookback_sessions = EXCLUDED.training_lookback_sessions,
+            actual_training_sessions = EXCLUDED.actual_training_sessions,
+            data_sufficiency_status = EXCLUDED.data_sufficiency_status,
+            crowned_horizon = EXCLUDED.crowned_horizon,
+            feature_mode = EXCLUDED.feature_mode,
+            risk_profile = EXCLUDED.risk_profile,
+            crowned_on = EXCLUDED.crowned_on,
+            calculated_at = NOW();
+        """,
+        params=[
+            sym,
+            as_of_date,
+            h_key,
+            HORIZON_DAYS.get(h_key, 3),
+            current_price,
+            fc.get("target_price", current_price),
+            fc.get("expected_return_pct", 0.0),
+            fc.get("price_low", current_price),
+            fc.get("price_high", current_price),
+            fc.get("stance", "NEUTRAL"),
+            fc.get("conviction", "NEUTRAL"),
+            fc.get("playbook", "RANGE_BOUND_CONSOLIDATION"),
+            meta.get("crowned_model", "Ridge"),
+            meta.get("hits", 0),
+            meta.get("total_evals", 0),
+            meta.get("hit_rate_pct", 0.0),
+            meta.get("mae_pct", 0.0),
+            meta.get("training_lookback_sessions", 126),
+            fc.get("actual_training_sessions", meta.get("training_lookback_sessions", 126)),
+            fc.get("data_sufficiency_status", "FULL"),
+            meta.get("crowned_horizon", "6m"),
+            meta.get("feature_mode", "FIFO_CORE"),
+            json.dumps(fc["risk_profile"]) if fc.get("risk_profile") else None,
+            meta.get("crowned_on"),
+        ],
+    )
+
+    # 2. Replace backtest ledger with newly evaluated champion ledger
+    db.execute(
+        "DELETE FROM gold_tertip_multi_horizon_backtests WHERE symbol = %s AND horizon = %s;",
+        params=[sym, h_key],
+    )
+    for b in ledger:
+        t_date = str(b.get("trade_date"))[:10]
+        db.execute(
+            """
+            INSERT INTO gold_tertip_multi_horizon_backtests (
+                symbol, horizon, trade_date, horizon_days,
+                current_price, target_date_start, target_date_end,
+                actual_avg_price, actual_return_pct,
+                pred_avg_price, pred_return_pct,
+                pred_direction, actual_direction,
+                err_pct, is_hit, is_pending, champion_model,
+                actual_training_sessions, data_sufficiency_status,
+                feature_mode
+            ) VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s
+            )
+            ON CONFLICT (symbol, horizon, trade_date) DO UPDATE SET
+                current_price = EXCLUDED.current_price,
+                target_date_start = EXCLUDED.target_date_start,
+                target_date_end = EXCLUDED.target_date_end,
+                actual_avg_price = EXCLUDED.actual_avg_price,
+                actual_return_pct = EXCLUDED.actual_return_pct,
+                pred_avg_price = EXCLUDED.pred_avg_price,
+                pred_return_pct = EXCLUDED.pred_return_pct,
+                pred_direction = EXCLUDED.pred_direction,
+                actual_direction = EXCLUDED.actual_direction,
+                err_pct = EXCLUDED.err_pct,
+                is_hit = EXCLUDED.is_hit,
+                is_pending = EXCLUDED.is_pending,
+                champion_model = EXCLUDED.champion_model,
+                actual_training_sessions = EXCLUDED.actual_training_sessions,
+                data_sufficiency_status = EXCLUDED.data_sufficiency_status,
+                feature_mode = EXCLUDED.feature_mode;
+            """,
+            params=[
+                sym,
+                h_key,
+                t_date,
+                HORIZON_DAYS.get(h_key, 3),
+                b.get("current_price"),
+                str(b.get("target_date_start"))[:10],
+                str(b.get("target_date_end"))[:10],
+                b.get("actual_avg_price"),
+                b.get("actual_return_pct"),
+                b.get("pred_avg_price"),
+                b.get("pred_return_pct"),
+                b.get("pred_direction"),
+                b.get("actual_direction"),
+                b.get("err_pct"),
+                b.get("is_hit"),
+                b.get("is_pending", False),
+                b.get("champion_model") or meta.get("crowned_model", "Ridge"),
+                b.get("actual_training_sessions"),
+                b.get("data_sufficiency_status", "FULL"),
+                b.get("feature_mode") or meta.get("feature_mode", "FIFO_CORE"),
+            ],
+        )
 
 
 def update_gold_tertip_multi_horizon_forecasts(
     db: PostgresManager,
     symbols: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Update live forecasts and backtest ledgers for all 5 horizons across target symbols."""
-    ensure_multi_horizon_tables(db)
+    """Update live forecasts and honest re-crowned backtest ledgers for all 5 horizons across target symbols.
 
-    crowned_cfg = load_crowned_multi_horizon_config()
-    symbols_cfg = crowned_cfg.get("symbols", {})
+    Per symbol: extend the candidate ledgers, crown any new month (outcomes realized before the month only), then
+    publish the current month's champions and the 90-session track graded with the champion in force for each session.
+    """
+    ensure_multi_horizon_tables(db)
+    ensure_crowning_tables(db)
 
     # Determine universe to update: strictly active BIST 30 members
     if symbols:
@@ -130,164 +262,27 @@ def update_gold_tertip_multi_horizon_forecasts(
         rows = db.query_pl(
             "SELECT symbol FROM bronze_bist30_membership WHERE is_active = true ORDER BY symbol ASC"
         ).to_pandas()
-        target_symbols = rows["symbol"].tolist() if not rows.empty else list(symbols_cfg.keys())
+        target_symbols = rows["symbol"].tolist() if not rows.empty else []
 
     updated_count = 0
     errors = []
 
     for sym in target_symbols:
         try:
-            sym_comp = symbols_cfg.get(sym, DEFAULT_CHAMPIONS)
-            payload = get_multi_horizon_forecaster_payload(
-                db, sym, selected_composition=sym_comp, n_eval_sessions=90, force_recompute=True
-            )
+            df = extract_3pillar_time_series(db, sym, lookback_days=550)
+            if df.empty or len(df) < 120:
+                continue
+            vol_state = get_volatility_state(db, sym, str(df["trade_date"].iloc[-1])[:10])
+            payload = build_recrowned_payload(db, sym, df, n_eval_sessions=90, vol_state=vol_state, refresh=True)
             if payload.get("status") != "success":
+                logger.warning(f"{sym}: {payload.get('message')}")
                 continue
 
             as_of_date = payload["as_of_date"][:10]
             current_price = payload["current_price"]
 
             for h_key, h_data in payload.get("horizons", {}).items():
-                meta = h_data.get("meta", {})
-                fc = h_data.get("live_forecast", {})
-                ledger = h_data.get("backtest_ledger", [])
-
-                # 1. Upsert live forecast
-                db.execute(
-                    """
-                    INSERT INTO gold_tertip_multi_horizon_forecasts (
-                        symbol, as_of_date, horizon, horizon_days,
-                        current_price, target_price, expected_return_pct,
-                        price_low, price_high, stance, conviction, playbook,
-                        ml_champion_type, champion_dir_hits, champion_total_evals,
-                        champion_dir_hit_rate_pct, champion_mae_pct,
-                        training_lookback_sessions, actual_training_sessions,
-                        data_sufficiency_status, crowned_horizon, feature_mode, risk_profile, calculated_at
-                    ) VALUES (
-                        %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s, %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s, %s,
-                        %s, %s, %s, %s, %s, %s::jsonb, NOW()
-                    )
-                    ON CONFLICT (symbol, as_of_date, horizon) DO UPDATE SET
-                        current_price = EXCLUDED.current_price,
-                        target_price = EXCLUDED.target_price,
-                        expected_return_pct = EXCLUDED.expected_return_pct,
-                        price_low = EXCLUDED.price_low,
-                        price_high = EXCLUDED.price_high,
-                        stance = EXCLUDED.stance,
-                        conviction = EXCLUDED.conviction,
-                        playbook = EXCLUDED.playbook,
-                        ml_champion_type = EXCLUDED.ml_champion_type,
-                        champion_dir_hits = EXCLUDED.champion_dir_hits,
-                        champion_total_evals = EXCLUDED.champion_total_evals,
-                        champion_dir_hit_rate_pct = EXCLUDED.champion_dir_hit_rate_pct,
-                        champion_mae_pct = EXCLUDED.champion_mae_pct,
-                        training_lookback_sessions = EXCLUDED.training_lookback_sessions,
-                        actual_training_sessions = EXCLUDED.actual_training_sessions,
-                        data_sufficiency_status = EXCLUDED.data_sufficiency_status,
-                        crowned_horizon = EXCLUDED.crowned_horizon,
-                        feature_mode = EXCLUDED.feature_mode,
-                        risk_profile = EXCLUDED.risk_profile,
-                        calculated_at = NOW();
-                    """,
-                    params=[
-                        sym,
-                        as_of_date,
-                        h_key,
-                        HORIZON_MAP.get(h_key, 3),
-                        current_price,
-                        fc.get("target_price", current_price),
-                        fc.get("expected_return_pct", 0.0),
-                        fc.get("price_low", current_price),
-                        fc.get("price_high", current_price),
-                        fc.get("stance", "NEUTRAL"),
-                        fc.get("conviction", "NEUTRAL"),
-                        fc.get("playbook", "RANGE_BOUND_CONSOLIDATION"),
-                        meta.get("crowned_model", "Ridge"),
-                        meta.get("hits", 0),
-                        meta.get("total_evals", 0),
-                        meta.get("hit_rate_pct", 0.0),
-                        meta.get("mae_pct", 0.0),
-                        meta.get("training_lookback_sessions", 126),
-                        fc.get("actual_training_sessions", meta.get("training_lookback_sessions", 126)),
-                        fc.get("data_sufficiency_status", "FULL"),
-                        meta.get("crowned_horizon", "6m"),
-                        meta.get("feature_mode", "FIFO_CORE"),
-                        json.dumps(fc["risk_profile"]) if fc.get("risk_profile") else None,
-                    ],
-                )
-
-                # 2. Replace backtest ledger with newly evaluated champion ledger
-                db.execute(
-                    "DELETE FROM gold_tertip_multi_horizon_backtests WHERE symbol = %s AND horizon = %s;",
-                    params=[sym, h_key],
-                )
-                for b in ledger:
-                    t_date = str(b.get("trade_date"))[:10]
-                    db.execute(
-                        """
-                        INSERT INTO gold_tertip_multi_horizon_backtests (
-                            symbol, horizon, trade_date, horizon_days,
-                            current_price, target_date_start, target_date_end,
-                            actual_avg_price, actual_return_pct,
-                            pred_avg_price, pred_return_pct,
-                            pred_direction, actual_direction,
-                            err_pct, is_hit, is_pending, champion_model,
-                            actual_training_sessions, data_sufficiency_status,
-                            feature_mode
-                        ) VALUES (
-                            %s, %s, %s, %s,
-                            %s, %s, %s,
-                            %s, %s,
-                            %s, %s,
-                            %s, %s,
-                            %s, %s, %s, %s,
-                            %s, %s, %s
-                        )
-                        ON CONFLICT (symbol, horizon, trade_date) DO UPDATE SET
-                            current_price = EXCLUDED.current_price,
-                            target_date_start = EXCLUDED.target_date_start,
-                            target_date_end = EXCLUDED.target_date_end,
-                            actual_avg_price = EXCLUDED.actual_avg_price,
-                            actual_return_pct = EXCLUDED.actual_return_pct,
-                            pred_avg_price = EXCLUDED.pred_avg_price,
-                            pred_return_pct = EXCLUDED.pred_return_pct,
-                            pred_direction = EXCLUDED.pred_direction,
-                            actual_direction = EXCLUDED.actual_direction,
-                            err_pct = EXCLUDED.err_pct,
-                            is_hit = EXCLUDED.is_hit,
-                            is_pending = EXCLUDED.is_pending,
-                            champion_model = EXCLUDED.champion_model,
-                            actual_training_sessions = EXCLUDED.actual_training_sessions,
-                            data_sufficiency_status = EXCLUDED.data_sufficiency_status,
-                            feature_mode = EXCLUDED.feature_mode;
-                        """,
-                        params=[
-                            sym,
-                            h_key,
-                            t_date,
-                            HORIZON_MAP.get(h_key, 3),
-                            b.get("current_price"),
-                            str(b.get("target_date_start"))[:10],
-                            str(b.get("target_date_end"))[:10],
-                            b.get("actual_avg_price"),
-                            b.get("actual_return_pct"),
-                            b.get("pred_avg_price"),
-                            b.get("pred_return_pct"),
-                            b.get("pred_direction"),
-                            b.get("actual_direction"),
-                            b.get("err_pct"),
-                            b.get("is_hit"),
-                            b.get("is_pending", False),
-                            meta.get("crowned_model", "Ridge"),
-                            b.get("actual_training_sessions"),
-                            b.get("data_sufficiency_status", "FULL"),
-                            meta.get("feature_mode", "FIFO_CORE"),
-                        ],
-                    )
+                upsert_horizon(db, sym, as_of_date, current_price, h_key, h_data)
 
             updated_count += 1
             logger.info(f"Updated multi-horizon forecasts & ledger for {sym} ({as_of_date}).")
