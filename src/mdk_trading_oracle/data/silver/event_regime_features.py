@@ -1,11 +1,15 @@
-"""Event-calendar and market-regime features for the per-horizon production policy.
+"""Feature sets competing in the staged monthly tournament (stage 2, per stock and horizon).
 
-Feature sets (tested end-to-end with the honest re-crowning harness, docs/RESEARCH_HANDOFF_2026-10.md §0.8):
     production       the existing feature modes unchanged
     events           + TCMB MPC decision distance / last change, ex-dividend distance / yield, BIST 30 rebalancing
-                     distance and index entry / exit (1D, 3D)
+                     distance and index entry / exit
     regime_no_sma50  + BIST 30 downtrend flag, trend strength and mean-reversion features x downtrend flag, without
-                     `feat_price_vs_sma50_pct` (5D, 10D)
+                     `feat_price_vs_sma50_pct`
+
+Stage 1 picks model and training window on the production features; stage 2 picks feature set x feature mode for
+that model and window (models/horizon_crowning.crown_staged). Tested with the honest re-crowning harness
+(docs/RESEARCH_HANDOFF_2026-10.md §0.8). Adding a feature set = add it to TOURNAMENT_FEATURE_SETS and
+`apply_feature_set`.
 
 Everything is point-in-time at the close of row t. Look-ahead only to dates that are public in advance: the MPC
 calendar (published a year ahead), ex-dividend dates within 20 sessions and BIST 30 entries / exits within 10 sessions
@@ -14,10 +18,12 @@ of the quarterly effective date.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import yaml
 
 from mdk_trading_oracle.core.db import PostgresManager
 
@@ -32,19 +38,19 @@ MEAN_REVERSION = [
 ]
 REGIME_COLS = ["feat_regime_down", "feat_regime_trend"]
 DROPPED_REGIME = ["feat_price_vs_sma50_pct", "feat_price_vs_sma50_pct_x_down"]
-FEATURE_SETS = ("production", "events", "regime_no_sma50")
-
-# Per-horizon production policy: feature set, lookback excluded from the candidate pool, crowned with the policy pool
-# (True) or by the plain production crowning (False: 30D keeps its own family-first crowning).
-HORIZON_POLICY: dict[str, tuple[str, int | None, bool]] = {
-    "1d": ("events", None, True),
-    "3d": ("events", None, True),
-    "5d": ("regime_no_sma50", None, True),
-    "10d": ("regime_no_sma50", None, True),
-    "15d": ("production", 63, True),
-    "30d": ("production", None, False),
-}
+TOURNAMENT_FEATURE_SETS = ("production", "events", "regime_no_sma50")
 KEY_SEP = "|"
+POLICY_PATH = Path(__file__).resolve().parents[4] / "config" / "tournament_policy.yaml"
+_POLICY: dict | None = None
+
+
+def tournament_policy() -> dict:
+    """config/tournament_policy.yaml: feature sets, priority stocks + stage-2 menus, default per-horizon policy."""
+    global _POLICY
+    if _POLICY is None:
+        with open(POLICY_PATH, "r", encoding="utf-8") as f:
+            _POLICY = yaml.safe_load(f)
+    return _POLICY
 
 
 def policy_key(feature_set: str, base_key: str) -> str:

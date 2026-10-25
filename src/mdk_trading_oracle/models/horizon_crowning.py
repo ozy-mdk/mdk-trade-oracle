@@ -196,6 +196,47 @@ def crown_single(
     return {"config": best, "family": best.family, "opt1_score": r.opt1_score, "window_label_end_date": r.window_label_end_date}
 
 
+def crown_staged(
+    ledger: pd.DataFrame,
+    crown_date: str,
+    feature_sets: tuple[str, ...],
+    eval_sessions: int = CROWN_EVAL_SESSIONS,
+    min_window: int = 60,
+    allowed: dict[str, tuple[str, ...]] | None = None,
+) -> dict[str, str]:
+    """Staged monthly tournament per stock: {horizon: winning candidate key}.
+
+    Stage 1 — model and training window: the production rule on the production pool (keys without a `set|` prefix):
+    family-first `crown` for 3D-30D, `crown_single` for 1D.
+    Stage 2 — features: with model and window fixed, every feature set x feature mode (`set|Model/lookback/mode`,
+    production unprefixed; `allowed[horizon]` restricts the feature sets per horizon) competes on the same ranking (option-1 recency score, last-30 hit rate, recency MAE, then
+    feature-set order). Only rows realized before `crown_date` are used.
+    """
+    prod = ledger[~ledger["config_key"].str.contains("|", regex=False)]
+    stage1 = {h: v["config"].key for h, v in (crown(prod[prod["horizon"] != "1d"], crown_date, eval_sessions=eval_sessions, min_window=min_window) or {}).items()}
+    one = crown_single(prod, crown_date, "1d", eval_sessions=eval_sessions, min_window=min_window)
+    if one:
+        stage1["1d"] = one["config"].key
+    out: dict[str, str] = {}
+    for h, key in stage1.items():
+        model, lookback, _mode = key.split("/")
+        sets = [fs for fs in feature_sets if allowed is None or fs in allowed.get(h, feature_sets)]
+        opts = [
+            (f"{fs}|" if fs != "production" else "") + f"{model}/{lookback}/{md}"
+            for fs in sets for md in FEATURE_MODES
+        ]
+        rank = {k: i for i, k in enumerate(opts)}
+        sc = score_window(ledger[(ledger["horizon"] == h) & ledger["config_key"].isin(opts)], crown_date, eval_sessions)
+        sc = sc[sc["n_window"] >= min_window]
+        if sc.empty:
+            out[h] = key
+            continue
+        assert (sc["window_label_end_date"] < crown_date).all(), "crowning used an outcome realized on/after the crowning date"
+        sc = sc.assign(order=sc["config_key"].map(rank))
+        out[h] = sc.sort_values(["opt1_score", "r_0_30", "mae_pct", "order"], ascending=[False, False, True, True])["config_key"].iloc[0]
+    return out
+
+
 def crown_policy(ledger: pd.DataFrame, crown_date: str, eval_sessions: int = CROWN_EVAL_SESSIONS, min_window: int = 60) -> dict[str, str]:
     """Production crowning rule over per-horizon candidate pools (keys may carry a feature-set prefix `set|key`).
 

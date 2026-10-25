@@ -265,7 +265,7 @@ def production_candidates(sym: str) -> pd.DataFrame:
         """
         SELECT horizon, config_key, trade_date::text AS trade_date, target_date_end::text AS target_date_end,
                pred_return_pct AS pred, actual_return_pct AS actual, is_hit, err_pct
-        FROM gold_tertip_multi_horizon_candidates WHERE symbol = %s
+        FROM gold_tertip_multi_horizon_candidates WHERE symbol = %s AND config_key NOT LIKE '%%|%%'
         """,
         params=[sym],
     )
@@ -408,16 +408,71 @@ def policy_track(leds: dict, dates: list[str], policy: dict) -> pd.DataFrame:
     return pd.concat([g.sort_values("trade_date").iloc[-DISPLAY:] for _, g in tr.groupby("horizon")], ignore_index=True)
 
 
+STAGED = {"staged3": False, "staged9": True, "staged_c": "constrained", "staged_f": "forced"}
+# stage-2 forced: the horizon's validated feature set only (no per-stock choice)
+STAGE2_FORCED = {"1d": ("events",), "3d": ("events",), "5d": ("regime_no_sma50",), "10d": ("regime_no_sma50",),
+                 "15d": ("production",), "30d": ("production",)}
+# stage-2 feature sets allowed per horizon (constrained: production or the feature set validated for the horizon)
+STAGE2_ALLOWED = {"1d": ("production", "events"), "3d": ("production", "events"), "5d": ("production", "regime_no_sma50"),
+                  "10d": ("production", "regime_no_sma50"), "15d": ("production",), "30d": ("production",)}  # stage 2 over feature sets only, or feature set x feature mode
+STAGE2_SETS = ("production", "events", "regime_no_sma50")
+
+
+def staged_track(leds: dict, dates: list[str], with_modes: bool) -> pd.DataFrame:
+    """Staged monthly tournament (production `crown_staged`): stage 1 model + window on the production pool, stage 2
+    feature set x feature mode (or feature set only, keeping stage 1's mode, when `with_modes` is False)."""
+    from mdk_trading_oracle.models.horizon_crowning import crown, crown_single, crown_staged, month_starts, score_window
+
+    keyed = [leds["production"]]
+    for fs in STAGE2_SETS[1:]:
+        g = leds[fs].copy()
+        g["config_key"] = fs + "|" + g["config_key"]
+        keyed.append(g)
+    allc = pd.concat(keyed, ignore_index=True)
+    months = [m for m in month_starts(pd.Series(dates), dates[0]) if m >= dates[max(0, len(dates) - 150)]]
+    out = []
+    for i, m in enumerate(months):
+        end = months[i + 1] if i + 1 < len(months) else "9999-12-31"
+        if with_modes == "constrained":
+            picks = crown_staged(allc, m, STAGE2_SETS, allowed=STAGE2_ALLOWED)
+        elif with_modes == "forced":
+            picks = crown_staged(allc, m, STAGE2_SETS, allowed=STAGE2_FORCED)
+        elif with_modes:
+            picks = crown_staged(allc, m, STAGE2_SETS)
+        else:  # stage 2 over feature sets only, keeping stage 1's feature mode
+            prod = leds["production"]
+            st1 = {h: v["config"].key for h, v in (crown(prod[prod["horizon"] != "1d"], m) or {}).items()}
+            one = crown_single(prod, m, "1d")
+            if one:
+                st1["1d"] = one["config"].key
+            picks = {}
+            for h, key in st1.items():
+                sub = allc[(allc["horizon"] == h) & allc["config_key"].str.split("|").str[-1].eq(key)]
+                sc = score_window(sub, m)
+                sc = sc[sc["n_window"] >= 60]
+                picks[h] = sc.sort_values(["opt1_score", "r_0_30", "mae_pct"], ascending=[False, False, True])["config_key"].iloc[0] if len(sc) else key
+        for h, key in picks.items():
+            out.append(allc[(allc["horizon"] == h) & (allc["config_key"] == key) & (allc["trade_date"] >= m) & (allc["trade_date"] < end)].assign(crown_date=m))
+    tr = pd.concat(out, ignore_index=True)
+    return pd.concat([g.sort_values("trade_date").iloc[-DISPLAY:] for _, g in tr.groupby("horizon")], ignore_index=True)
+
+
 def tracks_for(sym: str, variants: list[str]) -> pd.DataFrame:
     dates = pd.read_parquet(FRAMES / f"{sym}.parquet")["trade_date"].sort_values().tolist()
     leds = {"production": production_candidates(sym)}
     pol_src = {src for x in variants if x in POLICIES for src, _ in POLICIES[x].values()} - {"production_track"}
+    if any(x in STAGED for x in variants):
+        pol_src |= set(STAGE2_SETS[1:])
     for v in set(variants) | {ENSEMBLE[x] for x in variants if x in ENSEMBLE} | {DERIVED[x][0] for x in variants if x in DERIVED} | pol_src:
         if v in COMPUTED and (OUT / f"candidates_{v}_{sym}.parquet").exists():
             leds[v] = pd.read_parquet(OUT / f"candidates_{v}_{sym}.parquet")
     out = []
     for v in ["production"] + variants:
-        if v in POLICIES:
+        if v in STAGED:
+            if any(fs not in leds for fs in STAGE2_SETS[1:]):
+                continue
+            tr = staged_track(leds, dates, STAGED[v])
+        elif v in POLICIES:
             if any(src not in leds and src != "production_track" for src, _ in POLICIES[v].values()):
                 continue
             tr = policy_track(leds, dates, POLICIES[v])

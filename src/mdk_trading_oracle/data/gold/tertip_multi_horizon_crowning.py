@@ -17,10 +17,11 @@ So the displayed hit rate never contains the sessions a champion was selected on
 training labels realized by the origin close) over the same 75 configurations; its displayed track is written to
 gold_tertip_walk_forward_backtests by data/gold/tertip_forecasts.py.
 
-Per-horizon policy (data/silver/event_regime_features.HORIZON_POLICY, tested 2026-10-25, handoff §0.8): 1D / 3D use
-the `events` feature set, 5D / 10D `regime_no_sma50`, 15D the production features without 63-session lookbacks, 30D
-the production features with its own production crowning. Candidate keys of non-production sets are prefixed
-(`events|Ridge/252/FIFO_CORE`). Production candidates are kept for every swing horizon (30D's family-first crowning).
+Tournament policy (config/tournament_policy.yaml, tested 2026-10-25, handoff §0.8): every feature set has candidates
+at every horizon. Priority stocks: staged tournament (`crown_staged`) — stage 1 model + training window on the
+production features, stage 2 feature set x mode from the horizon's menu. Other stocks: the validated feature set per
+horizon crowned within that pool (`crown_policy`), 30D by its own production crowning. Candidate keys of
+non-production sets are prefixed (`events|Ridge/252/FIFO_CORE`).
 """
 
 from __future__ import annotations
@@ -34,12 +35,13 @@ import polars as pl
 from mdk_trading_oracle.core.db import PostgresManager
 from mdk_trading_oracle.core.logger import get_logger
 from mdk_trading_oracle.data.silver.event_regime_features import (
-    HORIZON_POLICY,
     KEY_SEP,
+    TOURNAMENT_FEATURE_SETS,
     apply_feature_set,
     load_event_tables,
     policy_key,
     split_key,
+    tournament_policy,
 )
 from mdk_trading_oracle.models.horizon_crowning import (
     CROWN_EVAL_SESSIONS,
@@ -47,6 +49,7 @@ from mdk_trading_oracle.models.horizon_crowning import (
     candidate_configs,
     crown,
     crown_policy,
+    crown_staged,
     month_starts,
 )
 
@@ -113,12 +116,8 @@ def _pool_filter(feature_set: str) -> str:
 
 
 def swing_pools() -> list[tuple[str, list[str]]]:
-    """(feature set, horizons) for which candidates are generated: production for every swing horizon, plus each
-    policy feature set for the horizons that use it."""
-    pools = [("production", list(HORIZONS))]
-    for fs in sorted({HORIZON_POLICY[h][0] for h in HORIZONS} - {"production"}):
-        pools.append((fs, [h for h in HORIZONS if HORIZON_POLICY[h][0] == fs]))
-    return pools
+    """(feature set, horizons) for which candidates are generated: every tournament feature set at every horizon."""
+    return [(fs, list(HORIZONS)) for fs in tournament_policy().get("feature_sets", TOURNAMENT_FEATURE_SETS)]
 
 
 def update_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, ev: dict | None = None) -> int:
@@ -190,18 +189,23 @@ def update_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, 
 
 
 def update_t1_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, ev: dict | None = None) -> int:
-    """Extend every candidate's point-in-time next-day ledger (horizon '1d') to the latest realized session.
+    """Extend every candidate's point-in-time next-day ledger (horizon '1d') to the latest realized session, for every
+    tournament feature set.
 
     Row t: model fitted at the close of t on labels realized by then (`forecast_t1`), predicting r(t -> t+1);
-    `trade_date` is the origin t, `target_date_end` the graded session t+1. Uses the 1D policy feature set.
+    `trade_date` is the origin t, `target_date_end` the graded session t+1.
     """
+    ev = ev or load_event_tables(db)
+    return sum(_update_t1_pool(db, symbol, df, fs, ev) for fs in tournament_policy().get("feature_sets", TOURNAMENT_FEATURE_SETS))
+
+
+def _update_t1_pool(db: PostgresManager, symbol: str, df: pd.DataFrame, fs: str, ev: dict) -> int:
     from mdk_trading_oracle.data.silver.tertip_ml_forecaster import _check_hit, get_feature_cols_for_mode
     from mdk_trading_oracle.models.t1_forecast import T1Config, forecast_t1, prepare_feature_frame, t1_labels
 
     sym = symbol.upper()
-    fs = HORIZON_POLICY[T1_HORIZON][0]
     configs = candidate_configs()
-    src, extra, drop = apply_feature_set(df.sort_values("trade_date").reset_index(drop=True), sym, fs, ev or load_event_tables(db))
+    src, extra, drop = apply_feature_set(df.sort_values("trade_date").reset_index(drop=True), sym, fs, ev)
     mode_cols = {m: [c for c in get_feature_cols_for_mode(m) if c not in drop] + extra for m in {c.feature_mode for c in configs}}
     frame = prepare_feature_frame(src, sorted({c for cols in mode_cols.values() for c in cols}))
     labels = t1_labels(frame)
@@ -274,24 +278,44 @@ def load_candidates(db: PostgresManager, symbol: str) -> pd.DataFrame:
 # Monthly crowns
 
 
-def policy_ledger(candidates: pd.DataFrame) -> pd.DataFrame:
-    """Each horizon's candidate pool under HORIZON_POLICY (feature set + excluded lookback)."""
+def policy_ledger(candidates: pd.DataFrame, policy: dict | None = None) -> pd.DataFrame:
+    """Each horizon's candidate pool under the default policy (feature set + optional excluded lookback)."""
+    policy = policy or tournament_policy()["default_policy"]
     parts = []
-    for h, (fs, excl, _) in HORIZON_POLICY.items():
+    for h, spec in policy.items():
         g = candidates[candidates["horizon"] == h]
-        keys = g["config_key"].map(lambda k: split_key(k)[0])
-        g = g[keys == fs]
-        if excl is not None:
-            g = g[g["config_key"].map(lambda k: split_key(k)[1].split("/")[1]) != str(excl)]
+        g = g[g["config_key"].map(lambda k: split_key(k)[0]) == spec["feature_set"]]
+        if spec.get("exclude_lookback") is not None:
+            g = g[g["config_key"].map(lambda k: split_key(k)[1].split("/")[1]) != str(spec["exclude_lookback"])]
         parts.append(g)
     return pd.concat(parts, ignore_index=True)
+
+
+def crown_month(symbol: str, candidates: pd.DataFrame, crown_date: str) -> dict[str, str]:
+    """Champions {horizon: candidate key} for one stock and month under config/tournament_policy.yaml."""
+    pol = tournament_policy()
+    if symbol.upper() in set(pol["priority_stocks"]):
+        allowed = {h: tuple(v) for h, v in pol["stage2_allowed"].items()}
+        return crown_staged(candidates, crown_date, tuple(pol["feature_sets"]), eval_sessions=CROWN_EVAL_SESSIONS, allowed=allowed)
+    default = pol["default_policy"]
+    champs = crown_policy(policy_ledger(candidates, default), crown_date, eval_sessions=CROWN_EVAL_SESSIONS)
+    own = [h for h, spec in default.items() if spec.get("own_production_crowning")]
+    if own:
+        prod_swing = candidates[(candidates["horizon"] != T1_HORIZON) & ~candidates["config_key"].str.contains(KEY_SEP, regex=False)]
+        prod = crown(prod_swing, crown_date, eval_sessions=CROWN_EVAL_SESSIONS) or {}
+        for h in own:
+            if h in prod:
+                champs[h] = prod[h]["config"].key
+            else:
+                champs.pop(h, None)
+    return champs
 
 
 def update_crowns(db: PostgresManager, symbol: str, candidates: pd.DataFrame, trade_dates: list[str]) -> int:
     """Crown every month start of the recent window that has no complete set of crowns yet; returns crowns written.
 
-    1D-15D: `crown_policy` over the per-horizon policy pools; 30D: production family-first crowning over the
-    production candidates. Crowns on month start M see only rows with target_date_end < M (asserted).
+    `crown_month` applies config/tournament_policy.yaml. Crowns on month start M see only rows with
+    target_date_end < M (asserted inside the crowning rules).
     """
     sym = symbol.upper()
     first = trade_dates[max(0, len(trade_dates) - CROWN_HISTORY_SESSIONS)]
@@ -299,23 +323,19 @@ def update_crowns(db: PostgresManager, symbol: str, candidates: pd.DataFrame, tr
         "SELECT horizon, crown_date::text AS d FROM gold_tertip_multi_horizon_crowns WHERE symbol = %s", params=[sym]
     )
     have = set(zip(crowned["horizon"], crowned["d"]))
-    pol = policy_ledger(candidates)
-    prod_swing = candidates[(candidates["horizon"] != T1_HORIZON) & ~candidates["config_key"].str.contains(KEY_SEP, regex=False)]
+    all_h = (T1_HORIZON,) + tuple(HORIZONS)
     written = 0
     # first trading day of each whole month (computed on all dates, so a window start mid-month is not a crown date)
     for m in [d for d in month_starts(pd.Series(trade_dates), trade_dates[0]) if d >= first]:
-        missing = [h for h in HORIZON_POLICY if (h, m) not in have]
+        missing = [h for h in all_h if (h, m) not in have]
         if not missing:
             continue
-        champs = crown_policy(pol, m, eval_sessions=CROWN_EVAL_SESSIONS)
-        prod = crown(prod_swing, m, eval_sessions=CROWN_EVAL_SESSIONS) or {}
+        champs = crown_month(sym, candidates, m)
         for h in missing:
-            use_policy = HORIZON_POLICY[h][2]
-            key = champs.get(h) if use_policy else (prod[h]["config"].key if h in prod else None)
-            if key is None:
+            if h not in champs:
                 logger.warning(f"{sym}: not enough realized candidate history to crown {h} on {m}")
                 continue
-            written += _store_crown(db, sym, h, m, key)
+            written += _store_crown(db, sym, h, m, champs[h])
     return written
 
 

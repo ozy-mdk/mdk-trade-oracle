@@ -214,6 +214,18 @@ trails the better constant by 0.6-5.4 pp in 2025-26 (15D significantly). Gold le
 (a falling stretch): always-DOWN 53-59% wins every horizon; drift 41-52% beats always-UP but not always-DOWN.
 Implication: drift does not pass the rule either (hence the switch to re-crowning).
 
+**Feature sets inside the tournament (2026-10-25) — tested, not adopted.** `config/tournament_policy.yaml` supports a
+staged monthly tournament per stock (`crown_staged`: stage 1 model + training window on the production features,
+stage 2 feature set x mode from a per-horizon menu) for stocks listed in `priority_stocks`; the list is empty. Clean
+results (vs previous production, pp, averaged over the six horizons): focus six + THYAO — policy C +1.9, staged with
+a 2-set menu (production vs validated set) +0.1, staged with any set x mode -0.1, staged with the validated set forced
+after stage 1 +1.25; other 22 — policy C 0.0, staged menus -0.2 to -0.6. Per-stock monthly feature choice on 90
+sessions adds selection noise; one validated set per horizon (policy C) is more robust. An earlier report of +2.8 pp
+for the 2-set menu was wrong: the harness read the production pool from gold after the prefixed feature-set ledgers
+had been imported there, so those candidates were counted twice (fixed: `production_candidates` excludes prefixed
+keys). Lessons: never score the harness while the gold job rewrites candidates, and keep experiment inputs separate
+from gold.
+
 **Per-horizon policy C in production (2026-10-25)** — first change that improves accuracy. User rule: ship what
 clearly helps the 7 priority stocks (focus six + THYAO) unless it harms the rest dramatically; test first.
 Policy (`data/silver/event_regime_features.HORIZON_POLICY`): 1D / 3D `events` feature set, 5D / 10D
