@@ -67,6 +67,16 @@ REGIME_COLS = ["feat_regime_down", "feat_regime_trend"]
 COMPUTED = ["no_sma50", "regime", "regime_no_sma50", "events"]
 DERIVED = {"no_3m": ("production", 63), "combo": ("regime_no_sma50", 63)}
 ENSEMBLE = {"ens5": "production", "ens5_regime": "regime_no_sma50"}
+# Per-horizon policies: horizon -> (candidate ledger source, excluded lookback or None). Crowned jointly, as in production.
+POLICIES = {
+    "policy_a": {"1d": ("events", None), "3d": ("events", None), "5d": ("regime_no_sma50", None),
+                 "10d": ("regime_no_sma50", None), "15d": ("production", 63), "30d": ("production", None)},
+    # policy_a for 1D-15D; 30D keeps production's own crowning (crowned separately, so its family is unaffected)
+    "policy_c": {"1d": ("events", None), "3d": ("events", None), "5d": ("regime_no_sma50", None),
+                 "10d": ("regime_no_sma50", None), "15d": ("production", 63), "30d": ("production_track", None)},
+    "policy_b": {"1d": ("events", None), "3d": ("events", None), "5d": ("production", 63),
+                 "10d": ("regime_no_sma50", None), "15d": ("production", 63), "30d": ("production", None)},
+}
 CROWN_WINDOW = {"hit150": ("production", 150)}
 
 
@@ -333,15 +343,85 @@ def plain_hit_track(led: pd.DataFrame, dates: list[str], window: int = 150) -> p
     return pd.concat([g.sort_values("trade_date").iloc[-DISPLAY:] for _, g in tr.groupby("horizon")], ignore_index=True)
 
 
+def crown_available(led: pd.DataFrame, crown_date: str) -> dict:
+    """Production crowning rule (family-first over 3D-30D, option-1 recency score, same tie-break; 1D on its own)
+    restricted to the candidates present at each horizon (per-horizon exclusions allowed)."""
+    from mdk_trading_oracle.models.horizon_crowning import FAMILIES, HORIZON_WEIGHTS, candidate_configs, score_window
+
+    sc = score_window(led, crown_date)
+    if sc.empty:
+        return {}
+    sc = sc[sc["n_window"] >= 60]
+    fam_of = {c.key: c.family for c in candidate_configs()}
+    order = {c.key: i for i, c in enumerate(candidate_configs())}
+    sc = sc.assign(family=sc["config_key"].map(fam_of), order=sc["config_key"].map(order))
+
+    def best(g: pd.DataFrame):
+        g = g.sort_values(["opt1_score", "r_0_30", "mae_pct", "order"], ascending=[False, False, True, True])
+        return g.iloc[0] if len(g) else None
+
+    out = {}
+    one = best(sc[sc["horizon"] == "1d"])
+    if one is not None:
+        out["1d"] = one["config_key"]
+    swing = sc[sc["horizon"] != "1d"]
+    if swing["horizon"].nunique() == 5:
+        fam_score = {}
+        for fam in FAMILIES:
+            tot = 0.0
+            for h, w in HORIZON_WEIGHTS.items():
+                b = best(swing[(swing["horizon"] == h) & (swing["family"] == fam)])
+                tot += w * (b["opt1_score"] if b is not None else 0.0)
+            fam_score[fam] = tot
+        fam = max(fam_score, key=fam_score.get)
+        for h in HORIZON_WEIGHTS:
+            b = best(swing[(swing["horizon"] == h) & (swing["family"] == fam)])
+            if b is not None:
+                out[h] = b["config_key"]
+    return out
+
+
+def policy_track(leds: dict, dates: list[str], policy: dict) -> pd.DataFrame:
+    """Combine per-horizon candidate sources (and per-horizon lookback exclusions), crown jointly like production."""
+    from mdk_trading_oracle.models.horizon_crowning import month_starts
+
+    keep_prod = [h for h, (src, _) in policy.items() if src == "production_track"]
+    policy = {h: (("production", None) if src == "production_track" else (src, excl)) for h, (src, excl) in policy.items()}
+    parts = []
+    for h, (src, excl) in policy.items():
+        g = leds[src]
+        g = g[g["horizon"] == h]
+        if excl is not None:
+            g = g[~g["config_key"].str.split("/").str[1].eq(str(excl))]
+        parts.append(g)
+    led = pd.concat(parts, ignore_index=True)
+    months = [m for m in month_starts(pd.Series(dates), dates[0]) if m >= dates[max(0, len(dates) - 150)]]
+    out = []
+    for i, m in enumerate(months):
+        end = months[i + 1] if i + 1 < len(months) else "9999-12-31"
+        for h, key in crown_available(led, m).items():
+            out.append(led[(led["horizon"] == h) & (led["config_key"] == key) & (led["trade_date"] >= m) & (led["trade_date"] < end)].assign(crown_date=m))
+    tr = pd.concat(out, ignore_index=True)
+    if keep_prod:
+        prod = recrowned_track(leds["production"], dates)
+        tr = pd.concat([tr[~tr["horizon"].isin(keep_prod)], prod[prod["horizon"].isin(keep_prod)]], ignore_index=True)
+    return pd.concat([g.sort_values("trade_date").iloc[-DISPLAY:] for _, g in tr.groupby("horizon")], ignore_index=True)
+
+
 def tracks_for(sym: str, variants: list[str]) -> pd.DataFrame:
     dates = pd.read_parquet(FRAMES / f"{sym}.parquet")["trade_date"].sort_values().tolist()
     leds = {"production": production_candidates(sym)}
-    for v in set(variants) | {ENSEMBLE[x] for x in variants if x in ENSEMBLE} | {DERIVED[x][0] for x in variants if x in DERIVED}:
+    pol_src = {src for x in variants if x in POLICIES for src, _ in POLICIES[x].values()} - {"production_track"}
+    for v in set(variants) | {ENSEMBLE[x] for x in variants if x in ENSEMBLE} | {DERIVED[x][0] for x in variants if x in DERIVED} | pol_src:
         if v in COMPUTED and (OUT / f"candidates_{v}_{sym}.parquet").exists():
             leds[v] = pd.read_parquet(OUT / f"candidates_{v}_{sym}.parquet")
     out = []
     for v in ["production"] + variants:
-        if v in ENSEMBLE:
+        if v in POLICIES:
+            if any(src not in leds and src != "production_track" for src, _ in POLICIES[v].values()):
+                continue
+            tr = policy_track(leds, dates, POLICIES[v])
+        elif v in ENSEMBLE:
             if ENSEMBLE[v] not in leds:
                 continue
             tr = ensemble_track(leds[ENSEMBLE[v]], dates)

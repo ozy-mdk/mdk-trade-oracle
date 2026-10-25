@@ -214,6 +214,27 @@ trails the better constant by 0.6-5.4 pp in 2025-26 (15D significantly). Gold le
 (a falling stretch): always-DOWN 53-59% wins every horizon; drift 41-52% beats always-UP but not always-DOWN.
 Implication: drift does not pass the rule either (hence the switch to re-crowning).
 
+**Per-horizon policy C in production (2026-10-25)** — first change that improves accuracy. User rule: ship what
+clearly helps the 7 priority stocks (focus six + THYAO) unless it harms the rest dramatically; test first.
+Policy (`data/silver/event_regime_features.HORIZON_POLICY`): 1D / 3D `events` feature set, 5D / 10D
+`regime_no_sma50`, 15D production features without 63-session lookbacks, 30D production features with its own
+production crowning (crowned separately so the other horizons' changes cannot move its model family).
+Honest track, last 90 graded sessions, change vs production (pp):
+
+| | 1D | 3D | 5D | 10D | 15D | 30D |
+|---|---|---|---|---|---|---|
+| 7 priority stocks | +2.1 | +3.0 | +2.7 | +1.4 | +2.2 | 0.0 |
+| 22 other stocks | +0.3 | -0.2 | -0.9 | +0.1 | +0.9 | 0.0 |
+| all 29 | +0.7 | +0.6 | 0.0 | +0.4 | +1.2 | 0.0 |
+
+New gold, 7 stocks: 55.1 / 54.8 / 51.4 / 57.1 / 59.7 / 58.1; all 29: 53.1 / 51.3 / 49.8 / 52.5 / 56.0 / 51.6 (still
+below always-DOWN at 1D-10D in this falling market). Events alone at every horizon hurts 15D / 30D (-2.2 / -3.8 on
+all 29), hence per-horizon sets. Implementation: candidate keys of non-production sets are prefixed (`events|...`,
+`regime_no_sma50|...`); `crown_policy` (models/horizon_crowning.py) crowns 1D-15D over the policy pools, `crown`
+(production rule) crowns 30D; live forecasts apply the champion's feature set. Gold was verified against the
+experiment: 15,322 of 15,322 graded rows identical. Tests: `tests/test_horizon_policy.py`. The policy ledgers were
+imported from the experiment run (same code, post-repair data); the nightly gold job extends them incrementally.
+
 **Data incident 2026-10-25 (fixed):** bronze held 20 stray partial days from Jan-Apr 2022 (500,000 rows in blocks of
 32,768, no ingestion-log entry; complete history lives in silver from the parquet migration). `SilverTransformer`
 rebuilt *every* bronze date on each incremental run, so the two silver runs of 2026-10-25 overwrote those 20 silver

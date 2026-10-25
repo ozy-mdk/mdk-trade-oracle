@@ -194,3 +194,48 @@ def crown_single(
     r = by_key[best.key]
     assert r.window_label_end_date < crown_date, "crowning used an outcome realized on/after the crowning date"
     return {"config": best, "family": best.family, "opt1_score": r.opt1_score, "window_label_end_date": r.window_label_end_date}
+
+
+def crown_policy(ledger: pd.DataFrame, crown_date: str, eval_sessions: int = CROWN_EVAL_SESSIONS, min_window: int = 60) -> dict[str, str]:
+    """Production crowning rule over per-horizon candidate pools (keys may carry a feature-set prefix `set|key`).
+
+    3D-30D: family-first (horizon-weighted best option-1 score per family), then the best candidate of the crowned
+    family per horizon; 1D on its own. Ranking: option-1 recency score, last-30 hit rate, recency MAE, then production
+    candidate order. Only rows realized before `crown_date` are used. Returns {horizon: candidate key}.
+    """
+    configs = candidate_configs()
+    fam_of = {c.key: c.family for c in configs}
+    order = {c.key: i for i, c in enumerate(configs)}
+    sc = score_window(ledger, crown_date, eval_sessions)
+    if sc.empty:
+        return {}
+    sc = sc[sc["n_window"] >= min_window].copy()
+    assert (sc["window_label_end_date"] < crown_date).all(), "crowning used an outcome realized on/after the crowning date"
+    base = sc["config_key"].str.split("|").str[-1]
+    sc["family"] = base.map(fam_of)
+    sc["order"] = base.map(order)
+
+    def best(g: pd.DataFrame) -> str | None:
+        if g.empty:
+            return None
+        return g.sort_values(["opt1_score", "r_0_30", "mae_pct", "order"], ascending=[False, False, True, True])["config_key"].iloc[0]
+
+    out: dict[str, str] = {}
+    one = best(sc[sc["horizon"] == "1d"])
+    if one:
+        out["1d"] = one
+    swing = sc[sc["horizon"].isin(HORIZONS)]
+    if swing["horizon"].nunique() == len(HORIZONS):
+        def fam_score(fam: str) -> float:
+            tot = 0.0
+            for h in HORIZONS:
+                g = swing[(swing["horizon"] == h) & (swing["family"] == fam)]
+                tot += HORIZON_WEIGHTS[h] * (float(g["opt1_score"].max()) if len(g) else 0.0)
+            return tot
+
+        fam = max(FAMILIES, key=fam_score)
+        for h in HORIZONS:
+            k = best(swing[(swing["horizon"] == h) & (swing["family"] == fam)])
+            if k:
+                out[h] = k
+    return out

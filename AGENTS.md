@@ -111,6 +111,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
    - **Trader Outputs (`risk_profile`)**: 90% band, median price, `p_up_pct` / `p_down_pct` / `p_flat_pct` beyond the deadband, 1-sigma adverse `stop_price`, `p_target_before_stop_pct`, `expected_shortfall_95_pct`, next-session and horizon sigma.
    - Not used: short-rate models (Vasicek / CIR / Hull-White — TCMB policy rate is a decision-driven step function) and option-calibrated Heston / Black-Scholes delta hedging (no liquid BIST single-stock options surface).
 7. **Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)**:
+   - **Per-horizon feature policy (since 2026-10-25):** 1D / 3D add event-calendar features (TCMB MPC distance, ex-dividend distance / yield, BIST 30 rebalancing), 5D / 10D add BIST 30 regime-conditional mean reversion without `price_vs_sma50`, 15D excludes 63-session lookbacks, 30D unchanged (`data/silver/event_regime_features.HORIZON_POLICY`). Tested on the honest track: +1.4 to +3.0 pp on the 7 priority stocks at 1D-15D, no material harm elsewhere (`docs/RESEARCH_HANDOFF_2026-10.md` §0.8).
    - **Honest monthly re-crowning (since 2026-10-25).** On the first trading day of each month the tournament
      crowns one champion per stock and horizon using only outcomes realized before that day
      (`data/gold/tertip_multi_horizon_crowning.py`, `models/horizon_crowning.py`). The displayed 90-session track

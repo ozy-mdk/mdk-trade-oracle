@@ -355,7 +355,12 @@ horizon in parallel). Only an idea that holds on the 22 confirmation stocks may 
 | Regime + no SMA50 | -1.9 / 0 / +2.7 / +2.7 / +2.2 / -4.8 | -0.9 / +0.8 / -0.8 / 0.0 / -2.9 / +0.7 | drop (luck) |
 | Top-5 candidate ensemble | -0.3 / +0.6 / -3.0 / +1.4 / -0.8 / -9.4 | not run | drop |
 | Plain hit rate over 150 sessions for crowning | -2.4 / -4.6 / +0.3 / +2.5 / +4.4 / -0.3 | +0.2 / 0 / -3.0 / -0.3 / -2.4 / -0.8 | drop (luck) |
-| Event calendar (MPC distance, ex-dividend distance / yield, BIST 30 rebalancing) | +2.1 / +1.6 / +1.3 / -4.9 / -0.8 / -2.4 | see RESEARCH_HANDOFF §0.8 | candidate for 1D-5D |
+| Event calendar (MPC distance, ex-dividend distance / yield, BIST 30 rebalancing) | +2.1 / +1.6 / +1.3 / -4.9 / -0.8 / -2.4 | +0.3 / -0.1 / -0.3 / -0.1 / -2.7 / -4.3 | keep for 1D / 3D only |
+| **Policy C (per horizon: events 1D/3D, regime + no SMA50 5D/10D, no 63-lookback 15D, production 30D)** | **+2.1 / +3.0 / +2.7 / +1.4 / +2.2 / 0.0** | **+0.3 / -0.2 / -0.9 / +0.1 / +0.9 / 0.0** | **in production 2026-10-25** |
+
+Deployment rule (user, 2026-10-25): the 7 stocks are the priority; ship what clearly helps them unless it harms the
+other 22 dramatically (working threshold: >= +1.5 pp on the 7, not worse than about -1.5 pp on the 22); per-horizon
+choices are fine; always verify that gold reproduces the experiment before publishing.
 
 Lessons:
 - Gains found on 7 stocks by picking the best of several ideas per horizon are mostly selection luck; always confirm

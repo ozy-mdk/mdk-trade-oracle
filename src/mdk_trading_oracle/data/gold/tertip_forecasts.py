@@ -32,6 +32,7 @@ from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import (
     update_crowns,
     update_t1_candidate_ledger,
 )
+from mdk_trading_oracle.data.silver.event_regime_features import apply_feature_set, load_event_tables, split_key
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
     _check_hit,
@@ -309,7 +310,8 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
     # Prophet's one-step forecast for each recent session from data through the previous close (baseline column)
     df = attach_prophet_rolling_features(df, sym, n_history_needed=DISPLAY_SESSIONS + 10)
 
-    update_t1_candidate_ledger(db, sym, df)
+    ev = load_event_tables(db)
+    update_t1_candidate_ledger(db, sym, df, ev)
     candidates = load_candidates(db, sym)
     update_crowns(db, sym, candidates, _dates(df))
     crowns = load_crowns(db, sym)
@@ -380,8 +382,9 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
 
     # 2. Live T+1 forecast of the current month's champion, fitted at the latest close
     cfg = T1Config(str(cur["model"]), int(cur["lookback"]), str(cur["feature_mode"]), label=str(cur["config_key"]))
-    f_cols = get_feature_cols_for_mode(cfg.feature_mode)
-    frame = prepare_feature_frame(df, f_cols)
+    src, extra, drop = apply_feature_set(df, sym, split_key(str(cur["config_key"]))[0], ev)
+    f_cols = [c for c in get_feature_cols_for_mode(cfg.feature_mode) if c not in drop] + extra
+    frame = prepare_feature_frame(src, f_cols)
     fc = forecast_t1(frame, len(frame) - 1, cfg, f_cols, t1_labels(frame))
     if fc is None:
         logger.warning(f"{sym}: champion {cfg.spec} cannot be fitted at {latest_date}")
