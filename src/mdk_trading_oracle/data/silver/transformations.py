@@ -1087,6 +1087,14 @@ class SilverTransformer:
                 WHERE index_name = 'BIST30'
                 GROUP BY trade_date
             ),
+            -- The yfinance feed leaves daily_return_pct empty (NaN) on some sessions; recompute it from the closes
+            bench AS (
+                SELECT x.trade_date, x.index_code, x.open_price, x.high_price, x.low_price, x.close_price, x.volume, x.is_forward_filled,
+                    CASE WHEN x.daily_return_pct IS NULL OR x.daily_return_pct = 'NaN'::double precision
+                         THEN x.close_price / NULLIF(LAG(x.close_price) OVER (PARTITION BY x.index_code ORDER BY x.trade_date), 0.0) - 1.0
+                         ELSE x.daily_return_pct END AS daily_return_pct
+                FROM bronze_bist_index_benchmarks x
+            ),
             ordered AS (
                 SELECT 
                     b.trade_date,
@@ -1130,7 +1138,7 @@ class SilverTransformer:
                     ABS(COALESCE(bb.basket_return_pct, b.daily_return_pct)) AS shock_magnitude_pct,
                     ROW_NUMBER() OVER (PARTITION BY b.index_code ORDER BY b.trade_date) AS rn,
                     b.is_forward_filled
-                FROM bronze_bist_index_benchmarks b
+                FROM bench b
                 LEFT JOIN bist30_basket bb ON b.trade_date = bb.trade_date
             ),
             with_shock_intervals AS (
@@ -1600,23 +1608,60 @@ class SilverTransformer:
             logger.warning(f"Continuous aggregate refresh notice: {e}")
             return {"status": "warning", "error": str(e)}
 
+    def pending_silver_dates(self) -> list[str]:
+        """Bronze dates the per-date silver tables must (re)compute: dates silver does not have yet, and dates whose
+        raw files were ingested after silver last computed them.
+
+        Bronze also holds a few stray partial historical days (no ingestion-log entry; complete history lives in
+        silver from the parquet migration). Rebuilding every bronze date overwrote those silver days with partial
+        data and, through the carried-forward FIFO ledger, changed every inventory feature after them.
+        """
+        conn = self.db.get_connection()
+        rows = conn.execute("""
+            WITH bronze_days AS (SELECT DISTINCT CAST(timestamp AS DATE) AS d FROM bronze_raw_trades),
+                 silver_days AS (SELECT trade_date AS d, MAX(calculated_at) AS calc FROM silver_daily_broker_summary GROUP BY 1),
+                 logged AS (SELECT trade_date AS d, MAX(ingested_at) AS ing FROM bronze_ingestion_log
+                            WHERE trade_date IS NOT NULL GROUP BY 1)
+            SELECT b.d FROM bronze_days b
+            LEFT JOIN silver_days s ON s.d = b.d
+            LEFT JOIN logged l ON l.d = b.d
+            WHERE s.d IS NULL OR (l.ing IS NOT NULL AND l.ing > s.calc)
+            ORDER BY 1;
+        """).fetchall()
+        return [str(r[0]) for r in rows]
+
     def run_all(self, target_dates: Optional[list[str]] = None) -> dict[str, Any]:
-        """Run full Silver transformation pipeline in dependency order."""
+        """Run full Silver transformation pipeline in dependency order.
+
+        Without `target_dates` only `pending_silver_dates()` are recomputed by the per-date transforms; the
+        full-history tables (macro rates, benchmark, thresholds, FIFO ledger) are always rebuilt.
+        """
         initialize_silver_schema(self.db)
+        if target_dates is None:
+            target_dates = self.pending_silver_dates()
+            logger.info(f"Silver incremental: {len(target_dates)} pending bronze date(s) {target_dates[:10]}")
         res_actions = self.transform_corporate_action_adjustment_periods()
-        res_broker = self.transform_daily_broker_summary(target_dates=target_dates)
-        res_overview = self.transform_daily_broker_overview(target_dates=target_dates)
-        res_stock = self.transform_daily_stock_summary(target_dates=target_dates)
-        res_sector = self.transform_daily_sector_summary(target_dates=target_dates)
-        res_win_broker = self.transform_intraday_broker_windows(target_dates=target_dates)
-        res_win_sector = self.transform_intraday_sector_windows(target_dates=target_dates)
-        res_session_prices = self.transform_daily_session_prices(target_dates=target_dates)
+        if target_dates:
+            res_broker = self.transform_daily_broker_summary(target_dates=target_dates)
+            res_overview = self.transform_daily_broker_overview(target_dates=target_dates)
+            res_stock = self.transform_daily_stock_summary(target_dates=target_dates)
+            res_sector = self.transform_daily_sector_summary(target_dates=target_dates)
+            res_win_broker = self.transform_intraday_broker_windows(target_dates=target_dates)
+            res_win_sector = self.transform_intraday_sector_windows(target_dates=target_dates)
+            res_session_prices = self.transform_daily_session_prices(target_dates=target_dates)
+        else:
+            skipped = {"rows": 0, "status": "up_to_date"}
+            res_broker = res_overview = res_stock = res_sector = res_win_broker = res_win_sector = res_session_prices = skipped
         res_macro_rates = self.transform_daily_macro_rates()
         res_benchmark = self.transform_daily_benchmark_index()
         res_flow_thresholds = self.transform_bofa_flow_thresholds()
         res_fifo = self.transform_broker_fifo_ledger()
         # Refresh TimescaleDB continuous aggregates (1m and 5m candles)
-        res_candlesticks = self.refresh_candlestick_aggregates(target_dates=target_dates)
+        res_candlesticks = (
+            self.refresh_candlestick_aggregates(target_dates=target_dates)
+            if target_dates
+            else {"status": "up_to_date"}
+        )
 
         return {
             "silver_corporate_action_adjustment_periods": res_actions,

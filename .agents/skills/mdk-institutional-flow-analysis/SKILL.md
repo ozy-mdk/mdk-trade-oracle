@@ -100,7 +100,7 @@ All features are computed **strictly from prior completed windows / $T-1$ Close 
 
 To prevent overfitting and adapt to changing market regimes, model and lookback horizon selection is performed through the walk-forward tournament arena (`data/gold/tertip_multi_horizon_crowning.py` (monthly, realized outcomes only)).
 
-The **tournament run is the single source of truth** for crowning the optimal model and lookback horizon (3M, 6M, 12M) per stock, persisted to `config/tertip_crowned_models.yaml` and PostgreSQL `gold_tertip_daily_forecasts`.
+Champions are crowned **monthly inside the gold job**, on the first trading day of each month, from outcomes realized before that day, and stored in `gold_tertip_multi_horizon_crowns` (1D and 3D-30D). The crowned yaml files are gone. Rules: never display a crowning window as a track record; show every hit rate next to always-UP and always-DOWN on the same sessions; a model has an edge only if it beats both. The diagram below shows the per-session walk-forward each candidate goes through; selection happens only across months.
 
 ```
                             12-MONTH TRAILING DATASET (e.g. 250 Sessions)
@@ -337,3 +337,33 @@ Individual and prop traders utilize the MDK Trading Oracle through a disciplined
 │    (Continuous Aggs, VWAP, Spreads)   Trade against Target Price Range [Low, High]
 └─────────────────────────────────┘
 ```
+
+
+## 12. Improvement Experiments Log (2026-10-25, honest protocol)
+
+Protocol for every idea: run the production pipeline unchanged except for that idea (75 candidates, monthly
+re-crowning on realized outcomes, last 90 graded sessions), compare with production on identical sessions and with
+always-UP / always-DOWN; screen on 7 stocks (focus six + THYAO), then confirm on the other 22 BIST 30 stocks, which
+played no part in choosing. Harness: `scripts/experiments/tournament_variants.py` (variants are computed per stock and
+horizon in parallel). Only an idea that holds on the 22 confirmation stocks may go to production.
+
+| Idea | 7 stocks vs production (1D/3D/5D/10D/15D/30D, pp) | 22 confirmation stocks | Verdict |
+|---|---|---|---|
+| No 63-session lookbacks | 0 / -4.9 / +1.7 / -0.5 / +2.5 / -0.6 | not run (mixed) | drop |
+| Drop `price_vs_sma50_pct` | 0 / -0.5 / +3.0 / -1.0 / -2.1 / -4.6 | not run (mixed) | drop |
+| Regime-conditional mean reversion (BIST 30 downtrend flag x mean-reversion features) | -5.4 / -4.1 / -0.6 / +3.2 / -0.8 / -0.3 | not run | drop |
+| Regime + no SMA50 | -1.9 / 0 / +2.7 / +2.7 / +2.2 / -4.8 | -0.9 / +0.8 / -0.8 / 0.0 / -2.9 / +0.7 | drop (luck) |
+| Top-5 candidate ensemble | -0.3 / +0.6 / -3.0 / +1.4 / -0.8 / -9.4 | not run | drop |
+| Plain hit rate over 150 sessions for crowning | -2.4 / -4.6 / +0.3 / +2.5 / +4.4 / -0.3 | +0.2 / 0 / -3.0 / -0.3 / -2.4 / -0.8 | drop (luck) |
+| Event calendar (MPC distance, ex-dividend distance / yield, BIST 30 rebalancing) | +2.1 / +1.6 / +1.3 / -4.9 / -0.8 / -2.4 | see RESEARCH_HANDOFF §0.8 | candidate for 1D-5D |
+
+Lessons:
+- Gains found on 7 stocks by picking the best of several ideas per horizon are mostly selection luck; always confirm
+  on the 22 unseen stocks.
+- Re-shuffling the existing features (pruning, regime interactions, crowning rules) does not create skill; new
+  information does (event calendar is the first idea with a plausible, horizon-consistent gain).
+- The models' strongest features (price vs SMA20/50, BIG5 / MLB cost spreads, YTD PnL, inventory shares) are
+  mean-reversion signals with negative IC: in a sustained sell-off they keep calling a rebound (THYAO 10D, Sep 2026).
+  BIST 30 market-regime features mean-revert too and flip sign between regimes, so they do not fix this linearly.
+- Event features act within days (ex-dividend, MPC next session) and help 1D-5D but add noise at 10D-30D: use
+  horizon-specific feature sets.

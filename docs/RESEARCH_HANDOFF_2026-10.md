@@ -214,6 +214,45 @@ trails the better constant by 0.6-5.4 pp in 2025-26 (15D significantly). Gold le
 (a falling stretch): always-DOWN 53-59% wins every horizon; drift 41-52% beats always-UP but not always-DOWN.
 Implication: drift does not pass the rule either (hence the switch to re-crowning).
 
+**Data incident 2026-10-25 (fixed):** bronze held 20 stray partial days from Jan-Apr 2022 (500,000 rows in blocks of
+32,768, no ingestion-log entry; complete history lives in silver from the parquet migration). `SilverTransformer`
+rebuilt *every* bronze date on each incremental run, so the two silver runs of 2026-10-25 overwrote those 20 silver
+days with partial data (e.g. GARAN 2022-02-24 turnover 2.07bn -> 0.84bn TL); the carried-forward FIFO ledger then
+changed every inventory feature (cost spreads, tertip shares, PnL) on >99% of dates up to today. Fixes:
+`scripts/repair_stray_bronze_days.py` restored the 20 days from the raw export
+(`00_raw_data/mdk_parquet_part_*`, verified against the pre-incident silver) and rebuilt silver + FIFO;
+`SilverTransformer.pending_silver_dates()` now limits incremental runs to new or re-ingested dates
+(`tests/test_silver_pending_dates.py`). The benchmark table's NaN returns (yfinance rows 10-09, 10-16) are now
+recomputed from closes. Post-repair silver equals the pre-incident silver for every feature up to 10-16. Everything
+computed between ~15:15 and the repair (gold candidates / crowns, the feature-importance report's FIFO numbers,
+the first tournament-variant run) was on corrupted features and has been rebuilt.
+
+**Improvement experiments on the repaired data (2026-10-25)** — harness `scripts/experiments/tournament_variants.py`;
+each idea runs the full production tournament (75 candidates, monthly re-crowning on realized outcomes, last 90
+graded sessions) and is compared with production on identical sessions; screened on 7 stocks (focus six + THYAO),
+confirmed on the other 22 BIST 30 stocks. Production honest track, 7 stocks: 53.0 / 51.7 / 48.7 / 55.7 / 57.5 / 58.1
+(1D / 3D / 5D / 10D / 15D / 30D) vs always-DOWN 56.3 / 55.4 / 56.8 / 60.0 / 56.3 / 56.5; all 29: 52.4 / 50.7 / 49.8 /
+52.1 / 54.8 / 51.6. Results (pp vs production):
+- no 63-session lookbacks, drop `price_vs_sma50_pct`, regime-conditional mean reversion, top-5 ensemble: mixed or
+  negative on the 7 stocks — dropped.
+- regime + no SMA50: +2.7 / +2.7 / +2.2 at 5D / 10D / 15D on the 7 stocks, but -0.8 / 0.0 / -2.9 on the 22 — luck.
+- plain hit-rate crowning over 150 sessions: +4.4 at 15D on the 7, -2.4 on the 22 — luck.
+- event calendar: +2.1 / +1.6 / +1.3 at 1D / 3D / 5D on the 7 (1D stocks beating both 0 -> 3), negative at 10D-30D;
+  confirmation on the 22 below.
+Earlier feature diagnostics (`docs/FEATURE_IMPORTANCE_REPORT.md`, superseded for FIFO numbers): the strongest features
+are mean-reversion signals with negative IC (price vs SMA, cost spreads, YTD PnL, inventory shares), which is why the
+models kept calling rebounds in the Sep-Oct 2026 sell-off; BIST 30 regime features mean-revert too and flip sign.
+
+**Event calendar data (2026-10-25):** `bronze_tcmb_mpc_meetings` (53 TCMB MPC meetings 2022-2026 incl. the 2025-03-20
+interim; 2024 Feb / May / Jun / Sep / Oct dates are the standard schedule, all others confirmed in the press),
+`bronze_dividends` (204 ex-dates, 36 symbols, Yahoo Finance), BIST 30 rebalancing from `bronze_bist30_changes`;
+loader `scripts/load_event_calendar.py`. Policy rate: the 2026-10-22 cut (37% -> 36%) added
+(`central_bank_interest_rates/2026/October_26/tcmb_1_hafta_repo_faizi_2026-10-19_2026-10-23_manual.xlsx`); silver
+showed 37% forward-filled before. Event features (point-in-time; dividends assumed known <= 20 sessions ahead,
+rebalancing entry / exit <= 10 sessions ahead): `feat_evt_mpc_sessions_to_next`, `_since_last`, `_next_session`,
+`_last_change_bps`, `feat_evt_div_sessions_to_next`, `feat_evt_div_yield_next_pct`, `feat_evt_rebal_sessions_to_next`,
+`feat_evt_rebal_entering`, `feat_evt_rebal_leaving` (`tournament_variants.add_event_features`).
+
 **90-session standard (user decision 2026-10-25):** backend and frontend use at most 90 evaluation sessions (API
 `eval_sessions` / `limit` default and max 90, gold `n_eval_sessions=90`, hub / multi-horizon / intraday pills
 30-60-90, default 90).

@@ -22,7 +22,7 @@ Our development philosophy follows a disciplined, collaborative workflow:
 ## 3. System Architecture (Medallion Lakehouse)
 A high-performance lakehouse powered by **PostgreSQL 16 + TimescaleDB + Polars + Python 3.9 on Apple Silicon M5 Mac Pro**:
 
-- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_bist30_membership`, `bronze_bist30_changes`, `bronze_bist30_stock_periods`, `bronze_instruments`, `bronze_brokers`)**:
+- **Bronze Layer (`bronze_raw_trades`, `bronze_central_bank_rates`, `bronze_tcmb_mpc_meetings`, `bronze_dividends`, `bronze_bist_index_benchmarks`, `bronze_corporate_actions`, `bronze_bist30_membership`, `bronze_bist30_changes`, `bronze_bist30_stock_periods`, `bronze_instruments`, `bronze_brokers`)**:
   - Exact tick-by-tick executed trades (microsecond timestamps, buyer/seller broker clearing IDs) stored in a TimescaleDB Hypertable with columnar compression.
   - Official Central Bank (TCMB) 1-Week Repo policy interest rates, rate changes, and decision day flags.
   - Official BIST 30 (`XU030`) benchmark historical OHLCV data.
@@ -190,6 +190,19 @@ To allow seamless portability across different team members' local machines:
 - **BIST 30 Membership Ingestion & Dynamic Constituent Tracking**:
   ```bash
   .venv/bin/mdk-oracle load-bist30
+  ```
+- **Event Calendar (TCMB MPC meetings, ex-dividend dates)**:
+  ```bash
+  .venv/bin/python scripts/load_event_calendar.py [--refresh-dividends]
+  ```
+- **Honest Re-Crowning Backfill (1D + 3D-30D candidates, monthly crowns, then gold)**:
+  ```bash
+  .venv/bin/python scripts/backfill_multi_horizon_crowning.py [--symbols ...] [--workers 16]
+  ```
+- **Stray Bronze Day Repair (restore partial bronze days from the raw export, rebuild silver)**:
+  ```bash
+  .venv/bin/python scripts/repair_stray_bronze_days.py           # dry run
+  .venv/bin/python scripts/repair_stray_bronze_days.py --apply
   ```
 - **Daily Gold Layer Execution (Institutional Signals)**:
   ```bash

@@ -3,23 +3,7 @@
 > vite
 
 
-  VITE v5.4.21  ready in 118 ms
+  VITE v5.4.21  ready in 309 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://192.168.178.55:5173/
-2:00:57 PM [vite] hmr update /src/App.tsx, /src/index.css
-2:00:57 PM [vite] hmr update /src/components/YtdPnlDashboard.tsx, /src/index.css
-8:08:08 PM [vite] hmr update /src/App.tsx, /src/index.css, /src/components/CandleDashboard.tsx, /src/components/TertipDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/YtdPnlDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/OracleHubDashboard.tsx, /src/components/TertipEwmaChart.tsx
-8:08:08 PM [vite] page reload src/types/api.ts
-8:09:22 PM [vite] hmr update /src/App.tsx, /src/index.css
-8:31:11 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-8:31:11 PM [vite] page reload src/types/api.ts
-8:35:43 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-8:40:54 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-8:53:00 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-9:49:59 PM [vite] page reload src/types/api.ts
-9:51:45 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-9:52:23 PM [vite] hmr update /src/components/IntradayWalkForwardTrack.tsx, /src/index.css
-10:21:27 PM [vite] page reload src/types/api.ts
-10:22:09 PM [vite] hmr update /src/components/IntradaySessionDashboard.tsx, /src/index.css
-10:22:09 PM [vite] hmr update /src/components/IntradayWalkForwardTrack.tsx, /src/index.css
