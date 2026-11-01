@@ -43,6 +43,8 @@ NEWS_QUERIES: list[tuple[str, str, str]] = [
     ("MACRO", "BOFA_FLOW", "Borsa İstanbul BofA satış OR Bank of America BIST satış OR yabancı çıkışı"),
     ("MACRO", "KAMU_DEFENSE", "Borsa İstanbul Varlık Fonu alım OR Ziraat Yatırım BIST destek OR BES fonları"),
     ("MACRO", "TCMB_MACRO", "Borsa İstanbul Merkez Bankası faiz OR enflasyon muhasebesi bilanço baskısı"),
+    ("MACRO", "GEO_HORMUZ_ENERGY", "Hürmüz Boğazı OR İran İsrail Orta Doğu gerilim Borsa İstanbul OR petrol TÜPRAŞ savunma ASELSAN"),
+    ("MACRO", "GEO_UKRAINE_BLACKSEA", "Rusya Ukrayna savaş Karadeniz Borsa İstanbul OR barış müzakere ENKAI THYAO havacılık"),
     ("ASELS", "STOCK_NEWS", "ASELSAN hisse düşüş OR BofA Aselsan satış OR Aselsan KAP sözleşme"),
     ("THYAO", "STOCK_NEWS", "THYAO hisse OR Türk Hava Yolları Borsa İstanbul"),
     ("AKBNK", "STOCK_NEWS", "AKBNK hisse OR Borsa bankacılık endeksi XBANK"),

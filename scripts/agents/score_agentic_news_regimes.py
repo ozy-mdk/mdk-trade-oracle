@@ -215,6 +215,39 @@ BULL_MOD_KW = _kw_list(
     "güçlü kapanış",
 )
 
+GEO_ESCALATION_KW = _kw_list(
+    "hürmüz",
+    "hurmuz",
+    "iran israil",
+    "orta doğu gerilim",
+    "orta dogu gerilim",
+    "savaş",
+    "savas",
+    "füze",
+    "fuze",
+    "hava sahası",
+    "petrol fiyatları fırladı",
+    "brent petrol",
+    "jeopolitik risk",
+    "karadeniz gerilim",
+)
+
+GEO_PEACE_KW = _kw_list(
+    "barış müzakere",
+    "baris muzakere",
+    "ateşkes",
+    "ateskes",
+    "ukrayna yeniden inşa",
+)
+
+# Sectoral transmission of Geopolitical / Regional Crises on BIST 30:
+# - Defense / Gold / Refining (ASELS, TRALT, TUPRS): Geopolitical escalation (Hormuz/Middle East) acts as a safe-haven or margin hedge (+0.45 bullish, 0.25 risk).
+# - Aviation & Tourism (THYAO, PGSUS, TAVHL): Airspace closures + Brent oil spike act as a severe bearish shock (+0.90 crisis/risk).
+# - Black Sea / Russia-Ukraine Reconstruction (ENKAI, SISE, AEFES): Escalation is bearish (+0.75 risk); peace/ceasefire is a major bullish catalyst (+0.90 bull).
+GEO_DEFENSE_ENERGY_STOCKS = {"ASELS", "TRALT", "TUPRS"}
+GEO_AVIATION_STOCKS = {"THYAO", "PGSUS", "TAVHL"}
+GEO_BLACKSEA_RECON_STOCKS = {"ENKAI", "SISE", "AEFES"}
+
 
 def score_single_headline(title: str, category: str) -> dict[str, float]:
     """Score a single Turkish financial headline into the four `[0.0, 1.0]` regime intensities."""
@@ -271,6 +304,12 @@ def score_single_headline(title: str, category: str) -> dict[str, float]:
     elif bu_mod >= 1:
         bull_score = 0.65
 
+    # 5. Regional / Geopolitical Crisis (Hormuz Strait, Iran-Israel, Russia-Ukraine War / Peace)
+    geo_esc = sum(1 for k in GEO_ESCALATION_KW if k in t)
+    geo_peace = sum(1 for k in GEO_PEACE_KW if k in t)
+    geo_esc_score = 0.85 if (geo_esc >= 1 or cat in ("GEO_HORMUZ_ENERGY", "GEO_UKRAINE_BLACKSEA")) and geo_peace == 0 else 0.0
+    geo_peace_score = 0.85 if geo_peace >= 1 else 0.0
+
     # Suppress false bullish triggers on severe crash/default/arrest headlines unless explicit contract/target
     if fon_score >= 0.85 or (bofa_score >= 0.85 and not bofa_buy_override):
         if "ihracat sözleşme" not in t and "hedef fiyat" not in t and "dev alim" not in t:
@@ -281,6 +320,8 @@ def score_single_headline(title: str, category: str) -> dict[str, float]:
         "bofa_sell_news_intensity": round(float(np.clip(bofa_score, 0.0, 1.0)), 4),
         "kamu_floor_news_intensity": round(float(np.clip(kamu_score, 0.0, 1.0)), 4),
         "bullish_catalyst_intensity": round(float(np.clip(bull_score, 0.0, 1.0)), 4),
+        "geo_escalation_intensity": round(float(np.clip(geo_esc_score, 0.0, 1.0)), 4),
+        "geo_peace_intensity": round(float(np.clip(geo_peace_score, 0.0, 1.0)), 4),
     }
 
 
@@ -395,6 +436,20 @@ def build_agentic_news_regimes() -> tuple[pd.DataFrame, pd.DataFrame]:
             bofa_val = r.bofa_sell_news_intensity * w_bofa
             kamu_val = r.kamu_floor_news_intensity * w_kamu
             bull_val = r.bullish_catalyst_intensity * w_bull
+
+            # Sector-Conditional Geopolitical Routing (Hormuz / Middle East / Ukraine-Russia):
+            geo_esc_v = float(getattr(r, "geo_escalation_intensity", 0.0))
+            geo_peace_v = float(getattr(r, "geo_peace_intensity", 0.0))
+            if geo_esc_v > 0.0:
+                if sym in GEO_DEFENSE_ENERGY_STOCKS:
+                    bull_val = max(bull_val, 0.55 * geo_esc_v)
+                elif sym in GEO_AVIATION_STOCKS:
+                    fon_val = max(fon_val, 0.85 * geo_esc_v)
+                    bofa_val = max(bofa_val, 0.65 * geo_esc_v)
+                else:
+                    fon_val = max(fon_val, 0.50 * geo_esc_v)
+            if geo_peace_v > 0.0 and sym in (GEO_BLACKSEA_RECON_STOCKS | GEO_AVIATION_STOCKS):
+                bull_val = max(bull_val, 0.85 * geo_peace_v)
 
             if fon_val > 0 or bofa_val > 0 or kamu_val > 0 or bull_val > 0:
                 daily_records.append({

@@ -161,6 +161,11 @@ During experimentation ([`scripts/experiments/experiment_agentic_3forces_news.py
      - Fires when `is_passive_absorption_trap == True` (`MLB` selling 5D & 10D with underwater FIFO inventory while `KAMU + BIG5` passively absorb), `mlb_5d_share_pct < -3.5%`, `mlb_10d_share_pct < -2.0%`, `big5_cost_spread_pct > +5.0%` (domestic funds sitting on large gains vulnerable to redemptions), **AND** (`fon_krizi_ewm5 >= 0.08` or `bofa_sell_ewm5 >= 0.12` or `mlb_5d < -5.0%`).
    - **Branch B — Bullish Override (`3-Forces Concordant Accumulation` $\wedge$ `Bullish Catalyst / Zero Crisis`)**:
      - Fires when `is_passive_absorption_trap == False`, **all three forces buy simultaneously** (`mlb_5d_share_pct > +1.0%`, `kamu_5d_share_pct > +0.5%`, `big5_5d_share_pct > +0.5%`), domestic funds are not overextended (`big5_cost_spread_pct < +2.0%`), and systemic crisis news is absent (`fon_krizi_ewm5 < 0.08`), boosted by `bullish_catalyst_ewm5`.
+   - **Branch C — Asymmetric Sectoral Geopolitical Routing (Strait of Hormuz / Iran-Israel / Russia-Ukraine War & Reconstruction)**:
+     - Regional geopolitical shocks do **not** affect all BIST 30 sectors with the same sign:
+       - **Defense, Gold & Refining (`ASELS, TRALT, TUPRS`)**: Strait of Hormuz / Middle East escalation increases defense orders, gold safe-haven demand, and diesel/jet crack spreads (`bullish_catalyst_intensity` boosted by `+0.55 * geo_escalation`).
+       - **Aviation & Airports (`THYAO, PGSUS, TAVHL`)**: Airspace closures and Brent oil spikes act as a severe cost and route shock (`fon_krizi_news_intensity` and `bofa_sell_news_intensity` boosted by `+0.85 * geo_escalation`).
+       - **Black Sea & Reconstruction (`ENKAI, SISE, AEFES, THYAO`)**: Russia–Ukraine peace/ceasefire negotiations (`barış müzakere`, `ateşkes`, `Ukrayna yeniden inşa`) act as a major bullish catalyst (`+0.85 * geo_peace`).
 
 ### Zero-Leakage Empirical Results Across `PRE-90` (`N = 6,792`) and `EVAL-90` (`N = 3,240`)
 
