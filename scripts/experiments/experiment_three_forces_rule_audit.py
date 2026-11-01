@@ -3,8 +3,10 @@
 
 The rules were written while studying the 6 focus stocks in 2026. This grades each rule call directly against the
 realized close-to-close return, separately on data the rules were not designed on: the other stocks, and the sessions
-before 2026. A rule has an edge only if it beats always-UP and always-DOWN on the same sessions. Overlapping windows
-overstate the sample, so results are also shown for independent calls (one per horizon-length window per stock).
+before 2026. A rule makes one constant call, so on its own firing sessions it always equals always-UP or always-DOWN.
+The bar is therefore lift: its hit rate minus the same call's hit rate on all sessions of the same stocks, weighted by
+how often each stock fired. Overlapping windows overstate the sample, so independent calls (one per horizon-length
+window per stock) are shown as well.
 
 Writes ~/data/mdk_oracle/experiments/timestral/three_forces_rule_audit.json
 """
@@ -17,13 +19,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import constant_call_hit_rates
 from mdk_trading_oracle.models.three_forces_gate import GATED_HORIZONS, gate_direction
 from mdk_trading_oracle.models.timestral_forecaster import HORIZON_DAYS, check_horizon_hit
 
 BASE = Path.home() / "data" / "mdk_oracle" / "experiments"
 FOCUS = {"AKBNK", "ASELS", "GARAN", "ISCTR", "THYAO", "YKBNK"}
 DESIGN_START = "2026-01-01"
+CALL_BY_DIRECTION = {"BEARISH": -5.0, "BULLISH": 5.0}
 
 
 def load_events() -> pd.DataFrame:
@@ -33,10 +35,7 @@ def load_events() -> pd.DataFrame:
     for sym, g in clash.groupby("symbol"):
         frame = pd.read_parquet(BASE / "feature_importance" / "frames" / f"{sym}.parquet", columns=["trade_date", "adj_close_price"])
         frame["trade_date"] = frame["trade_date"].astype(str).str[:10]
-        frame = frame.sort_values("trade_date").reset_index(drop=True)
-        px = frame["adj_close_price"].to_numpy(float)
         recs = g.merge(frame, on="trade_date").sort_values("trade_date").to_dict("records")
-        dates = [r["trade_date"] for r in recs]
         px = np.array([r["adj_close_price"] for r in recs], dtype=float)
         for i, r in enumerate(recs):
             direction = gate_direction(r, "flow_only")
@@ -46,7 +45,7 @@ def load_events() -> pd.DataFrame:
                     continue
                 rows.append({
                     "symbol": sym,
-                    "trade_date": dates[i],
+                    "trade_date": r["trade_date"],
                     "idx": i,
                     "horizon": h,
                     "direction": direction,
@@ -57,7 +56,7 @@ def load_events() -> pd.DataFrame:
 
 def independent_calls(g: pd.DataFrame, n: int) -> pd.DataFrame:
     keep: list[int] = []
-    for _, s in g.sort_values(["symbol", "idx"]).groupby(["symbol", "direction"]):
+    for _, s in g.sort_values(["symbol", "idx"]).groupby("symbol"):
         last = -(10**9)
         for ix, i in zip(s.index, s["idx"]):
             if i - last >= n:
@@ -66,54 +65,65 @@ def independent_calls(g: pd.DataFrame, n: int) -> pd.DataFrame:
     return g.loc[keep]
 
 
-def grade(g: pd.DataFrame, h: str) -> dict:
+def build_baselines(ev: pd.DataFrame) -> dict[tuple[str, str, float], tuple[float, float]]:
+    """(symbol, horizon, call) -> hit rate and mean return of that constant call on all of the stock's sessions."""
+    out: dict[tuple[str, str, float], tuple[float, float]] = {}
+    for (sym, h), g in ev.groupby(["symbol", "horizon"]):
+        actual = g["actual"].to_numpy(float)
+        for call in CALL_BY_DIRECTION.values():
+            out[(sym, h, call)] = (float(np.mean([check_horizon_hit(call, a, h) for a in actual]) * 100.0), float(actual.mean()))
+    return out
+
+
+def grade(g: pd.DataFrame, h: str, direction: str, baselines: dict[tuple[str, str, float], tuple[float, float]]) -> dict:
     if g.empty:
         return {"n": 0, "n_independent": 0}
-    n_days = HORIZON_DAYS[h]
-    call = np.where(g["direction"] == "BEARISH", -5.0, 5.0)
-    hits = np.array([check_horizon_hit(p, a, h) for p, a in zip(call, g["actual"])], dtype=float)
-    up, down = constant_call_hit_rates(g["actual"].to_numpy(), n_days)
-    ind = independent_calls(g, n_days)
-    ind_call = np.where(ind["direction"] == "BEARISH", -5.0, 5.0)
-    ind_hits = np.array([check_horizon_hit(p, a, h) for p, a in zip(ind_call, ind["actual"])], dtype=float)
+    call = CALL_BY_DIRECTION[direction]
+    hits = np.array([check_horizon_hit(call, a, h) for a in g["actual"]], dtype=float)
+    ind = independent_calls(g, HORIZON_DAYS[h])
+    ind_hits = np.array([check_horizon_hit(call, a, h) for a in ind["actual"]], dtype=float)
+    weights = g["symbol"].value_counts()
+    base = [baselines[(sym, h, call)] for sym in weights.index]
+    base_hit = float(np.average([b[0] for b in base], weights=weights.to_numpy(float)))
+    base_ret = float(np.average([b[1] for b in base], weights=weights.to_numpy(float)))
     return {
         "n": int(len(g)),
         "n_independent": int(len(ind)),
-        "episodes": int(g[["symbol"]].assign(m=g["trade_date"].str[:7]).drop_duplicates().shape[0]),
+        "stock_months": int(g.assign(m=g["trade_date"].str[:7])[["symbol", "m"]].drop_duplicates().shape[0]),
         "hit_pct": round(float(hits.mean() * 100), 1),
         "hit_independent_pct": round(float(ind_hits.mean() * 100), 1),
-        "always_up_pct": round(float(up), 1),
-        "always_down_pct": round(float(down), 1),
-        "beats_both": bool(hits.mean() * 100 > max(up, down)),
+        "baseline_hit_pct": round(base_hit, 1),
+        "lift_pp": round(float(hits.mean() * 100) - base_hit, 1),
+        "lift_independent_pp": round(float(ind_hits.mean() * 100) - base_hit, 1),
         "mean_return_pct": round(float(g["actual"].mean()), 2),
+        "baseline_mean_return_pct": round(base_ret, 2),
     }
 
 
 def main() -> None:
     ev = load_events()
     fired = ev[ev["direction"].notna()].copy()
-    print(f"stock-sessions graded: {len(ev)}, firing: {len(fired)}, stocks: {ev['symbol'].nunique()}, "
+    baselines = build_baselines(ev)
+    print(f"stock-horizon sessions graded: {len(ev)}, firing: {len(fired)}, stocks: {ev['symbol'].nunique()}, "
           f"{ev['trade_date'].min()} to {ev['trade_date'].max()}")
     splits = {
         "other_stocks_all_dates": ~fired["symbol"].isin(FOCUS),
-        "focus_before_design_period": fired["symbol"].isin(FOCUS) & (fired["trade_date"] < DESIGN_START),
-        "all_stocks_before_design_period": fired["trade_date"] < DESIGN_START,
-        "design_period_focus_stocks": fired["symbol"].isin(FOCUS) & (fired["trade_date"] >= DESIGN_START),
+        "focus_stocks_before_2026": fired["symbol"].isin(FOCUS) & (fired["trade_date"] < DESIGN_START),
+        "focus_stocks_2026_design_period": fired["symbol"].isin(FOCUS) & (fired["trade_date"] >= DESIGN_START),
     }
-    out: dict = {"splits": {}, "design_start": DESIGN_START, "total_sessions": int(len(ev))}
+    out: dict = {"splits": {}, "design_start": DESIGN_START, "total_rows": int(len(ev))}
     for name, mask in splits.items():
         out["splits"][name] = {}
         print(f"\n=== {name} ===")
-        for direction in ("BEARISH", "BULLISH"):
+        for direction in CALL_BY_DIRECTION:
             for h in GATED_HORIZONS:
-                g = fired[mask & (fired["direction"] == direction) & (fired["horizon"] == h)]
-                res = grade(g, h)
+                res = grade(fired[mask & (fired["direction"] == direction) & (fired["horizon"] == h)], h, direction, baselines)
                 out["splits"][name][f"{direction}_{h}"] = res
                 if res["n"]:
-                    print(f"  {direction:<7} {h:<3} n={res['n']:<4} independent={res['n_independent']:<3} "
-                          f"hit={res['hit_pct']:5.1f}% ind_hit={res['hit_independent_pct']:5.1f}% "
-                          f"up={res['always_up_pct']:5.1f}% down={res['always_down_pct']:5.1f}% "
-                          f"beats_both={res['beats_both']} mean_ret={res['mean_return_pct']:+.2f}%")
+                    print(f"  {direction:<7} {h:<3} n={res['n']:<4} indep={res['n_independent']:<3} "
+                          f"hit={res['hit_pct']:5.1f}% base={res['baseline_hit_pct']:5.1f}% lift={res['lift_pp']:+5.1f}pp "
+                          f"indep_lift={res['lift_independent_pp']:+5.1f}pp "
+                          f"ret={res['mean_return_pct']:+6.2f}% base_ret={res['baseline_mean_return_pct']:+6.2f}%")
                 else:
                     print(f"  {direction:<7} {h:<3} n=0")
     path = BASE / "timestral" / "three_forces_rule_audit.json"

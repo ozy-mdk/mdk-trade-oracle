@@ -147,7 +147,7 @@ export const NewsRegimePanel: React.FC<NewsRegimePanelProps> = ({ symbol }) => {
 
           {data.gate_changes.length > 0 && (
             <div>
-              <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1">Latest forecasts the gate changed</div>
+              <div className="text-[11px] text-slate-400 uppercase tracking-wider mb-1">Latest forecasts the gate flipped</div>
               <ul className="space-y-1 text-[11px] font-mono text-slate-300 max-h-40 overflow-y-auto">
                 {data.gate_changes.map((c) => (
                   <li key={`${c.trade_date}-${c.horizon}`} className="flex flex-wrap gap-x-2">

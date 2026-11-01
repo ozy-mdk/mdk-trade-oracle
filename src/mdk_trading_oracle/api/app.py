@@ -2216,7 +2216,6 @@ class NewsRegimeResponse(BaseModel):
     is_stale: bool
     live_headline_count: int
     backfill_headline_count: int
-    pending_headline_count: int
     regime: Optional[NewsRegimeState] = None
     headlines: List[NewsHeadlineItem]
     gate_mode: str
@@ -2283,7 +2282,6 @@ def get_news_regime_endpoint(
         counts = db.query_df("SELECT collection_mode, count(*) AS n FROM bronze_news_headlines GROUP BY 1")
         count_by_mode = dict(zip(counts["collection_mode"], counts["n"]))
         mapped = load_headlines_with_sessions(db, trading_dates)
-        total_stored = int(sum(count_by_mode.values()))
         relevant = [
             row
             for row in mapped.to_dict("records")
@@ -2330,10 +2328,8 @@ def get_news_regime_endpoint(
                         news_beats_both=hit_news > bar,
                     )
                 )
-            changed = audit[
-                (audit["pred_off_pct"].round(4) != audit["pred_flow_pct"].round(4))
-                | (audit["pred_off_pct"].round(4) != audit["pred_news_pct"].round(4))
-            ].sort_values("trade_date", ascending=False)
+            flipped = (audit["pred_off_pct"] * audit["pred_flow_pct"] < 0) | (audit["pred_off_pct"] * audit["pred_news_pct"] < 0)
+            changed = audit[flipped].sort_values("trade_date", ascending=False)
             for row in changed.head(12).to_dict("records"):
                 gate_changes.append(
                     GateChangeItem(
@@ -2360,7 +2356,6 @@ def get_news_regime_endpoint(
             is_stale=is_stale,
             live_headline_count=int(count_by_mode.get("LIVE", 0)),
             backfill_headline_count=int(count_by_mode.get("BACKFILL", 0)),
-            pending_headline_count=max(0, total_stored - len(mapped)),
             regime=regime,
             headlines=headlines,
             gate_mode=get_gate_mode(),

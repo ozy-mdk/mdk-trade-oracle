@@ -944,7 +944,6 @@ export interface NewsRegimeResponse {
   is_stale: boolean;
   live_headline_count: number;
   backfill_headline_count: number;
-  pending_headline_count: number;
   regime: NewsRegimeState | null;
   headlines: NewsHeadlineItem[];
   gate_mode: string;
