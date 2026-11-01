@@ -323,7 +323,9 @@ def build_bundle() -> None:
                 pred_live = round(float(p_sized_live), 2)
                 p_low = round(current_price * (1.0 + float(ts_live["q05"]) / 100.0), 2)
                 p_high = round(current_price * (1.0 + float(ts_live["q95"]) / 100.0), 2)
-                rp = enrich_risk_profile_with_timestral(live_base.get("risk_profile"), ts_live, polc_live_ret, current_price)
+                rp = enrich_risk_profile_with_timestral(
+                    live_base.get("risk_profile"), ts_live, polc_live_ret, current_price, horizon_days=n_days, target_return_pct=pred_live
+                )
             else:
                 pred_live = round(polc_live_ret, 2)
                 p_low = round(current_price * 0.96, 2)

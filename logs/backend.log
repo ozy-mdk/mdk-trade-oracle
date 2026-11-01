@@ -377,3 +377,1412 @@ INFO:     Finished server process [37258]
 INFO:     Started server process [37441]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+INFO:     127.0.0.1:49969 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49973 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49970 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49979 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49972 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49971 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49981 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49983 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49988 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49987 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+[11/01/26 18:45:57] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:49992 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+[11/01/26 18:45:59] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             19 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2152 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2149 │   │   │   data["company_name"] = sym   │
+                             │   2150 │   │   │   data["sector"] = "Equities"  │
+                             │   2151 │   │                                    │
+                             │ ❱ 2152 │   │   return MultiHorizonForecastRespo │
+                             │   2153 │   except HTTPException:                │
+                             │   2154 │   │   raise                            │
+                             │   2155 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 19 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:49991 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 500 Internal Server Error
+[11/01/26 18:46:00] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             19 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2152 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2149 │   │   │   data["company_name"] = sym   │
+                             │   2150 │   │   │   data["sector"] = "Equities"  │
+                             │   2151 │   │                                    │
+                             │ ❱ 2152 │   │   return MultiHorizonForecastRespo │
+                             │   2153 │   except HTTPException:                │
+                             │   2154 │   │   raise                            │
+                             │   2155 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 19 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:49995 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 500 Internal Server Error
+                    ERROR    Error computing ML forecast for THYAO: 19          
+                             validation errors for TertipMlForecastResponse     
+                             risk_profile.horizon_days                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.coverage_pct                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.target_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.risk_center_return_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.center_shrinkage                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_low_pct                        
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_high_pct                       
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_return_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_up_pct                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_down_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_flat_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.position_side                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.expected_shortfall_95_pct             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_next_session_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_horizon_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.band_scale                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.vol_method                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.garch_persistence                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:49968 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 500 Internal Server Error
+[11/01/26 18:46:37] ERROR    Error computing ML forecast for THYAO: 19          
+                             validation errors for TertipMlForecastResponse     
+                             risk_profile.horizon_days                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.coverage_pct                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.target_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.risk_center_return_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.center_shrinkage                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_low_pct                        
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_high_pct                       
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_return_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_up_pct                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_down_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_flat_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.position_side                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.expected_shortfall_95_pct             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_next_session_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_horizon_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.band_scale                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.vol_method                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.garch_persistence                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50007 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:50008 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50009 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50012 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50014 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50016 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50018 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50011 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50010 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+[11/01/26 18:46:38] ERROR    Error computing ML forecast for THYAO: 19          
+                             validation errors for TertipMlForecastResponse     
+                             risk_profile.horizon_days                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.coverage_pct                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.target_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.risk_center_return_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.center_shrinkage                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_low_pct                        
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_high_pct                       
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_return_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_up_pct                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_down_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_flat_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.position_side                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.expected_shortfall_95_pct             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_next_session_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_horizon_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.band_scale                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.vol_method                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.garch_persistence                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50024 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:50022 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50021 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50028 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+[11/01/26 18:46:45] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             19 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2152 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2149 │   │   │   data["company_name"] = sym   │
+                             │   2150 │   │   │   data["sector"] = "Equities"  │
+                             │   2151 │   │                                    │
+                             │ ❱ 2152 │   │   return MultiHorizonForecastRespo │
+                             │   2153 │   except HTTPException:                │
+                             │   2154 │   │   raise                            │
+                             │   2155 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 19 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50027 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 500 Internal Server Error
+[11/01/26 18:46:46] ERROR    Error computing multi-horizon forecast for THYAO:  
+                             19 validation errors for                           
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             ╭─────── Traceback (most recent call last) ───────╮
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/src/mdk_t │
+                             │ rading_oracle/api/app.py:2152 in                │
+                             │ get_multi_horizon_forecast_endpoint             │
+                             │                                                 │
+                             │   2149 │   │   │   data["company_name"] = sym   │
+                             │   2150 │   │   │   data["sector"] = "Equities"  │
+                             │   2151 │   │                                    │
+                             │ ❱ 2152 │   │   return MultiHorizonForecastRespo │
+                             │   2153 │   except HTTPException:                │
+                             │   2154 │   │   raise                            │
+                             │   2155 │   except Exception as e:               │
+                             │                                                 │
+                             │ /Users/ozkanyildirim/mdk-trade-oracle/.venv/lib │
+                             │ /python3.9/site-packages/pydantic/main.py:263   │
+                             │ in __init__                                     │
+                             │                                                 │
+                             │    260 │   │   """                              │
+                             │    261 │   │   # `__tracebackhide__` tells pyte │
+                             │        from tracebacks                          │
+                             │    262 │   │   __tracebackhide__ = True         │
+                             │ ❱  263 │   │   validated_self = self.__pydantic │
+                             │        self_instance=self)                      │
+                             │    264 │   │   if self is not validated_self:   │
+                             │    265 │   │   │   warnings.warn(               │
+                             │    266 │   │   │   │   'A custom validator is r │
+                             ╰─────────────────────────────────────────────────╯
+                             ValidationError: 19 validation errors for          
+                             MultiHorizonForecastResponse                       
+                             horizons.1d.live_forecast.risk_profile.horizon_days
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.coverage_pct
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.target_price
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.risk_center_
+                             return_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.center_shrin
+                             kage                                               
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_low_p
+                             ct                                                 
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.return_high_
+                             pct                                                
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.median_retur
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_up_pct    
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_down_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.p_flat_pct  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.position_sid
+                             e                                                  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.expected_sho
+                             rtfall_95_pct                                      
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_next_s
+                             ession_pct                                         
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.sigma_horizo
+                             n_pct                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.band_scale  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.vol_method  
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             horizons.1d.live_forecast.risk_profile.garch_persis
+                             tence                                              
+                               Field required [type=missing,                    
+                             input_value={'price_low': 249.26,                  
+                             'pr...ected_return_pct': 0.32}, input_type=dict]   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50031 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 500 Internal Server Error
+[11/01/26 18:47:38] ERROR    Error computing ML forecast for GARAN: 19          
+                             validation errors for TertipMlForecastResponse     
+                             risk_profile.horizon_days                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.coverage_pct                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.target_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.risk_center_return_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.center_shrinkage                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_low_pct                        
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_high_pct                       
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_return_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_up_pct                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_down_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_flat_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.position_side                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.expected_shortfall_95_pct             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_next_session_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_horizon_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.band_scale                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.vol_method                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.garch_persistence                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50035 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN HTTP/1.1" 500 Internal Server Error
+[11/01/26 18:47:46] ERROR    Error computing ML forecast for GARAN: 19          
+                             validation errors for TertipMlForecastResponse     
+                             risk_profile.horizon_days                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.coverage_pct                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.target_price                          
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.risk_center_return_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.center_shrinkage                      
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_low_pct                        
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.return_high_pct                       
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.median_return_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_up_pct                              
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_down_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.p_flat_pct                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.position_side                         
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.expected_shortfall_95_pct             
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_next_session_pct                
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.sigma_horizon_pct                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.band_scale                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.vol_method                            
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+                             risk_profile.garch_persistence                     
+                               Field required                                   
+                                 For further information visit                  
+                             https://errors.pydantic.dev/2.13/v/missing         
+INFO:     127.0.0.1:50038 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:50040 - "GET /api/v1/tertip/multi-horizon-forecast?symbol=GARAN HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50042 - "GET /api/v1/tertip/opportunities HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37441]
+INFO:     Started server process [37603]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/generate_timestral_gold_bundle.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37603]
+INFO:     Started server process [37622]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
