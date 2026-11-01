@@ -1,154 +1,114 @@
 INFO:     Will watch for changes in these directories: ['/Users/ozkanyildirim/mdk-trade-oracle']
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [12360] using StatReload
-INFO:     Started server process [12363]
+INFO:     Started reloader process [29510] using StatReload
+INFO:     Started server process [29521]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:50221 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50222 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50223 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50225 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50233 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50235 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50237 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50224 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50240 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50241 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50220 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50260 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50273 - "GET /api/v1/tertip/ml-forecast?symbol=XU030&model_type=auto HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50274 - "GET /api/v1/market/candles?symbol=XU030&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50276 - "GET /api/v1/tertip/horizons?symbol=XU030&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50278 - "GET /api/v1/tertip/ml-forecast?symbol=XU030&model_type=auto HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50287 - "GET /api/v1/market/candles?symbol=AKBNK&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50290 - "GET /api/v1/tertip/horizons?symbol=AKBNK&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50275 - "GET /api/v1/market/summary?symbol=XU030&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50288 - "GET /api/v1/market/summary?symbol=AKBNK&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50296 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50300 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50298 - "GET /api/v1/tertip/ytd-pnl?symbol=AKBNK&trade_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50294 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50293 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50286 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50610 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50611 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50612 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50618 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50615 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50619 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50621 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50614 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50613 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50625 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50629 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50628 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50632 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=3d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50634 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=5d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50623 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-09-29 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50636 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=10d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50680 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50681 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=10d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'scripts/experiments/feature_importance_experiment.py'. Reloading...
+INFO:     127.0.0.1:64432 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64435 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64431 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64439 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64434 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64433 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64441 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64443 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64447 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64446 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64430 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64450 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64457 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64467 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64469 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64475 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64504 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64511 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64516 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64518 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64524 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64523 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64527 - "GET /api/v1/tertip/opportunities?horizon=1d&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64529 - "GET /api/v1/tertip/opportunities?horizon=3d&target_date=2026-10-23 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [12363]
-INFO:     Started server process [16929]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'scripts/experiments/feature_importance_experiment.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [16929]
-INFO:     Started server process [16962]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'scripts/experiments/feature_importance_experiment.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [16962]
-INFO:     Started server process [17415]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'scripts/experiments/feature_importance_experiment.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [17415]
-INFO:     Started server process [17638]
+INFO:     Finished server process [29521]
+INFO:     Started server process [30056]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [17638]
-INFO:     Started server process [18831]
+INFO:     Finished server process [30056]
+INFO:     Started server process [30081]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [18831]
-INFO:     Started server process [18971]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [18971]
-INFO:     Started server process [20669]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [20669]
-INFO:     Started server process [20767]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'scripts/repair_stray_bronze_days.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [20767]
-INFO:     Started server process [20951]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [20951]
-INFO:     Started server process [22244]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/silver/transformations.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [22244]
-INFO:     Started server process [22322]
+INFO:     Finished server process [30081]
+INFO:     Started server process [30133]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [22322]
-INFO:     Started server process [9029]
+INFO:     Finished server process [30133]
+INFO:     Started server process [30527]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [9029]
-INFO:     Started server process [21500]
+INFO:     Finished server process [30527]
+INFO:     Started server process [30539]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30539]
+INFO:     Started server process [30548]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30548]
+INFO:     Started server process [31285]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/tournament_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [31285]
+INFO:     Started server process [31308]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/generate_microstructure_context.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [31308]
+INFO:     Started server process [32763]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/test_ytd_vs_fifo_substitution.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [32763]
+INFO:     Started server process [33014]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:65398 - "GET /api/v1/tertip/opportunities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65408 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65413 - "GET /api/v1/tertip/multi-horizon?symbol=THYAO HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65415 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO HTTP/1.1" 200 OK

@@ -100,7 +100,23 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - **`LIQUIDITY_FADE`**: High negative flow with deep unrealized gains — expect profit-taking and fade intraday dips.
      - **`DEFENSE_SUPPORT`**: Underwater carried inventory with positive flow — institutional defense accumulation.
      - **`NEUTRAL_WAIT`**: Sub-threshold flow — wait for intraday confirmation.
-6. **Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)**:
+6. **Stochastic Risk Engine (`models/stochastic_risk.py`) — Price Bands & Trade Probabilities**:
+   - Direction comes from the ML tournament; *dispersion* comes from this engine. All `price_low` / `price_high` bands (T+1 and 3D-30D) and the `risk_profile` JSONB payload in `gold_tertip_daily_forecasts` / `gold_tertip_multi_horizon_forecasts` are produced here.
+   - **Conditional Volatility**: GJR-GARCH(1,1) with Student-t innovations on close-to-close log returns of `adj_close_price` (3-year fit window), EWMA (lambda = 0.94) fallback. Horizon variance follows the mean-reverting GARCH term structure, never flat `sqrt(n)` or open-to-close volatility.
+   - **Filtered Historical Simulation**: Monte Carlo paths bootstrap each stock's own standardized GARCH residuals (empirical jumps and fat tails). Terminal prices are re-centred so the mean matches the risk centre (Ito-consistent; median carries the volatility drag).
+   - **Risk Centre Shrinkage**: The distribution is centred at `center_shrinkage * expected_return_pct`, where `center_shrinkage` is the out-of-sample slope of realized on predicted returns from the audited ledgers. Target/stop first-passage odds are still measured against the ML target price.
+   - **Conformal Calibration**: `config/volatility_calibration.yaml` stores per-horizon `scale` and `center_shrinkage` fitted on the backtest ledgers so nominal 90% bands realize ~90% coverage. Re-run `scripts/calibrate_volatility_bands.py` after tournament re-crowning.
+   - **Trader Outputs (`risk_profile`)**: 90% band, median price, `p_up_pct` / `p_down_pct` / `p_flat_pct` beyond the deadband, 1-sigma adverse `stop_price`, `p_target_before_stop_pct`, `expected_shortfall_95_pct`, next-session and horizon sigma.
+   - Not used: short-rate models (Vasicek / CIR / Hull-White — TCMB policy rate is a decision-driven step function) and option-calibrated Heston / Black-Scholes delta hedging (no liquid BIST single-stock options surface).
+7. **Multi-Horizon Swing Forecasting Architecture (3D, 5D, 10D, 15D, 30D)**:
+   - **Tournament policy (`config/tournament_policy.yaml`, since 2026-10-25):** all stocks use the validated feature set per horizon (below). A staged per-stock feature choice (stage 1 model + window, stage 2 feature set) is implemented and can be enabled per stock via `priority_stocks`, but tested worse than the fixed per-horizon sets (selection noise; handoff §0.8).
+   - **Per-horizon feature policy (since 2026-10-25 / 2026-11-01):** 1D / 3D add event-calendar features (TCMB MPC distance, ex-dividend distance / yield, BIST 30 rebalancing), 5D / 10D add BIST 30 regime-conditional mean reversion without `price_vs_sma50`, 15D excludes 63-session lookbacks, 30D unchanged (`data/silver/event_regime_features.HORIZON_POLICY`). Tested on the honest zero-leakage track across the 6 focus stocks: +1.7 to +3.3 pp hit rate improvements, THYAO 10D +18.9 pp, YKBNK 3D +15.6 pp, ASELS 5D +13.3 pp, and MAE halved via conditional volatility sizing (`docs/RESEARCH_HANDOFF_2026-10.md` §0.8–§0.9).
+   - **Honest monthly re-crowning (since 2026-10-25).** On the first trading day of each month the tournament
+     crowns one champion per stock and horizon using only outcomes realized before that day
+     (`data/gold/tertip_multi_horizon_crowning.py`, `models/horizon_crowning.py`). The displayed 90-session track
+     grades every session with the champion in force that day, never a later one; the live forecast uses the current
+     month's champion. Every hit rate is shown next to **always-UP and always-DOWN** on the same sessions; a model has
+     an edge only if it beats both. Never display a crowning window as a track record.
    - **Direct Forecasting Specialists vs Recursive Chaining**: Every forward horizon (3D, 5D, 10D, 15D, 30D) is an independent specialist trained directly on actual, verified market data up to session T Close. This completely avoids compounding error and hallucination loops inherent in recursive/chained forecasting.
    - **Zero-Drift Target Demeaning (Eliminating Secular Trend Bias)**:
      - *Failure Mode*: During multi-quarter secular bull markets (e.g. ASELS surging +530% from 71 TL to 375 TL), raw multi-day forward returns average +3% to +5% per window. Unadjusted regression models learn a structural upward intercept, persistently forecasting BUY (+8% to +10%) into cycle tops and cascading corrections.
@@ -112,7 +128,7 @@ The predictive architecture is centered around the **Tertip Machine Learning For
      - Fast vs slow flow divergence (`feat_mlb_flow_divergence_3d_10d`, `feat_inst_flow_divergence_5d_10d`) and momentum rollover (`feat_ret_rollover_3d_10d`) detect smart money distributing into retail rallies.
    - **Lean Feature Space Principle**:
      - Rigorous empirical ablation confirms that adding collinear intraday ratio features (e.g. Window 5 urgency, VWAP stretch) to short lookbacks introduces noise and dilutes core institutional flow signals. Preserving the lean 21-25 feature set produces superior out-of-sample generalization.
-7. **Interactive Research & Serving Standards**:
+8. **Interactive Research & Serving Standards**:
    - Clean, professional presentation with zero excessive emojis.
    - Frontend Predictive Hub and Opportunity Actions radar display 30-Day performance ledgers, directional hit tally pills, backtest visualizers, and live T+1 opportunity ranking.
 

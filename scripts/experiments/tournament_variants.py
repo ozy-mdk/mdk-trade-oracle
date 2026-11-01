@@ -64,7 +64,7 @@ MEAN_REVERSION = [
 REGIME_COLS = ["feat_regime_down", "feat_regime_trend"]
 
 # variant -> (feature transform, configs to keep)
-COMPUTED = ["no_sma50", "regime", "regime_no_sma50", "events"]
+COMPUTED = ["no_sma50", "regime", "regime_no_sma50", "events", "micro", "micro_regime", "micro_events", "micro_all"]
 DERIVED = {"no_3m": ("production", 63), "combo": ("regime_no_sma50", 63)}
 ENSEMBLE = {"ens5": "production", "ens5_regime": "regime_no_sma50"}
 # Per-horizon policies: horizon -> (candidate ledger source, excluded lookback or None). Crowned jointly, as in production.
@@ -76,6 +76,10 @@ POLICIES = {
                  "10d": ("regime_no_sma50", None), "15d": ("production", 63), "30d": ("production_track", None)},
     "policy_b": {"1d": ("events", None), "3d": ("events", None), "5d": ("production", 63),
                  "10d": ("regime_no_sma50", None), "15d": ("production", 63), "30d": ("production", None)},
+    "policy_micro": {"1d": ("micro_events", None), "3d": ("micro_events", None), "5d": ("micro_regime", None),
+                     "10d": ("micro_regime", None), "15d": ("micro", 63), "30d": ("production_track", None)},
+    "policy_micro_all": {"1d": ("micro_all", None), "3d": ("micro_all", None), "5d": ("micro_all", None),
+                         "10d": ("micro_all", None), "15d": ("micro_all", 63), "30d": ("production_track", None)},
 }
 CROWN_WINDOW = {"hit150": ("production", 150)}
 
@@ -171,6 +175,45 @@ def add_event_features(df: pd.DataFrame, sym: str) -> pd.DataFrame:
     return df
 
 
+MICRO_COLS = [
+    "feat_mlb_urgency", "feat_mlb_urgent_intensity", "feat_close_vs_vwap_pct",
+    "feat_mlb_w5_vs_day_ratio", "feat_mlb_w5_divergence",
+    "feat_smart_vs_retail_divergence", "feat_group_mlb_share", "feat_group_concordance",
+]
+
+_MICRO: pd.DataFrame | None = None
+
+
+def _micro_table() -> pd.DataFrame:
+    global _MICRO
+    if _MICRO is None:
+        p = OUT / "microstructure_context.parquet"
+        if not p.exists():
+            raise FileNotFoundError(f"{p} not found")
+        _MICRO = pd.read_parquet(p)
+        _MICRO["trade_date"] = _MICRO["trade_date"].astype(str)
+    return _MICRO
+
+
+def add_micro_features(df: pd.DataFrame, sym: str) -> pd.DataFrame:
+    df = df.copy()
+    m = _micro_table()
+    sub = m[m["symbol"] == sym].drop(columns=["symbol"]).copy()
+    overlap = [c for c in sub.columns if c in df.columns and c != "trade_date"]
+    if overlap:
+        sub = sub.drop(columns=overlap)
+    dates = pd.to_datetime(df["trade_date"]).dt.strftime("%Y-%m-%d")
+    df["_date_str"] = dates
+    df = df.merge(sub, left_on="_date_str", right_on="trade_date", how="left", suffixes=("", "_micro"))
+    df = df.drop(columns=["_date_str"])
+    if "trade_date_micro" in df.columns:
+        df = df.drop(columns=["trade_date_micro"])
+    for c in MICRO_COLS:
+        if c in df.columns:
+            df[c] = df[c].fillna(0.0)
+    return df
+
+
 def transform(df: pd.DataFrame, variant: str, sym: str | None = None) -> tuple[pd.DataFrame, list[str], list[str]]:
     """Returns (frame, extra 1D columns, dropped columns) for a computed variant."""
     extra, drop = [], []
@@ -183,6 +226,28 @@ def transform(df: pd.DataFrame, variant: str, sym: str | None = None) -> tuple[p
         drop = ["feat_price_vs_sma50_pct", "feat_price_vs_sma50_pct_x_down"]
         df = df.drop(columns=[c for c in drop if c in df.columns])
         extra = [c for c in extra if c not in drop]
+    if variant == "micro":
+        df = add_micro_features(df, sym)
+        return df, list(MICRO_COLS), []
+    if variant == "micro_events":
+        df = add_micro_features(df, sym)
+        df = add_event_features(df, sym)
+        return df, list(dict.fromkeys(list(EVENT_COLS) + list(MICRO_COLS))), []
+    if variant == "micro_regime":
+        df = add_micro_features(df, sym)
+        df = regime(df)
+        drop = ["feat_price_vs_sma50_pct", "feat_price_vs_sma50_pct_x_down"]
+        df = df.drop(columns=[c for c in drop if c in df.columns])
+        extra = [c for c in REGIME_COLS + [f"{c}_x_down" for c in MEAN_REVERSION if f"{c}_x_down" in df.columns] if c not in drop] + list(MICRO_COLS)
+        return df, list(dict.fromkeys(extra)), drop
+    if variant == "micro_all":
+        df = add_micro_features(df, sym)
+        df = add_event_features(df, sym)
+        df = regime(df)
+        drop = ["feat_price_vs_sma50_pct", "feat_price_vs_sma50_pct_x_down"]
+        df = df.drop(columns=[c for c in drop if c in df.columns])
+        extra = [c for c in REGIME_COLS + [f"{c}_x_down" for c in MEAN_REVERSION if f"{c}_x_down" in df.columns] if c not in drop] + list(EVENT_COLS) + list(MICRO_COLS)
+        return df, list(dict.fromkeys(extra)), drop
     return df, extra, drop
 
 
@@ -226,7 +291,7 @@ def candidates(args: tuple) -> str:
                              "actual": r["actual_return_pct"], "is_hit": bool(r["is_hit"]), "err_pct": r["err_pct"]})
     # 1D
     for c in configs if only in (None, "1d") else []:
-        cols = [x for x in get_feature_cols_for_mode(c.feature_mode) if x not in drop] + extra
+        cols = list(dict.fromkeys([x for x in get_feature_cols_for_mode(c.feature_mode) if x not in drop] + extra))
         frame = prepare_feature_frame(df, cols)
         lab = t1_labels(frame)
         close = frame["close_price"].to_numpy(float)
@@ -530,11 +595,15 @@ def report(tr: pd.DataFrame) -> pd.DataFrame:
             "always_up_pct": g["up"].mean() * 100, "always_down_pct": g["down"].mean() * 100,
             "stocks_beat_both": int((per["hit"] > per[["up", "down"]].max(axis=1)).sum()), "stocks": len(per),
             "up_calls_pct": (g["pred"] > db).mean() * 100,
+            "mae_pct": g["err_pct"].mean(),
+            "rmse_pct": np.sqrt(np.mean(g["err_pct"]**2)),
         })
     r = pd.DataFrame(rows)
     r["edge_vs_better_pp"] = r["hit_pct"] - r[["always_up_pct", "always_down_pct"]].max(axis=1)
     prod = r[r["variant"] == "production"].set_index("horizon")["hit_pct"]
     r["vs_production_pp"] = r["hit_pct"] - r["horizon"].map(prod)
+    prod_mae = r[r["variant"] == "production"].set_index("horizon")["mae_pct"]
+    r["vs_prod_mae_pp"] = r["mae_pct"] - r["horizon"].map(prod_mae)
     return r
 
 
@@ -550,20 +619,33 @@ def main() -> None:
     variants = [v.strip() for v in args.variants.split(",") if v.strip()]
     t0 = time.time()
     if not args.report_only:
-        need = sorted({v for v in variants if v in COMPUTED} | {DERIVED[v][0] for v in variants if v in DERIVED and DERIVED[v][0] in COMPUTED})
-        tasks = [(v, s) for v in need for s in syms]
-        with Pool(min(args.workers, len(tasks) or 1)) as pool:
-            for i, _ in enumerate(pool.imap_unordered(candidates, tasks), 1):
-                print(f"  candidates {i}/{len(tasks)} ({time.time() - t0:.0f}s)", file=sys.stderr, flush=True)
+        pol_src = {src for x in variants if x in POLICIES for src, _ in POLICIES[x].values()} - {"production_track"}
+        need = sorted({v for v in variants if v in COMPUTED} | {DERIVED[v][0] for v in variants if v in DERIVED and DERIVED[v][0] in COMPUTED} | pol_src)
+        tasks = [
+            (v, s, h)
+            for v in need
+            for s in syms
+            for h in HORIZONS
+            if not (OUT / f"candidates_{v}_{s}.parquet").exists() and not (OUT / f"part_{v}_{s}_{h}.parquet").exists()
+        ]
+        if tasks:
+            with Pool(min(args.workers, len(tasks) or 1)) as pool:
+                for i, _ in enumerate(pool.imap_unordered(candidates, tasks), 1):
+                    print(f"  candidates {i}/{len(tasks)} ({time.time() - t0:.0f}s)", file=sys.stderr, flush=True)
+        for v in need:
+            for s in syms:
+                if not (OUT / f"candidates_{v}_{s}.parquet").exists():
+                    merge_parts(v, s)
     tr = pd.concat([tracks_for(s, variants) for s in syms], ignore_index=True)
     tr.to_parquet(OUT / f"tracks_{len(syms)}.parquet")
     r = report(tr)
     r.to_csv(OUT / f"summary_{len(syms)}.csv", index=False)
     pd.set_option("display.width", 250)
     order = ["production"] + variants
-    for col in ("hit_pct", "vs_production_pp", "edge_vs_better_pp", "stocks_beat_both", "up_calls_pct"):
-        t = r.pivot(index="variant", columns="horizon", values=col).reindex(order)[HORIZONS]
-        print(f"\n== {col} ==\n{t.round(1).to_string()}")
+    for col in ("hit_pct", "vs_production_pp", "edge_vs_better_pp", "mae_pct", "vs_prod_mae_pp", "rmse_pct", "stocks_beat_both", "up_calls_pct"):
+        if col in r.columns:
+            t = r.pivot(index="variant", columns="horizon", values=col).reindex(order)[HORIZONS]
+            print(f"\n== {col} ==\n{t.round(2).to_string()}")
     base = r[r["variant"] == "production"].set_index("horizon")
     print("\nconstants (production sessions): UP", base["always_up_pct"].reindex(HORIZONS).round(1).to_dict(),
           "DOWN", base["always_down_pct"].reindex(HORIZONS).round(1).to_dict())
