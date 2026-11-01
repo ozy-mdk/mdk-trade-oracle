@@ -241,6 +241,7 @@ def build_bundle() -> None:
                         days_since_pos_shock=ts_row.get("days_since_pos_shock"),
                         bist30_vs_sma50=ts_row.get("bist30_vs_sma50"),
                         bist30_ret_20d=ts_row.get("bist30_ret_20d"),
+                        ts_row=ts_row,
                     )
                     pred_ret = round(float(p_sized), 2)
                     hit_val = check_horizon_hit(float(p_raw), act_ret, h)
@@ -319,6 +320,7 @@ def build_bundle() -> None:
                     days_since_pos_shock=ts_live.get("days_since_pos_shock"),
                     bist30_vs_sma50=ts_live.get("bist30_vs_sma50"),
                     bist30_ret_20d=ts_live.get("bist30_ret_20d"),
+                    ts_row=ts_live,
                 )
                 pred_live = round(float(p_sized_live), 2)
                 p_low = round(current_price * (1.0 + float(ts_live["q05"]) / 100.0), 2)

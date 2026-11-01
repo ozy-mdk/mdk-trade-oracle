@@ -112,6 +112,19 @@ TIMESTRAL_HORIZON_SPECS: dict[str, dict[str, Any]] = {
 _FORECASTER_SINGLETON: Any = None
 _DB_SYNCED_DATES: set[str] = set()
 _BIST30_CACHE_BY_L: dict[int, dict[str, dict[str, dict[str, float]]]] = {32: {}, 64: {}, 128: {}, 256: {}}
+_CROSS_ASSET_GRID: pd.DataFrame | None = None
+
+
+def _get_cross_asset_grid() -> pd.DataFrame | None:
+    global _CROSS_ASSET_GRID
+    if _CROSS_ASSET_GRID is None:
+        gpath = RAW_CACHE_DIR / "timestral_cross_asset_grid.parquet"
+        if gpath.exists():
+            try:
+                _CROSS_ASSET_GRID = pd.read_parquet(gpath)
+            except Exception as e:
+                logger.warning(f"Could not read cross-asset grid {gpath}: {e}")
+    return _CROSS_ASSET_GRID
 
 
 def get_timestral_forecaster() -> Any:
@@ -149,16 +162,34 @@ def size_directional_call(
     q25: np.ndarray | float,
     q75: np.ndarray | float,
     horizon: str,
+    polc_pred: np.ndarray | float | None = None,
 ) -> np.ndarray | float:
-    """Scale predictions proportionally to Timestral's IQR `(q75 - q25)` while keeping `|pred| > db`."""
+    """Scale predictions to realistic directional swing targets using Timestral's directional quartile spread
+    `(q75 - q25) / 2` and signal-to-noise conviction, never hugging the zero-line or deadband boundary.
+
+    When bullish (`raw_pred >= 0`), targets the upper quartile / volatility-matched excursion; when bearish,
+    targets the lower quartile excursion, modulated by signal conviction (`[0.65x, 1.35x]` of `iqr_half`) and
+    Policy C's institutional flow amplitude.
+    """
     scalar = np.ndim(raw_pred) == 0
     rp = np.atleast_1d(np.asarray(raw_pred, dtype=float))
     lo = np.atleast_1d(np.asarray(q25, dtype=float))
     hi = np.atleast_1d(np.asarray(q75, dtype=float))
     db = horizon_deadband(horizon)
     sign = np.where(rp >= 0.0, 1.0, -1.0)
-    iqr_half = np.maximum(db * 1.05, 0.35 * np.abs(hi - lo))
-    mag = np.maximum(db * 1.05, np.minimum(iqr_half, np.maximum(np.abs(rp), db * 1.05)))
+
+    iqr_half = np.maximum(db * 2.2, 0.5 * np.abs(hi - lo))
+    snr_ts = np.abs(rp) / np.maximum(0.10 * iqr_half, 1e-4)
+    if polc_pred is not None:
+        pp = np.atleast_1d(np.asarray(polc_pred, dtype=float))
+        snr_pol = np.abs(pp) / np.maximum(1.2 * iqr_half, 1e-4)
+        conv = np.clip(0.60 + 0.45 * np.tanh(0.5 * snr_ts + 0.5 * snr_pol), 0.60, 1.30)
+        mag = 0.65 * iqr_half * conv + 0.35 * np.minimum(np.abs(pp), 1.5 * iqr_half)
+    else:
+        conv = np.clip(0.65 + 0.45 * np.tanh(0.6 * snr_ts), 0.65, 1.30)
+        mag = iqr_half * conv
+
+    mag = np.maximum(db * 2.0, mag)
     res = sign * mag
     return float(res[0]) if scalar else res
 
@@ -185,26 +216,23 @@ def blend_policy_c_with_timestral(
     days_since_pos_shock: np.ndarray | float | None = None,
     bist30_vs_sma50: np.ndarray | float | None = None,
     bist30_ret_20d: np.ndarray | float | None = None,
+    ts_row: dict[str, Any] | None = None,
 ) -> tuple[np.ndarray | float, np.ndarray | float]:
-    """Return `(pred_sized, pred_raw_blend)` for `Hybrid/HorizonSpec_PolC_TS` with BIST 30 shock & regime awareness.
+    """Two-Stage Decoupled Direction-First + Full-Amplitude Hybrid Engine.
 
-    Quantitative BIST 30 Shock & Index Wave Mechanics:
-    - `1d`: On sharp BIST 30 index sell-offs (`bist30_ret_today <= -1.5%`), Policy C's BofA `MLB` absorption flow
-      leads (`w_ts = 0.20`); otherwise equal authority (`w_ts = 0.50`).
-    - `3d`: During post-shock windows (`days_since_neg_shock <= 5` or `|bist30_ret_today| >= 1.5%`), Timestral's
-      short-patch geometry (`MS-Short`) leads (`w_ts = 0.80`), improving 3D hit rate by +6.3pp.
-    - `5d`: Couples stock `Timestral(L128)` (`70%`) with the macro BIST 30 `Timestral(L128)` wave (`30%`).
-    - `10d`: Couples stock `Timestral(MS3)` (`75%`) + BIST 30 `Timestral(MS3)` (`25%`), and shifts SNR weight toward
-      Policy C (`w_ts = 0.55` vs `0.80`) during BIST 30 bear regimes (`mkt_bist30_vs_sma50 < 0` & `ret_20d < 0`
-      outside positive shocks) where Policy C's BIST 30 regime mean-reversion features excel.
-    - `15d`: Couples stock `Timestral(MS3)` (`80%`) + BIST 30 `Timestral(MS3)` (`20%`) inside the `0.75` SNR fusion.
-    - `30d`: Pure stock `Timestral(L64)` (`w_ts = 0.80`) SNR fusion with Policy C.
+    Stage 1 (Pure Directional Sign Specialist):
+      Combines Hierarchical Cross-Asset Timestral Consensus (`Market-6 Basket L128`, `Peer-Group BANK/INDUST`),
+      Intra-Patch Cross-Horizon Wave Coherence (`10D` mid-patch wave anchoring `3D` and `5D`), single-stock
+      multi-scale Timestral (`MS-Short`, `L128`, `MS3`, `L64`), and BIST 30 shock/regime-gated `Policy C`.
+    Stage 2 (Volatility-Calibrated Full Swing Amplitude):
+      Sizes the call to Timestral's directional quartile excursion (`0.5 * |q75 - q25|`) modulated by Stage-1
+      conviction (`[0.60x, 1.30x]`) and `Policy C` flow amplitude (`65% / 35%`), with zero deadband hugging.
     """
     scalar = np.ndim(polc_pred) == 0
-    p_pol = np.atleast_1d(np.asarray(polc_pred, dtype=float))
-    med = np.atleast_1d(np.asarray(raw_med, dtype=float))
-    lo = np.atleast_1d(np.asarray(q25, dtype=float))
-    hi = np.atleast_1d(np.asarray(q75, dtype=float))
+    p_pol = np.nan_to_num(np.atleast_1d(np.asarray(polc_pred, dtype=float)), nan=0.0)
+    med = np.nan_to_num(np.atleast_1d(np.asarray(raw_med, dtype=float)), nan=0.0)
+    lo = np.nan_to_num(np.atleast_1d(np.asarray(q25, dtype=float)), nan=-1.5)
+    hi = np.nan_to_num(np.atleast_1d(np.asarray(q75, dtype=float)), nan=1.5)
     n_len = len(p_pol)
 
     b_med = np.atleast_1d(np.asarray(bist30_med, dtype=float)) if bist30_med is not None else np.zeros(n_len)
@@ -214,46 +242,72 @@ def blend_policy_c_with_timestral(
     vs_sma50 = np.atleast_1d(np.asarray(bist30_vs_sma50, dtype=float)) if bist30_vs_sma50 is not None else np.zeros(n_len)
     ret_20d = np.atleast_1d(np.asarray(bist30_ret_20d, dtype=float)) if bist30_ret_20d is not None else np.zeros(n_len)
 
-    spec = TIMESTRAL_HORIZON_SPECS[horizon]
-    w_ts_base = float(spec["w_ts"])
-    mode = str(spec["mode"])
-    p_ts_sized = np.atleast_1d(size_directional_call(med, lo, hi, horizon))
+    db = horizon_deadband(horizon)
+    iqr_half = np.maximum(db * 1.05, 0.5 * np.abs(hi - lo))
+    snr_pol = np.clip(p_pol / (2.5 * iqr_half), -2.5, 2.5)
 
-    if mode == "equal_dir":
-        p_pol_scaled = np.sign(p_pol) * np.minimum(np.abs(p_pol), np.abs(p_ts_sized) * 1.5)
-        if horizon == "1d" and bist30_ret_1d is not None:
-            w_ts_vec = np.where(b_ret1 <= -1.5, 0.20, w_ts_base)
-        elif horizon == "3d" and (days_since_neg_shock is not None or bist30_ret_1d is not None):
-            w_ts_vec = np.where((neg_shk <= 5.0) | (np.abs(b_ret1) >= 1.5), 0.80, w_ts_base)
+    if ts_row is not None and "mkt6_ts128_med" in ts_row:
+        s_short = np.clip(float(ts_row.get("tsshort_med", med[0])) / (0.18 * iqr_half), -2.5, 2.5)
+        s_128 = np.clip(float(ts_row.get("ts128_med", med[0])) / (0.18 * iqr_half), -2.5, 2.5)
+        s_ms3 = np.clip(float(ts_row.get("tsms3_med", med[0])) / (0.18 * iqr_half), -2.5, 2.5)
+        s_64 = np.clip(float(ts_row.get("ts64_med", med[0])) / (0.22 * iqr_half), -2.5, 2.5)
+        s_10d = np.clip(float(ts_row.get("s10_med", med[0])) / (0.35 * iqr_half), -2.5, 2.5)
+
+        m6_128 = np.clip(float(ts_row.get("mkt6_ts128_med", med[0])) / (0.12 * iqr_half), -2.5, 2.5)
+        m6_128_mn = np.clip(float(ts_row.get("mkt6_ts128_mean", med[0])) / (0.12 * iqr_half), -2.5, 2.5)
+        m6_10d = np.clip(float(ts_row.get("m6_10_med", med[0])) / (0.25 * iqr_half), -2.5, 2.5)
+
+        peer_128 = np.clip(float(ts_row.get("peer_ts128_med", med[0])) / (0.14 * iqr_half), -2.5, 2.5)
+        peer_ms3 = np.clip(float(ts_row.get("peer_tsms3_med", med[0])) / (0.14 * iqr_half), -2.5, 2.5)
+        peer_10d = np.clip(float(ts_row.get("p10_med", med[0])) / (0.28 * iqr_half), -2.5, 2.5)
+
+        if horizon == "1d":
+            sig_dir = np.where(
+                b_ret1 <= -1.5,
+                0.80 * snr_pol + 0.20 * m6_128_mn,
+                0.45 * snr_pol + 0.35 * m6_128_mn + 0.20 * s_short,
+            )
+        elif horizon == "3d":
+            sig_dir = 0.60 * m6_10d + 0.20 * peer_10d + 0.20 * snr_pol
+        elif horizon == "5d":
+            sig_dir = 0.45 * m6_10d + 0.25 * peer_10d + 0.15 * s_128 + 0.15 * s_10d
+        elif horizon == "10d":
+            ts_comb = 0.50 * m6_128 + 0.25 * peer_ms3 + 0.25 * s_ms3
+            w_ts_vec = np.where((vs_sma50 < 0.0) & (ret_20d < 0.0) & (pos_shk > 5.0), 0.60, 0.85)
+            sig_dir = (1.0 - w_ts_vec) * snr_pol + w_ts_vec * ts_comb
+        elif horizon == "15d":
+            ts_comb = 0.50 * m6_128_mn + 0.25 * peer_128 + 0.25 * s_ms3
+            sig_dir = 0.20 * snr_pol + 0.80 * ts_comb
         else:
-            w_ts_vec = np.full(n_len, w_ts_base)
-        p_blend_raw = (1.0 - w_ts_vec) * p_pol_scaled + w_ts_vec * p_ts_sized
-    elif mode == "pure_ts":
-        if horizon == "5d" and bist30_med is not None:
-            p_blend_raw = 0.70 * med + 0.30 * b_med
-        else:
-            p_blend_raw = med.copy()
+            ts_comb = 0.70 * s_64 + 0.30 * m6_128_mn
+            sig_dir = 0.20 * snr_pol + 0.80 * ts_comb
+        p_blend_raw = sig_dir * (0.45 * iqr_half)
     else:
-        db = horizon_deadband(horizon)
-        iqr_half = np.maximum(db * 1.05, 0.5 * np.abs(hi - lo))
-        if horizon == "10d" and bist30_med is not None:
-            med_eff = 0.75 * med + 0.25 * b_med
-            w_ts_vec = np.where((vs_sma50 < 0.0) & (ret_20d < 0.0) & (pos_shk > 5.0), 0.55, 0.80)
-        elif horizon == "15d" and bist30_med is not None:
-            med_eff = 0.80 * med + 0.20 * b_med
-            w_ts_vec = np.full(n_len, w_ts_base)
+        spec = TIMESTRAL_HORIZON_SPECS[horizon]
+        w_ts_base = float(spec["w_ts"])
+        mode = str(spec["mode"])
+        p_ts_sized = np.atleast_1d(size_directional_call(med, lo, hi, horizon))
+        if mode == "equal_dir":
+            p_pol_scaled = np.sign(p_pol) * np.minimum(np.abs(p_pol), np.abs(p_ts_sized) * 1.5)
+            if horizon == "1d" and bist30_ret_1d is not None:
+                w_ts_vec = np.where(b_ret1 <= -1.5, 0.20, w_ts_base)
+            elif horizon == "3d" and (days_since_neg_shock is not None or bist30_ret_1d is not None):
+                w_ts_vec = np.where((neg_shk <= 5.0) | (np.abs(b_ret1) >= 1.5), 0.80, w_ts_base)
+            else:
+                w_ts_vec = np.full(n_len, w_ts_base)
+            p_blend_raw = (1.0 - w_ts_vec) * p_pol_scaled + w_ts_vec * p_ts_sized
+        elif mode == "pure_ts":
+            p_blend_raw = (0.70 * med + 0.30 * b_med) if (horizon == "5d" and bist30_med is not None) else med.copy()
         else:
-            med_eff = med
-            w_ts_vec = np.full(n_len, w_ts_base)
-        snr_pol = np.clip(p_pol / (2.5 * iqr_half), -2.5, 2.5)
-        snr_ts = np.clip(med_eff / (0.22 * iqr_half), -2.5, 2.5)
-        snr_blend = (1.0 - w_ts_vec) * snr_pol + w_ts_vec * snr_ts
-        p_blend_raw = snr_blend * (0.45 * iqr_half)
+            med_eff = (0.75 * med + 0.25 * b_med) if (horizon == "10d" and bist30_med is not None) else ((0.80 * med + 0.20 * b_med) if (horizon == "15d" and bist30_med is not None) else med)
+            w_ts_vec = np.where((vs_sma50 < 0.0) & (ret_20d < 0.0) & (pos_shk > 5.0), 0.55, 0.80) if (horizon == "10d" and bist30_med is not None) else np.full(n_len, w_ts_base)
+            snr_ts = np.clip(med_eff / (0.22 * iqr_half), -2.5, 2.5)
+            p_blend_raw = ((1.0 - w_ts_vec) * snr_pol + w_ts_vec * snr_ts) * (0.45 * iqr_half)
 
-    p_sized = np.atleast_1d(size_directional_call(p_blend_raw, lo, hi, horizon))
+    p_sized = np.atleast_1d(size_directional_call(p_blend_raw, lo, hi, horizon, polc_pred=p_pol))
     if scalar:
-        return float(p_sized[0]), float(p_blend_raw[0])
-    return p_sized, p_blend_raw
+        return float(p_sized[0]), float(p_sized[0])
+    return p_sized, p_sized
 
 
 def _infer_context_origins(
@@ -401,6 +455,13 @@ def compute_timestral_horizon_table(
                 _BIST30_CACHE_BY_L.setdefault(L_val, {})[dates[t]] = h_map
 
     # Aggregate multi-scale patch contexts per (trade_date, horizon) and apply BIST ±10% circuit-breaker bounds
+    grid_df = _get_cross_asset_grid()
+    grid_map: dict[tuple[str, str], dict[str, Any]] = {}
+    if grid_df is not None:
+        sub_g = grid_df[(grid_df["symbol"] == sym) & (grid_df["trade_date"].isin(needed_dates))]
+        for r_g in sub_g.to_dict("records"):
+            grid_map[(str(r_g["trade_date"])[:10], str(r_g["horizon"]))] = r_g
+
     rows: list[dict[str, Any]] = []
     for t in needed_origins:
         td = dates[t]
@@ -424,7 +485,7 @@ def compute_timestral_horizon_table(
                 q05_raw, q25_raw, med_raw, mean_raw, q75_raw, q95_raw, h
             )
             sp = float(size_directional_call(med, q25, q75, h))
-            rows.append({
+            row_out: dict[str, Any] = {
                 "trade_date": td,
                 "horizon": h,
                 "q05": float(q05),
@@ -440,7 +501,16 @@ def compute_timestral_horizon_table(
                 "days_since_pos_shock": float(pos_shock_arr[t]),
                 "bist30_vs_sma50": float(bist_vs_sma50_arr[t]),
                 "bist30_ret_20d": float(bist_ret_20d_arr[t]),
-            })
+            }
+            g_row = grid_map.get((td, h))
+            if g_row is not None:
+                for gk in (
+                    "ts128_med", "ts128_mean", "ts64_med", "tsshort_med", "tsms3_med", "s10_med",
+                    "mkt6_ts128_med", "mkt6_ts128_mean", "m6_10_med", "peer_ts128_med", "peer_tsms3_med", "p10_med"
+                ):
+                    if gk in g_row:
+                        row_out[gk] = float(g_row[gk])
+            rows.append(row_out)
     return pd.DataFrame(rows)
 
 

@@ -379,6 +379,7 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
                 days_since_pos_shock=ts_row.get("days_since_pos_shock"),
                 bist30_vs_sma50=ts_row.get("bist30_vs_sma50"),
                 bist30_ret_20d=ts_row.get("bist30_ret_20d"),
+                ts_row=ts_row,
             )
             pred_ret = round(float(p_sized), 2)
             err_val = round(abs(pred_ret - actual_ret), 2)
@@ -483,6 +484,7 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
             days_since_pos_shock=ts_live.get("days_since_pos_shock"),
             bist30_vs_sma50=ts_live.get("bist30_vs_sma50"),
             bist30_ret_20d=ts_live.get("bist30_ret_20d"),
+            ts_row=ts_live,
         )
         pred_ret = round(float(p_sized_live), 2)
         crowned_model_label = format_hybrid_champion_name(cfg.model, T1_HORIZON)

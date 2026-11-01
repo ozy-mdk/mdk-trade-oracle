@@ -1786,3 +1786,232 @@ INFO:     Finished server process [37603]
 INFO:     Started server process [37622]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+[11/01/26 18:49:40] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50060 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN HTTP/1.1" 200 OK
+[11/01/26 18:49:42] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+WARNING:  StatReload detected changes in 'scripts/generate_timestral_gold_bundle.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     127.0.0.1:50063 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=true HTTP/1.1" 200 OK
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37622]
+INFO:     Started server process [37810]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[11/01/26 18:50:03] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50067 - "GET /api/v1/tertip/multi-horizon/opportunities?horizon=10d HTTP/1.1" 200 OK
+[11/01/26 18:50:10] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50076 - "GET /api/v1/tertip/ytd-pnl/overview?trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50075 - "GET /api/v1/tertip/ytd-pnl?symbol=THYAO&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50071 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:50:26] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50082 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50081 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50078 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:50:34] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50085 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ISCTR&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:50:41] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50090 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:50:46] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50092 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:50:50] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50098 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50102 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=3d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50105 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=5d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37810]
+INFO:     Started server process [38005]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38005]
+INFO:     Started server process [38018]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38018]
+INFO:     Started server process [38065]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[11/01/26 18:56:03] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+[11/01/26 18:56:04] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50148 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:56:18] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50153 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:56:26] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50155 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ISCTR&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:56:28] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50159 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:56:31] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50162 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 18:56:34] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50164 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50186 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50187 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50190 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50192 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50194 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50189 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50188 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50196 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50200 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50199 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50185 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50212 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50213 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50214 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50217 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50219 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50221 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50223 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50216 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50215 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50235 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50227 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50226 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50236 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50237 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50240 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50242 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50244 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50246 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50239 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50238 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50250 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50249 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50254 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50253 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50264 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50263 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50268 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=3d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/experiment_direction_specialists.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38065]
+INFO:     Started server process [38482]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/experiment_direction_specialists.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38482]
+INFO:     Started server process [38722]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38722]
+INFO:     Started server process [38758]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38758]
+INFO:     Started server process [38783]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38783]
+INFO:     Started server process [38797]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_multi_horizon_crowning.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38797]
+INFO:     Started server process [38809]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_multi_horizon_crowning.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38809]
+INFO:     Started server process [38819]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_forecasts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38819]
+INFO:     Started server process [38832]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/data/gold/tertip_forecasts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38832]
+INFO:     Started server process [38840]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/generate_timestral_gold_bundle.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38840]
+INFO:     Started server process [38850]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/generate_timestral_gold_bundle.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38850]
+INFO:     Started server process [38864]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[11/01/26 19:15:51] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+[11/01/26 19:15:52] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50566 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=true HTTP/1.1" 200 OK
+[11/01/26 19:16:05] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50573 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 19:16:12] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50575 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ISCTR&fresh=true HTTP/1.1" 200 OK
+[11/01/26 19:16:19] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50581 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&fresh=true HTTP/1.1" 200 OK
+[11/01/26 19:16:22] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50583 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&fresh=true HTTP/1.1" 200 OK
+[11/01/26 19:16:26] INFO     Cleared Multi-Horizon Forecaster in-memory cache.  
+INFO:     127.0.0.1:50585 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=true HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/experiment_direction_specialists.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38864]
+INFO:     Started server process [38945]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38945]
+INFO:     Started server process [39016]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
