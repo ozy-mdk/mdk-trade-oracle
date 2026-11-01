@@ -112,3 +112,84 @@ INFO:     127.0.0.1:65398 - "GET /api/v1/tertip/opportunities HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65408 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65413 - "GET /api/v1/tertip/multi-horizon?symbol=THYAO HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:65415 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49253 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&model_type=auto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49254 - "GET /api/v1/market/shock-days?threshold_pct=0.03 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49255 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49258 - "GET /api/v1/meta/instruments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49260 - "GET /api/v1/meta/brokers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49262 - "GET /api/v1/meta/date-range HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49257 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49264 - "GET /api/v1/market/candles?symbol=THYAO&interval=1d&broker_id=MLB&limit=1000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49256 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-09-29 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49268 - "GET /api/v1/tertip/horizons?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49267 - "GET /api/v1/market/summary?symbol=THYAO&broker_id=MLB&trade_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49272 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=THYAO&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49271 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49276 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=ASELS&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49275 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49371 - "GET /api/v1/tertip/multi-horizon/backtest?symbol=AKBNK&horizon=1d&limit=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49370 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&fresh=false&eval_sessions=90&target_date=2026-10-23 HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33014]
+INFO:     Started server process [35530]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35530]
+INFO:     Started server process [35796]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35796]
+INFO:     Started server process [35816]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35816]
+INFO:     Started server process [35843]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35843]
+INFO:     Started server process [35860]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35860]
+INFO:     Started server process [35910]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35910]
+INFO:     Started server process [35949]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'scripts/experiments/evaluate_timestral_variants.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35949]
+INFO:     Started server process [35974]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
