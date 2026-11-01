@@ -1,31 +1,40 @@
 # Honest monthly tournament policy for the 1D-30D forecasters (read by data/gold/tertip_multi_horizon_crowning.py).
 # Every month, per stock and horizon, champions are crowned on the first trading day from outcomes realized before
-# it. Tested end-to-end on the honest 90-session track (docs/RESEARCH_HANDOFF_2026-10.md §0.8); re-run
-# scripts/experiments/tournament_variants.py before changing anything here.
+# it. Tested end-to-end on the honest 90-session track (docs/RESEARCH_HANDOFF_2026-10.md §0.8).
 
-# Feature sets with candidate ledgers at every horizon (data/silver/event_regime_features.py)
+# Active feature sets (pruned per horizon in `swing_pools` and `update_t1_candidate_ledger` when `priority_stocks`
+# is empty so unused feature sets are not redundantly evaluated).
 feature_sets: [production, events, regime_no_sma50]
 
-# Stocks listed here use the staged tournament: stage 1 crowns model + training window on the production features
-# (production rule: family-first for 3D-30D, 1D on its own); stage 2 picks feature set x feature mode for that model
-# and window from `stage2_allowed`. Disabled (empty): tested on the honest track it did not beat the default policy
-# (focus six + THYAO: +0.1 pp average vs the previous production, against +1.9 for the default policy) — per-stock
-# monthly feature choice on 90 sessions adds selection noise. Re-test before enabling for any stock.
+# Staged per-stock feature tournament disabled (empty): per-stock monthly feature choice on 90 sessions adds
+# selection noise compared to fixed horizon-specialized policies.
 priority_stocks: []
 stage2_allowed:
-  1d: [production, events]
-  3d: [production, events]
-  5d: [production, regime_no_sma50]
-  10d: [production, regime_no_sma50]
+  1d: [events]
+  3d: [events]
+  5d: [regime_no_sma50]
+  10d: [regime_no_sma50]
   15d: [production]
   30d: [production]
 
-# All stocks (default): the validated feature set per horizon, crowned within that pool (policy C: +1.9 pp average on
-# the focus six + THYAO, neutral on the other 22). 30D keeps its own production crowning so the other horizons cannot move its model family.
+# Validated tabular Policy C feature set per horizon (crowned monthly strictly on target_date_end < crown_date):
 default_policy:
   1d: {feature_set: events}
   3d: {feature_set: events}
   5d: {feature_set: regime_no_sma50}
   10d: {feature_set: regime_no_sma50}
   15d: {feature_set: production, exclude_lookback: 63}
-  30d: {feature_set: production, own_production_crowning: true}
+  30d: {feature_set: production}
+
+# Validated Timestral-209M + Policy C Hybrid (`models/timestral_forecaster.py`):
+# Combines causal patch geometry from `mistralai/Timestral-209M` (`patch_size = 32`, `clampsym` zero-drift symmetry)
+# with Policy C's institutional Tertip FIFO carry & event calendar alpha, plus IQR volatility sizing.
+timestral_hybrid:
+  enabled: true
+  horizons:
+    1d: {contexts: [128], w_ts: 0.50, mode: equal_dir}
+    3d: {contexts: [32, 64, 128], w_ts: 0.50, mode: equal_dir}
+    5d: {contexts: [128], w_ts: 1.00, mode: pure_ts}
+    10d: {contexts: [64, 128, 256], w_ts: 0.75, mode: snr_fusion}
+    15d: {contexts: [64, 128, 256], w_ts: 0.75, mode: snr_fusion}
+    30d: {contexts: [64], w_ts: 0.80, mode: snr_fusion}

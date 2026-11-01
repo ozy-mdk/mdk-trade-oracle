@@ -786,7 +786,12 @@ def get_multi_horizon_forecaster_payload(
         if (now_ts - cached_ts) < CACHE_TTL_SECONDS:
             return cached_data
 
-    # Fast-path: Check database precomputed gold tables first
+    # Fast-path: Sync any precomputed Timestral Gold bundle to PostgreSQL and check gold tables first
+    if db is not None:
+        from mdk_trading_oracle.models.timestral_forecaster import sync_cached_timestral_gold_to_db
+
+        sync_cached_timestral_gold_to_db(db)
+
     if db is not None and not force_recompute:
         try:
             date_filter = "as_of_date = %s" if target_date else "as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_multi_horizon_forecasts WHERE symbol = %s)"

@@ -1907,6 +1907,9 @@ def get_tertip_predicted_opportunities(
     clean_target_date = target_date if isinstance(target_date, str) and target_date.strip() else None
     h_key = (horizon if isinstance(horizon, str) else "1d").strip().lower()
     try:
+        from mdk_trading_oracle.models.timestral_forecaster import sync_cached_timestral_gold_to_db
+
+        sync_cached_timestral_gold_to_db(db)
         if h_key == "1d":
             date_clause = "WHERE as_of_date = %(target_date)s" if clean_target_date else "WHERE as_of_date = (SELECT MAX(as_of_date) FROM gold_tertip_daily_forecasts)"
             params: Dict[str, Any] = {"target_date": clean_target_date} if clean_target_date else {}

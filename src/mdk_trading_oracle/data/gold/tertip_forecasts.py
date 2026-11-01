@@ -32,7 +32,12 @@ from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import (
     update_crowns,
     update_t1_candidate_ledger,
 )
-from mdk_trading_oracle.data.silver.event_regime_features import apply_feature_set, load_event_tables, split_key
+from mdk_trading_oracle.data.silver.event_regime_features import (
+    apply_feature_set,
+    load_event_tables,
+    split_key,
+    tournament_policy,
+)
 from mdk_trading_oracle.data.silver.tertip_ml_forecaster import (
     DEADBAND_PCT,
     _check_hit,
@@ -323,10 +328,31 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
         return None
     cur = cr.iloc[-1]
 
+    pol = tournament_policy()
+    ts_enabled = bool(pol.get("timestral_hybrid", {}).get("enabled", True))
+    ts_map: dict[str, dict[str, Any]] = {}
+    if ts_enabled:
+        try:
+            from mdk_trading_oracle.models.timestral_forecaster import (
+                blend_policy_c_with_timestral,
+                check_horizon_hit,
+                compute_timestral_horizon_table,
+                enrich_risk_profile_with_timestral,
+                format_hybrid_champion_name,
+            )
+
+            ts_df = compute_timestral_horizon_table(sym, df, horizons=(T1_HORIZON,))
+            for row in ts_df.to_dict("records"):
+                ts_map[str(row["trade_date"])[:10]] = row
+        except Exception as e:
+            logger.warning(f"Timestral 1D hybrid unavailable for {sym}, falling back to Policy C: {e}")
+            ts_enabled = False
+
     # 1. Honest track: last 90 graded sessions, each with the champion in force at its origin
-    track = champion_track(candidates, crowns, T1_HORIZON).iloc[-DISPLAY_SESSIONS:]
+    track = champion_track(candidates, crowns, T1_HORIZON).iloc[-DISPLAY_SESSIONS:].copy()
     row_of = {d: i for i, d in enumerate(dates)}
     db.execute("DELETE FROM gold_tertip_walk_forward_backtests WHERE symbol = %s", (sym,))
+    ledger: list[dict[str, Any]] = []
     for r in track.itertuples(index=False):
         g = row_of.get(r.target_date_end)
         if g is None:
@@ -334,11 +360,35 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
         graded = df.iloc[g]
         prev_close = float(r.current_price)
         actual_ret, pred_ret = float(r.actual_return_pct), float(r.pred_return_pct)
+        err_val = float(r.err_pct)
+        ml_hit = bool(r.is_hit)
+        champ_m = str(r.model)
+
+        origin_date = str(r.trade_date)[:10]
+        ts_row = ts_map.get(origin_date) if ts_enabled else None
+        if ts_row is not None:
+            p_sized, p_raw = blend_policy_c_with_timestral(
+                pred_ret,
+                ts_row["pred_med"],
+                ts_row["q25"],
+                ts_row["q75"],
+                T1_HORIZON,
+                bist30_med=ts_row.get("bist30_med"),
+                bist30_ret_1d=ts_row.get("bist30_ret_1d"),
+                days_since_neg_shock=ts_row.get("days_since_neg_shock"),
+                days_since_pos_shock=ts_row.get("days_since_pos_shock"),
+                bist30_vs_sma50=ts_row.get("bist30_vs_sma50"),
+                bist30_ret_20d=ts_row.get("bist30_ret_20d"),
+            )
+            pred_ret = round(float(p_sized), 2)
+            err_val = round(abs(pred_ret - actual_ret), 2)
+            ml_hit = check_horizon_hit(float(p_raw), actual_ret, T1_HORIZON)
+            champ_m = format_hybrid_champion_name(r.model, T1_HORIZON)
+
         actual_eq = prev_close * (1.0 + actual_ret / 100.0)
         p_ret = float(graded.get("feat_prophet_ret_today_pct", 0.0) or 0.0)
         p_price = prev_close * (1.0 + p_ret / 100.0)
         bist30_ret = float(graded.get("feat_bist30_ret_today_pct", 0.0) or 0.0)
-        ml_hit = bool(r.is_hit)
 
         def _f(col: str) -> float:
             v = graded.get(col, 0.0)
@@ -353,7 +403,7 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
             "ml_pred_price": round(prev_close * (1.0 + pred_ret / 100.0), 2),
             "ml_pred_return_pct": round(pred_ret, 2),
             "ml_direction": _direction(pred_ret),
-            "ml_err_pct": round(float(r.err_pct), 2),
+            "ml_err_pct": round(err_val, 2),
             "ml_is_hit": ml_hit,
             "prophet_pred_price": round(p_price, 2),
             "prophet_pred_return_pct": round(p_ret, 2),
@@ -374,8 +424,31 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
             "kamu_action": "BUY" if _f("kamu_flow") > 0 else "SELL",
             "kamu_flow_tl": _f("kamu_flow"), "kamu_buy_tl": _f("kamu_buy_tl"), "kamu_sell_tl": _f("kamu_sell_tl"),
             "kamu_pnl_tl": _f("kamu_daily_pnl_tl"),
-            "ml_champion_type": r.model,
+            "ml_champion_type": champ_m,
             "training_lookback_sessions": int(r.lookback),
+            "actual_training_sessions": int(r.actual_training_sessions),
+            "data_sufficiency_status": r.data_sufficiency_status or "FULL",
+        })
+
+        def _dir(ret: float) -> str:
+            return "BUY" if ret > DEADBAND_PCT else ("SELL" if ret < -DEADBAND_PCT else "NEUTRAL")
+
+        ledger.append({
+            "trade_date": origin_date,
+            "target_date_start": str(r.target_date_end)[:10],
+            "target_date_end": str(r.target_date_end)[:10],
+            "current_price": round(prev_close, 2),
+            "actual_avg_price": round(prev_close * (1.0 + actual_ret / 100.0), 2),
+            "actual_return_pct": round(actual_ret, 2),
+            "pred_avg_price": round(prev_close * (1.0 + pred_ret / 100.0), 2),
+            "pred_return_pct": round(pred_ret, 2),
+            "pred_direction": _dir(pred_ret),
+            "actual_direction": _dir(actual_ret),
+            "err_pct": round(err_val, 2),
+            "is_hit": ml_hit,
+            "is_pending": False,
+            "champion_model": champ_m,
+            "feature_mode": r.feature_mode,
             "actual_training_sessions": int(r.actual_training_sessions),
             "data_sufficiency_status": r.data_sufficiency_status or "FULL",
         })
@@ -394,6 +467,26 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
     vol_state = get_volatility_state(db, sym, latest_date)
     sized = size_forecast(model_ret, vol_state, 1, seed_key=f"{latest_date}:1d")
     pred_ret = sized["expected_return_pct"] if sized else model_ret
+    crowned_model_label = cfg.model
+
+    ts_live = ts_map.get(latest_date) if ts_enabled else None
+    if ts_live is not None:
+        p_sized_live, _ = blend_policy_c_with_timestral(
+            model_ret,
+            ts_live["pred_med"],
+            ts_live["q25"],
+            ts_live["q75"],
+            T1_HORIZON,
+            bist30_med=ts_live.get("bist30_med"),
+            bist30_ret_1d=ts_live.get("bist30_ret_1d"),
+            days_since_neg_shock=ts_live.get("days_since_neg_shock"),
+            days_since_pos_shock=ts_live.get("days_since_pos_shock"),
+            bist30_vs_sma50=ts_live.get("bist30_vs_sma50"),
+            bist30_ret_20d=ts_live.get("bist30_ret_20d"),
+        )
+        pred_ret = round(float(p_sized_live), 2)
+        crowned_model_label = format_hybrid_champion_name(cfg.model, T1_HORIZON)
+
     target_price = latest_price * (1.0 + pred_ret / 100.0)
     risk_profile = build_forecast_distribution(
         latest_price, model_ret, vol_state, 1, DEADBAND_PCT, seed_key=f"{latest_date}:1d", target_return_pct=pred_ret,
@@ -405,6 +498,12 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
     else:
         vol_20d = float(df["daily_return_pct"].iloc[-20:].std() * 100.0) if len(df) >= 20 else 2.5
         price_low, price_high = legacy_band(target_price, vol_20d)
+
+    if ts_live is not None:
+        risk_profile = enrich_risk_profile_with_timestral(risk_profile, ts_live, model_ret, latest_price)
+        price_low = round(latest_price * (1.0 + float(ts_live["q05"]) / 100.0), 2)
+        price_high = round(latest_price * (1.0 + float(ts_live["q95"]) / 100.0), 2)
+
     stance, playbook = _stance(pred_ret)
 
     atr = float(df["atr_14d_pct"].iloc[-1]) if "atr_14d_pct" in df.columns else 2.5
@@ -414,8 +513,9 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
         logger.warning(f"{sym}: Prophet baseline failed: {e}")
         prophet_ret = 0.0
 
-    hits = int(track["is_hit"].sum())
-    total = len(track)
+    hits = sum(1 for row in ledger if row["is_hit"])
+    total = len(ledger)
+    mae_val = round(float(sum(row["err_pct"] for row in ledger) / total), 2) if total else 0.0
     db.execute(upsert_forecast_sql, {
         "symbol": sym,
         "as_of_date": latest_date,
@@ -427,10 +527,10 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
         "stance": stance,
         "conviction": stance,
         "playbook": playbook,
-        "ml_champion_type": cfg.model,
+        "ml_champion_type": crowned_model_label,
         "champion_dir_hits": hits,
         "champion_dir_hit_rate_pct": round(hits / total * 100.0, 1) if total else None,
-        "champion_mae_pct": round(float(track["err_pct"].mean()), 2) if total else None,
+        "champion_mae_pct": mae_val if total else None,
         "prophet_target_price": round(latest_price * (1.0 + prophet_ret / 100.0), 2),
         "prophet_expected_return_pct": round(prophet_ret, 2),
         "training_lookback_sessions": cfg.lookback,
@@ -443,41 +543,16 @@ def _update_symbol(db: PostgresManager, sym: str, upsert_forecast_sql: str, upse
     })
 
     # 3. Same forecast and track as horizon '1d' of the multi-horizon tab (one presentation for all horizons)
-    def _dir(ret: float) -> str:
-        return "BUY" if ret > DEADBAND_PCT else ("SELL" if ret < -DEADBAND_PCT else "NEUTRAL")
-
-    ledger = [
-        {
-            "trade_date": r.trade_date,
-            "target_date_start": r.target_date_end,
-            "target_date_end": r.target_date_end,
-            "current_price": round(float(r.current_price), 2),
-            "actual_avg_price": round(float(r.current_price) * (1.0 + float(r.actual_return_pct) / 100.0), 2),
-            "actual_return_pct": round(float(r.actual_return_pct), 2),
-            "pred_avg_price": round(float(r.current_price) * (1.0 + float(r.pred_return_pct) / 100.0), 2),
-            "pred_return_pct": round(float(r.pred_return_pct), 2),
-            "pred_direction": _dir(float(r.pred_return_pct)),
-            "actual_direction": _dir(float(r.actual_return_pct)),
-            "err_pct": round(float(r.err_pct), 2),
-            "is_hit": bool(r.is_hit),
-            "is_pending": False,
-            "champion_model": r.model,
-            "feature_mode": r.feature_mode,
-            "actual_training_sessions": int(r.actual_training_sessions),
-            "data_sufficiency_status": r.data_sufficiency_status or "FULL",
-        }
-        for r in track.itertuples(index=False)
-    ]
     swing_stance = "BULLISH" if pred_ret > DEADBAND_PCT else ("BEARISH" if pred_ret < -DEADBAND_PCT else "NEUTRAL")
     upsert_horizon(db, sym, latest_date, round(latest_price, 2), T1_HORIZON, {
         "meta": {
-            "crowned_model": cfg.model,
+            "crowned_model": crowned_model_label,
             "crowned_horizon": str(cur["lookback_label"]),
             "crowned_on": str(cur["crown_date"]),
             "hits": hits,
             "total_evals": total,
             "hit_rate_pct": round(hits / total * 100.0, 1) if total else 0.0,
-            "mae_pct": round(float(track["err_pct"].mean()), 2) if total else 0.0,
+            "mae_pct": mae_val,
             "training_lookback_sessions": cfg.lookback,
             "feature_mode": cfg.feature_mode,
         },

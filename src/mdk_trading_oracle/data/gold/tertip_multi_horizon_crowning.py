@@ -115,13 +115,27 @@ def _pool_filter(feature_set: str) -> str:
     return f"config_key NOT LIKE '%%{KEY_SEP}%%'" if feature_set == "production" else f"config_key LIKE '{feature_set}{KEY_SEP}%%'"
 
 
-def swing_pools() -> list[tuple[str, list[str]]]:
-    """(feature set, horizons) for which candidates are generated: every tournament feature set at every horizon."""
-    return [(fs, list(HORIZONS)) for fs in tournament_policy().get("feature_sets", TOURNAMENT_FEATURE_SETS)]
+def swing_pools(symbol: str | None = None) -> list[tuple[str, list[str]]]:
+    """(feature set, horizons) for which swing candidates are generated.
+
+    When `priority_stocks` is empty (or `symbol` is not in `priority_stocks`), prune unused feature sets so each
+    horizon only evaluates the feature set specified in `default_policy` (eliminating 67% of redundant fits).
+    """
+    pol = tournament_policy()
+    if symbol and symbol.upper() in set(pol.get("priority_stocks", [])):
+        return [(fs, list(HORIZONS)) for fs in pol.get("feature_sets", TOURNAMENT_FEATURE_SETS)]
+    default = pol.get("default_policy", {})
+    by_fs: dict[str, list[str]] = {}
+    for h in HORIZONS:
+        fs = default.get(h, {}).get("feature_set", "production")
+        by_fs.setdefault(fs, []).append(h)
+        if default.get(h, {}).get("own_production_crowning") and "production" not in by_fs:
+            by_fs.setdefault("production", []).extend(list(HORIZONS))
+    return [(fs, sorted(set(hs), key=lambda x: HORIZONS.index(x))) for fs, hs in by_fs.items()]
 
 
 def update_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, ev: dict | None = None) -> int:
-    """Extend every candidate's walk-forward ledger to the latest realized origin; returns rows written.
+    """Extend active candidate walk-forward ledgers to the latest realized origin; returns rows written.
 
     `df` is the extract_3pillar_time_series frame (sorted, 0..n-1). Rows are point-in-time: the forecast at origin t
     trains on rows i <= t - N only (tests/test_multi_horizon_leakage.py), so re-running never changes earlier rows.
@@ -146,11 +160,14 @@ def update_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, 
         params=[sym],
     )
     last_by = {(r.horizon, r.config_key): r.last_date for r in stored.itertuples(index=False)}
-    configs = candidate_configs()
+    all_configs = candidate_configs()
+    pol_default = tournament_policy().get("default_policy", {})
     written = 0
-    for fs, horizons in swing_pools():
+    for fs, horizons in swing_pools(sym):
         frame = apply_feature_set(df, sym, fs, ev)[0]
         for h in horizons:
+            excl_lb = pol_default.get(h, {}).get("exclude_lookback")
+            configs = [c for c in all_configs if c.lookback != excl_lb] if excl_lb else all_configs
             n_days = HORIZON_DAYS[h]
             last_idx = n_total - n_days - 1  # last origin whose N-day outcome is realized
             lasts = [last_by.get((h, policy_key(fs, c.key))) for c in configs]
@@ -189,14 +206,19 @@ def update_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, 
 
 
 def update_t1_candidate_ledger(db: PostgresManager, symbol: str, df: pd.DataFrame, ev: dict | None = None) -> int:
-    """Extend every candidate's point-in-time next-day ledger (horizon '1d') to the latest realized session, for every
-    tournament feature set.
+    """Extend the point-in-time next-day ledger (horizon '1d') to the latest realized session for the active 1D
+    tournament feature set(s).
 
     Row t: model fitted at the close of t on labels realized by then (`forecast_t1`), predicting r(t -> t+1);
     `trade_date` is the origin t, `target_date_end` the graded session t+1.
     """
     ev = ev or load_event_tables(db)
-    return sum(_update_t1_pool(db, symbol, df, fs, ev) for fs in tournament_policy().get("feature_sets", TOURNAMENT_FEATURE_SETS))
+    pol = tournament_policy()
+    if symbol.upper() in set(pol.get("priority_stocks", [])):
+        t1_sets = pol.get("feature_sets", TOURNAMENT_FEATURE_SETS)
+    else:
+        t1_sets = [pol.get("default_policy", {}).get("1d", {}).get("feature_set", "events")]
+    return sum(_update_t1_pool(db, symbol, df, fs, ev) for fs in t1_sets)
 
 
 def _update_t1_pool(db: PostgresManager, symbol: str, df: pd.DataFrame, fs: str, ev: dict) -> int:
@@ -433,6 +455,26 @@ def build_recrowned_payload(
     next_date = dict(zip(all_dates[:-1], all_dates[1:]))
     as_of = all_dates[-1]
 
+    pol = tournament_policy()
+    ts_enabled = bool(pol.get("timestral_hybrid", {}).get("enabled", True))
+    ts_map: dict[tuple[str, str], dict[str, Any]] = {}
+    if ts_enabled:
+        try:
+            from mdk_trading_oracle.models.timestral_forecaster import (
+                blend_policy_c_with_timestral,
+                check_horizon_hit,
+                compute_timestral_horizon_table,
+                enrich_risk_profile_with_timestral,
+                format_hybrid_champion_name,
+            )
+
+            ts_df = compute_timestral_horizon_table(sym, df, horizons=HORIZONS)
+            for row in ts_df.to_dict("records"):
+                ts_map[(str(row["horizon"]), str(row["trade_date"])[:10])] = row
+        except Exception as e:
+            logger.warning(f"Timestral hybrid unavailable for {sym}, falling back to Policy C: {e}")
+            ts_enabled = False
+
     horizons: dict[str, Any] = {}
     for h in HORIZONS:
         n_days = HORIZON_MAP[h]
@@ -441,31 +483,59 @@ def build_recrowned_payload(
             continue
         cur = cr.iloc[-1]
         track = champion_track(candidates, crowns, h).iloc[-n_eval_sessions:]
-        ledger = [
-            {
-                "trade_date": r.trade_date,
-                "target_date_start": next_date.get(r.trade_date, r.trade_date),
-                "target_date_end": r.target_date_end,
-                "current_price": float(r.current_price),
-                "actual_avg_price": round(float(r.current_price) * (1.0 + float(r.actual_return_pct) / 100.0), 2),
-                "actual_return_pct": float(r.actual_return_pct),
-                "pred_avg_price": round(float(r.current_price) * (1.0 + float(r.pred_return_pct) / 100.0), 2),
-                "pred_return_pct": float(r.pred_return_pct),
-                "pred_direction": _direction(float(r.pred_return_pct), n_days),
-                "actual_direction": _direction(float(r.actual_return_pct), n_days),
-                "err_pct": float(r.err_pct),
-                "is_hit": bool(r.is_hit),
+        ledger = []
+        for r in track.itertuples(index=False):
+            td = str(r.trade_date)[:10]
+            curr_px = float(r.current_price)
+            act_ret = float(r.actual_return_pct)
+            pred_ret = float(r.pred_return_pct)
+            err_val = float(r.err_pct)
+            hit_val = bool(r.is_hit)
+            champ_m = str(r.model)
+
+            ts_row = ts_map.get((h, td)) if ts_enabled else None
+            if ts_row is not None:
+                p_sized, p_raw = blend_policy_c_with_timestral(
+                    pred_ret,
+                    ts_row["pred_med"],
+                    ts_row["q25"],
+                    ts_row["q75"],
+                    h,
+                    bist30_med=ts_row.get("bist30_med"),
+                    bist30_ret_1d=ts_row.get("bist30_ret_1d"),
+                    days_since_neg_shock=ts_row.get("days_since_neg_shock"),
+                    days_since_pos_shock=ts_row.get("days_since_pos_shock"),
+                    bist30_vs_sma50=ts_row.get("bist30_vs_sma50"),
+                    bist30_ret_20d=ts_row.get("bist30_ret_20d"),
+                )
+                pred_ret = round(float(p_sized), 2)
+                err_val = round(abs(pred_ret - act_ret), 2)
+                hit_val = check_horizon_hit(float(p_raw), act_ret, h)
+                champ_m = format_hybrid_champion_name(r.model, h)
+
+            ledger.append({
+                "trade_date": td,
+                "target_date_start": next_date.get(td, td),
+                "target_date_end": str(r.target_date_end)[:10],
+                "current_price": curr_px,
+                "actual_avg_price": round(curr_px * (1.0 + act_ret / 100.0), 2),
+                "actual_return_pct": act_ret,
+                "pred_avg_price": round(curr_px * (1.0 + pred_ret / 100.0), 2),
+                "pred_return_pct": pred_ret,
+                "pred_direction": _direction(pred_ret, n_days),
+                "actual_direction": _direction(act_ret, n_days),
+                "err_pct": err_val,
+                "is_hit": hit_val,
                 "is_pending": False,
-                "champion_model": r.model,
+                "champion_model": champ_m,
                 "feature_mode": r.feature_mode,
                 "crown_date": r.crown_date,
                 "actual_training_sessions": int(r.actual_training_sessions),
                 "target_lookback_sessions": int(r.lookback),
                 "actual_training_months": round(int(r.actual_training_sessions) / 21.0, 1),
                 "data_sufficiency_status": r.data_sufficiency_status or "FULL",
-            }
-            for r in track.itertuples(index=False)
-        ]
+            })
+
         up, down = constant_call_hit_rates(track["actual_return_pct"].to_numpy(float), n_days)
         metrics = _ledger_metrics(ledger)
         live_frame = apply_feature_set(feat, sym, split_key(str(cur["config_key"]))[0], ev)[0]
@@ -473,13 +543,45 @@ def build_recrowned_payload(
             live_frame.copy(), h, champion_model=str(cur["model"]), train_lookback_sessions=int(cur["lookback"]),
             feature_mode=str(cur["feature_mode"]), vol_state=vol_state,
         )
+        crowned_model_label = str(cur["model"])
+        ts_live = ts_map.get((h, as_of)) if ts_enabled else None
+        if ts_live is not None:
+            polc_live_ret = float(live.get("expected_return_pct", 0.0))
+            p_sized_live, _ = blend_policy_c_with_timestral(
+                polc_live_ret,
+                ts_live["pred_med"],
+                ts_live["q25"],
+                ts_live["q75"],
+                h,
+                bist30_med=ts_live.get("bist30_med"),
+                bist30_ret_1d=ts_live.get("bist30_ret_1d"),
+                days_since_neg_shock=ts_live.get("days_since_neg_shock"),
+                days_since_pos_shock=ts_live.get("days_since_pos_shock"),
+                bist30_vs_sma50=ts_live.get("bist30_vs_sma50"),
+                bist30_ret_20d=ts_live.get("bist30_ret_20d"),
+            )
+            latest_px = float(df["close_price"].iloc[-1])
+            pred_live = round(float(p_sized_live), 2)
+            live["expected_return_pct"] = pred_live
+            live["target_price"] = round(latest_px * (1.0 + pred_live / 100.0), 2)
+            live["price_low"] = round(latest_px * (1.0 + float(ts_live["q05"]) / 100.0), 2)
+            live["price_high"] = round(latest_px * (1.0 + float(ts_live["q95"]) / 100.0), 2)
+            db_h = n_days and _direction(pred_live, n_days)
+            live["stance"] = "BULLISH" if db_h == "BUY" else ("BEARISH" if db_h == "SELL" else "NEUTRAL")
+            live["direction"] = live["stance"]
+            crowned_model_label = format_hybrid_champion_name(str(cur["model"]), h)
+            live["champion_model"] = crowned_model_label
+            live["risk_profile"] = enrich_risk_profile_with_timestral(
+                live.get("risk_profile"), ts_live, polc_live_ret, latest_px
+            )
+
         live["feature_set"] = split_key(str(cur["config_key"]))[0]
         live["crowned_on"] = cur["crown_date"]
         horizons[h] = {
             "meta": {
                 "horizon": h,
                 "horizon_days": n_days,
-                "crowned_model": str(cur["model"]),
+                "crowned_model": crowned_model_label,
                 "crowned_horizon": str(cur["lookback_label"]),
                 "crowned_on": cur["crown_date"],
                 "training_lookback_sessions": int(cur["lookback"]),

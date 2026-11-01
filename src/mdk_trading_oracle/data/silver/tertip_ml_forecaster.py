@@ -696,6 +696,10 @@ def extract_3pillar_time_series(
 def get_pillar_live_matrix(db: PostgresManager, symbol: str) -> list[dict[str, Any]]:
     """Build the 3-Pillar status scorecard for the live session."""
     sym = symbol.upper()
+    if db is not None:
+        from mdk_trading_oracle.models.timestral_forecaster import sync_cached_timestral_gold_to_db
+
+        sync_cached_timestral_gold_to_db(db)
     now_ts = datetime.now(timezone.utc).timestamp()
     if sym in _PILLAR_CACHE:
         cached_ts, cached_matrix = _PILLAR_CACHE[sym]
@@ -2133,6 +2137,10 @@ def get_tertip_ml_forecast(
     for API compatibility and ignored.
     """
     sym = symbol.upper()
+    if db is not None:
+        from mdk_trading_oracle.models.timestral_forecaster import sync_cached_timestral_gold_to_db
+
+        sync_cached_timestral_gold_to_db(db)
     now_ts = datetime.now(timezone.utc).timestamp()
     cache_key = f"{sym}:{selected_composition}:{target_date or 'latest'}"
     if not force_refresh and cache_key in _FORECAST_CACHE:
