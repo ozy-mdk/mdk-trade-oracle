@@ -13,6 +13,7 @@ import {
   TertipMlForecastResponse,
   OpportunityActionsResponse,
   MultiHorizonForecastResponse,
+  NewsRegimeResponse,
   MultiHorizonBacktestItem,
   MultiHorizonOpportunitiesResponse,
   StockYtdPnlResponse,
@@ -173,6 +174,12 @@ export async function fetchPredictedOpportunities(
   return res.json();
 }
 
+
+export async function fetchNewsRegime(symbol: string, limit: number = 12): Promise<NewsRegimeResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/tertip/news-regime?symbol=${encodeURIComponent(symbol)}&limit=${limit}`);
+  if (!res.ok) throw new Error('Failed to fetch news regime');
+  return res.json();
+}
 
 export async function fetchMultiHorizonForecast(
   symbol: string,

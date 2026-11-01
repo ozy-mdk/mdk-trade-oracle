@@ -884,3 +884,72 @@ export interface IntradayTournamentResponse {
   min_sessions: number;
   standings: IntradayStandingItem[];
 }
+
+export interface NewsHeadlineItem {
+  title: string;
+  link: string | null;
+  scope: string;
+  published_at_trt: string;
+  effective_trade_date: string;
+  timestamp_precision: string;
+  collection_mode: string;
+}
+
+export interface NewsRegimeState {
+  trade_date: string;
+  regime: string;
+  is_passive_absorption_trap: boolean;
+  three_forces_clash_score: number;
+  mlb_5d_share_pct: number;
+  mlb_10d_share_pct: number;
+  kamu_5d_share_pct: number;
+  big5_5d_share_pct: number;
+  mlb_cost_spread_pct: number;
+  big5_cost_spread_pct: number;
+  fon_krizi_ewm5: number;
+  bofa_sell_ewm5: number;
+  kamu_floor_ewm5: number;
+  bullish_catalyst_ewm5: number;
+}
+
+export interface GateHorizonAudit {
+  horizon: string;
+  sessions: number;
+  hit_off_pct: number;
+  hit_flow_pct: number;
+  hit_news_pct: number;
+  always_up_pct: number;
+  always_down_pct: number;
+  flow_beats_both: boolean;
+  news_beats_both: boolean;
+}
+
+export interface GateChangeItem {
+  trade_date: string;
+  horizon: string;
+  actual_return_pct: number;
+  pred_off_pct: number;
+  pred_flow_pct: number;
+  pred_news_pct: number;
+  hit_off: boolean;
+  hit_flow: boolean;
+  hit_news: boolean;
+}
+
+export interface NewsRegimeResponse {
+  symbol: string;
+  market_latest_session: string | null;
+  regime_latest_session: string | null;
+  sessions_behind: number | null;
+  is_stale: boolean;
+  live_headline_count: number;
+  backfill_headline_count: number;
+  pending_headline_count: number;
+  regime: NewsRegimeState | null;
+  headlines: NewsHeadlineItem[];
+  gate_mode: string;
+  gate_horizons: GateHorizonAudit[];
+  gate_changes: GateChangeItem[];
+  llm_labels: number;
+  llm_model: string | null;
+}

@@ -7,3 +7,7 @@
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://192.168.178.55:5173/
+7:49:45 PM [vite] hmr update /src/components/CandleDashboard.tsx, /src/index.css, /src/App.tsx, /src/components/TertipDashboard.tsx, /src/components/IntradaySessionDashboard.tsx, /src/components/YtdPnlDashboard.tsx, /src/components/OpportunityActionsDashboard.tsx, /src/components/MultiHorizonDashboard.tsx, /src/components/TradingViewCandleChart.tsx, /src/components/TertipEwmaChart.tsx
+7:49:45 PM [vite] page reload src/types/api.ts
+7:49:45 PM [vite] hmr update /src/components/MultiHorizonDashboard.tsx, /src/index.css
+7:49:45 PM [vite] page reload src/components/OracleHubDashboard.tsx

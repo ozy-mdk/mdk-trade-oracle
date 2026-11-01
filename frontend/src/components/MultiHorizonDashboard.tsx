@@ -9,6 +9,7 @@ import {
   MultiHorizonItem,
 } from '../types/api';
 import { formatPercent } from '../utils/formatters';
+import { NewsRegimePanel } from './NewsRegimePanel';
 import {
   Layers,
   TrendingUp,
@@ -380,6 +381,8 @@ export const MultiHorizonDashboard: React.FC<MultiHorizonDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      <NewsRegimePanel symbol={selectedSymbol} />
 
       {/* ── Forward Prediction Horizon Cards (1D, 3D, 5D, 10D, 15D, 30D) ────────── */}
       <div>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchTertipMlForecast } from '../api/client';
 import { WalkForwardLedgerItem } from '../types/api';
 import { formatTL } from '../utils/formatters';
+import { NewsRegimePanel } from './NewsRegimePanel';
 import {
   BrainCircuit,
   Trophy,
@@ -300,6 +301,8 @@ export const OracleHubDashboard: React.FC<OracleHubDashboardProps> = ({
           })}
         </div>
       </div>
+
+      <NewsRegimePanel symbol={activeSymbol} />
 
       {/* ── Configuration Bar: Model Arena, Feature Suite, Refresh ──────────────── */}
       <div className="glass-panel p-2.5 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-2.5 bg-slate-950/70 text-xs font-mono">
