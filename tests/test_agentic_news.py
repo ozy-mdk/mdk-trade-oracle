@@ -203,3 +203,19 @@ def test_parse_json_text_rejects_non_objects() -> None:
         parse_json_text("[1, 2]")
     with pytest.raises(ProviderError):
         parse_json_text("not json")
+
+
+def test_news_regime_endpoint_contract() -> None:
+    from fastapi.testclient import TestClient
+
+    from mdk_trading_oracle.api.app import app
+
+    res = TestClient(app).get("/api/v1/tertip/news-regime?symbol=ASELS&limit=3")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["symbol"] == "ASELS" and data["gate_mode"] in ("off", "flow_only", "flow_news")
+    assert len(data["headlines"]) <= 3
+    for h in data["headlines"]:
+        assert h["link"] is None or h["link"].startswith("https://")
+    for g in data["gate_horizons"]:
+        assert {"always_up_pct", "always_down_pct", "hit_flow_pct"} <= set(g)

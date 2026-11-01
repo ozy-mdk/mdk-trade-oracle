@@ -213,4 +213,10 @@ To allow seamless portability across different team members' local machines:
 - **Domestic Major Banks**: `IYM` (İş Yatırım), `YKR` (Yapı Kredi), `AKM` (Ak Yatırım), `GRM` (Garanti BBVA), `ZRY` (Ziraat), `DZY` (Deniz), `VKY` (Vakıf), `HLY` (Halk).
 - **Equities Universe**: 45 liquid BIST stocks (BIST 30 + liquid BIST 50).
 
+---
 
+## 10. Agentic News Layer & Documentation Rule
+- **Read `docs/AGENTIC_DECISIONS.md` first.** It holds the current state, every decision with its evidence, and how to switch LLM provider. `docs/AGENTIC_3FORCES_NEWS_ARCHITECTURE.md` explains the mechanics.
+- **Document as you go, for any agent.** Record decisions and implementation in the repo in the same change as the code. Agent specs, prompts and model choices live in repo files (`.agents/`, `config/agents.yaml`, `config/agents/prompts/`), never only in a tool's session folder or private memory.
+- **Provider-neutral LLM access.** Code calls `agents/providers.py`, and everything provider-specific is in `config/agents.yaml`.
+- **Shadow mode.** LLM headline labels must not reach a forecast until decision D-009 is met.

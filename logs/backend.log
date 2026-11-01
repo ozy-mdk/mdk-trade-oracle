@@ -2473,3 +2473,11 @@ INFO:     Finished server process [46449]
 INFO:     Started server process [46604]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_agentic_news.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46604]
+INFO:     Started server process [47438]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
