@@ -113,6 +113,7 @@ _FORECASTER_SINGLETON: Any = None
 _DB_SYNCED_DATES: set[str] = set()
 _BIST30_CACHE_BY_L: dict[int, dict[str, dict[str, dict[str, float]]]] = {32: {}, 64: {}, 128: {}, 256: {}}
 _CROSS_ASSET_GRID: pd.DataFrame | None = None
+_AGENTIC_NEWS_REGIMES: pd.DataFrame | None = None
 
 
 def _get_cross_asset_grid() -> pd.DataFrame | None:
@@ -125,6 +126,18 @@ def _get_cross_asset_grid() -> pd.DataFrame | None:
             except Exception as e:
                 logger.warning(f"Could not read cross-asset grid {gpath}: {e}")
     return _CROSS_ASSET_GRID
+
+
+def _get_agentic_news_regimes() -> pd.DataFrame | None:
+    global _AGENTIC_NEWS_REGIMES
+    if _AGENTIC_NEWS_REGIMES is None:
+        rpath = RAW_CACHE_DIR / "agentic_news_regimes.parquet"
+        if rpath.exists():
+            try:
+                _AGENTIC_NEWS_REGIMES = pd.read_parquet(rpath)
+            except Exception as e:
+                logger.warning(f"Could not read agentic news regimes {rpath}: {e}")
+    return _AGENTIC_NEWS_REGIMES
 
 
 def get_timestral_forecaster() -> Any:
@@ -267,6 +280,44 @@ def blend_policy_c_with_timestral(
             sig_dir = 0.40 * snr_pol + 0.40 * s_64 + 0.20 * m6_128
         else:  # 15d, 30d
             sig_dir = 0.50 * snr_pol + 0.25 * s_ms3 + 0.25 * m6_ms3
+
+        # Agentic 3-Forces + Point-in-Time News Conjoint Gate (5d, 10d, 15d):
+        # 1. Bearish Override ('Passive Absorption Trap' + Systemic 'Fon Krizi' / BofA Distribution):
+        #    Overrides false mean-reversion bounces when Force 1 (MLB/BofA) is aggressively liquidating
+        #    into passive Force 2 (KAMU) + Force 3 (BIG5) absorption during systemic liquidity stress.
+        # 2. Bullish Override ('3-Forces Concordant Accumulation'):
+        #    Overrides false bearish pullback calls when ALL THREE forces (Force 1 MLB > +1.0%, Force 2 KAMU > +0.5%,
+        #    Force 3 BIG5 > +0.5%) are simultaneously accumulating with no domestic profit-taking overhang
+        #    (`big5_cost_spread_pct < 2.0%`) and zero systemic crisis news (`fon_krizi_ewm5 < 0.08`).
+        if horizon in ("5d", "10d", "15d"):
+            trap = bool(ts_row.get("is_passive_absorption_trap", False))
+            mlb_5d = float(ts_row.get("mlb_5d_share_pct", 0.0))
+            mlb_10d = float(ts_row.get("mlb_10d_share_pct", 0.0))
+            kamu_5d = float(ts_row.get("kamu_5d_share_pct", 0.0))
+            big5_5d = float(ts_row.get("big5_5d_share_pct", 0.0))
+            big5_cost = float(ts_row.get("big5_cost_spread_pct", 0.0))
+            fk_ewm = float(ts_row.get("fon_krizi_ewm5", 0.0))
+            bofa_ewm = float(ts_row.get("bofa_sell_ewm5", 0.0))
+            bull_ewm = float(ts_row.get("bullish_catalyst_ewm5", 0.0))
+            clash = float(ts_row.get("three_forces_clash_score", 0.0))
+            if (
+                trap
+                and (mlb_5d < -3.5)
+                and (mlb_10d < -2.0)
+                and (big5_cost > 5.0)
+                and (fk_ewm >= 0.08 or bofa_ewm >= 0.12 or mlb_5d < -5.0)
+            ):
+                sig_dir = np.minimum(-0.55, 0.30 * sig_dir + 0.70 * clash - 0.50 * fk_ewm)
+            elif (
+                (not trap)
+                and (mlb_5d > 1.0)
+                and (kamu_5d > 0.5)
+                and (big5_5d > 0.5)
+                and (big5_cost < 2.0)
+                and (fk_ewm < 0.08)
+            ):
+                sig_dir = np.maximum(0.55, 0.35 * sig_dir + 0.65 * max(0.55, clash) + 0.35 * bull_ewm)
+
         p_blend_raw = sig_dir * (0.45 * iqr_half)
     else:
         spec = TIMESTRAL_HORIZON_SPECS[horizon]
@@ -398,6 +449,62 @@ def compute_timestral_horizon_table(
         else np.full(len(df), 10.0, dtype=float)
     )
 
+    # Causal 3-Forces Order-Flow Clash Arrays (Force 1: MLB vs Force 2: KAMU vs Force 3: BIG5)
+    turnover_arr = (
+        np.maximum(pd.to_numeric(df["total_turnover_tl"], errors="coerce").fillna(1.0).to_numpy(dtype=float), 1.0)
+        if "total_turnover_tl" in df.columns
+        else np.ones(len(df), dtype=float)
+    )
+    mlb_sh_arr = (
+        pd.to_numeric(df["mlb_flow"], errors="coerce").fillna(0.0).to_numpy(dtype=float) / turnover_arr * 100.0
+        if "mlb_flow" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    kamu_sh_arr = (
+        pd.to_numeric(df["kamu_flow"], errors="coerce").fillna(0.0).to_numpy(dtype=float) / turnover_arr * 100.0
+        if "kamu_flow" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    big5_sh_arr = (
+        pd.to_numeric(df["big5_flow"], errors="coerce").fillna(0.0).to_numpy(dtype=float) / turnover_arr * 100.0
+        if "big5_flow" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    w5_sh_arr = (
+        pd.to_numeric(df["mlb_w5_flow"], errors="coerce").fillna(0.0).to_numpy(dtype=float) / turnover_arr * 100.0
+        if "mlb_w5_flow" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    mlb_5d_arr = pd.Series(mlb_sh_arr).rolling(5, min_periods=1).mean().to_numpy(dtype=float)
+    mlb_10d_arr = pd.Series(mlb_sh_arr).rolling(10, min_periods=1).mean().to_numpy(dtype=float)
+    kamu_5d_arr = pd.Series(kamu_sh_arr).rolling(5, min_periods=1).mean().to_numpy(dtype=float)
+    big5_5d_arr = pd.Series(big5_sh_arr).rolling(5, min_periods=1).mean().to_numpy(dtype=float)
+    dom_5d_arr = kamu_5d_arr + big5_5d_arr
+    w5_5d_arr = pd.Series(w5_sh_arr).rolling(5, min_periods=1).mean().to_numpy(dtype=float)
+    mlb_cost_arr = (
+        pd.to_numeric(df["feat_mlb_cost_spread_pct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+        if "feat_mlb_cost_spread_pct" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    big5_cost_arr = (
+        pd.to_numeric(df["feat_big5_cost_spread_pct"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+        if "feat_big5_cost_spread_pct" in df.columns
+        else np.zeros(len(df), dtype=float)
+    )
+    trap_arr = (mlb_5d_arr < -0.40) & (mlb_10d_arr < -0.30) & (dom_5d_arr > 0.20) & (mlb_cost_arr < -1.0)
+    mlb_z_arr = np.clip((0.50 * mlb_5d_arr + 0.50 * mlb_10d_arr) / 1.5, -2.0, 2.0)
+    w5_z_arr = np.clip(w5_5d_arr / 0.5, -2.0, 2.0)
+    cost_z_arr = np.clip(mlb_cost_arr / 8.0, -2.0, 2.0)
+    clash_arr = np.clip(
+        np.where(
+            trap_arr,
+            np.minimum(-0.35, 0.50 * mlb_z_arr + 0.25 * w5_z_arr + 0.25 * cost_z_arr - 0.30 * np.clip(dom_5d_arr / 1.5, 0.0, 1.5)),
+            0.45 * mlb_z_arr + 0.25 * w5_z_arr + 0.30 * cost_z_arr,
+        ),
+        -2.0,
+        2.0,
+    )
+
     n_total = len(df)
     start_idx = max(256, (n_total - 135) if min_origin_idx is None else min_origin_idx)
     needed_origins = list(range(start_idx, n_total))
@@ -473,6 +580,20 @@ def compute_timestral_horizon_table(
         sub_m6 = grid_df[grid_df["trade_date"].isin(needed_dates)][m6_cols].drop_duplicates(["trade_date", "horizon"])
         for r_m in sub_m6.to_dict("records"):
             m6_map[(str(r_m["trade_date"])[:10], str(r_m["horizon"]))] = r_m
+
+    reg_df = _get_agentic_news_regimes() if use_disk_cache else None
+    reg_sym_map: dict[str, dict[str, Any]] = {}
+    reg_macro_map: dict[str, dict[str, float]] = {}
+    if reg_df is not None:
+        sub_reg = reg_df[reg_df["trade_date"].isin(needed_dates)]
+        for r_reg in sub_reg[sub_reg["symbol"] == sym].to_dict("records"):
+            reg_sym_map[str(r_reg["trade_date"])[:10]] = r_reg
+        for td_k, g_td in sub_reg.groupby("trade_date"):
+            reg_macro_map[str(td_k)[:10]] = {
+                "fon_krizi_ewm5": float(g_td["fon_krizi_ewm5"].max()),
+                "bofa_sell_ewm5": float(g_td["bofa_sell_ewm5"].max()),
+                "bullish_catalyst_ewm5": float(g_td["bullish_catalyst_ewm5"].max()),
+            }
 
     rows: list[dict[str, Any]] = []
     for t in needed_origins:
@@ -559,6 +680,20 @@ def compute_timestral_horizon_table(
                 ):
                     if gk in g_row:
                         row_out[gk] = float(g_row[gk])
+
+            reg_r = reg_sym_map.get(td)
+            reg_mac = reg_macro_map.get(td, {})
+            row_out["is_passive_absorption_trap"] = bool(reg_r["is_passive_absorption_trap"]) if reg_r is not None else bool(trap_arr[t])
+            row_out["mlb_5d_share_pct"] = float(reg_r["mlb_5d_share_pct"]) if reg_r is not None else float(mlb_5d_arr[t])
+            row_out["mlb_10d_share_pct"] = float(reg_r["mlb_10d_share_pct"]) if reg_r is not None else float(mlb_10d_arr[t])
+            row_out["kamu_5d_share_pct"] = float(reg_r["kamu_5d_share_pct"]) if reg_r is not None else float(kamu_5d_arr[t])
+            row_out["big5_5d_share_pct"] = float(reg_r["big5_5d_share_pct"]) if reg_r is not None else float(big5_5d_arr[t])
+            row_out["big5_cost_spread_pct"] = float(reg_r["big5_cost_spread_pct"]) if reg_r is not None else float(big5_cost_arr[t])
+            row_out["three_forces_clash_score"] = float(reg_r["three_forces_clash_score"]) if reg_r is not None else float(clash_arr[t])
+            row_out["fon_krizi_ewm5"] = float(reg_r["fon_krizi_ewm5"]) if reg_r is not None else float(reg_mac.get("fon_krizi_ewm5", 0.0))
+            row_out["bofa_sell_ewm5"] = float(reg_r["bofa_sell_ewm5"]) if reg_r is not None else float(reg_mac.get("bofa_sell_ewm5", 0.0))
+            row_out["bullish_catalyst_ewm5"] = float(reg_r["bullish_catalyst_ewm5"]) if reg_r is not None else float(reg_mac.get("bullish_catalyst_ewm5", 0.0))
+
             rows.append(row_out)
     return pd.DataFrame(rows)
 
