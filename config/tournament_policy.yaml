@@ -26,15 +26,20 @@ default_policy:
   15d: {feature_set: production, exclude_lookback: 63}
   30d: {feature_set: production}
 
-# Validated Timestral-209M + Policy C Hybrid (`models/timestral_forecaster.py`):
-# Combines causal patch geometry from `mistralai/Timestral-209M` (`patch_size = 32`, `clampsym` zero-drift symmetry)
-# with Policy C's institutional Tertip FIFO carry & event calendar alpha, plus IQR volatility sizing.
+# Validated Two-Stage Decoupled Timestral-209M + Policy C Hybrid (`models/timestral_forecaster.py`):
+# Stage 1 (Direction Specialist): combines Cross-Asset `Market-6` & `Peer-Group` Timestral consensus,
+# Intra-Patch `10D` wave coherence, single-stock multi-scale Timestral (`L in [32, 64, 128, 256]`),
+# and BIST 30 (`XU030`) shock/regime-gated Policy C institutional Tertip FIFO flow alpha.
+# Stage 2 (Full-Amplitude Swing Sizing): sizes every call to `0.5 * |q75 - q25|` modulated by conviction
+# and blended (65%/35%) with Policy C flow amplitude, enforcing BIST +-10% daily circuit breakers.
 timestral_hybrid:
   enabled: true
+  architecture: two_stage_decoupled_direction_first_full_amplitude
+  bist_daily_limit_pct: 9.95
   horizons:
-    1d: {contexts: [128], w_ts: 0.50, mode: equal_dir}
-    3d: {contexts: [32, 64, 128], w_ts: 0.50, mode: equal_dir}
-    5d: {contexts: [128], w_ts: 1.00, mode: pure_ts}
-    10d: {contexts: [64, 128, 256], w_ts: 0.75, mode: snr_fusion}
-    15d: {contexts: [64, 128, 256], w_ts: 0.75, mode: snr_fusion}
-    30d: {contexts: [64], w_ts: 0.80, mode: snr_fusion}
+    1d: {stage1: cross_asset_m6_p10_wave_and_bist30_gated_policy_c, contexts: [32, 64, 128]}
+    3d: {stage1: stock_short_peer_m6_consensus_and_policy_c, contexts: [32, 64, 128]}
+    5d: {stage1: peer_stock_m6_consensus_and_regime_gated_policy_c, contexts: [64, 128, 256]}
+    10d: {stage1: multi_scale_stock_and_policy_c_snr_fusion, contexts: [64, 128, 256]}
+    15d: {stage1: multi_scale_stock_and_policy_c_snr_fusion, contexts: [64, 128, 256]}
+    30d: {stage1: two_patch_64_and_policy_c_snr_fusion, contexts: [64]}

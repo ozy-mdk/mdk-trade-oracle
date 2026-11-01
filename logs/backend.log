@@ -2015,3 +2015,31 @@ INFO:     Finished server process [38945]
 INFO:     Started server process [39016]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39016]
+INFO:     Started server process [39195]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39195]
+INFO:     Started server process [39298]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[11/01/26 19:23:51] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50657 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50660 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50663 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50665 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50668 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50670 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50672 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50674 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50677 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50679 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK

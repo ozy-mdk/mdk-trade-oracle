@@ -437,8 +437,8 @@ def compute_timestral_horizon_table(
         except Exception as e:
             logger.warning(f"Could not read cached Timestral parquet for {sym}: {e}")
 
-    # Infer any missing origins per required context length L (both Stock and BIST 30 benchmark wave)
-    required_Ls = sorted({L for h in horizons for L in TIMESTRAL_HORIZON_SPECS[h]["contexts"]})
+    # Infer any missing origins across all multi-scale patch lengths (32, 64, 128, 256)
+    required_Ls = [32, 64, 128, 256]
     for L_val in required_Ls:
         have_dates = set(cached_by_L.get(L_val, {}).keys())
         missing_origins = [t for t in needed_origins if dates[t] not in have_dates]
@@ -457,14 +457,22 @@ def compute_timestral_horizon_table(
     # Aggregate multi-scale patch contexts per (trade_date, horizon) and apply BIST ±10% circuit-breaker bounds
     grid_df = _get_cross_asset_grid()
     grid_map: dict[tuple[str, str], dict[str, Any]] = {}
+    m6_map: dict[tuple[str, str], dict[str, float]] = {}
     if grid_df is not None:
         sub_g = grid_df[(grid_df["symbol"] == sym) & (grid_df["trade_date"].isin(needed_dates))]
         for r_g in sub_g.to_dict("records"):
             grid_map[(str(r_g["trade_date"])[:10], str(r_g["horizon"]))] = r_g
+        sub_m6 = grid_df[grid_df["trade_date"].isin(needed_dates)][
+            ["trade_date", "horizon", "mkt6_ts128_med", "mkt6_ts128_mean", "m6_10_med"]
+        ].drop_duplicates(["trade_date", "horizon"])
+        for r_m in sub_m6.to_dict("records"):
+            m6_map[(str(r_m["trade_date"])[:10], str(r_m["horizon"]))] = r_m
 
     rows: list[dict[str, Any]] = []
     for t in needed_origins:
         td = dates[t]
+        s10_med_live = float(cached_by_L.get(128, {}).get(td, {}).get("10d", {}).get("pred_med", 0.0))
+        b10_med_live = float(_BIST30_CACHE_BY_L.get(128, {}).get(td, {}).get("10d", {}).get("pred_med", 0.0))
         for h in horizons:
             ls = TIMESTRAL_HORIZON_SPECS[h]["contexts"]
             items = [cached_by_L.get(L_val, {}).get(td, {}).get(h) for L_val in ls]
@@ -474,6 +482,13 @@ def compute_timestral_horizon_table(
             bist_items = [_BIST30_CACHE_BY_L.get(L_val, {}).get(td, {}).get(h) for L_val in ls]
             bist_items = [x for x in bist_items if x is not None]
             bist_med_raw = float(np.mean([x["pred_med"] for x in bist_items])) if bist_items else 0.0
+            bist_l128_med = float(_BIST30_CACHE_BY_L.get(128, {}).get(td, {}).get(h, {}).get("pred_med", bist_med_raw))
+            bist_l128_mean = float(_BIST30_CACHE_BY_L.get(128, {}).get(td, {}).get(h, {}).get("pred_mean", bist_med_raw))
+
+            c32 = cached_by_L.get(32, {}).get(td, {}).get(h)
+            c64 = cached_by_L.get(64, {}).get(td, {}).get(h)
+            c128 = cached_by_L.get(128, {}).get(td, {}).get(h)
+            c256 = cached_by_L.get(256, {}).get(td, {}).get(h)
 
             q05_raw = float(np.mean([x["q05"] for x in items]))
             q25_raw = float(np.mean([x["q25"] for x in items]))
@@ -485,6 +500,18 @@ def compute_timestral_horizon_table(
                 q05_raw, q25_raw, med_raw, mean_raw, q75_raw, q95_raw, h
             )
             sp = float(size_directional_call(med, q25, q75, h))
+
+            ts128_med = float(c128["pred_med"]) if c128 else float(med)
+            ts128_mean = float(c128["pred_mean"]) if c128 else float(mean_v)
+            ts64_med = float(c64["pred_med"]) if c64 else float(med)
+            tsshort_med = float(np.mean([x["pred_med"] for x in (c32, c64, c128) if x is not None])) if (c32 or c64 or c128) else float(med)
+            tsms3_med = float(np.mean([x["pred_med"] for x in (c64, c128, c256) if x is not None])) if (c64 or c128 or c256) else float(med)
+
+            m6_fallback = m6_map.get((td, h), {})
+            m6_128_med = float(m6_fallback.get("mkt6_ts128_med", 0.5 * ts128_med + 0.5 * bist_l128_med))
+            m6_128_mean = float(m6_fallback.get("mkt6_ts128_mean", 0.5 * ts128_mean + 0.5 * bist_l128_mean))
+            m6_10_med = float(m6_fallback.get("m6_10_med", 0.5 * s10_med_live + 0.5 * b10_med_live))
+
             row_out: dict[str, Any] = {
                 "trade_date": td,
                 "horizon": h,
@@ -501,6 +528,18 @@ def compute_timestral_horizon_table(
                 "days_since_pos_shock": float(pos_shock_arr[t]),
                 "bist30_vs_sma50": float(bist_vs_sma50_arr[t]),
                 "bist30_ret_20d": float(bist_ret_20d_arr[t]),
+                "ts128_med": ts128_med,
+                "ts128_mean": ts128_mean,
+                "ts64_med": ts64_med,
+                "tsshort_med": tsshort_med,
+                "tsms3_med": tsms3_med,
+                "s10_med": s10_med_live,
+                "mkt6_ts128_med": m6_128_med,
+                "mkt6_ts128_mean": m6_128_mean,
+                "m6_10_med": m6_10_med,
+                "peer_ts128_med": 0.5 * ts128_med + 0.5 * m6_128_med,
+                "peer_tsms3_med": 0.5 * tsms3_med + 0.5 * m6_128_med,
+                "p10_med": 0.5 * s10_med_live + 0.5 * m6_10_med,
             }
             g_row = grid_map.get((td, h))
             if g_row is not None:
