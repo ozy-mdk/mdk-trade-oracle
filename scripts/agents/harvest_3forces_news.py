@@ -4,28 +4,36 @@
 Part of the MDK Trading Oracle Agentic Intelligence System ($0 external API cost).
 1. Queries Google News TR RSS across macro/crisis topics ('Fon Krizi', SPK liquidation/investigations,
    Takasbank margin calls, TCMB/CDS shocks) and stock-specific catalysts (ASELS, AKBNK, GARAN, ISCTR, YKBNK, THYAO).
-2. Enforces strict Point-in-Time Turkish Time (`Europe/Istanbul`, 18:10 TRT session close) causality:
-   Every article's RFC-2822 `<pubDate>` is converted to TRT; if published after 18:10 TRT or on a weekend/holiday,
-   it is mapped strictly to the NEXT completed trading session close.
+2. Appends unseen headlines to `bronze_news_headlines`. Publication time and precision are frozen at first sight;
+   sessions are mapped when scoring (`data/bronze/news.py`), so a later harvest cannot rewrite history.
 3. Extracts the daily 3-Forces Microstructure Clash Vector (`MLB` vs `KAMU` vs `BIG5`) from Silver/Gold frames.
 """
 
 from __future__ import annotations
 
+import argparse
 import email.utils
+import sys
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, time, timezone
+from datetime import timezone
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 
-TRT = ZoneInfo("Europe/Istanbul")
-SESSION_CLOSE_TIME = time(18, 10)
+from mdk_trading_oracle.core.db import PostgresManager
+from mdk_trading_oracle.data.bronze.news import (
+    PRECISION_DATE_ONLY,
+    PRECISION_EXACT,
+    TRT,
+    ensure_news_tables,
+    is_placeholder_timestamp,
+    now_trt,
+    upsert_headlines,
+)
 
 OUT_DIR = Path.home() / "data" / "mdk_oracle" / "experiments" / "timestral"
 FRAMES_DIR = Path.home() / "data" / "mdk_oracle" / "experiments" / "feature_importance" / "frames"
@@ -58,41 +66,10 @@ NEWS_QUERIES: list[tuple[str, str, str]] = [
 ]
 
 
-def map_pubdate_to_trading_session(
-    pub_dt_trt: datetime,
-    trading_dates: list[str],
-    pub_raw: str = "",
-) -> str | None:
-    """Map an article's TRT publication timestamp to the first trading session `d` whose 18:10 TRT close
-    is strictly `>= pub_dt_trt` (100% zero-lookahead guarantee).
-
-    CRITICAL ANTI-LEAKAGE GUARD FOR GOOGLE NEWS `07:00:00 GMT` (`10:00:00 TRT`) PLACEHOLDERS:
-    Google News RSS replaces the exact hour/minute/second of archived articles (>3 days old) with a
-    synthetic `07:00:00 GMT` (`10:00:00 TRT`) placeholder (`date-only` resolution). Because an archived
-    article published on calendar day `D` might have come out at `19:30 TRT` (after BIST's 18:10 close),
-    treating `07:00:00 GMT` as `10:00 TRT` would risk same-evening post-close leakage!
-    Therefore, whenever an item carries the synthetic `07:00:00 GMT` (`10:00:00` TRT) placeholder, we
-    conservatively treat it as post-close (`after_close = True`) and map it strictly to the NEXT trading
-    session `D + 1` (`d > pub_date_str`). Only articles with verified sub-minute timestamps (`HH:MM:SS != 07:00:00 GMT`)
-    published at `<= 18:10 TRT` are mapped to session `D`.
-    """
-    pub_date_str = pub_dt_trt.strftime("%Y-%m-%d")
-    is_synthetic_archive_time = ("07:00:00" in pub_raw) or (
-        pub_dt_trt.hour == 10 and pub_dt_trt.minute == 0 and pub_dt_trt.second == 0
-    )
-    after_close = is_synthetic_archive_time or (pub_dt_trt.time() > SESSION_CLOSE_TIME)
-    for d in trading_dates:
-        if d > pub_date_str:
-            return d
-        if d == pub_date_str and not after_close:
-            return d
-    return None
-
-
-def harvest_google_news_rss(trading_dates: list[str]) -> pd.DataFrame:
-    """Fetch public Google News TR RSS items and align each item strictly to its causal trading session."""
+def harvest_google_news_rss() -> tuple[pd.DataFrame, int]:
+    """Fetch public Google News TR RSS items. Returns the rows and how many queries failed."""
     rows: list[dict[str, Any]] = []
-    seen_titles: set[tuple[str, str]] = set()
+    failures = 0
 
     for scope, category, query in NEWS_QUERIES:
         url = f"https://news.google.com/rss/search?q={urllib.parse.quote(query)}&hl=tr&gl=TR&ceid=TR:tr"
@@ -102,6 +79,7 @@ def harvest_google_news_rss(trading_dates: list[str]) -> pd.DataFrame:
             root = ET.fromstring(xml_bytes)
         except Exception as e:
             print(f"[WARN] Failed RSS query ({scope}/{category}): {e}")
+            failures += 1
             continue
 
         for item in root.findall(".//item"):
@@ -117,48 +95,41 @@ def harvest_google_news_rss(trading_dates: list[str]) -> pd.DataFrame:
                 dt_trt = dt.astimezone(TRT)
             except Exception:
                 continue
-
-            eff_session = map_pubdate_to_trading_session(dt_trt, trading_dates, pub_raw=pub_raw)
-            if eff_session is None:
-                continue
-            dedup_key = ( scope, title[:80] )
-            if dedup_key in seen_titles:
-                continue
-            seen_titles.add(dedup_key)
-            is_synthetic_time = ("07:00:00" in pub_raw) or (
-                dt_trt.hour == 10 and dt_trt.minute == 0 and dt_trt.second == 0
-            )
             rows.append({
                 "scope": scope,
                 "category": category,
                 "published_at_trt": dt_trt.strftime("%Y-%m-%d %H:%M:%S"),
-                "timestamp_precision": "DATE_ONLY_SHIFTED_T+1" if is_synthetic_time else "EXACT_SECOND_VERIFIED",
-                "effective_trade_date": eff_session,
+                "timestamp_precision": PRECISION_DATE_ONLY if is_placeholder_timestamp(dt_trt, pub_raw) else PRECISION_EXACT,
                 "title": title,
                 "link": link,
             })
-
-    df_news = pd.DataFrame(rows)
-    if not df_news.empty:
-        df_news = df_news.sort_values(["effective_trade_date", "published_at_trt"]).reset_index(drop=True)
-    return df_news
+    return pd.DataFrame(rows), failures
 
 
-def extract_3forces_clash_features() -> pd.DataFrame:
+def seed_from_parquet(db: Any) -> int:
+    """One-time import of the pre-database parquet. Every row is BACKFILL: it was retrieved long after publication."""
+    legacy = OUT_DIR / "harvested_bist_news.parquet"
+    if not legacy.exists():
+        print(f"No legacy file at {legacy}")
+        return 0
+    df = pd.read_parquet(legacy)
+    return upsert_headlines(db, df.to_dict("records"), now_trt(), backfill=True)
+
+
+def extract_3forces_clash_features(db: Any) -> pd.DataFrame:
     """Compute strictly point-in-time 3-Forces (`MLB` vs `KAMU` vs `BIG5`) clash & distress features
     across all active BIST 30 stocks (`BIST30_STOCKS`), using cached parquet frames when available and
     querying PostgreSQL `extract_3pillar_time_series` for all other BIST 30 constituents.
     """
-    from mdk_trading_oracle.core.db import PostgresManager
     from mdk_trading_oracle.data.silver.tertip_ml_forecaster import extract_3pillar_time_series
 
-    db = PostgresManager()
+    latest = str(db.query_df("SELECT max(trade_date)::text AS d FROM silver_daily_stock_summary")["d"].iloc[0])
     parts: list[pd.DataFrame] = []
     for sym in BIST30_STOCKS:
         p_path = FRAMES_DIR / f"{sym}.parquet"
-        if p_path.exists():
-            df = pd.read_parquet(p_path).sort_values("trade_date").reset_index(drop=True)
-        else:
+        df = pd.read_parquet(p_path).sort_values("trade_date").reset_index(drop=True) if p_path.exists() else pd.DataFrame()
+        # A cached frame behind the database would freeze the flow features, so it is only used when current.
+        if df.empty or str(df["trade_date"].iloc[-1])[:10] != latest:
             df = extract_3pillar_time_series(db, sym, lookback_days=1250).sort_values("trade_date").reset_index(drop=True)
         if df.empty or len(df) < 60:
             continue
@@ -233,36 +204,31 @@ def extract_3forces_clash_features() -> pd.DataFrame:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--seed-from-parquet", action="store_true", help="Import the legacy parquet as BACKFILL first")
+    ap.add_argument("--skip-clash", action="store_true", help="Only harvest headlines")
+    args = ap.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    df_asels = pd.read_parquet(FRAMES_DIR / "ASELS.parquet").sort_values("trade_date").reset_index(drop=True)
-    trading_dates = [str(d)[:10] for d in df_asels["trade_date"].tolist()]
+    db = PostgresManager()
+    ensure_news_tables(db)
+    if args.seed_from_parquet:
+        print(f"Seeded {seed_from_parquet(db)} legacy headlines as BACKFILL", flush=True)
 
-    print("1. Harvesting point-in-time Google News TR RSS feeds...", flush=True)
-    df_news = harvest_google_news_rss(trading_dates)
-    news_path = OUT_DIR / "harvested_bist_news.parquet"
-    df_news.to_parquet(news_path, index=False)
-    print(f"   Saved {len(df_news)} timestamped news items to {news_path}", flush=True)
-    if not df_news.empty:
-        recent = df_news[df_news["effective_trade_date"] >= "2026-09-01"]
-        print(f"   Items mapped to Sept-Oct 2026 sessions: {len(recent)}")
-        for r in recent.itertuples(index=False):
-            print(f"     [{r.effective_trade_date} <- pub {r.published_at_trt}] ({r.scope}/{r.category}) {r.title}")
+    df_news, failures = harvest_google_news_rss()
+    new_count = upsert_headlines(db, df_news.to_dict("records"), now_trt()) if not df_news.empty else 0
+    total = db.query_df("SELECT count(*) AS n FROM bronze_news_headlines")["n"].iloc[0]
+    print(f"Fetched {len(df_news)} items, {new_count} new, {total} stored, {failures}/{len(NEWS_QUERIES)} queries failed", flush=True)
+    if failures == len(NEWS_QUERIES):
+        print("[ERROR] Every RSS query failed", file=sys.stderr)
+        sys.exit(1)
 
-    print("\n2. Extracting point-in-time 3-Forces Clash Features across focus stocks...", flush=True)
-    df_3f = extract_3forces_clash_features()
-    clash_path = OUT_DIR / "three_forces_daily_clash.parquet"
-    df_3f.to_parquet(clash_path, index=False)
-    print(f"   Saved {len(df_3f)} stock-session rows to {clash_path}", flush=True)
-
-    asels_sep_oct = df_3f[(df_3f["symbol"] == "ASELS") & (df_3f["trade_date"] >= "2026-09-10") & (df_3f["trade_date"] <= "2026-10-16")]
-    print("\n=== ASELS 3-Forces Clash Vector (2026-09-10 to 2026-10-16) ===")
-    print(asels_sep_oct[[
-        "trade_date", "close_price", "mlb_5d_share_pct", "mlb_10d_share_pct",
-        "kamu_5d_share_pct", "big5_5d_share_pct", "mlb_cost_spread_pct",
-        "is_passive_absorption_trap", "three_forces_clash_score"
-    ]].to_string(index=False))
+    if not args.skip_clash:
+        df_3f = extract_3forces_clash_features(db)
+        clash_path = OUT_DIR / "three_forces_daily_clash.parquet"
+        df_3f.to_parquet(clash_path, index=False)
+        print(f"Saved {len(df_3f)} stock-session rows to {clash_path}", flush=True)
 
 
 if __name__ == "__main__":
     main()
-

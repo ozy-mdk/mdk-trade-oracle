@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 
 from mdk_trading_oracle.core.logger import get_logger
+from mdk_trading_oracle.models.three_forces_gate import apply_three_forces_gate
 
 logger = get_logger("mdk_oracle.models.timestral_forecaster")
 
@@ -230,6 +231,7 @@ def blend_policy_c_with_timestral(
     bist30_vs_sma50: np.ndarray | float | None = None,
     bist30_ret_20d: np.ndarray | float | None = None,
     ts_row: dict[str, Any] | None = None,
+    gate_mode: str | None = None,
 ) -> tuple[np.ndarray | float, np.ndarray | float]:
     """Two-Stage Decoupled Direction-First + Full-Amplitude Hybrid Engine.
 
@@ -281,42 +283,7 @@ def blend_policy_c_with_timestral(
         else:  # 15d, 30d
             sig_dir = 0.50 * snr_pol + 0.25 * s_ms3 + 0.25 * m6_ms3
 
-        # Agentic 3-Forces + Point-in-Time News Conjoint Gate (5d, 10d, 15d):
-        # 1. Bearish Override ('Passive Absorption Trap' + Systemic 'Fon Krizi' / BofA Distribution):
-        #    Overrides false mean-reversion bounces when Force 1 (MLB/BofA) is aggressively liquidating
-        #    into passive Force 2 (KAMU) + Force 3 (BIG5) absorption during systemic liquidity stress.
-        # 2. Bullish Override ('3-Forces Concordant Accumulation'):
-        #    Overrides false bearish pullback calls when ALL THREE forces (Force 1 MLB > +1.0%, Force 2 KAMU > +0.5%,
-        #    Force 3 BIG5 > +0.5%) are simultaneously accumulating with no domestic profit-taking overhang
-        #    (`big5_cost_spread_pct < 2.0%`) and zero systemic crisis news (`fon_krizi_ewm5 < 0.08`).
-        if horizon in ("5d", "10d", "15d"):
-            trap = bool(ts_row.get("is_passive_absorption_trap", False))
-            mlb_5d = float(ts_row.get("mlb_5d_share_pct", 0.0))
-            mlb_10d = float(ts_row.get("mlb_10d_share_pct", 0.0))
-            kamu_5d = float(ts_row.get("kamu_5d_share_pct", 0.0))
-            big5_5d = float(ts_row.get("big5_5d_share_pct", 0.0))
-            big5_cost = float(ts_row.get("big5_cost_spread_pct", 0.0))
-            fk_ewm = float(ts_row.get("fon_krizi_ewm5", 0.0))
-            bofa_ewm = float(ts_row.get("bofa_sell_ewm5", 0.0))
-            bull_ewm = float(ts_row.get("bullish_catalyst_ewm5", 0.0))
-            clash = float(ts_row.get("three_forces_clash_score", 0.0))
-            if (
-                trap
-                and (mlb_5d < -3.5)
-                and (mlb_10d < -2.0)
-                and (big5_cost > 5.0)
-                and (fk_ewm >= 0.08 or bofa_ewm >= 0.12 or mlb_5d < -5.0)
-            ):
-                sig_dir = np.minimum(-0.55, 0.30 * sig_dir + 0.70 * clash - 0.50 * fk_ewm)
-            elif (
-                (not trap)
-                and (mlb_5d > 1.0)
-                and (kamu_5d > 0.5)
-                and (big5_5d > 0.5)
-                and (big5_cost < 2.0)
-                and (fk_ewm < 0.08)
-            ):
-                sig_dir = np.maximum(0.55, 0.35 * sig_dir + 0.65 * max(0.55, clash) + 0.35 * bull_ewm)
+        sig_dir = apply_three_forces_gate(sig_dir, ts_row, horizon, gate_mode)
 
         p_blend_raw = sig_dir * (0.45 * iqr_half)
     else:
@@ -693,6 +660,7 @@ def compute_timestral_horizon_table(
             row_out["fon_krizi_ewm5"] = float(reg_r["fon_krizi_ewm5"]) if reg_r is not None else float(reg_mac.get("fon_krizi_ewm5", 0.0))
             row_out["bofa_sell_ewm5"] = float(reg_r["bofa_sell_ewm5"]) if reg_r is not None else float(reg_mac.get("bofa_sell_ewm5", 0.0))
             row_out["bullish_catalyst_ewm5"] = float(reg_r["bullish_catalyst_ewm5"]) if reg_r is not None else float(reg_mac.get("bullish_catalyst_ewm5", 0.0))
+            row_out["news_available"] = reg_r is not None or bool(reg_mac)
 
             rows.append(row_out)
     return pd.DataFrame(rows)

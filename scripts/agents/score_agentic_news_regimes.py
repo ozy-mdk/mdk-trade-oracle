@@ -3,7 +3,7 @@
 
 Part of the MDK Trading Oracle Agentic Intelligence System.
 Enforces strict zero-leakage causality:
-1. Every headline in `harvested_bist_news.parquet` is verified against `published_at_trt <= effective_trade_date 18:10 TRT`.
+1. Every headline in `bronze_news_headlines` is verified against `published_at_trt <= effective_trade_date 18:10 TRT`.
 2. Headlines are scored at their `effective_trade_date` into four `[0.0, 1.0]` intensity dimensions:
    - `fon_krizi_news_intensity`: SPK fund liquidations ('fon krizi', 'tasfiye'), margin calls ('teminat tamamlama'),
      Takasbank defaults ('temerrüt'), manipulation arrests ('gözaltı', 'soruşturma', 'manipülasyon'),
@@ -17,18 +17,29 @@ Enforces strict zero-leakage causality:
 3. Computes strictly causal 5-session (`ewm(halflife=5, adjust=False)`) and 10-session (`ewm(halflife=10, adjust=False)`)
    exponentially decaying news memory per `symbol` and `trade_date`.
 4. Merges the causal news memory with `three_forces_daily_clash.parquet` and persists:
-   - `~/data/mdk_oracle/experiments/timestral/agentic_news_regimes.parquet`
+   - `silver_news_regimes_daily` (served by the API)
+   - `~/data/mdk_oracle/experiments/timestral/agentic_news_regimes.parquet` (read by the forecaster)
    - `~/data/mdk_oracle/experiments/timestral/agentic_news_regimes_summary.json`
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from mdk_trading_oracle.core.db import PostgresManager
+from mdk_trading_oracle.data.bronze.news import (
+    detect_explicit_title_stocks,
+    ensure_news_tables,
+    load_headlines_with_sessions,
+    load_trading_dates,
+    normalize_tr,
+)
 
 OUT_DIR = Path.home() / "data" / "mdk_oracle" / "experiments" / "timestral"
 FOCUS_STOCKS = [
@@ -37,50 +48,6 @@ FOCUS_STOCKS = [
     "PGSUS", "SAHOL", "SASA", "SISE", "TAVHL", "TCELL", "THYAO", "TOASO",
     "TRALT", "TTKOM", "TUPRS", "VAKBN", "YKBNK",
 ]
-
-
-def normalize_tr(text: str) -> str:
-    """Fold Turkish text to lowercase with unified `i` (`İ/I/ı -> i`) and normalized apostrophes."""
-    if not text:
-        return ""
-    s = text.replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
-    s = s.replace("İ".lower(), "i").replace("ı", "i")
-    for ch in ("’", "‘", "´", "`", "''", '"'):
-        s = s.replace(ch, "'")
-    return s
-
-
-STOCK_ALIASES: dict[str, tuple[str, ...]] = {
-    "AEFES": ("aefes", "anadolu efes"),
-    "AKBNK": ("akbnk", "akbank"),
-    "ASELS": ("asels", "aselsan"),
-    "ASTOR": ("astor", "astor enerji"),
-    "BIMAS": ("bimas", "bim birlesik", "bim magaza"),
-    "EKGYO": ("ekgyo", "emlak konut"),
-    "ENKAI": ("enkai", "enka insaat", "enka inşaat"),
-    "EREGL": ("eregl", "erdemir", "eregli demir", "ereğli demir"),
-    "FROTO": ("froto", "ford otosan", "ford otomotiv"),
-    "GARAN": ("garan", "garanti bbva", "garanti bankasi"),
-    "GUBRF": ("gubrf", "gubre fabrikalari", "gübre fabrikalari"),
-    "ISCTR": ("isctr", "is bankasi", "iş bankasi"),
-    "KCHOL": ("kchol", "koc holding", "koç holding"),
-    "KRDMD": ("krdmd", "kardemir"),
-    "MGROS": ("mgros", "migros"),
-    "PETKM": ("petkm", "petkim"),
-    "PGSUS": ("pgsus", "pegasus"),
-    "SAHOL": ("sahol", "sabanci holding", "sabancı holding"),
-    "SASA": ("sasa", "sasa polyester"),
-    "SISE": ("sise", "sisecam", "şişecam"),
-    "TAVHL": ("tavhl", "tav havalimanlari"),
-    "TCELL": ("tcell", "turkcell"),
-    "THYAO": ("thyao", "türk hava yollari", "turk hava yollari"),
-    "TOASO": ("toaso", "tofas", "tofaş"),
-    "TRALT": ("tralt", "altin sertifikasi", "altın sertifikası"),
-    "TTKOM": ("ttkom", "türk telekom", "turk telekom"),
-    "TUPRS": ("tuprs", "tupras", "tüpraş"),
-    "VAKBN": ("vakbn", "vakifbank", "vakıfbank"),
-    "YKBNK": ("ykbnk", "yapi kredi", "yapı kredi"),
-}
 
 
 def _kw_list(*items: str) -> tuple[str, ...]:
@@ -116,17 +83,12 @@ FON_MOD_KW = _kw_list(
     "açığa satış listesi",
     "fon dolandırıcı",
     "likidite kriz",
-    "likitede kriz",
     "operasyon",
 )
 
 BOFA_BUY_OVERRIDE_KW = _kw_list(
     "bofa alıma geçti",
-    "bank of america (bofa) alıma geçti",
     "bofa borsada alıma döndü",
-    "bofa'dan borsa istanbul'da thyao ve isctr'ye yüksek alım",
-    "bofa'nın borsadaki güncel alım yaptığı hisseler",
-    "borsa düşerken bofa alıma geçti",
 )
 
 BOFA_STRONG_KW = _kw_list(
@@ -136,12 +98,7 @@ BOFA_STRONG_KW = _kw_list(
     "bofa'dan borsa istanbul'da büyük satışlar",
     "bofa'dan borsa istanbul'da satışlar",
     "bofa baskısı",
-    "bofa masadan kalkıyor",
     "bofa çıkıştı",
-    "bofa'dan 1,25 milyar",
-    "bank of america'dan borsa istanbul'da 2,82 milyar tl'lik net satış",
-    "bofa'dan yapı kredi bankası ve aselsan'da yüklü satış",
-    "bank of america'nın son üç günde sattığı hisseler",
     "net satış",
     "yabancı çıkışı",
     "sert düşüş",
@@ -156,13 +113,8 @@ BOFA_MOD_KW = _kw_list(
     "neden düştü",
     "değer kaybetti",
     "düşüş yüzde",
-    "6 ayın dibini gördü",
-    "11 bin puanın altında",
-    "piyasa değeri bist100'den çıktı",
-    "satış listesinde hangi hisseler var",
     "aldığı ve sattığı hisseler",
     "alıp sattığı hisseler",
-    "tera yatırım'dan 722 milyon tl'lik satış",
 )
 
 KAMU_STRONG_KW = _kw_list(
@@ -185,7 +137,6 @@ BULL_STRONG_KW = _kw_list(
     "yeni sözleşme",
     "dev anlaşma",
     "savunma ortaklığı",
-    "kap",
     "hedef fiyat",
     "al tavsiyesi",
     "'al' tavsiyesi",
@@ -204,13 +155,8 @@ BULL_MOD_KW = _kw_list(
     "yüksek alım",
     "model portföy",
     "en çok önerilen",
-    "kârını en hızlı büyüten",
-    "karını yüzde",
     "prim potansiyeli",
     "temettü",
-    "bedelsiz sermaye artırımı potansiyeli yükseldi",
-    "17,97 milyar tl'lik alım",
-    "yönünü yukarı çevirdi",
     "güne yükselişle başladı",
     "güçlü kapanış",
 )
@@ -247,6 +193,9 @@ GEO_PEACE_KW = _kw_list(
 GEO_DEFENSE_ENERGY_STOCKS = {"ASELS", "TRALT", "TUPRS"}
 GEO_AVIATION_STOCKS = {"THYAO", "PGSUS", "TAVHL"}
 GEO_BLACKSEA_RECON_STOCKS = {"ENKAI", "SISE", "AEFES"}
+
+
+KAP_WORD = re.compile(r"\bkap\b")
 
 
 def score_single_headline(title: str, category: str) -> dict[str, float]:
@@ -294,7 +243,8 @@ def score_single_headline(title: str, category: str) -> dict[str, float]:
         kamu_score = 0.65
 
     # 4. Bullish Sovereign / KAP / Institutional Accumulation Catalyst
-    bu_strong = sum(1 for k in BULL_STRONG_KW if k in t)
+    # KAP needs a whole-word match: as a substring it fires on "kapsam", "kapanış" and "kapandı".
+    bu_strong = sum(1 for k in BULL_STRONG_KW if k in t) + int(bool(KAP_WORD.search(t)))
     bu_mod = sum(1 for k in BULL_MOD_KW if k in t)
     bull_score = 0.0
     if bu_strong >= 2:
@@ -307,7 +257,7 @@ def score_single_headline(title: str, category: str) -> dict[str, float]:
     # 5. Regional / Geopolitical Crisis (Hormuz Strait, Iran-Israel, Russia-Ukraine War / Peace)
     geo_esc = sum(1 for k in GEO_ESCALATION_KW if k in t)
     geo_peace = sum(1 for k in GEO_PEACE_KW if k in t)
-    geo_esc_score = 0.85 if (geo_esc >= 1 or cat in ("GEO_HORMUZ_ENERGY", "GEO_UKRAINE_BLACKSEA")) and geo_peace == 0 else 0.0
+    geo_esc_score = 0.85 if geo_esc >= 1 and geo_peace == 0 else 0.0
     geo_peace_score = 0.85 if geo_peace >= 1 else 0.0
 
     # Suppress false bullish triggers on severe crash/default/arrest headlines unless explicit contract/target
@@ -323,16 +273,6 @@ def score_single_headline(title: str, category: str) -> dict[str, float]:
         "geo_escalation_intensity": round(float(np.clip(geo_esc_score, 0.0, 1.0)), 4),
         "geo_peace_intensity": round(float(np.clip(geo_peace_score, 0.0, 1.0)), 4),
     }
-
-
-def detect_explicit_title_stocks(title: str) -> set[str]:
-    """Identify which of the 6 focus stocks are explicitly named in `title`."""
-    t = normalize_tr(title)
-    matched: set[str] = set()
-    for sym, aliases in STOCK_ALIASES.items():
-        if any(alias in t for alias in aliases):
-            matched.add(sym)
-    return matched
 
 
 def verify_zero_leakage(df_news: pd.DataFrame) -> None:
@@ -382,18 +322,17 @@ def classify_daily_regime(row: pd.Series) -> str:
     return "NEUTRAL_FLOW"
 
 
-def build_agentic_news_regimes() -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_agentic_news_regimes(db: Any) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Score headlines, compute strictly causal EWM(5) and EWM(10) news memory, and merge with 3-Forces clash."""
-    news_path = OUT_DIR / "harvested_bist_news.parquet"
     clash_path = OUT_DIR / "three_forces_daily_clash.parquet"
 
-    df_news = pd.read_parquet(news_path)
+    df_news = load_headlines_with_sessions(db, load_trading_dates(db))
     df_clash = pd.read_parquet(clash_path)
 
     # 1. Verify 100% Point-in-Time Zero-Leakage rule
     verify_zero_leakage(df_news)
 
-    # 2. Score each of the 347 headlines at its effective_trade_date
+    # 2. Score each headline at its effective_trade_date
     scored_rows: list[dict[str, Any]] = []
     for row in df_news.itertuples(index=False):
         scores = score_single_headline(str(row.title), str(row.category))
@@ -412,7 +351,7 @@ def build_agentic_news_regimes() -> tuple[pd.DataFrame, pd.DataFrame]:
     # 3. Map each headline strictly at `effective_trade_date` to `(symbol, trade_date)`
     #    - Direct stock mention in title gets full weight (1.0).
     #    - If no stock is explicitly named in the title (e.g., Borsa Istanbul market-wide news harvested under
-    #      MACRO or general BIST RSS query), treat as systemic market-wide news across all 6 focus stocks.
+    #      MACRO or general BIST RSS query), treat as systemic market-wide news across all stocks.
     daily_records: list[dict[str, Any]] = []
     for r in df_scored_news.itertuples(index=False):
         eff_date = r.effective_trade_date
@@ -664,31 +603,37 @@ def build_summary_payload(df_regimes: pd.DataFrame, df_scored_news: pd.DataFrame
             "peak_bofa_sell_ewm5": float(asels_window["bofa_sell_ewm5"].max()),
             "peak_kamu_floor_ewm5": float(asels_window["kamu_floor_ewm5"].max()),
             "regime_breakdown": asels_regime_counts,
-            "microstructure_narrative": (
-                "Between 2026-09-14 and 2026-10-23 (26 trading sessions), ASELS experienced a textbook "
-                "3-Forces Institutional Clash amplified by the systemic BIST 'Fon Krizi' (131 funds placed into "
-                "liquidation, ViOP 1.76B TL margin calls on Sep 17, 3.2B TL brokerage bond redemption pressure on "
-                "Sep 28, Takasbank defaults, and manipulation arrests at Tera/Atlas Portfoy). "
-                "Force 1 (MLB/BofA) executed relentless institutional distribution, with 5D net flow share reaching "
-                "-9.65% of turnover on Oct 13 and FIFO inventory underwater up to -16.94% on Oct 19. "
-                "Force 2 (KAMU/Ziraat/Varlik Fonu) absorbed the initial wave on Sep 21-28 (+5.50% to +6.08% 5D share, "
-                "coinciding with Ziraat Yatirim's 22.2B TL support headline on Sep 21), "
-                "while Force 3 (BIG5 domestic funds, sitting on +7% to +17% FIFO carry gains) absorbed up to +6.68% "
-                "in early October. Because MLB distribution and Fon Krizi liquidation news persisted simultaneously, "
-                "21 of 26 sessions triggered `is_passive_absorption_trap = True`. Even major sovereign KAP export "
-                "contract headlines (Oct 6 $157.9M and Oct 23 $442.5M) were used by MLB/distressed funds as liquidity "
-                "events to sell into strength, driving ASELS down from 393.75 TL (Sep 11) / 372.50 TL (Sep 14) to "
-                "a low of 322.25 TL (Oct 19, -18.2% from Sep 11) before closing at 338.00 TL (Oct 23)."
-            ),
         },
         "top_sept_oct_2026_crisis_headlines": top_crisis_headlines,
         "asels_daily_ledger_2026_09_14_to_2026_10_23": asels_timeline,
     }
 
 
+REGIME_TABLE_COLS = [
+    "symbol", "trade_date", "agentic_news_regime", "is_passive_absorption_trap", "three_forces_clash_score",
+    "mlb_5d_share_pct", "mlb_10d_share_pct", "kamu_5d_share_pct", "big5_5d_share_pct", "mlb_cost_spread_pct",
+    "big5_cost_spread_pct", "fon_krizi_ewm5", "bofa_sell_ewm5", "kamu_floor_ewm5", "bullish_catalyst_ewm5",
+    "news_article_count",
+]
+
+
+def write_regime_table(db: Any, df_regimes: pd.DataFrame) -> None:
+    conn = db.get_connection()
+    rows = df_regimes[REGIME_TABLE_COLS].astype(object).values.tolist()
+    with conn.cursor() as cur:
+        cur.execute("TRUNCATE silver_news_regimes_daily")
+        placeholders = ", ".join(["%s"] * len(REGIME_TABLE_COLS))
+        cur.executemany(
+            f"INSERT INTO silver_news_regimes_daily ({', '.join(REGIME_TABLE_COLS)}) VALUES ({placeholders})", rows
+        )
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    df_regimes, df_scored_news = build_agentic_news_regimes()
+    db = PostgresManager()
+    ensure_news_tables(db)
+    df_regimes, df_scored_news = build_agentic_news_regimes(db)
+    write_regime_table(db, df_regimes)
 
     out_parquet = OUT_DIR / "agentic_news_regimes.parquet"
     out_json = OUT_DIR / "agentic_news_regimes_summary.json"
@@ -699,32 +644,6 @@ def main() -> None:
 
     print(f"Saved {len(df_regimes)} rows ({len(df_regimes.columns)} cols) -> {out_parquet}")
     print(f"Saved summary JSON -> {out_json}")
-
-    asels_sub = df_regimes[
-        (df_regimes["symbol"] == "ASELS")
-        & (df_regimes["trade_date"] >= "2026-09-14")
-        & (df_regimes["trade_date"] <= "2026-10-23")
-    ]
-    cols_show = [
-        "trade_date",
-        "close_price",
-        "mlb_5d_share_pct",
-        "kamu_5d_share_pct",
-        "big5_5d_share_pct",
-        "is_passive_absorption_trap",
-        "three_forces_clash_score",
-        "fon_krizi_news_intensity",
-        "bofa_sell_news_intensity",
-        "kamu_floor_news_intensity",
-        "bullish_catalyst_intensity",
-        "fon_krizi_ewm5",
-        "bofa_sell_ewm5",
-        "kamu_floor_ewm5",
-        "bullish_catalyst_ewm5",
-        "agentic_news_regime",
-    ]
-    print("\n=== ASELS Point-in-Time News Regimes & 3-Forces Clash (2026-09-14 to 2026-10-23) ===")
-    print(asels_sub[cols_show].to_string(index=False))
 
 
 if __name__ == "__main__":

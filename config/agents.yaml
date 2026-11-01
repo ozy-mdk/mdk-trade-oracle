@@ -1,0 +1,90 @@
+# Agentic layer configuration. Decisions and rationale: docs/AGENTIC_DECISIONS.md
+#
+# To switch LLM provider, change `active_provider` and re-run scripts/agents/label_news_shadow.py --limit 5.
+# Prompts live in config/agents/prompts/ and are provider-neutral.
+
+# Three-Forces gate inside blend_policy_c_with_timestral (5d, 10d, 15d):
+#   off        - gate never fires
+#   flow_only  - order-flow rules only; news inputs are ignored
+#   flow_news  - flow rules plus keyword news intensities; bullish branch stays closed when news is unavailable
+gate:
+  mode: flow_only
+
+news:
+  stale_after_sessions: 2       # API flags news as stale beyond this many sessions behind the latest market session
+  min_live_sessions_for_review: 60  # live-collected sessions required before LLM labels may be evaluated for forecasts
+
+active_provider: claude_cli
+
+providers:
+  # Runs the official Claude Code CLI under the user's own subscription login. Tested on 2.1.314.
+  claude_cli:
+    status: tested
+    binary: claude
+    binary_fallback_globs:
+      - "~/.local/bin/claude"
+      - "~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude"
+    # Any of these being set would silently bill an API account instead of the subscription.
+    forbid_env: [ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN]
+    drop_env: [CLAUDECODE, CLAUDE_CODE_ENTRYPOINT]
+    args:
+      - "-p"
+      - "--model"
+      - "{model}"
+      - "--output-format"
+      - "json"
+      - "--json-schema"
+      - "{schema_json}"
+      - "--system-prompt"
+      - "{system_prompt}"
+      - "--tools"
+      - ""
+      - "--strict-mcp-config"
+      - "--setting-sources"
+      - ""
+      - "--disable-slash-commands"
+      - "--no-session-persistence"
+    structured_output_path: structured_output
+    text_output_path: result
+    error_flag_path: is_error
+    usage_paths:
+      input_tokens: usage.input_tokens
+      output_tokens: usage.output_tokens
+      cache_read_tokens: usage.cache_read_input_tokens
+      cache_write_tokens: usage.cache_creation_input_tokens
+      notional_cost_usd: total_cost_usd
+    models:
+      fast: haiku
+      balanced: sonnet
+
+  # Template for a future switch. NOT tested: no Gemini CLI is installed on this machine.
+  # Verify the flags and output paths against the installed CLI, then set status to tested.
+  gemini_cli:
+    status: untested
+    binary: gemini
+    binary_fallback_globs: []
+    forbid_env: []
+    drop_env: []
+    args:
+      - "--model"
+      - "{model}"
+      - "--output-format"
+      - "json"
+      - "--prompt"
+      - "{system_prompt}"
+    structured_output_path: null
+    text_output_path: response
+    error_flag_path: null
+    usage_paths: {}
+    models:
+      fast: gemini-flash-latest
+      balanced: gemini-pro-latest
+
+tasks:
+  news_classifier:
+    prompt_file: config/agents/prompts/news_classifier_v1.md
+    prompt_version: news_classifier_v1
+    model_tier: fast
+    batch_size: 40
+    max_headlines_per_run: 300
+    timeout_seconds: 240

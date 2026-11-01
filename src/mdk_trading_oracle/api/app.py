@@ -2157,6 +2157,225 @@ def get_multi_horizon_forecast_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class NewsHeadlineItem(BaseModel):
+    title: str
+    link: Optional[str] = None
+    scope: str
+    published_at_trt: str
+    effective_trade_date: str
+    timestamp_precision: str
+    collection_mode: str
+
+
+class NewsRegimeState(BaseModel):
+    trade_date: str
+    regime: str
+    is_passive_absorption_trap: bool
+    three_forces_clash_score: float
+    mlb_5d_share_pct: float
+    mlb_10d_share_pct: float
+    kamu_5d_share_pct: float
+    big5_5d_share_pct: float
+    mlb_cost_spread_pct: float
+    big5_cost_spread_pct: float
+    fon_krizi_ewm5: float
+    bofa_sell_ewm5: float
+    kamu_floor_ewm5: float
+    bullish_catalyst_ewm5: float
+
+
+class GateHorizonAudit(BaseModel):
+    horizon: str
+    sessions: int
+    hit_off_pct: float
+    hit_flow_pct: float
+    hit_news_pct: float
+    always_up_pct: float
+    always_down_pct: float
+    flow_beats_both: bool
+    news_beats_both: bool
+
+
+class GateChangeItem(BaseModel):
+    trade_date: str
+    horizon: str
+    actual_return_pct: float
+    pred_off_pct: float
+    pred_flow_pct: float
+    pred_news_pct: float
+    hit_off: bool
+    hit_flow: bool
+    hit_news: bool
+
+
+class NewsRegimeResponse(BaseModel):
+    symbol: str
+    market_latest_session: Optional[str] = None
+    regime_latest_session: Optional[str] = None
+    sessions_behind: Optional[int] = None
+    is_stale: bool
+    live_headline_count: int
+    backfill_headline_count: int
+    pending_headline_count: int
+    regime: Optional[NewsRegimeState] = None
+    headlines: List[NewsHeadlineItem]
+    gate_mode: str
+    gate_horizons: List[GateHorizonAudit]
+    gate_changes: List[GateChangeItem]
+    llm_labels: int
+    llm_model: Optional[str] = None
+
+
+@app.get("/api/v1/tertip/news-regime", response_model=NewsRegimeResponse)
+def get_news_regime_endpoint(
+    symbol: str = Query("ASELS", description="Stock symbol"),
+    limit: int = Query(12, ge=1, le=50, description="Number of headlines"),
+) -> NewsRegimeResponse:
+    """Three-Forces state, point-in-time headlines, and the gate audit graded next to always-UP and always-DOWN."""
+    sym = symbol.strip().upper()
+    try:
+        from mdk_trading_oracle.agents.providers import load_agents_config
+        from mdk_trading_oracle.data.bronze.news import (
+            detect_explicit_title_stocks,
+            ensure_news_tables,
+            load_headlines_with_sessions,
+            load_trading_dates,
+        )
+        from mdk_trading_oracle.data.gold.tertip_multi_horizon_crowning import constant_call_hit_rates
+        from mdk_trading_oracle.models.three_forces_gate import get_gate_mode
+        from mdk_trading_oracle.models.timestral_forecaster import HORIZON_DAYS
+
+        ensure_news_tables(db)
+        cfg = load_agents_config()
+        trading_dates = load_trading_dates(db)
+        market_latest = trading_dates[-1] if trading_dates else None
+
+        reg = db.query_df(
+            "SELECT * FROM silver_news_regimes_daily WHERE symbol = %s ORDER BY trade_date DESC LIMIT 1", [sym]
+        )
+        regime = None
+        regime_latest = None
+        if not reg.empty:
+            r = reg.iloc[0]
+            regime_latest = str(r["trade_date"])[:10]
+            regime = NewsRegimeState(
+                trade_date=regime_latest,
+                regime=str(r["agentic_news_regime"]),
+                is_passive_absorption_trap=bool(r["is_passive_absorption_trap"]),
+                three_forces_clash_score=float(r["three_forces_clash_score"]),
+                mlb_5d_share_pct=float(r["mlb_5d_share_pct"]),
+                mlb_10d_share_pct=float(r["mlb_10d_share_pct"]),
+                kamu_5d_share_pct=float(r["kamu_5d_share_pct"]),
+                big5_5d_share_pct=float(r["big5_5d_share_pct"]),
+                mlb_cost_spread_pct=float(r["mlb_cost_spread_pct"]),
+                big5_cost_spread_pct=float(r["big5_cost_spread_pct"]),
+                fon_krizi_ewm5=float(r["fon_krizi_ewm5"]),
+                bofa_sell_ewm5=float(r["bofa_sell_ewm5"]),
+                kamu_floor_ewm5=float(r["kamu_floor_ewm5"]),
+                bullish_catalyst_ewm5=float(r["bullish_catalyst_ewm5"]),
+            )
+        sessions_behind = (
+            sum(1 for d in trading_dates if d > regime_latest) if regime_latest is not None else None
+        )
+        stale_after = int(cfg["news"]["stale_after_sessions"])
+        is_stale = sessions_behind is None or sessions_behind > stale_after
+
+        counts = db.query_df("SELECT collection_mode, count(*) AS n FROM bronze_news_headlines GROUP BY 1")
+        count_by_mode = dict(zip(counts["collection_mode"], counts["n"]))
+        mapped = load_headlines_with_sessions(db, trading_dates)
+        total_stored = int(sum(count_by_mode.values()))
+        relevant = [
+            row
+            for row in mapped.to_dict("records")
+            if row["scope"] == "MACRO" or row["scope"] == sym or sym in detect_explicit_title_stocks(str(row["title"]))
+        ]
+        relevant.sort(key=lambda x: x["published_at_trt"], reverse=True)
+        headlines = [
+            NewsHeadlineItem(
+                title=str(row["title"]),
+                link=str(row["link"]) if str(row.get("link") or "").startswith("https://") else None,
+                scope=str(row["scope"]),
+                published_at_trt=str(row["published_at_trt"]),
+                effective_trade_date=str(row["effective_trade_date"]),
+                timestamp_precision=str(row["timestamp_precision"]),
+                collection_mode=str(row["collection_mode"]),
+            )
+            for row in relevant[:limit]
+        ]
+
+        audit = db.query_df(
+            "SELECT * FROM gold_agentic_gate_audit WHERE symbol = %s ORDER BY trade_date", [sym]
+        )
+        gate_horizons: List[GateHorizonAudit] = []
+        gate_changes: List[GateChangeItem] = []
+        if not audit.empty:
+            for h in ("5d", "10d", "15d"):
+                g = audit[audit["horizon"] == h]
+                if g.empty:
+                    continue
+                up, down = constant_call_hit_rates(g["actual_return_pct"].to_numpy(), HORIZON_DAYS[h])
+                hit_flow = float(g["hit_flow"].mean()) * 100.0
+                hit_news = float(g["hit_news"].mean()) * 100.0
+                bar = max(float(up), float(down))
+                gate_horizons.append(
+                    GateHorizonAudit(
+                        horizon=h,
+                        sessions=int(len(g)),
+                        hit_off_pct=round(float(g["hit_off"].mean()) * 100.0, 1),
+                        hit_flow_pct=round(hit_flow, 1),
+                        hit_news_pct=round(hit_news, 1),
+                        always_up_pct=round(float(up), 1),
+                        always_down_pct=round(float(down), 1),
+                        flow_beats_both=hit_flow > bar,
+                        news_beats_both=hit_news > bar,
+                    )
+                )
+            changed = audit[
+                (audit["pred_off_pct"].round(4) != audit["pred_flow_pct"].round(4))
+                | (audit["pred_off_pct"].round(4) != audit["pred_news_pct"].round(4))
+            ].sort_values("trade_date", ascending=False)
+            for row in changed.head(12).to_dict("records"):
+                gate_changes.append(
+                    GateChangeItem(
+                        trade_date=str(row["trade_date"])[:10],
+                        horizon=str(row["horizon"]),
+                        actual_return_pct=round(float(row["actual_return_pct"]), 2),
+                        pred_off_pct=round(float(row["pred_off_pct"]), 2),
+                        pred_flow_pct=round(float(row["pred_flow_pct"]), 2),
+                        pred_news_pct=round(float(row["pred_news_pct"]), 2),
+                        hit_off=bool(row["hit_off"]),
+                        hit_flow=bool(row["hit_flow"]),
+                        hit_news=bool(row["hit_news"]),
+                    )
+                )
+
+        labels = db.query_df(
+            "SELECT model, count(*) AS n FROM silver_news_llm_labels GROUP BY 1 ORDER BY 2 DESC"
+        )
+        return NewsRegimeResponse(
+            symbol=sym,
+            market_latest_session=market_latest,
+            regime_latest_session=regime_latest,
+            sessions_behind=sessions_behind,
+            is_stale=is_stale,
+            live_headline_count=int(count_by_mode.get("LIVE", 0)),
+            backfill_headline_count=int(count_by_mode.get("BACKFILL", 0)),
+            pending_headline_count=max(0, total_stored - len(mapped)),
+            regime=regime,
+            headlines=headlines,
+            gate_mode=get_gate_mode(),
+            gate_horizons=gate_horizons,
+            gate_changes=gate_changes,
+            llm_labels=int(labels["n"].sum()) if not labels.empty else 0,
+            llm_model=str(labels["model"].iloc[0]) if not labels.empty else None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading news regime for {sym}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/tertip/multi-horizon/backtest", response_model=List[MultiHorizonBacktestItem])
 def get_multi_horizon_backtest_endpoint(
     symbol: str = Query("THYAO", description="Stock symbol"),
