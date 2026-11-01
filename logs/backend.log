@@ -2043,3 +2043,55 @@ INFO:     127.0.0.1:50672 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.
 INFO:     127.0.0.1:50674 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50677 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50679 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39298]
+INFO:     Started server process [39705]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39705]
+INFO:     Started server process [39735]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'tests/test_multi_horizon_leakage.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39735]
+INFO:     Started server process [39762]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[11/01/26 19:34:40] INFO     Synced precomputed Timestral-209M + Policy C Gold  
+                             bundle (6 symbols) to PostgreSQL.                  
+INFO:     127.0.0.1:50751 - "GET /api/v1/tertip/ml-forecast?symbol=ASELS&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50754 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50756 - "GET /api/v1/tertip/ml-forecast?symbol=AKBNK&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50758 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50760 - "GET /api/v1/tertip/ml-forecast?symbol=ISCTR&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50763 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ISCTR&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50765 - "GET /api/v1/tertip/ml-forecast?symbol=GARAN&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50767 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50769 - "GET /api/v1/tertip/ml-forecast?symbol=YKBNK&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50771 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50773 - "GET /api/v1/tertip/ml-forecast?symbol=THYAO&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50775 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO&refresh=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50781 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ASELS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50783 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=AKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50785 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=ISCTR HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50787 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=GARAN HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50789 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=YKBNK HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50791 - "GET /api/v1/tertip/multi-horizon/forecast?symbol=THYAO HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/mdk_trading_oracle/models/timestral_forecaster.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39762]
+INFO:     Started server process [39985]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

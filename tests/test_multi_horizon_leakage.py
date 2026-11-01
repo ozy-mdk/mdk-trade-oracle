@@ -255,3 +255,47 @@ def test_constant_call_baselines_follow_hub_rule() -> None:
     # as a hit for the call with the same sign (DOWN)
     up, down = constant_call_hit_rates(np.array([3.0, -3.0, 2.0, -0.5]), 10)
     assert up == pytest.approx(50.0) and down == pytest.approx(50.0)
+
+
+def test_timestral_hybrid_invariant_to_future_data() -> None:
+    """Verify `sanitize_bist_log_prices`, `compute_timestral_horizon_table`, and `blend_policy_c_with_timestral`
+    are strictly invariant to scrambling all data after `origin_idx` (`index > origin_idx`).
+    """
+    from mdk_trading_oracle.models.timestral_forecaster import (
+        HORIZONS_ALL,
+        blend_policy_c_with_timestral,
+        compute_timestral_horizon_table,
+        sanitize_bist_log_prices,
+    )
+
+    df = synthetic_frame(n=280, seed=42)
+    origin_idx = 260
+    target_date = str(df["trade_date"].iloc[origin_idx])[:10]
+    df_scr = scramble_after(df, origin_idx, seed=123)
+
+    # 1. Log-price sanitizer up to origin_idx must be identical
+    lp_base = sanitize_bist_log_prices(df["adj_close_price"].to_numpy())
+    lp_scr = sanitize_bist_log_prices(df_scr["adj_close_price"].to_numpy())
+    assert np.allclose(lp_base[: origin_idx + 1], lp_scr[: origin_idx + 1], atol=1e-12)
+
+    # 2. Full horizon table & Two-Stage hybrid forecast at origin_idx must be identical when future is scrambled
+    t_base = compute_timestral_horizon_table("SYNTH", df, min_origin_idx=origin_idx, use_disk_cache=False)
+    t_scr = compute_timestral_horizon_table("SYNTH", df_scr, min_origin_idx=origin_idx, use_disk_cache=False)
+    for h in HORIZONS_ALL:
+        r_b = t_base[(t_base["trade_date"] == target_date) & (t_base["horizon"] == h)].iloc[0].to_dict()
+        r_s = t_scr[(t_scr["trade_date"] == target_date) & (t_scr["horizon"] == h)].iloc[0].to_dict()
+        p_b, _ = blend_policy_c_with_timestral(
+            1.25, r_b["pred_med"], r_b["q25"], r_b["q75"], h,
+            bist30_med=r_b["bist30_med"], bist30_ret_1d=r_b["bist30_ret_1d"],
+            days_since_neg_shock=r_b["days_since_neg_shock"], days_since_pos_shock=r_b["days_since_pos_shock"],
+            bist30_vs_sma50=r_b["bist30_vs_sma50"], bist30_ret_20d=r_b["bist30_ret_20d"],
+            ts_row=r_b,
+        )
+        p_s, _ = blend_policy_c_with_timestral(
+            1.25, r_s["pred_med"], r_s["q25"], r_s["q75"], h,
+            bist30_med=r_s["bist30_med"], bist30_ret_1d=r_s["bist30_ret_1d"],
+            days_since_neg_shock=r_s["days_since_neg_shock"], days_since_pos_shock=r_s["days_since_pos_shock"],
+            bist30_vs_sma50=r_s["bist30_vs_sma50"], bist30_ret_20d=r_s["bist30_ret_20d"],
+            ts_row=r_s,
+        )
+        assert p_b == pytest.approx(p_s, abs=1e-9)

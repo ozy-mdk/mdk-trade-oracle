@@ -27,19 +27,19 @@ default_policy:
   30d: {feature_set: production}
 
 # Validated Two-Stage Decoupled Timestral-209M + Policy C Hybrid (`models/timestral_forecaster.py`):
-# Stage 1 (Direction Specialist): combines Cross-Asset `Market-6` & `Peer-Group` Timestral consensus,
-# Intra-Patch `10D` wave coherence, single-stock multi-scale Timestral (`L in [32, 64, 128, 256]`),
-# and BIST 30 (`XU030`) shock/regime-gated Policy C institutional Tertip FIFO flow alpha.
-# Stage 2 (Full-Amplitude Swing Sizing): sizes every call to `0.5 * |q75 - q25|` modulated by conviction
-# and blended (65%/35%) with Policy C flow amplitude, enforcing BIST +-10% daily circuit breakers.
+# Selected strictly on PRE-90 (`target_date_end < start_of_eval90`, 6,792 sessions, zero peeking at EVAL-90):
+# - Stage 1 (Direction Specialist): combines Cross-Asset `Market-6` Timestral consensus (`L=128` / `MS3`),
+#   single-stock multi-scale Timestral (`MS-Short`, `L=64`, `MS3`), and BIST 30 shock-gated Policy C flow alpha.
+# - Stage 2 (Full-Amplitude Swing Sizing): sizes every call to `0.5 * |q75 - q25|` modulated by conviction
+#   and blended (65%/35%) with Policy C flow amplitude, enforcing BIST +-10% daily circuit breakers.
 timestral_hybrid:
   enabled: true
-  architecture: two_stage_decoupled_direction_first_full_amplitude
+  architecture: two_stage_decoupled_pre90_selected_zero_leakage
   bist_daily_limit_pct: 9.95
   horizons:
-    1d: {stage1: cross_asset_m6_p10_wave_and_bist30_gated_policy_c, contexts: [32, 64, 128]}
-    3d: {stage1: stock_short_peer_m6_consensus_and_policy_c, contexts: [32, 64, 128]}
-    5d: {stage1: peer_stock_m6_consensus_and_regime_gated_policy_c, contexts: [64, 128, 256]}
-    10d: {stage1: multi_scale_stock_and_policy_c_snr_fusion, contexts: [64, 128, 256]}
-    15d: {stage1: multi_scale_stock_and_policy_c_snr_fusion, contexts: [64, 128, 256]}
-    30d: {stage1: two_patch_64_and_policy_c_snr_fusion, contexts: [64]}
+    1d: {stage1: pol35_m6_128_45_short20_bist30_shock_gated, contexts: [32, 64, 128]}
+    3d: {stage1: mkt6_l128_consensus, contexts: [128]}
+    5d: {stage1: mkt6_l128_consensus, contexts: [128]}
+    10d: {stage1: pol40_ts64_40_m6_128_20, contexts: [64, 128]}
+    15d: {stage1: pol50_tsms3_25_m6ms3_25, contexts: [64, 128, 256]}
+    30d: {stage1: pol50_tsms3_25_m6ms3_25, contexts: [64, 128, 256]}
